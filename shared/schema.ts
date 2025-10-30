@@ -69,6 +69,8 @@ export const insertKundliSchema = createInsertSchema(kundlis).omit({
   createdAt: true,
 }).extend({
   dateOfBirth: z.union([z.date(), z.string().transform((str) => new Date(str))]),
+  latitude: z.union([z.string(), z.number().transform((num) => num.toString())]).optional(),
+  longitude: z.union([z.string(), z.number().transform((num) => num.toString())]).optional(),
 });
 
 export type InsertKundli = z.infer<typeof insertKundliSchema>;
