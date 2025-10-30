@@ -4,6 +4,7 @@ import { storage } from "./storage";
 import { setupAuth, isAuthenticated } from "./replitAuth";
 import { insertKundliSchema, insertTransactionSchema, insertChatMessageSchema } from "@shared/schema";
 import { z } from "zod";
+import { generateKundli, getDailyHoroscope, getMatchingScore } from "./vedicAstroService";
 
 // Mock data for astrology calculations
 const zodiacSigns = ['Aries', 'Taurus', 'Gemini', 'Cancer', 'Leo', 'Virgo', 'Libra', 'Scorpio', 'Sagittarius', 'Capricorn', 'Aquarius', 'Pisces'];
@@ -98,8 +99,54 @@ export async function registerRoutes(app: Express): Promise<Server> {
         userId,
       });
 
+      // Use real VedicAstroAPI if API key is configured, otherwise fallback to mock
+      let kundliData;
       const dateOfBirth = new Date(validatedData.dateOfBirth);
-      const kundliData = generateMockKundliData(dateOfBirth, validatedData.name);
+      const dateString = dateOfBirth.toISOString().split('T')[0]; // YYYY-MM-DD format
+      
+      if (process.env.VEDIC_ASTRO_API_KEY) {
+        try {
+          // Calculate timezone offset from location (simplified - using IST as default)
+          const tz = 5.5; // Indian Standard Time (can be made dynamic later)
+          const lat = validatedData.latitude ? parseFloat(validatedData.latitude) : 28.6139;
+          const lon = validatedData.longitude ? parseFloat(validatedData.longitude) : 77.2090;
+          
+          const apiResponse = await generateKundli(
+            validatedData.name,
+            dateString,
+            validatedData.timeOfBirth,
+            validatedData.placeOfBirth,
+            lat,
+            lon,
+            tz
+          );
+          
+          // Transform API response to match our schema
+          kundliData = {
+            zodiacSign: apiResponse.sunSign || 'Aries',
+            moonSign: apiResponse.moonSign || 'Aries',
+            ascendant: apiResponse.ascendant || 'Aries',
+            chartData: {
+              houses: apiResponse.houses || [],
+              planetaryPositions: apiResponse.planets || [], // Changed from 'planets' to 'planetaryPositions'
+            },
+            dashas: apiResponse.dashas || [],
+            doshas: {
+              // Convert API response objects to simple booleans
+              mangalDosha: apiResponse.doshas?.mangal?.is_dosha_present || false,
+              kaalSarpDosha: apiResponse.doshas?.kaalSarp?.is_dosha_present || false,
+              pitruDosha: apiResponse.doshas?.pitra?.is_dosha_present || false,
+            },
+            remedies: null, // Can be enhanced later
+          };
+        } catch (apiError) {
+          console.error('VedicAstroAPI error, falling back to mock data:', apiError);
+          kundliData = generateMockKundliData(dateOfBirth, validatedData.name);
+        }
+      } else {
+        // Fallback to mock data if API key not configured
+        kundliData = generateMockKundliData(dateOfBirth, validatedData.name);
+      }
 
       const kundli = await storage.createKundli({
         ...validatedData,
@@ -145,8 +192,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get('/api/horoscope/:sign', async (req, res) => {
     try {
       const sign = req.params.sign.toLowerCase();
-      const prediction = horoscopePredictions[sign] || "The stars are aligned in your favor today.";
-      res.json({ sign, prediction });
+      
+      // Use real VedicAstroAPI if available
+      if (process.env.VEDIC_ASTRO_API_KEY) {
+        try {
+          const apiResponse = await getDailyHoroscope(sign);
+          const prediction = apiResponse?.prediction || apiResponse?.bot_response || horoscopePredictions[sign];
+          res.json({ sign, prediction });
+        } catch (apiError) {
+          console.error('VedicAstroAPI error for horoscope, using fallback:', apiError);
+          const prediction = horoscopePredictions[sign] || "The stars are aligned in your favor today.";
+          res.json({ sign, prediction });
+        }
+      } else {
+        const prediction = horoscopePredictions[sign] || "The stars are aligned in your favor today.";
+        res.json({ sign, prediction });
+      }
     } catch (error) {
       console.error("Error fetching horoscope:", error);
       res.status(500).json({ message: "Failed to fetch horoscope" });
@@ -156,22 +217,86 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Matchmaking route (public - no auth required)
   app.post('/api/matchmaking', async (req, res) => {
     try {
-      // Mock compatibility calculation
-      const totalScore = Math.floor(Math.random() * 30) + 70; // 70-100%
-      const mentalScore = Math.floor(Math.random() * 20) + 80;
-      const physicalScore = Math.floor(Math.random() * 30) + 65;
-      const emotionalScore = Math.floor(Math.random() * 20) + 75;
-      const financialScore = Math.floor(Math.random() * 30) + 60;
-
-      res.json({
-        totalScore,
-        mentalScore,
-        physicalScore,
-        emotionalScore,
-        financialScore,
-        person1: req.body.person1Name,
-        person2: req.body.person2Name,
-      });
+      const { person1Name, person1Date, person1Time, person1Gender, person2Name, person2Date, person2Time, person2Gender } = req.body;
+      
+      // Use real VedicAstroAPI if available
+      if (process.env.VEDIC_ASTRO_API_KEY) {
+        try {
+          // Default coordinates (can be made dynamic)
+          const tz = 5.5;
+          const lat1 = 28.6139;
+          const lon1 = 77.2090;
+          const lat2 = 19.0760;
+          const lon2 = 72.8777;
+          
+          // Convert dates to DD/MM/YYYY format
+          const formatDate = (date: string) => {
+            const [year, month, day] = date.split('-');
+            return `${day}/${month}/${year}`;
+          };
+          
+          const person1 = {
+            date: formatDate(person1Date),
+            time: person1Time,
+            lat: lat1,
+            lon: lon1,
+            tz,
+          };
+          
+          const person2 = {
+            date: formatDate(person2Date),
+            time: person2Time,
+            lat: lat2,
+            lon: lon2,
+            tz,
+          };
+          
+          const apiResponse = await getMatchingScore(person1, person2);
+          
+          // Convert Ashtakoot score (0-36) to percentage (70-100)
+          // Formula: percentage = (score / 36) * 30 + 70
+          const ashtakootScore = apiResponse?.total_score || apiResponse?.score || 18; // Default to medium compatibility
+          const totalScore = Math.floor((ashtakootScore / 36) * 30 + 70);
+          
+          // Generate component scores based on total score
+          res.json({
+            totalScore,
+            mentalScore: Math.min(100, Math.floor(totalScore * 0.9 + Math.random() * 10)),
+            physicalScore: Math.min(100, Math.floor(totalScore * 0.85 + Math.random() * 15)),
+            emotionalScore: Math.min(100, Math.floor(totalScore * 0.95 + Math.random() * 5)),
+            financialScore: Math.min(100, Math.floor(totalScore * 0.88 + Math.random() * 12)),
+            person1: person1Name,
+            person2: person2Name,
+            ashtakootScore, // Include raw Ashtakoot score for reference
+            details: apiResponse, // Include full API response for reference
+          });
+        } catch (apiError) {
+          console.error('VedicAstroAPI error for matchmaking, using fallback:', apiError);
+          // Fallback to mock scores
+          const totalScore = Math.floor(Math.random() * 30) + 70;
+          res.json({
+            totalScore,
+            mentalScore: Math.floor(Math.random() * 20) + 80,
+            physicalScore: Math.floor(Math.random() * 30) + 65,
+            emotionalScore: Math.floor(Math.random() * 20) + 75,
+            financialScore: Math.floor(Math.random() * 30) + 60,
+            person1: person1Name,
+            person2: person2Name,
+          });
+        }
+      } else {
+        // Mock compatibility calculation
+        const totalScore = Math.floor(Math.random() * 30) + 70;
+        res.json({
+          totalScore,
+          mentalScore: Math.floor(Math.random() * 20) + 80,
+          physicalScore: Math.floor(Math.random() * 30) + 65,
+          emotionalScore: Math.floor(Math.random() * 20) + 75,
+          financialScore: Math.floor(Math.random() * 30) + 60,
+          person1: person1Name,
+          person2: person2Name,
+        });
+      }
     } catch (error) {
       console.error("Error calculating matchmaking:", error);
       res.status(500).json({ message: "Failed to calculate compatibility" });

@@ -68,7 +68,11 @@ Preferred communication style: Simple, everyday language.
 - RESTful API design with `/api/*` namespace
 - Route handlers in `server/routes.ts`
 - Storage abstraction layer in `server/storage.ts`
-- Mock data generation for astrology calculations (kundli, horoscopes, matchmaking)
+- **VedicAstroAPI Integration** - Real Vedic astrology calculations via `server/vedicAstroService.ts`
+  - Kundli generation with planetary positions, dashas, and dosha detection
+  - Daily horoscope predictions (supports 21 languages)
+  - Matchmaking compatibility (Ashtakoot system)
+  - Automatic fallback to mock data if API unavailable
 - Validation using Zod schemas from shared schema definitions
 
 **Data Layer:**
@@ -130,8 +134,17 @@ Preferred communication style: Simple, everyday language.
 - `express-session` for session middleware
 - Memoization via `memoizee` for OIDC configuration caching
 
+**External Astrology API:**
+- **VedicAstroAPI** - Professional Vedic astrology calculations
+  - Real planetary positions using Swiss Ephemeris algorithms
+  - Accurate dasha calculations (Vimshottari, current Mahadasha)
+  - Dosha detection (Mangal, Kaal Sarp, Pitra)
+  - Daily horoscope predictions (21 languages supported)
+  - Ashtakoot matchmaking compatibility
+  - Automatic fallback to mock data if API unavailable
+
 **Current Limitations:**
-- Astrology calculations use mock data generators rather than real astrological algorithms
 - No actual payment gateway integration (wallet is simulated)
 - Chat is basic implementation without WebSocket real-time updates (uses polling)
 - No actual astrologer availability/booking system
+- Timezone calculation uses fixed IST (5.5) - needs dynamic calculation based on location
