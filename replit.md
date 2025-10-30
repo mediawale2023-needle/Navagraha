@@ -134,7 +134,7 @@ Preferred communication style: Simple, everyday language.
 - `express-session` for session middleware
 - Memoization via `memoizee` for OIDC configuration caching
 
-**External Astrology API:**
+**External APIs:**
 - **VedicAstroAPI** - Professional Vedic astrology calculations
   - Real planetary positions using Swiss Ephemeris algorithms
   - Accurate dasha calculations (Vimshottari, current Mahadasha)
@@ -142,6 +142,12 @@ Preferred communication style: Simple, everyday language.
   - Daily horoscope predictions (21 languages supported)
   - Ashtakoot matchmaking compatibility
   - Automatic fallback to mock data if API unavailable
+- **Google Places API** - Location autocomplete for kundli generation
+  - Integrated via script tag injection with callback pattern
+  - Provides accurate coordinates (latitude/longitude) for birth locations
+  - API key fetched from backend via `/api/config` endpoint
+  - Graceful degradation to manual input if API unavailable
+  - Cities-focused autocomplete for better relevance
 
 **Current Limitations:**
 - No actual payment gateway integration (wallet is simulated)

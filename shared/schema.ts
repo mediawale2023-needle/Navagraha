@@ -67,6 +67,8 @@ export const kundlis = pgTable("kundlis", {
 export const insertKundliSchema = createInsertSchema(kundlis).omit({
   id: true,
   createdAt: true,
+}).extend({
+  dateOfBirth: z.union([z.date(), z.string().transform((str) => new Date(str))]),
 });
 
 export type InsertKundli = z.infer<typeof insertKundliSchema>;

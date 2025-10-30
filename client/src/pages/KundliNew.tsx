@@ -11,8 +11,9 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest } from '@/lib/queryClient';
-import { ArrowLeft, Calendar, Clock, MapPin, User, Loader2 } from 'lucide-react';
+import { ArrowLeft, Calendar, Clock, User, Loader2 } from 'lucide-react';
 import { Link } from 'wouter';
+import { PlacesAutocomplete } from '@/components/PlacesAutocomplete';
 
 const kundliFormSchema = z.object({
   name: z.string().min(2, 'Name must be at least 2 characters'),
@@ -27,6 +28,7 @@ type KundliFormData = z.infer<typeof kundliFormSchema>;
 export default function KundliNew() {
   const [, setLocation] = useLocation();
   const [step, setStep] = useState(1);
+  const [coordinates, setCoordinates] = useState<{ lat: number; lng: number } | null>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -43,7 +45,12 @@ export default function KundliNew() {
 
   const mutation = useMutation({
     mutationFn: async (data: KundliFormData) => {
-      return await apiRequest('POST', '/api/kundli', data);
+      const payload = {
+        ...data,
+        latitude: coordinates?.lat,
+        longitude: coordinates?.lng,
+      };
+      return await apiRequest('POST', '/api/kundli', payload);
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['/api/kundli'] });
@@ -251,15 +258,15 @@ export default function KundliNew() {
                         <FormItem>
                           <FormLabel>Place of Birth</FormLabel>
                           <FormControl>
-                            <div className="relative">
-                              <MapPin className="absolute left-3 top-3 w-5 h-5 text-muted-foreground" />
-                              <Input 
-                                placeholder="City, State, Country" 
-                                className="pl-10" 
-                                {...field} 
-                                data-testid="input-place"
-                              />
-                            </div>
+                            <PlacesAutocomplete
+                              value={field.value}
+                              onChange={field.onChange}
+                              onPlaceSelect={(place) => {
+                                setCoordinates({ lat: place.lat, lng: place.lng });
+                              }}
+                              placeholder="City, State, Country"
+                              testId="input-place"
+                            />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
