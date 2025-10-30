@@ -1,0 +1,59 @@
+You are a full-stack Flutter + Node.js developer. Build a complete Vedic astrology app called **Navagraha**, inspired by Astrokarma. The app should be production-quality, modern, and responsive.
+
+### OVERVIEW
+Navagraha is a premium Vedic astrology platform that allows users to generate kundli, perform matchmaking, chat and call astrologers, manage wallets, and explore personalized predictions.
+
+### REQUIREMENTS
+
+**FRONTEND**
+- Build using **Flutter** (web + mobile compatible).
+- Include Riverpod or Provider for state management.
+- Create following core screens:
+  1. **Splash & Welcome Screen** – minimal cosmic animation, “Get Started” button.
+  2. **Login/Signup Screen** – Google/email authentication; allow guest mode (no login).
+  3. **Home Screen** – premium AstroKarma-style UI with:
+     - Daily Horoscope section
+     - Kundli Generation (date, time, place inputs)
+     - Matchmaking (Kundli Milan)
+     - Recommended Astrologers (with profile cards)
+     - Wallet balance preview
+  4. **Kundli Report Screen** – after generation, show:
+     - Basic details
+     - Birth chart (North Indian style)
+     - Dasha, Dosha, Remedies
+     - Tabs for divisional charts
+  5. **Astrologer Profile & Booking Screen** – call/chat buttons with rates.
+  6. **Wallet Screen** – add money, view transactions.
+  7. **Chat Screen** – basic real-time chat using Firebase or mock server.
+  8. **User Profile Screen** – view/edit profile, saved kundlis, preferences.
+
+**BACKEND**
+- Use a lightweight **Node.js + Express mock API** hosted locally or in Replit.
+- Endpoints:
+  - `/kundli` → accepts birth details and returns JSON using mock data or integrate with a free astrology API (e.g. Prokerala or VedicAstroAPI placeholders).
+  - `/horoscope` → returns daily horoscope for a given zodiac.
+  - `/astrologers` → returns sample astrologer list (name, rating, price, availability).
+  - `/wallet` → mock wallet balance and transaction list.
+- Store data in a simple **JSON database** or mock data file (no paid DBs).
+- Ensure CORS-safe setup so Flutter frontend can run locally and connect to backend.
+
+**DESIGN SYSTEM**
+- Follow AstroKarma’s elegant gradient UI (navy blue, cosmic purple, golden accents).
+- Use Glassmorphism cards (`glass_card.dart`), cosmic backgrounds, and premium icons.
+- Include reusable widgets for:
+  - Gradient buttons
+  - Glass cards
+  - Astrology charts viewer (use PNG placeholders or SVG for now)
+
+**LOCAL + REPLIT COMPATIBILITY**
+- Must run fully in **Replit web preview** but also **runnable locally** using:
+  - `npm start` for backend
+  - `flutter run -d chrome` for frontend
+- No paid APIs or dependencies.
+- Keep the total cost under **$10** by using free tiers and mock data.
+- Provide clear setup instructions in a `README.md`:
+  - How to run backend (Node server)
+  - How to run frontend (Flutter)
+  - Mock API endpoints
+
+### FILE STRUCTURE
