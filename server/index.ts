@@ -1,4 +1,6 @@
 import express, { type Request, Response, NextFunction } from "express";
+import { WebSocketServer, WebSocket } from 'ws';
+import { parse as parseCookie } from 'cookie';
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 
