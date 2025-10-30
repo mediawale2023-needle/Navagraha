@@ -300,7 +300,10 @@ export default function Matchmaking() {
             {/* Overall Score */}
             <Card className="bg-gradient-to-br from-primary/10 to-primary/5 border-primary/20">
               <CardContent className="p-8 text-center">
-                <h2 className="font-serif text-2xl font-semibold mb-4">Compatibility Score</h2>
+                <h2 className="font-serif text-2xl font-semibold mb-2">Compatibility Score</h2>
+                <p className="text-muted-foreground mb-4" data-testid="text-person-names">
+                  {result.person1 || 'Person 1'} & {result.person2 || 'Person 2'}
+                </p>
                 <div className="text-7xl font-bold text-primary mb-2" data-testid="text-compatibility-score">
                   {result.totalScore || 78}%
                 </div>
@@ -366,7 +369,21 @@ export default function Matchmaking() {
               <Button 
                 variant="outline" 
                 className="flex-1"
-                onClick={() => setResult(null)}
+                onClick={() => {
+                  setResult(null);
+                  form.reset({
+                    person1Name: '',
+                    person1Date: '',
+                    person1Time: '',
+                    person1Place: '',
+                    person1Gender: 'male',
+                    person2Name: '',
+                    person2Date: '',
+                    person2Time: '',
+                    person2Place: '',
+                    person2Gender: 'female',
+                  });
+                }}
                 data-testid="button-new-calculation"
               >
                 New Calculation
