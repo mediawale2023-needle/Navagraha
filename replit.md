@@ -3,18 +3,31 @@
 ## Recent Changes (October 31, 2025)
 
 **Major UI/UX Redesign - Dark to Light Theme Transformation:**
-- Completely redesigned from dark cosmic theme to clean, modern light aesthetic
+- Completely redesigned from dark cosmic theme to clean, modern light aesthetic across ALL pages
 - New color palette: Golden yellow (#F5A623) primary, soft purple (#8B5CF6) secondary
 - Replaced glassmorphism with clean card-based layouts and subtle shadows
 - Changed default theme from dark to light mode in ThemeProvider
-- Home page completely redesigned with:
+- **Landing page** (unauthenticated view) completely redesigned:
+  - Removed all cosmic backgrounds and galaxy imagery
+  - Removed GlassCard and CosmicBackground components
+  - Updated messaging from "Discover Your Cosmic Blueprint" to "Your Personal Vedic Astrology Guide"
+  - Clean white sticky header with branding and sign-in button
+  - Light gradient backgrounds and standard Card components
+  - Added clean footer with links
+- **Home page** (authenticated view) completely redesigned:
   - Clean navigation with responsive mobile menu (hamburger Sheet component)
   - Modern hero section with call-to-action buttons
   - Redesigned horoscope section with zodiac cards
   - Updated astrologer cards with clean styling
   - New footer section
+- **All other pages** updated to match clean light theme:
+  - Astrologers, Wallet, Chat, Profile pages - removed all backdrop-blur effects
+  - Standardized Avatar component usage throughout
+  - Updated all headers to clean white backgrounds (bg-white border-b)
+  - Fixed TypeScript errors (wallet queries, avatar image handling, date constructors)
 - Updated design_guidelines.md to reflect new light theme specifications
 - Fixed kundli generation validation (latitude/longitude type coercion)
+- **Testing:** E2E tests confirmed clean light theme across all pages, mobile responsiveness maintained
 
 ## Overview
 
@@ -58,9 +71,10 @@ Preferred communication style: Simple, everyday language.
 
 **Component Architecture:**
 - Shadcn/ui component library for base UI primitives (buttons, cards, forms, dialogs, etc.)
-- Custom reusable components: `CosmicBackground`, `GlassCard`, `ZodiacIcon`, `LoadingSpinner`
+- Custom reusable components: `ZodiacIcon`, `LoadingSpinner`, `ThemeToggle`
+- Standard Card components with hover-elevate effects replace previous glassmorphism
 - Page-based routing with dedicated components for each major feature
-- Responsive design with mobile-first approach
+- Responsive design with mobile-first approach, hamburger menu navigation
 
 **State Management:**
 - TanStack Query for API data fetching and caching
