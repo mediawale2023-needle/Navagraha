@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
@@ -44,7 +45,7 @@ export default function Astrologers() {
 
   return (
     <div className="min-h-screen bg-background">
-      <div className="sticky top-0 z-50 bg-card/80 backdrop-blur-md border-b border-card-border">
+      <div className="sticky top-0 z-50 bg-white border-b border-border shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <Link href="/">
             <Button variant="ghost" data-testid="button-back">
@@ -100,17 +101,12 @@ export default function Astrologers() {
               >
                 <CardContent className="p-6">
                   <div className="flex items-start gap-4 mb-4">
-                    <div className="w-20 h-20 rounded-full bg-muted flex items-center justify-center overflow-hidden flex-shrink-0">
-                      {astrologer.profileImageUrl ? (
-                        <img 
-                          src={astrologer.profileImageUrl} 
-                          alt={astrologer.name} 
-                          className="w-full h-full object-cover" 
-                        />
-                      ) : (
-                        <User className="w-10 h-10 text-muted-foreground" />
-                      )}
-                    </div>
+                    <Avatar className="w-20 h-20 flex-shrink-0">
+                      <AvatarImage src={astrologer.profileImageUrl || undefined} alt={astrologer.name} />
+                      <AvatarFallback className="bg-primary/10 text-primary font-semibold text-2xl">
+                        {astrologer.name.charAt(0)}
+                      </AvatarFallback>
+                    </Avatar>
                     <div className="flex-1 min-w-0">
                       <h3 className="font-semibold text-xl text-card-foreground mb-1 truncate">
                         {astrologer.name}

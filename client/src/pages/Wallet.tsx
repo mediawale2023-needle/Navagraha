@@ -12,7 +12,7 @@ import {
   ArrowLeft, Wallet as WalletIcon, Plus, 
   ArrowUpRight, ArrowDownLeft, Loader2 
 } from 'lucide-react';
-import type { Transaction } from '@shared/schema';
+import type { Transaction, Wallet as WalletType } from '@shared/schema';
 
 const quickAddAmounts = [100, 500, 1000, 2000];
 
@@ -21,7 +21,7 @@ export default function Wallet() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  const { data: wallet, isLoading: walletLoading } = useQuery({
+  const { data: wallet, isLoading: walletLoading } = useQuery<WalletType>({
     queryKey: ['/api/wallet'],
   });
 
@@ -63,7 +63,7 @@ export default function Wallet() {
 
   return (
     <div className="min-h-screen bg-background">
-      <div className="sticky top-0 z-50 bg-card/80 backdrop-blur-md border-b border-card-border">
+      <div className="sticky top-0 z-50 bg-white border-b border-border shadow-sm">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <Link href="/">
             <Button variant="ghost" data-testid="button-back">
@@ -171,7 +171,7 @@ export default function Wallet() {
               <div className="space-y-3">
                 {transactions.map((transaction) => {
                   const isCredit = transaction.type === 'credit' || transaction.type === 'recharge';
-                  const date = new Date(transaction.createdAt);
+                  const date = transaction.createdAt ? new Date(transaction.createdAt) : new Date();
 
                   return (
                     <div

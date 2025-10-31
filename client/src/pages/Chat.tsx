@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest } from '@/lib/queryClient';
@@ -99,7 +100,7 @@ export default function Chat() {
   return (
     <div className="h-screen flex flex-col bg-background">
       {/* Header */}
-      <div className="sticky top-0 z-50 bg-card/95 backdrop-blur-md border-b border-card-border">
+      <div className="sticky top-0 z-50 bg-white border-b border-border shadow-sm">
         <div className="max-w-4xl mx-auto px-4 py-3">
           <div className="flex items-center justify-between gap-4">
             <div className="flex items-center gap-3 flex-1 min-w-0">
@@ -109,17 +110,12 @@ export default function Chat() {
                 </Button>
               </Link>
 
-              <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center overflow-hidden flex-shrink-0">
-                {astrologer.profileImageUrl ? (
-                  <img 
-                    src={astrologer.profileImageUrl} 
-                    alt={astrologer.name} 
-                    className="w-full h-full object-cover" 
-                  />
-                ) : (
-                  <User className="w-6 h-6 text-muted-foreground" />
-                )}
-              </div>
+              <Avatar className="w-12 h-12 flex-shrink-0">
+                <AvatarImage src={astrologer.profileImageUrl || undefined} alt={astrologer.name} />
+                <AvatarFallback className="bg-primary/10 text-primary font-semibold">
+                  {astrologer.name.charAt(0)}
+                </AvatarFallback>
+              </Avatar>
 
               <div className="flex-1 min-w-0">
                 <h3 className="font-semibold text-lg text-foreground truncate">
@@ -165,10 +161,10 @@ export default function Chat() {
           {messages && messages.length > 0 ? (
             messages.map((msg, index) => {
               const isUser = msg.sender === 'user';
-              const time = new Date(msg.createdAt).toLocaleTimeString([], { 
+              const time = msg.createdAt ? new Date(msg.createdAt).toLocaleTimeString([], { 
                 hour: '2-digit', 
                 minute: '2-digit' 
-              });
+              }) : '';
 
               return (
                 <div
@@ -181,7 +177,7 @@ export default function Chat() {
                       className={`rounded-2xl px-4 py-3 ${
                         isUser
                           ? 'bg-primary text-primary-foreground'
-                          : 'bg-card border border-card-border backdrop-blur-sm'
+                          : 'bg-card border border-border'
                       }`}
                     >
                       <p className={isUser ? 'text-primary-foreground' : 'text-card-foreground'}>

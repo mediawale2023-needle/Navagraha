@@ -3,6 +3,7 @@ import { Link } from 'wouter';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
 import { 
   ArrowLeft, User, Mail, Phone, Calendar, 
@@ -25,7 +26,7 @@ export default function Profile() {
 
   return (
     <div className="min-h-screen bg-background">
-      <div className="sticky top-0 z-50 bg-card/80 backdrop-blur-md border-b border-card-border">
+      <div className="sticky top-0 z-50 bg-white border-b border-border shadow-sm">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <Link href="/">
             <Button variant="ghost" data-testid="button-back">
@@ -45,17 +46,12 @@ export default function Profile() {
         <Card className="mb-8">
           <CardContent className="p-8">
             <div className="flex items-start gap-6 mb-6">
-              <div className="w-24 h-24 rounded-full bg-muted flex items-center justify-center overflow-hidden flex-shrink-0">
-                {user?.profileImageUrl ? (
-                  <img 
-                    src={user.profileImageUrl} 
-                    alt={user.firstName || 'User'} 
-                    className="w-full h-full object-cover" 
-                  />
-                ) : (
-                  <User className="w-12 h-12 text-muted-foreground" />
-                )}
-              </div>
+              <Avatar className="w-24 h-24 flex-shrink-0">
+                <AvatarImage src={user?.profileImageUrl || undefined} alt={user?.firstName || 'User'} />
+                <AvatarFallback className="bg-primary/10 text-primary font-semibold text-3xl">
+                  {user?.firstName?.charAt(0) || user?.email?.charAt(0)?.toUpperCase() || 'U'}
+                </AvatarFallback>
+              </Avatar>
 
               <div className="flex-1">
                 <h2 className="text-3xl font-serif font-semibold text-foreground mb-2">
