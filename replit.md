@@ -1,5 +1,21 @@
 # Navagraha - Premium Vedic Astrology Platform
 
+## Recent Changes (October 31, 2025)
+
+**Major UI/UX Redesign - Dark to Light Theme Transformation:**
+- Completely redesigned from dark cosmic theme to clean, modern light aesthetic
+- New color palette: Golden yellow (#F5A623) primary, soft purple (#8B5CF6) secondary
+- Replaced glassmorphism with clean card-based layouts and subtle shadows
+- Changed default theme from dark to light mode in ThemeProvider
+- Home page completely redesigned with:
+  - Clean navigation with responsive mobile menu (hamburger Sheet component)
+  - Modern hero section with call-to-action buttons
+  - Redesigned horoscope section with zodiac cards
+  - Updated astrologer cards with clean styling
+  - New footer section
+- Updated design_guidelines.md to reflect new light theme specifications
+- Fixed kundli generation validation (latitude/longitude type coercion)
+
 ## Overview
 
 Navagraha is a full-stack premium Vedic astrology platform that enables users to generate kundli (birth charts), consult with expert astrologers, perform matchmaking analysis, and manage wallet transactions for services. The application combines ancient Vedic wisdom with modern design aesthetics, inspired by premium astrology platforms like AstroKarma, Co-Star, and Astrotalk.
@@ -29,12 +45,16 @@ Preferred communication style: Simple, everyday language.
 - Tailwind CSS for styling with shadcn/ui component library
 
 **Design System:**
-- Custom theme with cosmic/mystical aesthetic (navy blue, cosmic purple, golden accents)
-- Glassmorphism UI patterns using custom `GlassCard` component
-- Dark mode by default with light mode support via `ThemeProvider`
+- Clean, modern light aesthetic inspired by premium astrology apps (Behance reference by Manoj A)
+- **Primary Color:** Golden yellow (#F5A623) - warm, inviting, auspicious in Vedic culture
+- **Secondary Color:** Soft purple (#8B5CF6) - spiritual, mystical accent
+- **Backgrounds:** White/cream tones with subtle shadows instead of glassmorphism
+- **Light mode by default** with dark mode support via `ThemeProvider`
 - Custom color system using CSS variables for theming
-- Typography: Inter/DM Sans for body text, Playfair Display for headings
+- Typography: Inter for body text, Playfair Display/serif for headings
+- Card-based layouts with clean borders and subtle elevation
 - Spacing follows Tailwind's spacing scale (2, 4, 6, 8, 12, 16, 20, 24)
+- Mobile-first responsive design with hamburger menu navigation
 
 **Component Architecture:**
 - Shadcn/ui component library for base UI primitives (buttons, cards, forms, dialogs, etc.)
