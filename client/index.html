@@ -12,6 +12,19 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Playfair+Display:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script>
+      // Set theme immediately to prevent flash - default to light for redesign
+      (function() {
+        // Clear any old dark theme preference for the redesign
+        const savedTheme = localStorage.getItem('theme');
+        const theme = savedTheme === 'dark' ? 'dark' : 'light';
+        // Default to light mode for new clean theme
+        if (!savedTheme) {
+          localStorage.setItem('theme', 'light');
+        }
+        document.documentElement.classList.add(theme);
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

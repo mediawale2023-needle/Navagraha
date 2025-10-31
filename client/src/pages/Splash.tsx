@@ -2,8 +2,6 @@ import { useEffect } from 'react';
 import { useLocation } from 'wouter';
 import { motion } from 'framer-motion';
 import { Sparkles } from 'lucide-react';
-import { CosmicBackground } from '@/components/CosmicBackground';
-import cosmicBg from '@assets/generated_images/Cosmic_nebula_hero_background_295cdd28.png';
 
 export default function Splash() {
   const [, setLocation] = useLocation();
@@ -17,15 +15,7 @@ export default function Splash() {
   }, [setLocation]);
 
   return (
-    <div className="relative min-h-screen flex items-center justify-center overflow-hidden">
-      <div 
-        className="absolute inset-0 bg-cover bg-center"
-        style={{ backgroundImage: `url(${cosmicBg})` }}
-      >
-        <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-black/40 to-black/60" />
-      </div>
-      <CosmicBackground className="opacity-50" />
-
+    <div className="relative min-h-screen flex items-center justify-center overflow-hidden bg-gradient-to-br from-primary/10 via-background to-secondary/10">
       <motion.div
         initial={{ opacity: 0, scale: 0.8 }}
         animate={{ opacity: 1, scale: 1 }}
@@ -44,15 +34,16 @@ export default function Splash() {
           }}
           className="inline-block mb-6"
         >
-          <Sparkles className="w-24 h-24 text-accent drop-shadow-[0_0_30px_rgba(234,179,8,0.6)]" />
+          <div className="w-24 h-24 rounded-full bg-primary/20 flex items-center justify-center">
+            <Sparkles className="w-12 h-12 text-primary" />
+          </div>
         </motion.div>
 
         <motion.h1
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.3, duration: 0.6 }}
-          className="font-serif text-6xl md:text-7xl font-bold text-white mb-4"
-          style={{ textShadow: '0 0 40px rgba(139,92,246,0.5)' }}
+          className="font-serif text-6xl md:text-7xl font-bold text-foreground mb-4"
         >
           Navagraha
         </motion.h1>
@@ -61,10 +52,21 @@ export default function Splash() {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 0.6, duration: 0.6 }}
-          className="text-xl text-white/90 font-light"
+          className="text-xl text-muted-foreground font-light"
         >
-          Discover Your Cosmic Blueprint
+          Your Personal Vedic Astrology Guide
         </motion.p>
+
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 1, duration: 0.6 }}
+          className="mt-8 flex justify-center gap-2"
+        >
+          <div className="w-2 h-2 rounded-full bg-primary animate-pulse" style={{ animationDelay: '0ms' }} />
+          <div className="w-2 h-2 rounded-full bg-primary animate-pulse" style={{ animationDelay: '200ms' }} />
+          <div className="w-2 h-2 rounded-full bg-primary animate-pulse" style={{ animationDelay: '400ms' }} />
+        </motion.div>
       </motion.div>
     </div>
   );
