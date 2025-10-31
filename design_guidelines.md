@@ -1,233 +1,247 @@
-# Navagraha Vedic Astrology Platform - Design Guidelines
+# Navagraha Vedic Astrology Platform - Design Guidelines (Updated)
 
 ## Design Approach
-**Reference-Based Design** inspired by premium astrology platforms (AstroKarma, Co-Star, Astrotalk) combined with modern SaaS aesthetics. The design emphasizes mystical elegance, trust-building, and intuitive spiritual exploration while maintaining professional functionality for service booking and transactions.
+**Reference-Based Design** inspired by modern professional astrology apps (Co-Star, Sanctuary, The Pattern) combined with contemporary SaaS aesthetics. The design emphasizes clean professionalism, trust-building, and intuitive spiritual exploration with a light, app-like interface that makes ancient wisdom feel accessible and modern.
+
+**Selected References**:
+- Co-Star: Minimal typography-first approach
+- Calm/Headspace: Soft, welcoming color usage
+- Notion: Clean card-based layouts
+- Stripe: Professional trust indicators
+
+---
 
 ## Core Design Principles
-1. **Cosmic Elegance**: Premium spiritual experience with sophisticated visual treatment
-2. **Trust & Authenticity**: Professional presentation of ancient wisdom with modern credibility
-3. **Intuitive Mysticism**: Complex astrological data made accessible and beautiful
-4. **Seamless Transactions**: Financial interactions feel secure and effortless
+1. **Modern Minimalism**: Clean interfaces that respect content and user focus
+2. **Warm Professionalism**: Approachable yet credible presentation of traditional wisdom
+3. **App-Like Clarity**: Mobile-first thinking with excellent readability
+4. **Trustworthy Simplicity**: Secure transactions through clear, confident design
 
 ---
 
 ## Typography System
 
-**Primary Font**: Inter or DM Sans (clean, modern readability)
-**Accent Font**: Cinzel or Playfair Display (mystical headings, premium touch)
+**Primary Font**: Inter (exceptional readability, professional)
+**Accent Font**: Crimson Text or Libre Baskerville (traditional wisdom meets elegance)
 
 **Hierarchy**:
-- Hero Headlines: 48-64px, accent font, medium weight
-- Section Headings: 32-40px, primary font, semibold
-- Card Titles: 20-24px, primary font, semibold
-- Body Text: 16px, primary font, regular (18px for important content)
-- Captions: 14px, primary font, regular
-- Small Text: 12px, primary font, medium (for labels, metadata)
+- Hero Headlines: 48-72px, accent font, regular weight
+- Section Headings: 32-48px, primary font, semibold
+- Subsection Titles: 24-28px, primary font, semibold
+- Card Titles: 18-20px, primary font, semibold
+- Body Text: 16px, primary font, regular (line-height: 1.6)
+- Supporting Text: 14px, primary font, regular
+- Labels/Meta: 12-13px, primary font, medium, uppercase letter-spacing
 
 ---
 
 ## Layout & Spacing System
 
-**Spacing Units**: Tailwind primitives of 2, 4, 6, 8, 12, 16, 20, 24 (as in p-2, m-4, gap-6, py-8, etc.)
+**Spacing Units**: Tailwind primitives of 3, 4, 6, 8, 12, 16, 20, 24
 
 **Container Strategy**:
-- Maximum width: max-w-7xl for main content areas
-- Card content: max-w-6xl
-- Reading content: max-w-4xl
-- Form sections: max-w-2xl centered
+- Main content: max-w-7xl
+- Content sections: max-w-6xl
+- Forms/focused content: max-w-3xl
+- Text-heavy sections: max-w-4xl
 
 **Section Padding**:
-- Desktop: py-16 to py-24
-- Mobile: py-8 to py-12
-- Card padding: p-6 to p-8
+- Desktop: py-20 to py-32
+- Tablet: py-16 to py-20
+- Mobile: py-12 to py-16
+- Card padding: p-6 (mobile), p-8 (desktop)
+- Card internal spacing: gap-6 to gap-8
 
 ---
 
 ## Component Library
 
 ### Navigation
-**Header**: Fixed top navigation with glassmorphism effect
-- Logo left (mystical symbol + "Navagraha" wordmark)
-- Center navigation: Home, Kundli, Astrologers, Learn
-- Right section: Wallet balance chip (shows current balance), notification bell, user avatar
-- Mobile: Hamburger menu with slide-in drawer
-- Subtle glow effect on scroll
+**Header** (sticky, white background, subtle shadow on scroll):
+- Logo left: Minimalist "Navagraha" wordmark with small symbolic accent
+- Center nav: Home | Kundli | Astrologers | Learn (clean text links)
+- Right section: Wallet chip (₹1,234 with subtle background), notification icon, user avatar (32px circle)
+- Mobile: Hamburger → full-screen overlay menu with large link text
+- Border bottom: 1px subtle divider
 
-### Hero/Welcome Section
-**Splash Screen**: 
-- Full viewport centered cosmic animation (subtle particle field or constellation movement)
-- Large mystical logo with soft glow
-- Tagline: "Discover Your Cosmic Blueprint" (accent font)
-- Single prominent CTA button with blur background
-- Fade-in entrance animation (800ms)
+### Hero Sections
 
-**Home Hero**: 
-- 70vh height with layered cosmic background
-- Main headline + supporting text (left-aligned or centered)
-- Dual CTA buttons: "Generate Kundli" (primary) + "Talk to Astrologer" (secondary)
-- Floating trust indicators: "10,000+ Kundlis Generated" • "500+ Expert Astrologers"
-- Background: Deep cosmic imagery with gradient overlay
+**Home Hero** (80vh):
+- High-quality lifestyle image: Person meditating/peaceful setting with warm natural lighting
+- Gradient overlay: Soft gold-to-transparent fade for text readability
+- Content positioned left or center-left (max-w-2xl)
+- Headline: Large accent font, 2-line maximum
+- Supporting text: 18px, soft readable length (max-w-xl)
+- CTA group: "Generate Free Kundli" (primary button, blurred background) + "Explore Astrologers" (text link with arrow)
+- Trust indicators below: "50,000+ Kundlis Generated" • "500+ Certified Astrologers" (small text, subtle)
+
+**Section Heroes** (40-50vh for dedicated pages):
+- Kundli page: Person with birth chart imagery
+- Astrologers: Warm consultation scene
+- All with centered or left-aligned content over image
 
 ### Cards & Containers
 
-**Glassmorphism Cards**: Primary UI pattern
-- Backdrop blur effect with semi-transparent background
-- Subtle border with soft glow
-- Rounded corners: 16-20px
-- Shadow: Soft, elevated appearance
-- Hover: Slight scale (1.02) with enhanced glow
+**Primary Card Style**:
+- White background with subtle shadow (0 2px 8px rgba(0,0,0,0.04))
+- Border: 1px solid very light neutral
+- Border radius: 12px
+- Hover: Lift with enhanced shadow (0 8px 16px rgba(0,0,0,0.08))
+- No gradients or heavy effects
 
-**Kundli Report Cards**:
-- Large card format (full-width or 2-column grid)
-- Header section: User name, birth details, generation timestamp
-- Chart display area: North Indian style kundli chart (centered, prominent)
-- Tabbed interface: Overview, Dashas, Doshas, Divisional Charts, Remedies
-- Each tab content in organized sections with icon headers
+**Kundli Report Card**:
+- Large format card with organized sections
+- Header: Name (24px semibold) + birth details row (14px, lighter weight)
+- Chart container: Centered North Indian kundli (traditional design, clean lines)
+- Tab navigation: Horizontal tabs with active state (underline accent, no background)
+- Content sections: Icon + heading + organized data in clean typography
+- Insights sections: Left-aligned text blocks with generous line-height
+- Action footer: "Download PDF" + "Share" buttons
 
-**Astrologer Profile Cards**:
-- Grid layout: 3 columns desktop, 2 tablet, 1 mobile
-- Card structure: Profile photo (circular, 80px), name, specialization tags, rating stars (gold), experience badge
-- Stats row: "1,234 consultations" • "4.8★ rating"
-- Pricing: Large prominent price "₹25/min" with availability status (green dot + "Available" or "Busy")
-- Two action buttons: "Chat Now" (primary) + "Call Now" (outlined)
-- Hover: Lift effect with enhanced glow
+**Astrologer Profile Cards** (grid: 3 cols desktop, 2 tablet, 1 mobile):
+- Profile photo: 96px circular, centered
+- Name: 18px semibold, centered
+- Specialization tags: Pill chips (soft background, 12px text)
+- Rating: Large stars (16px) + "4.8 (234 reviews)" below
+- Stats row: "1,200 consultations" • "5 years experience"
+- Pricing: "₹25/min" (20px semibold)
+- Status: "Available Now" (green dot + text) or "Busy" (subtle)
+- Action buttons: "Chat Now" (primary full-width) + "Call" (secondary full-width)
+- Spacing: Generous internal padding (p-6), clear hierarchy
 
 ### Forms
 
-**Kundli Generation Form**:
-- Multi-step wizard: Personal Details → Birth Details → Location
-- Progress indicator at top (step circles connected by lines)
-- Large input fields with icon prefixes
-- Date picker: Custom calendar with Vedic calendar highlights
-- Time picker: Circular clock interface
-- Location: Autocomplete with map preview
-- "Generate Kundli" button: Extra large, with loading state animation
+**Kundli Generation Form** (multi-step wizard):
+- Progress dots: 3-step indicator (filled/hollow circles, connected lines)
+- Large input fields: 56px height, clear labels above
+- Date picker: Calendar overlay with today highlight
+- Time picker: Dropdown with AM/PM
+- Location: Google Places autocomplete with map preview below
+- Validation: Inline messages (not aggressive, helpful tone)
+- Submit button: Extra large (h-14), full-width on mobile
+- "Save as Draft" link below for returning users
 
-**Authentication Forms**:
-- Centered card on cosmic background
-- Social login buttons at top: "Continue with Google" (with logo)
-- Divider: "or" with horizontal lines
-- Email/password fields with validation icons
-- "Remember me" checkbox
-- "Guest Mode" link prominently displayed
-- Footer: "New here? Sign up" link
+**Authentication Forms** (centered, max-w-md):
+- Card container on light background
+- Social buttons top: "Continue with Google" (outlined, logo left)
+- Divider: "or continue with email"
+- Input fields: Ample height (h-12), clear focus states
+- Primary CTA: Full width
+- Guest mode: "Continue as Guest" text link, prominent
+- Footer navigation: "New here? Create account"
 
 ### Wallet Interface
 
-**Wallet Card**: Prominent display on profile/dedicated page
-- Large balance display: "₹1,234.50" with currency symbol
-- "Add Money" button (primary, prominent)
-- Quick add chips: "+₹100" "+₹500" "+₹1000" (pill buttons)
-- Transaction history list: Icon, description, amount, timestamp
-- Filter tabs: All, Recharge, Consultations, Refunds
+**Wallet Section** (dedicated page or profile tab):
+- Balance card: Large centered display
+  - "Current Balance" label (14px)
+  - "₹1,234.50" (48px semibold)
+  - "Add Money" button below (primary)
+- Quick add grid: 3x2 grid of amount chips (+₹100, +₹500, +₹1000, +₹2000, +₹5000, Custom)
+- Transaction history: Clean list with left icon, center description, right amount
+- Filter tabs: All | Recharges | Consultations | Refunds
+- Each transaction row: 56px height, divider below
 
 ### Chat Interface
 
 **Chat Screen**:
-- Fixed header: Astrologer info (photo, name, status dot, "Active now")
-- Message area: Alternating message bubbles (user right, astrologer left)
-- Astrologer messages: Glass bubble with avatar
-- User messages: Solid colored bubbles aligned right
-- Input bar: Text field with send button, "₹25/min" rate display
-- Timer at top: "Session: 5:32" with running cost
+- Header bar: Astrologer photo (40px) + name + "Online" status + rate display (₹25/min)
+- Messages area: Clean bubbles with timestamp
+  - Astrologer: Left-aligned, soft neutral background
+  - User: Right-aligned, primary accent tint background
+- Input bar: Text field (h-12) + send icon button
+- Session timer: Floating chip top-center "15:24 (₹380)"
+- End session button: Subtle red text link
 
 ### Dashboard Sections
 
 **Daily Horoscope Section**:
-- Zodiac sign selector: 12 zodiac symbols in circular arrangement
-- Selected sign: Enlarged with glow effect
-- Horoscope card: Today's prediction with star rating for Love, Career, Health
-- "Read Full Prediction" link
+- Zodiac selector: Horizontal scrollable row (mobile) or 12-icon grid (desktop)
+- Each zodiac: 64px icon, label below, active state with accent tint
+- Horoscope card: Large, centered
+  - Title: "Today's Prediction for Leo"
+  - Content: Readable paragraph (max-w-2xl)
+  - Ratings row: Love ★★★★☆ | Career ★★★★★ | Health ★★★☆☆
 
 **Matchmaking Section**:
-- Dual form inputs: "Your Details" + "Partner's Details" side by side
-- Compatibility score display: Large circular progress (0-100%)
-- Breakdown bars: Mental, Physical, Emotional compatibility
-- Detailed analysis in expandable sections
+- Side-by-side forms (desktop) or stacked (mobile)
+- "Your Details" + "Partner's Details" labels
+- Compatibility result: Circular progress (120px diameter, centered)
+  - Score: 78% (large centered text)
+- Breakdown grid: 3 columns (Mental | Physical | Emotional) with bar indicators
+- Detailed analysis: Expandable sections below
 
-**Recommended Astrologers**:
-- Horizontal scrollable carousel on mobile
-- Grid on desktop (3-4 columns)
-- "See All Astrologers" link with arrow
+**Featured Astrologers Carousel**:
+- Horizontal scroll on all devices
+- 4-5 cards visible desktop, 1.5 on mobile
+- "View All Astrologers" button right-aligned
 
 ---
 
-## Interactions & Micro-animations
+## Interactions & Animations
 
-**Minimal Animation Strategy** (only where enhancing UX):
-- Page transitions: Smooth fade (300ms)
-- Card hover: Subtle lift + glow enhancement
-- Button click: Quick scale-down bounce
-- Form validation: Shake animation on error
-- Loading states: Cosmic spinner or pulsing stars
-- Chart generation: Fade-in with stagger effect for elements
+**Minimal Animation Strategy**:
+- Page transitions: 300ms fade
+- Card hover: Subtle lift (translateY -2px), enhanced shadow
+- Button states: No blurred backgrounds except on hero images, standard hover/active states
+- Form validation: Gentle highlight, no shake
+- Loading: Simple spinner or progress bar
+- Chart appearance: Fade-in 400ms
 
-**No continuous animations** except:
-- Gentle cosmic particle drift in hero backgrounds
-- Pulsing glow on availability indicators
+**No continuous animations** - static, professional presentation
 
 ---
 
 ## Responsive Behavior
 
-**Breakpoints**:
-- Mobile: < 768px (single column, stacked cards, full-width forms)
-- Tablet: 768-1024px (2-column grids, condensed spacing)
-- Desktop: > 1024px (full multi-column layouts, expanded spacing)
+**Breakpoints**: Mobile <768px | Tablet 768-1024px | Desktop >1024px
 
-**Mobile Optimizations**:
-- Bottom navigation bar for primary actions
+**Mobile Adaptations**:
+- Single-column layouts
+- Full-width cards
+- Bottom navigation: Home | Kundli | Chat | Profile icons
 - Collapsible wallet balance in header
-- Swipeable chart tabs
-- Simplified kundli charts (tap to zoom)
-- Sticky CTAs for astrologer profiles
+- Stacked form fields (full-width)
+- Simplified chart displays with tap-to-expand
 
 ---
 
 ## Images & Visual Assets
 
-**Required Images**:
+**Hero Images** (required):
+1. **Home Hero**: Peaceful meditation/yoga scene, warm natural lighting, person in serene setting
+2. **Kundli Page Hero**: Birth chart imagery with traditional elements in modern style
+3. **Astrologers Landing Hero**: Warm consultation scene, professional astrologer with client
 
-1. **Hero Background**: Cosmic nebula or starfield (deep blue/purple hues, high resolution)
-   - Placement: Full-width hero section with gradient overlay
-   - Style: Mystical, premium, not overly bright
+**Component Images**:
+4. **Astrologer Photos**: Professional headshots (circular, 96px cards, 40px chat)
+5. **Zodiac Icons**: 12 symbols (line art style, consistent 48px size)
+6. **Kundli Chart Graphics**: North Indian style chart template (clean, readable)
 
-2. **Kundli Chart Graphics**: North Indian style chart template
-   - Placement: Central element in kundli report cards
-   - Style: Clean lines, readable text, traditional design with modern rendering
+**Decorative Elements**:
+7. **Section dividers**: Subtle constellation line art or geometric patterns
+8. **Empty states**: Simple illustrations for no transactions, no messages
 
-3. **Astrologer Photos**: Professional headshots
-   - Placement: Profile cards, chat headers
-   - Style: Circular crops, consistent sizing (80px cards, 48px chat)
-
-4. **Zodiac Icons**: 12 zodiac symbols
-   - Placement: Horoscope selector, user profiles
-   - Style: Golden line art, consistent stroke weight
-
-5. **Cosmic Accents**: Stars, constellations, celestial symbols
-   - Placement: Section dividers, background decorative elements
-   - Style: Subtle, non-distracting, enhancing mystical atmosphere
-
-**No Hero Image Needed For**: Login, wallet, chat, profile screens (use cosmic backgrounds instead)
+**Style Guidelines**: All images bright, warm tones, professional quality, no dark/mystical treatments
 
 ---
 
 ## Trust & Credibility Elements
 
-- Astrologer certifications badges on profiles
-- "Verified" checkmarks for authenticated astrologers
-- Review excerpts with star ratings
-- Security badges near wallet/payment areas
-- "Safe & Secure" text with lock icon for transactions
-- Social proof counters throughout ("Join 50,000+ users")
+- Certification badges on astrologer profiles (small, subtle)
+- Verified checkmarks (16px icon next to verified astrologers)
+- Review snippets: Clean quote cards with 5-star ratings
+- Security indicators: Small lock icon + "Secure Payment" near wallet
+- Social proof: Numeric counters in subtle containers
+- Testimonial section: 3-column grid with user photos, quotes, names
 
 ---
 
-## Accessibility Considerations
+## Accessibility Standards
 
-- Consistent focus indicators (glowing outline matching cosmic theme)
-- Form labels always visible (not placeholder-only)
-- Sufficient contrast ratios for all text on cosmic backgrounds
-- Keyboard navigation for all interactive elements
-- Screen reader text for decorative cosmic elements
-- Error messages clearly associated with form fields
+- Focus indicators: 2px accent outline with 2px offset
+- Form labels: Always visible above inputs (never placeholder-only)
+- Contrast ratios: WCAG AA minimum for all text
+- Keyboard navigation: Logical tab order through all interactive elements
+- Error messages: Aria-live regions, clear association with fields
+- Alt text: Descriptive for astrologer photos, decorative images marked appropriately
