@@ -296,24 +296,24 @@ export default function AstrologerDashboard() {
   const { astrologer, stats } = dashboard;
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-gray-50">
       {/* Header */}
-      <div className="sticky top-0 z-50 bg-white border-b shadow-sm">
+      <div className="sticky top-0 z-50 bg-[#FFCF23] shadow-sm">
         <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <Avatar className="w-10 h-10">
+            <Avatar className="w-10 h-10 border-2 border-[#1A1A1A]">
               <AvatarImage src={astrologer.profileImageUrl} />
-              <AvatarFallback className="bg-amber-100 text-amber-800 font-bold">
+              <AvatarFallback className="bg-[#1A1A1A] text-[#FFCF23] font-bold">
                 {astrologer.name?.charAt(0)}
               </AvatarFallback>
             </Avatar>
             <div>
-              <div className="font-semibold text-foreground">{astrologer.name}</div>
-              <div className="text-xs text-muted-foreground flex items-center gap-1">
+              <div className="font-bold text-[#1A1A1A]">{astrologer.name}</div>
+              <div className="text-xs text-[#1A1A1A]/60 flex items-center gap-1">
                 {wsConnected ? (
-                  <><Wifi className="w-3 h-3 text-green-500" /> Connected</>
+                  <><Wifi className="w-3 h-3 text-green-600" /> Connected</>
                 ) : (
-                  <><WifiOff className="w-3 h-3 text-red-500" /> Reconnecting...</>
+                  <><WifiOff className="w-3 h-3 text-red-600" /> Reconnecting...</>
                 )}
               </div>
             </div>
@@ -321,17 +321,17 @@ export default function AstrologerDashboard() {
           <div className="flex items-center gap-4">
             {/* Online toggle */}
             <div className="flex items-center gap-2">
-              <span className="text-sm text-muted-foreground">{isOnline ? 'Online' : 'Offline'}</span>
+              <span className="text-sm text-[#1A1A1A] font-medium">{isOnline ? 'Online' : 'Offline'}</span>
               <Switch
                 checked={isOnline}
                 onCheckedChange={(checked) => toggleOnlineMutation.mutate(checked)}
                 disabled={toggleOnlineMutation.isPending}
               />
-              <div className={`w-2 h-2 rounded-full ${isOnline ? 'bg-green-500 animate-pulse' : 'bg-gray-400'}`} />
+              <div className={`w-2 h-2 rounded-full ${isOnline ? 'bg-green-600 animate-pulse' : 'bg-gray-400'}`} />
             </div>
-            <Button variant="ghost" size="icon" onClick={handleLogout}>
-              <LogOut className="w-4 h-4" />
-            </Button>
+            <button className="p-2 rounded-xl hover:bg-[#1A1A1A]/10" onClick={handleLogout}>
+              <LogOut className="w-4 h-4 text-[#1A1A1A]" />
+            </button>
           </div>
         </div>
       </div>

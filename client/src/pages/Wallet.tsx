@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link, useLocation } from 'wouter';
 import { Button } from '@/components/ui/button';
+import { BottomNav } from '@/components/BottomNav';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -122,7 +123,7 @@ export default function Wallet() {
           }
         },
         prefill: {},
-        theme: { color: '#F5A623' },
+        theme: { color: '#FFCF23' },
         modal: {
           ondismiss: () => {
             toast({ title: 'Payment Cancelled', description: 'You cancelled the payment.', variant: 'destructive' });
@@ -202,32 +203,33 @@ export default function Wallet() {
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
-      <div className="sticky top-0 z-50 bg-white border-b border-border shadow-sm">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <Link href="/">
-            <Button variant="ghost" data-testid="button-back">
-              <ArrowLeft className="w-4 h-4 mr-2" />
-              Back
-            </Button>
-          </Link>
+      <div className="sticky top-0 z-50 bg-[#FFCF23] shadow-sm">
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-3">
+          <div className="flex items-center gap-3">
+            <Link href="/">
+              <button className="p-2 rounded-xl hover:bg-[#1A1A1A]/10" data-testid="button-back">
+                <ArrowLeft className="w-5 h-5 text-[#1A1A1A]" />
+              </button>
+            </Link>
+            <h1 className="font-bold text-lg text-[#1A1A1A]">My Wallet</h1>
+          </div>
         </div>
       </div>
 
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <h1 className="font-serif text-4xl font-bold text-foreground mb-2">My Wallet</h1>
-        <p className="text-muted-foreground mb-8">Recharge using UPI, cards, or pay later options</p>
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        <p className="text-muted-foreground mb-6">Recharge using UPI, cards, or pay later options</p>
 
         {/* Balance Card */}
-        <Card className="mb-8 bg-gradient-to-br from-amber-50 to-orange-50 border-amber-200">
-          <CardContent className="p-8">
+        <Card className="mb-6 bg-gradient-to-br from-[#FFCF23] to-[#FFD93D] border-[#FFCF23]">
+          <CardContent className="p-6">
             <div className="flex items-center gap-3 mb-2">
-              <WalletIcon className="w-8 h-8 text-amber-600" />
-              <span className="text-lg text-muted-foreground">Available Balance</span>
+              <WalletIcon className="w-7 h-7 text-[#1A1A1A]" />
+              <span className="text-base text-[#1A1A1A]/70 font-medium">Available Balance</span>
             </div>
-            <div className="text-6xl font-bold text-foreground mb-1" data-testid="text-balance">
+            <div className="text-5xl font-bold text-[#1A1A1A] mb-1" data-testid="text-balance">
               ₹{balance.toFixed(2)}
             </div>
-            <p className="text-sm text-muted-foreground">
+            <p className="text-sm text-[#1A1A1A]/60">
               {balance < 100
                 ? '⚠ Low balance — recharge to continue consultations'
                 : `≈ ${Math.floor(balance / 25)} minutes of consultation time`}
@@ -251,14 +253,14 @@ export default function Wallet() {
                   onClick={() => setPaymentMethod('razorpay')}
                   className={`p-4 rounded-xl border-2 text-left transition-all ${
                     paymentMethod === 'razorpay'
-                      ? 'border-amber-500 bg-amber-50'
-                      : 'border-border hover:border-amber-300'
+                      ? 'border-[#FFCF23] bg-[#FFFBEA]'
+                      : 'border-border hover:border-[#FFCF23]'
                   }`}
                 >
                   <div className="flex items-center gap-2 mb-1">
-                    <CreditCard className="w-4 h-4 text-amber-600" />
+                    <CreditCard className="w-4 h-4 text-[#1A1A1A]" />
                     <span className="font-semibold text-sm">Razorpay</span>
-                    {paymentMethod === 'razorpay' && <CheckCircle2 className="w-4 h-4 text-amber-500 ml-auto" />}
+                    {paymentMethod === 'razorpay' && <CheckCircle2 className="w-4 h-4 text-[#FFCF23] ml-auto" />}
                   </div>
                   <p className="text-xs text-muted-foreground">UPI • Cards • Netbanking</p>
                   <p className="text-xs text-green-600 font-medium mt-1">Snapmint & LazyPay EMI also available</p>
@@ -479,6 +481,7 @@ export default function Wallet() {
           </CardContent>
         </Card>
       </div>
+      <BottomNav />
     </div>
   );
 }

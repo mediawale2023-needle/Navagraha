@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link, useLocation } from 'wouter';
 import { Button } from '@/components/ui/button';
+import { BottomNav } from '@/components/BottomNav';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -81,21 +82,23 @@ export default function Schedule() {
   const typeIcon = (t: string) => t === 'voice' ? <Phone className="w-4 h-4" /> : t === 'video' ? <Video className="w-4 h-4" /> : <MessageCircle className="w-4 h-4" />;
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-gray-50 pb-20 md:pb-0">
       {/* Header */}
-      <div className="sticky top-0 z-50 bg-white border-b shadow-sm">
-        <div className="max-w-4xl mx-auto px-4 py-4">
-          <Link href="/astrologers">
-            <Button variant="ghost">
-              <ArrowLeft className="w-4 h-4 mr-2" /> Back
-            </Button>
-          </Link>
+      <div className="sticky top-0 z-50 bg-[#FFCF23] shadow-sm">
+        <div className="max-w-4xl mx-auto px-4 py-3">
+          <div className="flex items-center gap-3">
+            <Link href="/astrologers">
+              <button className="p-2 rounded-xl hover:bg-[#1A1A1A]/10">
+                <ArrowLeft className="w-5 h-5 text-[#1A1A1A]" />
+              </button>
+            </Link>
+            <h1 className="font-bold text-lg text-[#1A1A1A]">Book Appointment</h1>
+          </div>
         </div>
       </div>
 
-      <div className="max-w-4xl mx-auto px-4 py-8">
-        <h1 className="font-serif text-4xl font-bold mb-2">Book Appointment</h1>
-        <p className="text-muted-foreground mb-8">Schedule a consultation at a time that works for you</p>
+      <div className="max-w-4xl mx-auto px-4 py-6">
+        <p className="text-muted-foreground mb-6">Schedule a consultation at a time that works for you</p>
 
         <div className="grid md:grid-cols-2 gap-8">
           {/* Booking Form */}
@@ -300,6 +303,7 @@ export default function Schedule() {
           </div>
         </div>
       </div>
+      <BottomNav />
     </div>
   );
 }

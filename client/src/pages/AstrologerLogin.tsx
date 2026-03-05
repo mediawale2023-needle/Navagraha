@@ -90,14 +90,15 @@ export default function AstrologerLogin() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-amber-50 via-orange-50 to-yellow-50 flex flex-col">
+    <div className="min-h-screen bg-gray-50 flex flex-col">
       {/* Header */}
-      <div className="px-6 py-4">
+      <div className="bg-[#FFCF23] px-4 py-3 flex items-center gap-3">
         <Link href="/">
-          <Button variant="ghost" size="sm">
-            <ArrowLeft className="w-4 h-4 mr-2" /> Back to App
-          </Button>
+          <button className="p-2 rounded-xl hover:bg-[#1A1A1A]/10">
+            <ArrowLeft className="w-5 h-5 text-[#1A1A1A]" />
+          </button>
         </Link>
+        <span className="font-bold text-[#1A1A1A]">Astrologer Portal</span>
       </div>
 
       <div className="flex-1 flex items-center justify-center px-4 py-8">
@@ -105,11 +106,12 @@ export default function AstrologerLogin() {
           {/* Logo */}
           <div className="text-center mb-8">
             <div className="flex items-center justify-center gap-2 mb-3">
-              <Star className="w-8 h-8 text-amber-500 fill-amber-500" />
-              <span className="text-3xl font-bold text-foreground font-serif">Navagraha</span>
+              <div className="w-14 h-14 bg-[#FFCF23] rounded-2xl flex items-center justify-center mx-auto">
+                <Star className="w-8 h-8 text-[#1A1A1A] fill-[#1A1A1A]" />
+              </div>
             </div>
-            <h2 className="text-xl font-semibold text-foreground">Astrologer Portal</h2>
-            <p className="text-muted-foreground mt-1">Join our platform and start earning</p>
+            <h2 className="text-2xl font-bold text-[#1A1A1A]">Astrologer Portal</h2>
+            <p className="text-gray-500 mt-1">Join our platform and start earning</p>
           </div>
 
           <Card>
@@ -252,9 +254,9 @@ export default function AstrologerLogin() {
               { label: '24/7', sub: 'Platform support' },
               { label: 'T+2', sub: 'Fast payouts' },
             ].map(({ label, sub }) => (
-              <div key={sub} className="bg-white rounded-xl p-3 shadow-sm">
-                <div className="text-xl font-bold text-amber-600">{label}</div>
-                <div className="text-xs text-muted-foreground">{sub}</div>
+              <div key={sub} className="bg-[#FFCF23] rounded-xl p-3 shadow-sm">
+                <div className="text-xl font-bold text-[#1A1A1A]">{label}</div>
+                <div className="text-xs text-[#1A1A1A]/70 font-medium">{sub}</div>
               </div>
             ))}
           </div>

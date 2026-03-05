@@ -275,49 +275,48 @@ export default function Chat() {
   return (
     <div className="h-screen flex flex-col bg-background">
       {/* Header */}
-      <div className="sticky top-0 z-50 bg-white border-b border-border shadow-sm">
+      <div className="sticky top-0 z-50 bg-[#FFCF23] shadow-sm">
         <div className="max-w-4xl mx-auto px-4 py-3">
           <div className="flex items-center justify-between gap-4">
             <div className="flex items-center gap-3 flex-1 min-w-0">
               <Link href="/astrologers">
-                <Button variant="ghost" size="icon" data-testid="button-back">
-                  <ArrowLeft className="w-5 h-5" />
-                </Button>
+                <button className="p-2 rounded-xl hover:bg-[#1A1A1A]/10" data-testid="button-back">
+                  <ArrowLeft className="w-5 h-5 text-[#1A1A1A]" />
+                </button>
               </Link>
               <Avatar className="w-12 h-12 flex-shrink-0">
                 <AvatarImage src={astrologer.profileImageUrl || undefined} alt={astrologer.name} />
-                <AvatarFallback className="bg-primary/10 text-primary font-semibold">
+                <AvatarFallback className="bg-[#1A1A1A] text-[#FFCF23] font-bold">
                   {astrologer.name.charAt(0)}
                 </AvatarFallback>
               </Avatar>
               <div className="flex-1 min-w-0">
-                <h3 className="font-semibold text-lg text-foreground truncate">{astrologer.name}</h3>
+                <h3 className="font-bold text-lg text-[#1A1A1A] truncate">{astrologer.name}</h3>
                 <div className="flex items-center gap-2 text-sm">
-                  <Badge
-                    variant={astrologer.isOnline ? "default" : "secondary"}
-                    className="gap-1"
-                  >
-                    <div className={`w-2 h-2 rounded-full ${astrologer.isOnline ? 'bg-green-500' : 'bg-gray-400'}`} />
-                    {astrologer.availability === 'busy' ? 'In a session' : astrologer.isOnline ? 'Online' : 'Offline'}
-                  </Badge>
+                  <div className="flex items-center gap-1">
+                    <div className={`w-2 h-2 rounded-full ${astrologer.isOnline ? 'bg-green-600 animate-pulse' : 'bg-gray-500'}`} />
+                    <span className="text-xs text-[#1A1A1A]/70 font-medium">
+                      {astrologer.availability === 'busy' ? 'In a session' : astrologer.isOnline ? 'Online' : 'Offline'}
+                    </span>
+                  </div>
                   {wsConnected ? (
-                    <Wifi className="w-3 h-3 text-green-500" />
+                    <Wifi className="w-3 h-3 text-green-600" />
                   ) : (
-                    <WifiOff className="w-3 h-3 text-red-500" />
+                    <WifiOff className="w-3 h-3 text-red-600" />
                   )}
                 </div>
               </div>
             </div>
             <div className="flex items-center gap-2">
               <Link href={`/call/${astrologerId}?type=voice`}>
-                <Button variant="outline" size="icon" data-testid="button-voice-call">
-                  <Phone className="w-5 h-5" />
-                </Button>
+                <button className="p-2 rounded-xl bg-[#1A1A1A]/10 hover:bg-[#1A1A1A]/20" data-testid="button-voice-call">
+                  <Phone className="w-5 h-5 text-[#1A1A1A]" />
+                </button>
               </Link>
               <Link href={`/call/${astrologerId}?type=video`}>
-                <Button variant="outline" size="icon" data-testid="button-video-call">
-                  <Video className="w-5 h-5" />
-                </Button>
+                <button className="p-2 rounded-xl bg-[#1A1A1A]/10 hover:bg-[#1A1A1A]/20" data-testid="button-video-call">
+                  <Video className="w-5 h-5 text-[#1A1A1A]" />
+                </button>
               </Link>
             </div>
           </div>
