@@ -5,6 +5,12 @@ import {
   wallets,
   transactions,
   chatMessages,
+  consultations,
+  reviews,
+  scheduledCalls,
+  notifications,
+  astrologerEarnings,
+  payoutRequests,
   type User,
   type UpsertUser,
   type Kundli,
@@ -16,41 +22,105 @@ import {
   type InsertTransaction,
   type ChatMessage,
   type InsertChatMessage,
+  type Consultation,
+  type InsertConsultation,
+  type Review,
+  type InsertReview,
+  type ScheduledCall,
+  type InsertScheduledCall,
+  type Notification,
+  type AstrologerEarning,
+  type PayoutRequest,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, desc, and } from "drizzle-orm";
+import { eq, desc, and, sql } from "drizzle-orm";
+import crypto from "crypto";
 
 export interface IStorage {
-  // User operations (mandatory for Replit Auth)
+  // User operations
   getUser(id: string): Promise<User | undefined>;
   upsertUser(user: UpsertUser): Promise<User>;
-  
+  updateUser(id: string, data: Partial<UpsertUser>): Promise<User>;
+
   // Kundli operations
   createKundli(kundli: InsertKundli): Promise<Kundli>;
   getUserKundlis(userId: string): Promise<Kundli[]>;
   getKundliById(id: string): Promise<Kundli | undefined>;
-  
+
   // Astrologer operations
   createAstrologer(astrologer: InsertAstrologer): Promise<Astrologer>;
   getAllAstrologers(): Promise<Astrologer[]>;
   getAstrologerById(id: string): Promise<Astrologer | undefined>;
-  
+  getAstrologerByEmail(email: string): Promise<Astrologer | undefined>;
+  updateAstrologer(id: string, data: Partial<InsertAstrologer>): Promise<Astrologer>;
+  updateAstrologerOnlineStatus(id: string, isOnline: boolean): Promise<void>;
+
   // Wallet operations
   getWallet(userId: string): Promise<Wallet | undefined>;
   createWallet(userId: string): Promise<Wallet>;
   updateWalletBalance(userId: string, amount: string): Promise<Wallet>;
-  
+
   // Transaction operations
   createTransaction(transaction: InsertTransaction): Promise<Transaction>;
   getUserTransactions(userId: string): Promise<Transaction[]>;
-  
+  updateTransactionStatus(id: string, status: string, gatewayPaymentId?: string, gatewaySignature?: string): Promise<Transaction>;
+
   // Chat operations
   createChatMessage(message: InsertChatMessage): Promise<ChatMessage>;
   getChatMessages(userId: string, astrologerId: string): Promise<ChatMessage[]>;
+
+  // Consultation operations
+  createConsultation(data: InsertConsultation): Promise<Consultation>;
+  getConsultationById(id: string): Promise<Consultation | undefined>;
+  getActiveConsultation(userId: string, astrologerId: string): Promise<Consultation | undefined>;
+  getUserConsultations(userId: string): Promise<Consultation[]>;
+  getAstrologerConsultations(astrologerId: string): Promise<Consultation[]>;
+  endConsultation(id: string): Promise<Consultation>;
+  updateConsultationDuration(id: string, durationSeconds: number, totalAmount: string): Promise<Consultation>;
+
+  // Review operations
+  createReview(review: InsertReview): Promise<Review>;
+  getAstrologerReviews(astrologerId: string): Promise<(Review & { userName?: string })[]>;
+  getUserReviewForConsultation(userId: string, consultationId: string): Promise<Review | undefined>;
+
+  // Schedule operations
+  createScheduledCall(data: InsertScheduledCall): Promise<ScheduledCall>;
+  getUserScheduledCalls(userId: string): Promise<ScheduledCall[]>;
+  getAstrologerScheduledCalls(astrologerId: string): Promise<ScheduledCall[]>;
+  updateScheduledCallStatus(id: string, status: string): Promise<ScheduledCall>;
+
+  // Notification operations
+  createNotification(data: {
+    userId: string;
+    recipientType?: string;
+    type: string;
+    title: string;
+    body: string;
+    data?: object;
+  }): Promise<Notification>;
+  getUserNotifications(userId: string): Promise<Notification[]>;
+  markNotificationRead(id: string): Promise<void>;
+  markAllNotificationsRead(userId: string): Promise<void>;
+
+  // Astrologer earnings
+  createEarning(data: {
+    astrologerId: string;
+    consultationId: string;
+    grossAmount: string;
+    platformFee: string;
+    netAmount: string;
+  }): Promise<AstrologerEarning>;
+  getAstrologerEarnings(astrologerId: string): Promise<AstrologerEarning[]>;
+  getAstrologerTotalEarnings(astrologerId: string): Promise<{ total: number; pending: number }>;
+
+  // Payout operations
+  createPayoutRequest(astrologerId: string, amount: string, method: string): Promise<PayoutRequest>;
+  getAstrologerPayouts(astrologerId: string): Promise<PayoutRequest[]>;
 }
 
 export class DatabaseStorage implements IStorage {
-  // User operations
+  // ─── User operations ───────────────────────────────────────
+
   async getUser(id: string): Promise<User | undefined> {
     const [user] = await db.select().from(users).where(eq(users.id, id));
     return user;
@@ -62,21 +132,25 @@ export class DatabaseStorage implements IStorage {
       .values(userData)
       .onConflictDoUpdate({
         target: users.id,
-        set: {
-          ...userData,
-          updatedAt: new Date(),
-        },
+        set: { ...userData, updatedAt: new Date() },
       })
       .returning();
     return user;
   }
 
-  // Kundli operations
-  async createKundli(kundliData: InsertKundli): Promise<Kundli> {
-    const [kundli] = await db
-      .insert(kundlis)
-      .values(kundliData)
+  async updateUser(id: string, data: Partial<UpsertUser>): Promise<User> {
+    const [user] = await db
+      .update(users)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(users.id, id))
       .returning();
+    return user;
+  }
+
+  // ─── Kundli operations ─────────────────────────────────────
+
+  async createKundli(kundliData: InsertKundli): Promise<Kundli> {
+    const [kundli] = await db.insert(kundlis).values(kundliData).returning();
     return kundli;
   }
 
@@ -89,19 +163,14 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getKundliById(id: string): Promise<Kundli | undefined> {
-    const [kundli] = await db
-      .select()
-      .from(kundlis)
-      .where(eq(kundlis.id, id));
+    const [kundli] = await db.select().from(kundlis).where(eq(kundlis.id, id));
     return kundli;
   }
 
-  // Astrologer operations
-  async createAstrologer(astrologerData: InsertAstrologer): Promise<Astrologer> {
-    const [astrologer] = await db
-      .insert(astrologers)
-      .values(astrologerData)
-      .returning();
+  // ─── Astrologer operations ─────────────────────────────────
+
+  async createAstrologer(data: InsertAstrologer): Promise<Astrologer> {
+    const [astrologer] = await db.insert(astrologers).values(data).returning();
     return astrologer;
   }
 
@@ -120,7 +189,36 @@ export class DatabaseStorage implements IStorage {
     return astrologer;
   }
 
-  // Wallet operations
+  async getAstrologerByEmail(email: string): Promise<Astrologer | undefined> {
+    const [astrologer] = await db
+      .select()
+      .from(astrologers)
+      .where(eq(astrologers.email, email));
+    return astrologer;
+  }
+
+  async updateAstrologer(id: string, data: Partial<InsertAstrologer>): Promise<Astrologer> {
+    const [astrologer] = await db
+      .update(astrologers)
+      .set(data)
+      .where(eq(astrologers.id, id))
+      .returning();
+    return astrologer;
+  }
+
+  async updateAstrologerOnlineStatus(id: string, isOnline: boolean): Promise<void> {
+    await db
+      .update(astrologers)
+      .set({
+        isOnline,
+        availability: isOnline ? "online" : "offline",
+        lastSeenAt: new Date(),
+      })
+      .where(eq(astrologers.id, id));
+  }
+
+  // ─── Wallet operations ─────────────────────────────────────
+
   async getWallet(userId: string): Promise<Wallet | undefined> {
     const [wallet] = await db
       .select()
@@ -140,20 +238,18 @@ export class DatabaseStorage implements IStorage {
   async updateWalletBalance(userId: string, amount: string): Promise<Wallet> {
     const [wallet] = await db
       .update(wallets)
-      .set({ 
-        balance: amount,
-        updatedAt: new Date()
-      })
+      .set({ balance: amount, updatedAt: new Date() })
       .where(eq(wallets.userId, userId))
       .returning();
     return wallet;
   }
 
-  // Transaction operations
-  async createTransaction(transactionData: InsertTransaction): Promise<Transaction> {
+  // ─── Transaction operations ────────────────────────────────
+
+  async createTransaction(data: InsertTransaction): Promise<Transaction> {
     const [transaction] = await db
       .insert(transactions)
-      .values(transactionData)
+      .values(data)
       .returning();
     return transaction;
   }
@@ -166,11 +262,30 @@ export class DatabaseStorage implements IStorage {
       .orderBy(desc(transactions.createdAt));
   }
 
-  // Chat operations
-  async createChatMessage(messageData: InsertChatMessage): Promise<ChatMessage> {
+  async updateTransactionStatus(
+    id: string,
+    status: string,
+    gatewayPaymentId?: string,
+    gatewaySignature?: string
+  ): Promise<Transaction> {
+    const [transaction] = await db
+      .update(transactions)
+      .set({
+        status,
+        ...(gatewayPaymentId ? { gatewayPaymentId } : {}),
+        ...(gatewaySignature ? { gatewaySignature } : {}),
+      })
+      .where(eq(transactions.id, id))
+      .returning();
+    return transaction;
+  }
+
+  // ─── Chat operations ───────────────────────────────────────
+
+  async createChatMessage(data: InsertChatMessage): Promise<ChatMessage> {
     const [message] = await db
       .insert(chatMessages)
-      .values(messageData)
+      .values(data)
       .returning();
     return message;
   }
@@ -186,6 +301,335 @@ export class DatabaseStorage implements IStorage {
         )
       )
       .orderBy(chatMessages.createdAt);
+  }
+
+  // ─── Consultation operations ───────────────────────────────
+
+  async createConsultation(data: InsertConsultation): Promise<Consultation> {
+    const [consultation] = await db
+      .insert(consultations)
+      .values(data)
+      .returning();
+    return consultation;
+  }
+
+  async getConsultationById(id: string): Promise<Consultation | undefined> {
+    const [consultation] = await db
+      .select()
+      .from(consultations)
+      .where(eq(consultations.id, id));
+    return consultation;
+  }
+
+  async getActiveConsultation(
+    userId: string,
+    astrologerId: string
+  ): Promise<Consultation | undefined> {
+    const [consultation] = await db
+      .select()
+      .from(consultations)
+      .where(
+        and(
+          eq(consultations.userId, userId),
+          eq(consultations.astrologerId, astrologerId),
+          eq(consultations.status, "active")
+        )
+      );
+    return consultation;
+  }
+
+  async getUserConsultations(userId: string): Promise<Consultation[]> {
+    return await db
+      .select()
+      .from(consultations)
+      .where(eq(consultations.userId, userId))
+      .orderBy(desc(consultations.createdAt));
+  }
+
+  async getAstrologerConsultations(astrologerId: string): Promise<Consultation[]> {
+    return await db
+      .select()
+      .from(consultations)
+      .where(eq(consultations.astrologerId, astrologerId))
+      .orderBy(desc(consultations.createdAt));
+  }
+
+  async endConsultation(id: string): Promise<Consultation> {
+    const [consultation] = await db
+      .select()
+      .from(consultations)
+      .where(eq(consultations.id, id));
+
+    const durationSeconds = consultation?.startedAt
+      ? Math.floor((Date.now() - new Date(consultation.startedAt).getTime()) / 1000)
+      : 0;
+
+    const pricePerMin = parseFloat(consultation?.pricePerMinute || "0");
+    const totalAmount = ((durationSeconds / 60) * pricePerMin).toFixed(2);
+
+    const [updated] = await db
+      .update(consultations)
+      .set({
+        status: "ended",
+        endedAt: new Date(),
+        durationSeconds,
+        totalAmount,
+      })
+      .where(eq(consultations.id, id))
+      .returning();
+    return updated;
+  }
+
+  async updateConsultationDuration(
+    id: string,
+    durationSeconds: number,
+    totalAmount: string
+  ): Promise<Consultation> {
+    const [updated] = await db
+      .update(consultations)
+      .set({ durationSeconds, totalAmount })
+      .where(eq(consultations.id, id))
+      .returning();
+    return updated;
+  }
+
+  // ─── Review operations ─────────────────────────────────────
+
+  async createReview(data: InsertReview): Promise<Review> {
+    const [review] = await db.insert(reviews).values(data).returning();
+
+    // Update astrologer's average rating
+    const allReviews = await db
+      .select()
+      .from(reviews)
+      .where(eq(reviews.astrologerId, data.astrologerId));
+    const avg = allReviews.reduce((sum, r) => sum + r.rating, 0) / allReviews.length;
+
+    await db
+      .update(astrologers)
+      .set({
+        rating: avg.toFixed(2),
+        totalConsultations: sql`${astrologers.totalConsultations} + 1`,
+      })
+      .where(eq(astrologers.id, data.astrologerId));
+
+    return review;
+  }
+
+  async getAstrologerReviews(
+    astrologerId: string
+  ): Promise<(Review & { userName?: string })[]> {
+    const result = await db
+      .select({
+        id: reviews.id,
+        userId: reviews.userId,
+        astrologerId: reviews.astrologerId,
+        consultationId: reviews.consultationId,
+        rating: reviews.rating,
+        comment: reviews.comment,
+        isPublic: reviews.isPublic,
+        createdAt: reviews.createdAt,
+        userName: sql<string>`concat(${users.firstName}, ' ', ${users.lastName})`,
+      })
+      .from(reviews)
+      .leftJoin(users, eq(reviews.userId, users.id))
+      .where(and(eq(reviews.astrologerId, astrologerId), eq(reviews.isPublic, true)))
+      .orderBy(desc(reviews.createdAt));
+    return result;
+  }
+
+  async getUserReviewForConsultation(
+    userId: string,
+    consultationId: string
+  ): Promise<Review | undefined> {
+    const [review] = await db
+      .select()
+      .from(reviews)
+      .where(
+        and(eq(reviews.userId, userId), eq(reviews.consultationId, consultationId))
+      );
+    return review;
+  }
+
+  // ─── Schedule operations ───────────────────────────────────
+
+  async createScheduledCall(data: InsertScheduledCall): Promise<ScheduledCall> {
+    const [call] = await db.insert(scheduledCalls).values(data).returning();
+    return call;
+  }
+
+  async getUserScheduledCalls(userId: string): Promise<ScheduledCall[]> {
+    return await db
+      .select()
+      .from(scheduledCalls)
+      .where(eq(scheduledCalls.userId, userId))
+      .orderBy(scheduledCalls.scheduledAt);
+  }
+
+  async getAstrologerScheduledCalls(astrologerId: string): Promise<ScheduledCall[]> {
+    return await db
+      .select()
+      .from(scheduledCalls)
+      .where(eq(scheduledCalls.astrologerId, astrologerId))
+      .orderBy(scheduledCalls.scheduledAt);
+  }
+
+  async updateScheduledCallStatus(id: string, status: string): Promise<ScheduledCall> {
+    const [call] = await db
+      .update(scheduledCalls)
+      .set({ status })
+      .where(eq(scheduledCalls.id, id))
+      .returning();
+    return call;
+  }
+
+  // ─── Notification operations ───────────────────────────────
+
+  async createNotification(data: {
+    userId: string;
+    recipientType?: string;
+    type: string;
+    title: string;
+    body: string;
+    data?: object;
+  }): Promise<Notification> {
+    const [notification] = await db
+      .insert(notifications)
+      .values({
+        userId: data.userId,
+        recipientType: data.recipientType || "user",
+        type: data.type,
+        title: data.title,
+        body: data.body,
+        data: data.data || null,
+      })
+      .returning();
+    return notification;
+  }
+
+  async getUserNotifications(userId: string): Promise<Notification[]> {
+    return await db
+      .select()
+      .from(notifications)
+      .where(eq(notifications.userId, userId))
+      .orderBy(desc(notifications.createdAt))
+      .limit(50);
+  }
+
+  async markNotificationRead(id: string): Promise<void> {
+    await db
+      .update(notifications)
+      .set({ isRead: true })
+      .where(eq(notifications.id, id));
+  }
+
+  async markAllNotificationsRead(userId: string): Promise<void> {
+    await db
+      .update(notifications)
+      .set({ isRead: true })
+      .where(eq(notifications.userId, userId));
+  }
+
+  // ─── Astrologer earnings ───────────────────────────────────
+
+  async createEarning(data: {
+    astrologerId: string;
+    consultationId: string;
+    grossAmount: string;
+    platformFee: string;
+    netAmount: string;
+  }): Promise<AstrologerEarning> {
+    const [earning] = await db
+      .insert(astrologerEarnings)
+      .values(data)
+      .returning();
+
+    // Update astrologer's total and pending earnings
+    await db
+      .update(astrologers)
+      .set({
+        totalEarnings: sql`${astrologers.totalEarnings} + ${data.netAmount}`,
+        pendingPayout: sql`${astrologers.pendingPayout} + ${data.netAmount}`,
+      })
+      .where(eq(astrologers.id, data.astrologerId));
+
+    return earning;
+  }
+
+  async getAstrologerEarnings(astrologerId: string): Promise<AstrologerEarning[]> {
+    return await db
+      .select()
+      .from(astrologerEarnings)
+      .where(eq(astrologerEarnings.astrologerId, astrologerId))
+      .orderBy(desc(astrologerEarnings.createdAt));
+  }
+
+  async getAstrologerTotalEarnings(
+    astrologerId: string
+  ): Promise<{ total: number; pending: number }> {
+    const [astrologer] = await db
+      .select({ totalEarnings: astrologers.totalEarnings, pendingPayout: astrologers.pendingPayout })
+      .from(astrologers)
+      .where(eq(astrologers.id, astrologerId));
+    return {
+      total: parseFloat(astrologer?.totalEarnings || "0"),
+      pending: parseFloat(astrologer?.pendingPayout || "0"),
+    };
+  }
+
+  // ─── Payout operations ─────────────────────────────────────
+
+  async createPayoutRequest(
+    astrologerId: string,
+    amount: string,
+    method: string
+  ): Promise<PayoutRequest> {
+    const [payout] = await db
+      .insert(payoutRequests)
+      .values({ astrologerId, amount, method })
+      .returning();
+    return payout;
+  }
+
+  async getAstrologerPayouts(astrologerId: string): Promise<PayoutRequest[]> {
+    return await db
+      .select()
+      .from(payoutRequests)
+      .where(eq(payoutRequests.astrologerId, astrologerId))
+      .orderBy(desc(payoutRequests.createdAt));
+  }
+
+  // ─── Astrologer Auth (password-based for astrologers) ─────
+
+  async createAstrologerWithPassword(data: {
+    name: string;
+    email: string;
+    password: string;
+    phoneNumber?: string;
+  }): Promise<Astrologer> {
+    const passwordHash = crypto
+      .createHash("sha256")
+      .update(data.password)
+      .digest("hex");
+    const [astrologer] = await db
+      .insert(astrologers)
+      .values({
+        name: data.name,
+        email: data.email,
+        passwordHash,
+        phoneNumber: data.phoneNumber,
+        availability: "offline",
+        isVerified: false,
+      })
+      .returning();
+    return astrologer;
+  }
+
+  async verifyAstrologerPassword(email: string, password: string): Promise<Astrologer | null> {
+    const astrologer = await this.getAstrologerByEmail(email);
+    if (!astrologer || !astrologer.passwordHash) return null;
+    const hash = crypto.createHash("sha256").update(password).digest("hex");
+    return hash === astrologer.passwordHash ? astrologer : null;
   }
 }
 

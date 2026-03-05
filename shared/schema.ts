@@ -76,21 +76,33 @@ export const insertKundliSchema = createInsertSchema(kundlis).omit({
 export type InsertKundli = z.infer<typeof insertKundliSchema>;
 export type Kundli = typeof kundlis.$inferSelect;
 
-// Astrologers table
+// Astrologers table — extended with auth + earnings fields
 export const astrologers = pgTable("astrologers", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   name: varchar("name").notNull(),
   email: varchar("email").unique(),
+  passwordHash: varchar("password_hash"),
   profileImageUrl: varchar("profile_image_url"),
   specializations: text("specializations").array(),
   experience: integer("experience"),
   rating: decimal("rating", { precision: 3, scale: 2 }),
   totalConsultations: integer("total_consultations").default(0),
   pricePerMinute: decimal("price_per_minute", { precision: 10, scale: 2 }),
-  availability: varchar("availability").default("available"),
+  availability: varchar("availability").default("offline"), // online | busy | offline
   languages: text("languages").array(),
   about: text("about"),
   certifications: text("certifications").array(),
+  // New fields
+  isVerified: boolean("is_verified").default(false),
+  isOnline: boolean("is_online").default(false),
+  totalEarnings: decimal("total_earnings", { precision: 12, scale: 2 }).default("0"),
+  pendingPayout: decimal("pending_payout", { precision: 12, scale: 2 }).default("0"),
+  bankAccountName: varchar("bank_account_name"),
+  bankAccountNumber: varchar("bank_account_number"),
+  bankIfsc: varchar("bank_ifsc"),
+  upiId: varchar("upi_id"),
+  phoneNumber: varchar("phone_number"),
+  lastSeenAt: timestamp("last_seen_at"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -113,14 +125,21 @@ export const wallets = pgTable("wallets", {
 
 export type Wallet = typeof wallets.$inferSelect;
 
-// Transactions table
+// Transactions table — extended with payment gateway fields
 export const transactions = pgTable("transactions", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   userId: varchar("user_id").references(() => users.id).notNull(),
   amount: decimal("amount", { precision: 10, scale: 2 }).notNull(),
-  type: varchar("type").notNull(),
+  type: varchar("type").notNull(), // recharge | debit | refund
   description: text("description"),
-  status: varchar("status").default("completed"),
+  status: varchar("status").default("pending"), // pending | completed | failed
+  // Payment gateway fields
+  paymentMethod: varchar("payment_method"), // razorpay | snapmint | lazypay | wallet
+  gatewayOrderId: varchar("gateway_order_id"),
+  gatewayPaymentId: varchar("gateway_payment_id"),
+  gatewaySignature: varchar("gateway_signature"),
+  // Consultation reference
+  consultationId: varchar("consultation_id"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -138,7 +157,9 @@ export const chatMessages = pgTable("chat_messages", {
   userId: varchar("user_id").references(() => users.id).notNull(),
   astrologerId: varchar("astrologer_id").references(() => astrologers.id).notNull(),
   message: text("message").notNull(),
-  sender: varchar("sender").notNull(),
+  sender: varchar("sender").notNull(), // user | astrologer
+  messageType: varchar("message_type").default("text"), // text | image | audio
+  isRead: boolean("is_read").default(false),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -150,12 +171,128 @@ export const insertChatMessageSchema = createInsertSchema(chatMessages).omit({
 export type InsertChatMessage = z.infer<typeof insertChatMessageSchema>;
 export type ChatMessage = typeof chatMessages.$inferSelect;
 
+// Consultations table — tracks live sessions with billing
+export const consultations = pgTable("consultations", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").references(() => users.id).notNull(),
+  astrologerId: varchar("astrologer_id").references(() => astrologers.id).notNull(),
+  type: varchar("type").notNull(), // chat | voice | video
+  status: varchar("status").default("active"), // active | ended | cancelled
+  startedAt: timestamp("started_at").defaultNow(),
+  endedAt: timestamp("ended_at"),
+  durationSeconds: integer("duration_seconds").default(0),
+  pricePerMinute: decimal("price_per_minute", { precision: 10, scale: 2 }),
+  totalAmount: decimal("total_amount", { precision: 10, scale: 2 }).default("0"),
+  // Agora channel for calls
+  agoraChannel: varchar("agora_channel"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertConsultationSchema = createInsertSchema(consultations).omit({
+  id: true,
+  createdAt: true,
+  startedAt: true,
+});
+
+export type InsertConsultation = z.infer<typeof insertConsultationSchema>;
+export type Consultation = typeof consultations.$inferSelect;
+
+// Reviews table
+export const reviews = pgTable("reviews", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").references(() => users.id).notNull(),
+  astrologerId: varchar("astrologer_id").references(() => astrologers.id).notNull(),
+  consultationId: varchar("consultation_id").references(() => consultations.id),
+  rating: integer("rating").notNull(), // 1-5
+  comment: text("comment"),
+  isPublic: boolean("is_public").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertReviewSchema = createInsertSchema(reviews).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type InsertReview = z.infer<typeof insertReviewSchema>;
+export type Review = typeof reviews.$inferSelect;
+
+// Scheduled calls table
+export const scheduledCalls = pgTable("scheduled_calls", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").references(() => users.id).notNull(),
+  astrologerId: varchar("astrologer_id").references(() => astrologers.id).notNull(),
+  scheduledAt: timestamp("scheduled_at").notNull(),
+  type: varchar("type").notNull(), // chat | voice | video
+  durationMinutes: integer("duration_minutes").default(30),
+  status: varchar("status").default("pending"), // pending | confirmed | cancelled | completed
+  notes: text("notes"),
+  totalAmount: decimal("total_amount", { precision: 10, scale: 2 }),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertScheduledCallSchema = createInsertSchema(scheduledCalls).omit({
+  id: true,
+  createdAt: true,
+}).extend({
+  scheduledAt: z.union([z.date(), z.string().transform((str) => new Date(str))]),
+});
+
+export type InsertScheduledCall = z.infer<typeof insertScheduledCallSchema>;
+export type ScheduledCall = typeof scheduledCalls.$inferSelect;
+
+// Notifications table
+export const notifications = pgTable("notifications", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id"), // can be user or astrologer ID
+  recipientType: varchar("recipient_type").default("user"), // user | astrologer
+  type: varchar("type").notNull(), // session_start | payment | review | schedule | system
+  title: varchar("title").notNull(),
+  body: text("body").notNull(),
+  data: jsonb("data"),
+  isRead: boolean("is_read").default(false),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export type Notification = typeof notifications.$inferSelect;
+
+// Astrologer earnings table
+export const astrologerEarnings = pgTable("astrologer_earnings", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  astrologerId: varchar("astrologer_id").references(() => astrologers.id).notNull(),
+  consultationId: varchar("consultation_id").references(() => consultations.id),
+  grossAmount: decimal("gross_amount", { precision: 10, scale: 2 }).notNull(),
+  platformFee: decimal("platform_fee", { precision: 10, scale: 2 }).notNull(),
+  netAmount: decimal("net_amount", { precision: 10, scale: 2 }).notNull(),
+  status: varchar("status").default("pending"), // pending | paid
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export type AstrologerEarning = typeof astrologerEarnings.$inferSelect;
+
+// Payout requests table
+export const payoutRequests = pgTable("payout_requests", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  astrologerId: varchar("astrologer_id").references(() => astrologers.id).notNull(),
+  amount: decimal("amount", { precision: 10, scale: 2 }).notNull(),
+  method: varchar("method").notNull(), // bank | upi
+  status: varchar("status").default("pending"), // pending | processing | paid | rejected
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+  processedAt: timestamp("processed_at"),
+});
+
+export type PayoutRequest = typeof payoutRequests.$inferSelect;
+
 // Relations
 export const usersRelations = relations(users, ({ many, one }) => ({
   kundlis: many(kundlis),
   wallet: one(wallets),
   transactions: many(transactions),
   chatMessages: many(chatMessages),
+  consultations: many(consultations),
+  reviews: many(reviews),
+  scheduledCalls: many(scheduledCalls),
 }));
 
 export const kundlisRelations = relations(kundlis, ({ one }) => ({
@@ -190,6 +327,50 @@ export const chatMessagesRelations = relations(chatMessages, ({ one }) => ({
   }),
 }));
 
+export const consultationsRelations = relations(consultations, ({ one }) => ({
+  user: one(users, {
+    fields: [consultations.userId],
+    references: [users.id],
+  }),
+  astrologer: one(astrologers, {
+    fields: [consultations.astrologerId],
+    references: [astrologers.id],
+  }),
+}));
+
+export const reviewsRelations = relations(reviews, ({ one }) => ({
+  user: one(users, {
+    fields: [reviews.userId],
+    references: [users.id],
+  }),
+  astrologer: one(astrologers, {
+    fields: [reviews.astrologerId],
+    references: [astrologers.id],
+  }),
+}));
+
+export const scheduledCallsRelations = relations(scheduledCalls, ({ one }) => ({
+  user: one(users, {
+    fields: [scheduledCalls.userId],
+    references: [users.id],
+  }),
+  astrologer: one(astrologers, {
+    fields: [scheduledCalls.astrologerId],
+    references: [astrologers.id],
+  }),
+}));
+
 export const astrologersRelations = relations(astrologers, ({ many }) => ({
   chatMessages: many(chatMessages),
+  consultations: many(consultations),
+  reviews: many(reviews),
+  scheduledCalls: many(scheduledCalls),
+  earnings: many(astrologerEarnings),
+}));
+
+export const astrologerEarningsRelations = relations(astrologerEarnings, ({ one }) => ({
+  astrologer: one(astrologers, {
+    fields: [astrologerEarnings.astrologerId],
+    references: [astrologers.id],
+  }),
 }));
