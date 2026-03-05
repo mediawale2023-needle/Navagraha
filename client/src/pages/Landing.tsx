@@ -60,7 +60,7 @@ export default function Landing() {
               <Button
                 size="sm"
                 className="bg-[#1A1A1A] text-[#FFCF23] hover:bg-[#333] font-semibold"
-                onClick={() => window.location.href = '/api/login'}
+                onClick={() => window.location.href = '/api/auth/google'}
               >
                 Sign In
               </Button>
@@ -96,7 +96,7 @@ export default function Landing() {
               <Button
                 size="lg"
                 className="bg-[#1A1A1A] text-[#FFCF23] hover:bg-[#333] text-lg font-bold h-14 px-8 rounded-xl"
-                onClick={() => window.location.href = '/api/login'}
+                onClick={() => window.location.href = '/api/auth/google'}
                 data-testid="button-login"
               >
                 Talk to Astrologer
@@ -135,7 +135,7 @@ export default function Landing() {
             {CATEGORIES.map(({ label, emoji }) => (
               <button
                 key={label}
-                onClick={() => window.location.href = '/api/login'}
+                onClick={() => window.location.href = '/api/auth/google'}
                 className="flex flex-col items-center gap-2 p-4 rounded-2xl border-2 border-gray-100 hover:border-[#FFCF23] hover:bg-[#FFFBEA] transition-all group cursor-pointer"
               >
                 <span className="text-3xl">{emoji}</span>
@@ -213,7 +213,7 @@ export default function Landing() {
                   <Button
                     size="sm"
                     className="bg-[#FFCF23] text-[#1A1A1A] hover:bg-[#F5C500] font-semibold rounded-xl"
-                    onClick={() => window.location.href = '/api/login'}
+                    onClick={() => window.location.href = '/api/auth/google'}
                     data-testid={`button-chat-${astrologer?.id}`}
                   >
                     <MessageCircle className="w-3.5 h-3.5 mr-1" /> Chat
@@ -222,7 +222,7 @@ export default function Landing() {
                     size="sm"
                     variant="outline"
                     className="border-[#1A1A1A] text-[#1A1A1A] hover:bg-gray-50 font-semibold rounded-xl"
-                    onClick={() => window.location.href = '/api/login'}
+                    onClick={() => window.location.href = '/api/auth/google'}
                     data-testid={`button-call-${astrologer?.id}`}
                   >
                     <Phone className="w-3.5 h-3.5 mr-1" /> Call
@@ -269,7 +269,7 @@ export default function Landing() {
           <Button
             size="lg"
             className="bg-[#FFCF23] text-[#1A1A1A] hover:bg-[#F5C500] text-lg font-bold h-14 px-10 rounded-xl"
-            onClick={() => window.location.href = '/api/login'}
+            onClick={() => window.location.href = '/api/auth/google'}
             data-testid="button-cta-login"
           >
             Get FREE First Consultation

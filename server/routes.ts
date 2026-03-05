@@ -1,7 +1,7 @@
 import type { Express, Request, Response } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { setupAuth, isAuthenticated } from "./replitAuth";
+import { setupAuth, isAuthenticated } from "./auth";
 import {
   insertKundliSchema,
   insertTransactionSchema,
@@ -111,7 +111,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // ─── Auth ─────────────────────────────────────────────────
   app.get('/api/auth/user', isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = (req.user as any).id;
       const user = await storage.getUser(userId);
       res.json(user);
     } catch (error) {
@@ -122,7 +122,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.put('/api/auth/user', isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = (req.user as any).id;
       const { firstName, lastName, phoneNumber } = req.body;
       const user = await storage.updateUser(userId, { firstName, lastName, phoneNumber });
       res.json(user);
@@ -135,7 +135,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // ─── Kundli ───────────────────────────────────────────────
   app.post('/api/kundli', isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = (req.user as any).id;
       const validatedData = insertKundliSchema.parse({ ...req.body, userId });
       const dateOfBirth = new Date(validatedData.dateOfBirth);
       const lat = validatedData.latitude ? parseFloat(validatedData.latitude) : 28.6139;
@@ -173,7 +173,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get('/api/kundli', isAuthenticated, async (req: any, res) => {
     try {
-      const kundlis = await storage.getUserKundlis(req.user.claims.sub);
+      const kundlis = await storage.getUserKundlis((req.user as any).id);
       res.json(kundlis);
     } catch { res.status(500).json({ message: "Failed to fetch kundlis" }); }
   });
@@ -443,7 +443,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // ─── Wallet ───────────────────────────────────────────────
   app.get('/api/wallet', isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = (req.user as any).id;
       let wallet = await storage.getWallet(userId);
       if (!wallet) wallet = await storage.createWallet(userId);
       res.json(wallet);
@@ -453,7 +453,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Legacy direct add (for testing / admin)
   app.post('/api/wallet/add', isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = (req.user as any).id;
       const { amount } = req.body;
       if (!amount || amount <= 0) return res.status(400).json({ message: "Invalid amount" });
       let wallet = await storage.getWallet(userId);
@@ -473,7 +473,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post('/api/payment/razorpay/order', isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = (req.user as any).id;
       const { amount, packId } = req.body;
 
       if (!amount || amount < 1) return res.status(400).json({ message: "Invalid amount" });
@@ -516,7 +516,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post('/api/payment/razorpay/verify', isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = (req.user as any).id;
       const { orderId, paymentId, signature, amount, bonus } = req.body;
 
       const valid = verifyRazorpaySignature(orderId, paymentId, signature);
@@ -577,7 +577,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post('/api/payment/snapmint/order', isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = (req.user as any).id;
       const { amount } = req.body;
       const user = await storage.getUser(userId);
 
@@ -634,7 +634,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post('/api/payment/lazypay/order', isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = (req.user as any).id;
       const { amount } = req.body;
       const user = await storage.getUser(userId);
 
@@ -694,7 +694,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // ─── Transactions ─────────────────────────────────────────
   app.get('/api/transactions', isAuthenticated, async (req: any, res) => {
     try {
-      const txns = await storage.getUserTransactions(req.user.claims.sub);
+      const txns = await storage.getUserTransactions((req.user as any).id);
       res.json(txns);
     } catch { res.status(500).json({ message: "Failed to fetch transactions" }); }
   });
@@ -702,14 +702,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // ─── Chat ─────────────────────────────────────────────────
   app.get('/api/chat/:astrologerId', isAuthenticated, async (req: any, res) => {
     try {
-      const messages = await storage.getChatMessages(req.user.claims.sub, req.params.astrologerId);
+      const messages = await storage.getChatMessages((req.user as any).id, req.params.astrologerId);
       res.json(messages);
     } catch { res.status(500).json({ message: "Failed to fetch messages" }); }
   });
 
   app.post('/api/chat/:astrologerId', isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = (req.user as any).id;
       const { astrologerId } = req.params;
       const { message, sender } = req.body;
       if (!message || !sender) return res.status(400).json({ message: "Message and sender required" });
@@ -722,7 +722,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // ─── Consultations ────────────────────────────────────────
   app.post('/api/consultations/start', isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = (req.user as any).id;
       const { astrologerId, type } = req.body;
       if (!astrologerId || !type) return res.status(400).json({ message: "astrologerId and type required" });
 
@@ -776,7 +776,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post('/api/consultations/:id/end', isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = (req.user as any).id;
       const consultation = await storage.endConsultation(req.params.id);
 
       // Set astrologer back to online
@@ -820,7 +820,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get('/api/consultations', isAuthenticated, async (req: any, res) => {
     try {
-      const list = await storage.getUserConsultations(req.user.claims.sub);
+      const list = await storage.getUserConsultations((req.user as any).id);
       res.json(list);
     } catch { res.status(500).json({ message: "Failed to fetch consultations" }); }
   });
@@ -856,7 +856,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // ─── Reviews ──────────────────────────────────────────────
   app.post('/api/reviews', isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = (req.user as any).id;
       const { astrologerId, consultationId, rating, comment } = req.body;
       if (!astrologerId || !rating || rating < 1 || rating > 5) {
         return res.status(400).json({ message: "astrologerId and rating (1-5) required" });
@@ -881,7 +881,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // ─── Schedule ─────────────────────────────────────────────
   app.post('/api/schedule', isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = (req.user as any).id;
       const { astrologerId, scheduledAt, type, durationMinutes, notes } = req.body;
       if (!astrologerId || !scheduledAt || !type) {
         return res.status(400).json({ message: "astrologerId, scheduledAt and type required" });
@@ -915,7 +915,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get('/api/schedule', isAuthenticated, async (req: any, res) => {
     try {
-      const list = await storage.getUserScheduledCalls(req.user.claims.sub);
+      const list = await storage.getUserScheduledCalls((req.user as any).id);
       res.json(list);
     } catch { res.status(500).json({ message: "Failed to fetch schedule" }); }
   });
@@ -930,7 +930,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // ─── Notifications ────────────────────────────────────────
   app.get('/api/notifications', isAuthenticated, async (req: any, res) => {
     try {
-      const list = await storage.getUserNotifications(req.user.claims.sub);
+      const list = await storage.getUserNotifications((req.user as any).id);
       res.json(list);
     } catch { res.status(500).json({ message: "Failed to fetch notifications" }); }
   });
@@ -944,7 +944,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.put('/api/notifications/read/all', isAuthenticated, async (req: any, res) => {
     try {
-      await storage.markAllNotificationsRead(req.user.claims.sub);
+      await storage.markAllNotificationsRead((req.user as any).id);
       res.json({ success: true });
     } catch { res.status(500).json({ message: "Failed to mark notifications" }); }
   });
