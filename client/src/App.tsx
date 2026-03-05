@@ -19,6 +19,7 @@ import CallRoom from "@/pages/CallRoom";
 import Schedule from "@/pages/Schedule";
 import AstrologerLogin from "@/pages/AstrologerLogin";
 import AstrologerDashboard from "@/pages/AstrologerDashboard";
+import Numerology from "@/pages/Numerology";
 import NotFound from "@/pages/not-found";
 import { useEffect, useState } from "react";
 
@@ -55,6 +56,7 @@ function Router() {
           <Route path="/" component={Landing} />
           <Route path="/astrologers" component={Astrologers} />
           <Route path="/kundli/matchmaking" component={Matchmaking} />
+          <Route path="/numerology" component={Numerology} />
           <Route path="/astrologer/login" component={AstrologerLogin} />
         </>
       ) : (
@@ -70,6 +72,7 @@ function Router() {
           <Route path="/call/:astrologerId" component={CallRoom} />
           <Route path="/schedule" component={Schedule} />
           <Route path="/profile" component={Profile} />
+          <Route path="/numerology" component={Numerology} />
         </>
       )}
       <Route component={NotFound} />

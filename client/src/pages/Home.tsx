@@ -164,13 +164,13 @@ export default function Home() {
               <p className="text-xs text-gray-500 mt-0.5">Book appointment</p>
             </div>
           </Link>
-          <Link href="/wallet">
-            <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 hover:border-[#FFCF23] hover:shadow-md transition-all cursor-pointer" data-testid="card-quick-consult">
-              <div className="w-10 h-10 bg-green-100 rounded-xl flex items-center justify-center mb-2">
-                <Wallet className="w-5 h-5 text-green-600" />
+          <Link href="/numerology">
+            <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 hover:border-[#FFCF23] hover:shadow-md transition-all cursor-pointer" data-testid="card-quick-numerology">
+              <div className="w-10 h-10 bg-purple-100 rounded-xl flex items-center justify-center mb-2">
+                <span className="text-purple-600 font-black text-lg">#</span>
               </div>
-              <h4 className="font-bold text-sm text-[#1A1A1A]">Recharge</h4>
-              <p className="text-xs text-gray-500 mt-0.5">Add wallet balance</p>
+              <h4 className="font-bold text-sm text-[#1A1A1A]">Numerology</h4>
+              <p className="text-xs text-gray-500 mt-0.5">Life path &amp; numbers</p>
             </div>
           </Link>
         </div>

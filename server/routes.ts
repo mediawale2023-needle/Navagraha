@@ -11,7 +11,14 @@ import {
   insertScheduledCallSchema,
 } from "@shared/schema";
 import { z } from "zod";
-import { generateKundli, getDailyHoroscope, getMatchingScore } from "./vedicAstroService";
+import {
+  getKundli,
+  getKundliMatching,
+  getDailyHoroscope as prokeralaHoroscope,
+  getNumerology,
+  isProkeralaConfigured,
+  buildDatetime,
+} from "./prokeralaService";
 import {
   createRazorpayOrder,
   verifyRazorpaySignature,
@@ -130,31 +137,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const userId = req.user.claims.sub;
       const validatedData = insertKundliSchema.parse({ ...req.body, userId });
-      let kundliData;
       const dateOfBirth = new Date(validatedData.dateOfBirth);
-      if (process.env.VEDIC_ASTRO_API_KEY) {
+      const lat = validatedData.latitude ? parseFloat(validatedData.latitude) : 28.6139;
+      const lon = validatedData.longitude ? parseFloat(validatedData.longitude) : 77.2090;
+
+      let kundliData;
+      if (isProkeralaConfigured()) {
         try {
-          const tz = 5.5;
-          const lat = validatedData.latitude ? parseFloat(validatedData.latitude) : 28.6139;
-          const lon = validatedData.longitude ? parseFloat(validatedData.longitude) : 77.2090;
-          const apiResponse = await generateKundli(validatedData.name, dateOfBirth.toISOString().split('T')[0], validatedData.timeOfBirth, validatedData.placeOfBirth, lat, lon, tz);
+          const pk = await getKundli(dateOfBirth, validatedData.timeOfBirth, lat, lon);
           kundliData = {
-            zodiacSign: apiResponse.sunSign || 'Aries',
-            moonSign: apiResponse.moonSign || 'Aries',
-            ascendant: apiResponse.ascendant || 'Aries',
-            chartData: { houses: apiResponse.houses || [], planetaryPositions: apiResponse.planets || [] },
-            dashas: apiResponse.dashas || [],
-            doshas: { mangalDosha: apiResponse.doshas?.mangal?.is_dosha_present || false, kaalSarpDosha: apiResponse.doshas?.kaalSarp?.is_dosha_present || false, pitruDosha: apiResponse.doshas?.pitra?.is_dosha_present || false },
-            remedies: null,
+            zodiacSign: pk.zodiacSign,
+            moonSign:   pk.moonSign,
+            ascendant:  pk.ascendant,
+            chartData:  pk.chartData,
+            dashas:     pk.dashas,
+            doshas:     pk.doshas,
+            remedies:   pk.remedies,
           };
-        } catch { kundliData = generateMockKundliData(dateOfBirth, validatedData.name); }
+        } catch (e) {
+          console.error('Prokerala kundli error, falling back to mock:', e);
+          kundliData = generateMockKundliData(dateOfBirth, validatedData.name);
+        }
       } else {
         kundliData = generateMockKundliData(dateOfBirth, validatedData.name);
       }
+
       const kundli = await storage.createKundli({ ...validatedData, ...kundliData });
       res.json(kundli);
     } catch (error) {
       if (error instanceof z.ZodError) return res.status(400).json({ message: "Validation error", errors: error.errors });
+      console.error('Create kundli error:', error);
       res.status(500).json({ message: "Failed to create kundli" });
     }
   });
@@ -178,38 +190,94 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get('/api/horoscope/:sign', async (req, res) => {
     try {
       const sign = req.params.sign.toLowerCase();
-      if (process.env.VEDIC_ASTRO_API_KEY) {
+      if (isProkeralaConfigured()) {
         try {
-          const apiResponse = await getDailyHoroscope(sign);
-          const prediction = apiResponse?.prediction || apiResponse?.bot_response || horoscopePredictions[sign];
-          return res.json({ sign, prediction });
-        } catch {}
+          const horoscope = await prokeralaHoroscope(sign, 'today', 'general');
+          return res.json({ sign, prediction: horoscope.prediction, lucky: horoscope.lucky });
+        } catch (e) {
+          console.error('Prokerala horoscope error, falling back to mock:', e);
+        }
       }
       const prediction = horoscopePredictions[sign] || "The stars are aligned in your favor today.";
-      res.json({ sign, prediction });
+      res.json({ sign, prediction, lucky: {} });
     } catch { res.status(500).json({ message: "Failed to fetch horoscope" }); }
   });
 
   // ─── Matchmaking ──────────────────────────────────────────
   app.post('/api/matchmaking', async (req, res) => {
     try {
-      const { person1Name, person1Date, person1Time, person2Name, person2Date, person2Time } = req.body;
-      if (process.env.VEDIC_ASTRO_API_KEY) {
+      const {
+        person1Name, person1Date, person1Time, person1Lat, person1Lon,
+        person2Name, person2Date, person2Time, person2Lat, person2Lon,
+      } = req.body;
+
+      if (isProkeralaConfigured()) {
         try {
-          const tz = 5.5;
-          const formatDate = (d: string) => { const [y, m, day] = d.split('-'); return `${day}/${m}/${y}`; };
-          const apiResponse = await getMatchingScore(
-            { date: formatDate(person1Date), time: person1Time, lat: 28.6139, lon: 77.2090, tz },
-            { date: formatDate(person2Date), time: person2Time, lat: 19.0760, lon: 72.8777, tz }
+          const result = await getKundliMatching(
+            { dateOfBirth: person1Date, timeOfBirth: person1Time || '12:00:00', latitude: parseFloat(person1Lat) || 28.6139, longitude: parseFloat(person1Lon) || 77.2090 },
+            { dateOfBirth: person2Date, timeOfBirth: person2Time || '12:00:00', latitude: parseFloat(person2Lat) || 19.0760, longitude: parseFloat(person2Lon) || 72.8777 },
           );
-          const ashtakootScore = apiResponse?.total_score || 18;
-          const totalScore = Math.floor((ashtakootScore / 36) * 30 + 70);
-          return res.json({ totalScore, mentalScore: Math.min(100, Math.floor(totalScore * 0.9 + Math.random() * 10)), physicalScore: Math.min(100, Math.floor(totalScore * 0.85 + Math.random() * 15)), emotionalScore: Math.min(100, Math.floor(totalScore * 0.95 + Math.random() * 5)), financialScore: Math.min(100, Math.floor(totalScore * 0.88 + Math.random() * 12)), person1: person1Name, person2: person2Name });
-        } catch {}
+          return res.json({
+            totalScore:    result.percentage,
+            gunaScore:     result.score,
+            maxGunaScore:  result.maxScore,
+            compatibility: result.compatibility,
+            recommendation: result.recommendation,
+            details:       result.details,
+            dosha:         result.dosha,
+            person1:       person1Name,
+            person2:       person2Name,
+          });
+        } catch (e) {
+          console.error('Prokerala matchmaking error, falling back to mock:', e);
+        }
       }
+
+      // Fallback mock
       const totalScore = Math.floor(Math.random() * 30) + 70;
-      res.json({ totalScore, mentalScore: Math.floor(Math.random() * 20) + 80, physicalScore: Math.floor(Math.random() * 30) + 65, emotionalScore: Math.floor(Math.random() * 20) + 75, financialScore: Math.floor(Math.random() * 30) + 60, person1: person1Name, person2: person2Name });
+      res.json({
+        totalScore,
+        gunaScore: Math.floor(totalScore * 36 / 100),
+        maxGunaScore: 36,
+        compatibility: totalScore >= 75 ? 'Good' : 'Average',
+        mentalScore:   Math.floor(Math.random() * 20) + 80,
+        physicalScore: Math.floor(Math.random() * 30) + 65,
+        emotionalScore: Math.floor(Math.random() * 20) + 75,
+        financialScore: Math.floor(Math.random() * 30) + 60,
+        person1: person1Name,
+        person2: person2Name,
+      });
     } catch { res.status(500).json({ message: "Failed to calculate compatibility" }); }
+  });
+
+  // ─── Numerology ───────────────────────────────────────────
+  app.post('/api/numerology', async (req, res) => {
+    try {
+      const { dateOfBirth, firstName, lastName, system = 'pythagorean' } = req.body;
+      if (!dateOfBirth || !firstName) {
+        return res.status(400).json({ message: "dateOfBirth and firstName are required" });
+      }
+      if (isProkeralaConfigured()) {
+        try {
+          const result = await getNumerology(dateOfBirth, firstName, lastName || '', system);
+          return res.json(result);
+        } catch (e) {
+          console.error('Prokerala numerology error:', e);
+          return res.status(502).json({ message: "Numerology API unavailable. Please try again." });
+        }
+      }
+      // Mock fallback
+      const mockLifePath = (dateStr: string) => {
+        const digits = dateStr.replace(/\D/g, '').split('').map(Number);
+        let sum = digits.reduce((a, b) => a + b, 0);
+        while (sum > 9 && sum !== 11 && sum !== 22 && sum !== 33) {
+          sum = String(sum).split('').map(Number).reduce((a, b) => a + b, 0);
+        }
+        return sum;
+      };
+      const lp = mockLifePath(dateOfBirth);
+      res.json({ lifePath: lp, destiny: ((lp + 3) % 9) || 9, soul: ((lp + 1) % 9) || 9, personality: ((lp + 5) % 9) || 9, birthday: new Date(dateOfBirth).getUTCDate() % 9 || 9, name: `${firstName} ${lastName || ''}`.trim(), details: {}, raw: {} });
+    } catch { res.status(500).json({ message: "Failed to calculate numerology" }); }
   });
 
   // ─── Astrologers ──────────────────────────────────────────
