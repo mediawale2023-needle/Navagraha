@@ -219,7 +219,7 @@ export default function Chat() {
       });
       return response.json();
     },
-    onSuccess: (saved) => {
+    onSuccess: (saved, sentText) => {
       // Add to live messages optimistically
       setLiveMessages(prev => {
         if (prev.some(m => m.id === saved.id)) return prev;
@@ -234,7 +234,7 @@ export default function Chat() {
           type: 'chat_message',
           userId,
           astrologerId,
-          message: messageText,
+          message: sentText,
           consultationId,
         }));
       }

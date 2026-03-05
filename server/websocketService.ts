@@ -21,10 +21,7 @@ interface WSClient {
   consultationId?: string;
 }
 
-interface WSMessage {
-  type: string;
-  [key: string]: unknown;
-}
+type WSMessage = Record<string, unknown> & { type: string };
 
 // Maps userId/astrologerId → WSClient
 const userClients = new Map<string, WSClient>();
@@ -50,7 +47,7 @@ export function setupWebSocket(server: Server) {
       switch (msg.type) {
         case "auth": {
           // Register the connection
-          const { userId, astrologerId, role } = msg as {
+          const { userId, astrologerId, role } = msg as unknown as {
             userId?: string;
             astrologerId?: string;
             role: "user" | "astrologer";
@@ -74,7 +71,7 @@ export function setupWebSocket(server: Server) {
 
         case "chat_message": {
           // User sends a chat message
-          const { userId, astrologerId, message, consultationId } = msg as {
+          const { userId, astrologerId, message, consultationId } = msg as unknown as {
             userId: string;
             astrologerId: string;
             message: string;
@@ -108,7 +105,7 @@ export function setupWebSocket(server: Server) {
 
         case "astrologer_reply": {
           // Astrologer sends reply
-          const { astrologerId, userId, message, consultationId } = msg as {
+          const { astrologerId, userId, message, consultationId } = msg as unknown as {
             astrologerId: string;
             userId: string;
             message: string;
@@ -140,7 +137,7 @@ export function setupWebSocket(server: Server) {
 
         case "start_billing": {
           // Begin per-minute billing for a consultation
-          const { consultationId, userId, astrologerId, pricePerMinute } = msg as {
+          const { consultationId, userId, astrologerId, pricePerMinute } = msg as unknown as {
             consultationId: string;
             userId: string;
             astrologerId: string;
@@ -210,7 +207,7 @@ export function setupWebSocket(server: Server) {
         }
 
         case "stop_billing": {
-          const { consultationId } = msg as { consultationId: string };
+          const { consultationId } = msg as unknown as { consultationId: string };
           const timer = billingTimers.get(consultationId);
           if (timer) {
             clearInterval(timer);
@@ -223,7 +220,7 @@ export function setupWebSocket(server: Server) {
 
         case "call_request": {
           // User requests a call
-          const { userId, astrologerId, callType, consultationId } = msg as {
+          const { userId, astrologerId, callType, consultationId } = msg as unknown as {
             userId: string;
             astrologerId: string;
             callType: "voice" | "video";
@@ -246,7 +243,7 @@ export function setupWebSocket(server: Server) {
         }
 
         case "call_accepted": {
-          const { userId, astrologerId, consultationId } = msg as {
+          const { userId, astrologerId, consultationId } = msg as unknown as {
             userId: string;
             astrologerId: string;
             consultationId: string;
@@ -259,7 +256,7 @@ export function setupWebSocket(server: Server) {
         }
 
         case "call_rejected": {
-          const { userId, consultationId } = msg as { userId: string; consultationId: string };
+          const { userId, consultationId } = msg as unknown as { userId: string; consultationId: string };
           const userClient = userClients.get(userId);
           if (userClient) {
             send(userClient.ws, { type: "call_rejected", consultationId });

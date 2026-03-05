@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useState, useEffect, useRef } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'wouter';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -9,9 +9,9 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
-import { 
-  ArrowLeft, Search, Star, MessageCircle, 
-  Phone, User, Filter 
+import {
+  ArrowLeft, Search, Star, MessageCircle,
+  Phone, Video, Filter, Calendar, CheckCircle2
 } from 'lucide-react';
 import type { Astrologer } from '@shared/schema';
 
@@ -20,10 +20,37 @@ export default function Astrologers() {
   const [filterAvailable, setFilterAvailable] = useState(false);
   const { isAuthenticated } = useAuth();
   const { toast } = useToast();
+  const queryClient = useQueryClient();
+  // Track real-time online status via WebSocket
+  const [onlineAstrologers, setOnlineAstrologers] = useState<Set<string>>(new Set());
+  const wsRef = useRef<WebSocket | null>(null);
 
   const { data: astrologers, isLoading } = useQuery<Astrologer[]>({
     queryKey: ['/api/astrologers'],
+    refetchInterval: 30_000,
   });
+
+  // WebSocket for real-time presence updates
+  useEffect(() => {
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const ws = new WebSocket(`${protocol}//${window.location.host}/ws`);
+    wsRef.current = ws;
+    ws.onmessage = (event) => {
+      try {
+        const msg = JSON.parse(event.data);
+        if (msg.type === 'astrologer_status') {
+          setOnlineAstrologers(prev => {
+            const next = new Set(prev);
+            if (msg.status === 'online') next.add(msg.astrologerId);
+            else next.delete(msg.astrologerId);
+            return next;
+          });
+          queryClient.invalidateQueries({ queryKey: ['/api/astrologers'] });
+        }
+      } catch {}
+    };
+    return () => ws.close();
+  }, [queryClient]);
 
   const handleLoginRequired = (action: string) => {
     toast({
@@ -31,15 +58,13 @@ export default function Astrologers() {
       description: `Please login to ${action} with astrologers`,
       variant: "destructive",
     });
-    setTimeout(() => {
-      window.location.href = '/api/login';
-    }, 1500);
+    setTimeout(() => { window.location.href = '/api/login'; }, 1500);
   };
 
   const filteredAstrologers = astrologers?.filter((astrologer) => {
     const matchesSearch = astrologer.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       astrologer.specializations?.some(s => s.toLowerCase().includes(searchQuery.toLowerCase()));
-    const matchesFilter = !filterAvailable || astrologer.availability === 'available';
+    const matchesFilter = !filterAvailable || astrologer.isOnline || astrologer.availability === 'online';
     return matchesSearch && matchesFilter;
   });
 
@@ -154,50 +179,61 @@ export default function Astrologers() {
                       </span>
                       <span className="text-sm text-muted-foreground">/min</span>
                     </div>
-                    <Badge 
-                      variant={astrologer.availability === 'available' ? 'default' : 'secondary'}
-                      className="gap-1.5"
-                    >
-                      <div className={`w-2 h-2 rounded-full ${
-                        astrologer.availability === 'available' ? 'bg-green-500' : 'bg-gray-400'
-                      }`} />
-                      {astrologer.availability === 'available' ? 'Available' : 'Busy'}
-                    </Badge>
+                    <div className="flex flex-col items-end gap-1">
+                      {astrologer.isVerified && (
+                        <Badge variant="outline" className="text-xs gap-1 text-blue-600 border-blue-300">
+                          <CheckCircle2 className="w-3 h-3" /> Verified
+                        </Badge>
+                      )}
+                      <Badge
+                        variant={astrologer.isOnline || onlineAstrologers.has(astrologer.id) ? 'default' : 'secondary'}
+                        className="gap-1.5"
+                      >
+                        <div className={`w-2 h-2 rounded-full ${
+                          astrologer.isOnline || onlineAstrologers.has(astrologer.id)
+                            ? 'bg-green-400 animate-pulse'
+                            : astrologer.availability === 'busy' ? 'bg-yellow-400' : 'bg-gray-400'
+                        }`} />
+                        {astrologer.isOnline || onlineAstrologers.has(astrologer.id)
+                          ? 'Online'
+                          : astrologer.availability === 'busy' ? 'Busy' : 'Offline'}
+                      </Badge>
+                    </div>
                   </div>
 
                   {/* Action Buttons */}
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-3 gap-2">
                     {isAuthenticated ? (
-                      <Link href={`/chat/${astrologer.id}`}>
-                        <Button 
-                          className="w-full" 
-                          variant="default"
-                          data-testid={`button-chat-${astrologer.id}`}
-                        >
-                          <MessageCircle className="w-4 h-4 mr-2" />
-                          Chat
-                        </Button>
-                      </Link>
+                      <>
+                        <Link href={`/chat/${astrologer.id}`}>
+                          <Button className="w-full" variant="default" size="sm" data-testid={`button-chat-${astrologer.id}`}>
+                            <MessageCircle className="w-4 h-4 mr-1" /> Chat
+                          </Button>
+                        </Link>
+                        <Link href={`/call/${astrologer.id}?type=voice`}>
+                          <Button className="w-full" variant="outline" size="sm" data-testid={`button-call-${astrologer.id}`}>
+                            <Phone className="w-4 h-4 mr-1" /> Call
+                          </Button>
+                        </Link>
+                        <Link href={`/schedule?astrologerId=${astrologer.id}`}>
+                          <Button className="w-full" variant="outline" size="sm">
+                            <Calendar className="w-4 h-4 mr-1" /> Book
+                          </Button>
+                        </Link>
+                      </>
                     ) : (
-                      <Button 
-                        className="w-full" 
-                        variant="default"
-                        onClick={() => handleLoginRequired('chat')}
-                        data-testid={`button-chat-${astrologer.id}`}
-                      >
-                        <MessageCircle className="w-4 h-4 mr-2" />
-                        Chat
-                      </Button>
+                      <>
+                        <Button className="w-full" variant="default" size="sm" onClick={() => handleLoginRequired('chat')} data-testid={`button-chat-${astrologer.id}`}>
+                          <MessageCircle className="w-4 h-4 mr-1" /> Chat
+                        </Button>
+                        <Button className="w-full" variant="outline" size="sm" onClick={() => handleLoginRequired('call')} data-testid={`button-call-${astrologer.id}`}>
+                          <Phone className="w-4 h-4 mr-1" /> Call
+                        </Button>
+                        <Button className="w-full" variant="outline" size="sm" onClick={() => handleLoginRequired('book')}>
+                          <Calendar className="w-4 h-4 mr-1" /> Book
+                        </Button>
+                      </>
                     )}
-                    <Button 
-                      className="w-full" 
-                      variant="outline"
-                      onClick={() => isAuthenticated ? null : handleLoginRequired('call')}
-                      data-testid={`button-call-${astrologer.id}`}
-                    >
-                      <Phone className="w-4 h-4 mr-2" />
-                      Call
-                    </Button>
                   </div>
                 </CardContent>
               </Card>
