@@ -20,6 +20,12 @@ import {
   buildDatetime,
 } from "./prokeralaService";
 import {
+  getKundli as nativeGetKundli,
+  getKundliMatching as nativeGetKundliMatching,
+  getNativeHoroscope,
+  getNumerology as nativeGetNumerology,
+} from "./astroEngine/index.js";
+import {
   createRazorpayOrder,
   verifyRazorpaySignature,
   verifyRazorpayWebhookSignature,
@@ -155,11 +161,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
             remedies:   pk.remedies,
           };
         } catch (e) {
-          console.error('Prokerala kundli error, falling back to mock:', e);
+          console.error('Prokerala kundli error, falling back to native engine:', e);
+        }
+      }
+
+      // Use native astrology engine if Prokerala is not configured or failed
+      if (!kundliData) {
+        try {
+          const nk = await nativeGetKundli(dateOfBirth, validatedData.timeOfBirth, lat, lon);
+          kundliData = {
+            zodiacSign: nk.zodiacSign,
+            moonSign:   nk.moonSign,
+            ascendant:  nk.ascendant,
+            chartData:  nk.chartData,
+            dashas:     nk.dashas,
+            doshas:     nk.doshas,
+            remedies:   nk.remedies,
+          };
+        } catch (e) {
+          console.error('Native kundli engine error, falling back to mock:', e);
           kundliData = generateMockKundliData(dateOfBirth, validatedData.name);
         }
-      } else {
-        kundliData = generateMockKundliData(dateOfBirth, validatedData.name);
       }
 
       const kundli = await storage.createKundli({ ...validatedData, ...kundliData });
@@ -190,16 +212,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get('/api/horoscope/:sign', async (req, res) => {
     try {
       const sign = req.params.sign.toLowerCase();
+      const type = (req.query.type as string) || 'general';
+      const date = (req.query.date as string) || 'today';
+
       if (isProkeralaConfigured()) {
         try {
-          const horoscope = await prokeralaHoroscope(sign, 'today', 'general');
+          const horoscope = await prokeralaHoroscope(sign, date as any, type as any);
           return res.json({ sign, prediction: horoscope.prediction, lucky: horoscope.lucky });
         } catch (e) {
-          console.error('Prokerala horoscope error, falling back to mock:', e);
+          console.error('Prokerala horoscope error, falling back to native engine:', e);
         }
       }
-      const prediction = horoscopePredictions[sign] || "The stars are aligned in your favor today.";
-      res.json({ sign, prediction, lucky: {} });
+
+      // Native engine — rich daily horoscopes with lucky data
+      const horoscope = await getNativeHoroscope(sign, date as any, type as any);
+      res.json({ sign: horoscope.sign, prediction: horoscope.prediction, lucky: horoscope.lucky });
     } catch { res.status(500).json({ message: "Failed to fetch horoscope" }); }
   });
 
@@ -211,12 +238,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         person2Name, person2Date, person2Time, person2Lat, person2Lon,
       } = req.body;
 
+      const p1 = { dateOfBirth: person1Date, timeOfBirth: person1Time || '12:00:00', latitude: parseFloat(person1Lat) || 28.6139, longitude: parseFloat(person1Lon) || 77.2090 };
+      const p2 = { dateOfBirth: person2Date, timeOfBirth: person2Time || '12:00:00', latitude: parseFloat(person2Lat) || 19.0760, longitude: parseFloat(person2Lon) || 72.8777 };
+
       if (isProkeralaConfigured()) {
         try {
-          const result = await getKundliMatching(
-            { dateOfBirth: person1Date, timeOfBirth: person1Time || '12:00:00', latitude: parseFloat(person1Lat) || 28.6139, longitude: parseFloat(person1Lon) || 77.2090 },
-            { dateOfBirth: person2Date, timeOfBirth: person2Time || '12:00:00', latitude: parseFloat(person2Lat) || 19.0760, longitude: parseFloat(person2Lon) || 72.8777 },
-          );
+          const result = await getKundliMatching(p1, p2);
           return res.json({
             totalScore:    result.percentage,
             gunaScore:     result.score,
@@ -229,23 +256,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
             person2:       person2Name,
           });
         } catch (e) {
-          console.error('Prokerala matchmaking error, falling back to mock:', e);
+          console.error('Prokerala matchmaking error, falling back to native engine:', e);
         }
       }
 
-      // Fallback mock
-      const totalScore = Math.floor(Math.random() * 30) + 70;
+      // Native Ashtakoot matching engine
+      const result = await nativeGetKundliMatching(p1, p2);
       res.json({
-        totalScore,
-        gunaScore: Math.floor(totalScore * 36 / 100),
-        maxGunaScore: 36,
-        compatibility: totalScore >= 75 ? 'Good' : 'Average',
-        mentalScore:   Math.floor(Math.random() * 20) + 80,
-        physicalScore: Math.floor(Math.random() * 30) + 65,
-        emotionalScore: Math.floor(Math.random() * 20) + 75,
-        financialScore: Math.floor(Math.random() * 30) + 60,
-        person1: person1Name,
-        person2: person2Name,
+        totalScore:    result.percentage,
+        gunaScore:     result.score,
+        maxGunaScore:  result.maxScore,
+        compatibility: result.compatibility,
+        recommendation: result.recommendation,
+        details:       result.details,
+        dosha:         result.dosha,
+        person1:       person1Name,
+        person2:       person2Name,
       });
     } catch { res.status(500).json({ message: "Failed to calculate compatibility" }); }
   });
@@ -262,21 +288,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const result = await getNumerology(dateOfBirth, firstName, lastName || '', system);
           return res.json(result);
         } catch (e) {
-          console.error('Prokerala numerology error:', e);
-          return res.status(502).json({ message: "Numerology API unavailable. Please try again." });
+          console.error('Prokerala numerology error, falling back to native engine:', e);
         }
       }
-      // Mock fallback
-      const mockLifePath = (dateStr: string) => {
-        const digits = dateStr.replace(/\D/g, '').split('').map(Number);
-        let sum = digits.reduce((a, b) => a + b, 0);
-        while (sum > 9 && sum !== 11 && sum !== 22 && sum !== 33) {
-          sum = String(sum).split('').map(Number).reduce((a, b) => a + b, 0);
-        }
-        return sum;
-      };
-      const lp = mockLifePath(dateOfBirth);
-      res.json({ lifePath: lp, destiny: ((lp + 3) % 9) || 9, soul: ((lp + 1) % 9) || 9, personality: ((lp + 5) % 9) || 9, birthday: new Date(dateOfBirth).getUTCDate() % 9 || 9, name: `${firstName} ${lastName || ''}`.trim(), details: {}, raw: {} });
+      // Native numerology engine
+      const result = await nativeGetNumerology(dateOfBirth, firstName, lastName || '');
+      res.json(result);
     } catch { res.status(500).json({ message: "Failed to calculate numerology" }); }
   });
 
