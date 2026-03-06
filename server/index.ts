@@ -61,6 +61,16 @@ app.use((req, res, next) => {
 
 const httpServer = createServer(app);
 
+// Register /api/config immediately so Railway's healthcheck gets a 200
+// before the async init (auth, DB) completes.
+app.get("/api/config", (_req, res) => {
+  res.json({
+    googleMapsApiKey: process.env.GOOGLE_MAPS_API_KEY || "",
+    razorpayKeyId: process.env.RAZORPAY_KEY_ID || "",
+    agoraAppId: process.env.AGORA_APP_ID || "",
+  });
+});
+
 const port = parseInt(process.env.PORT || "5000", 10);
 httpServer.listen({ port, host: "0.0.0.0", reusePort: true }, () => {
   log(`serving on port ${port}`);
