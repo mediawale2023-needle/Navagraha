@@ -24,7 +24,7 @@ export function getSession() {
   const pgStore = connectPg(session);
   const sessionStore = new pgStore({
     conString: process.env.DATABASE_URL,
-    createTableIfMissing: false,
+    createTableIfMissing: true,
     ttl: sessionTtl,
     tableName: 'sessions',
   });
@@ -49,11 +49,27 @@ export async function setupAuth(app: Express) {
   app.use(passport.initialize());
   app.use(passport.session());
 
+  if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) {
+    console.warn('[auth] GOOGLE_CLIENT_ID or GOOGLE_CLIENT_SECRET not set – Google OAuth disabled');
+    // Still register placeholder routes so the app doesn't 404
+    app.get('/api/auth/google', (_req, res) => res.status(503).json({ message: 'OAuth not configured' }));
+    app.get('/api/auth/google/callback', (_req, res) => res.redirect('/?error=oauth_not_configured'));
+    app.get('/api/login', (_req, res) => res.status(503).json({ message: 'OAuth not configured' }));
+    app.get('/api/logout', (req, res) => { req.logout(() => res.redirect('/')); });
+
+    passport.serializeUser((user: any, done) => done(null, user.id));
+    passport.deserializeUser(async (id: string, done) => {
+      try { const user = await storage.getUser(id); done(null, user ?? false); }
+      catch (err) { done(err); }
+    });
+    return;
+  }
+
   passport.use(
     new GoogleStrategy(
       {
-        clientID:     process.env.GOOGLE_CLIENT_ID!,
-        clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
+        clientID:     process.env.GOOGLE_CLIENT_ID,
+        clientSecret: process.env.GOOGLE_CLIENT_SECRET,
         callbackURL:  '/api/auth/google/callback',
       },
       async (_accessToken, _refreshToken, profile, done) => {

@@ -96,8 +96,12 @@ function isAstrologerAuthenticated(req: any, res: Response, next: Function) {
   next();
 }
 
-export async function registerRoutes(app: Express): Promise<Server> {
-  await setupAuth(app);
+export async function registerRoutes(app: Express, existingServer?: Server): Promise<Server> {
+  try {
+    await setupAuth(app);
+  } catch (err) {
+    console.error('[startup] Auth setup failed (continuing without auth):', err);
+  }
 
   // ─── Config ───────────────────────────────────────────────
   app.get('/api/config', (_req, res) => {
@@ -949,6 +953,5 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch { res.status(500).json({ message: "Failed to mark notifications" }); }
   });
 
-  const httpServer = createServer(app);
-  return httpServer;
+  return existingServer ?? createServer(app);
 }
