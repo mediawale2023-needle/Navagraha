@@ -11,7 +11,8 @@
  * India latency: excellent (servers in Mumbai)
  */
 
-import { RtcTokenBuilder, RtcRole } from "agora-access-token";
+import pkg from "agora-access-token";
+const { RtcTokenBuilder, RtcRole } = pkg;
 
 export type AgoraRole = "publisher" | "subscriber";
 
