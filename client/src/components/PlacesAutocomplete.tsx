@@ -16,8 +16,8 @@ interface PlacesAutocompleteProps {
   testId?: string;
 }
 
-// Global callback name to avoid conflicts
-const GMAPS_CALLBACK = '__gmapsReady__';
+// Unique global callback name
+const CB = '__gmapsReady__';
 
 export function PlacesAutocomplete({
   value,
@@ -33,7 +33,6 @@ export function PlacesAutocomplete({
   const onPlaceSelectRef = useRef(onPlaceSelect);
   const [scriptLoading, setScriptLoading] = useState(false);
 
-  // Keep refs in sync without triggering effects
   onChangeRef.current = onChange;
   onPlaceSelectRef.current = onPlaceSelect;
 
@@ -44,7 +43,7 @@ export function PlacesAutocomplete({
   const initAutocomplete = useCallback(() => {
     if (!inputRef.current || autocompleteRef.current) return;
     const g = (window as any).google;
-    if (!g?.maps?.places) return;
+    if (!g?.maps?.places?.Autocomplete) return;
     try {
       const ac = new g.maps.places.Autocomplete(inputRef.current, {
         fields: ['formatted_address', 'geometry', 'name'],
@@ -52,7 +51,7 @@ export function PlacesAutocomplete({
       });
       ac.addListener('place_changed', () => {
         const place = ac.getPlace();
-        if (!place.geometry?.location) return;
+        if (!place?.geometry?.location) return;
         const address = place.formatted_address || place.name || '';
         const lat = place.geometry.location.lat();
         const lng = place.geometry.location.lng();
@@ -60,8 +59,8 @@ export function PlacesAutocomplete({
         onPlaceSelectRef.current?.({ address, lat, lng });
       });
       autocompleteRef.current = ac;
-    } catch {
-      // silently fail — user can still type manually
+    } catch (e) {
+      console.warn('PlacesAutocomplete init failed:', e);
     } finally {
       setScriptLoading(false);
     }
@@ -70,55 +69,54 @@ export function PlacesAutocomplete({
   useEffect(() => {
     if (!config?.googleMapsApiKey) return;
 
-    // Already loaded — init immediately
-    if ((window as any).google?.maps?.places) {
+    // Already loaded — attach immediately
+    if ((window as any).google?.maps?.places?.Autocomplete) {
       initAutocomplete();
       return;
     }
 
-    // Script already injected — wait for callback
+    // Script tag already injected — piggyback on existing callback
     if (document.querySelector('script[data-gmaps]')) {
-      // Register to be called when it finishes loading
-      const prev = (window as any)[GMAPS_CALLBACK];
-      (window as any)[GMAPS_CALLBACK] = () => {
-        prev?.();
-        initAutocomplete();
-      };
+      const prev = (window as any)[CB];
+      (window as any)[CB] = () => { prev?.(); initAutocomplete(); };
       return;
     }
 
     setScriptLoading(true);
 
-    // Register global callback before injecting script
-    (window as any)[GMAPS_CALLBACK] = () => {
-      initAutocomplete();
+    // Register callback BEFORE injecting the script tag
+    (window as any)[CB] = () => {
       setScriptLoading(false);
+      initAutocomplete();
     };
 
     const script = document.createElement('script');
-    // Use callback= for reliable async loading; loading=async for performance
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${config.googleMapsApiKey}&libraries=places&loading=async&callback=${GMAPS_CALLBACK}`;
+    // NOTE: do NOT mix loading=async with callback= — they are mutually exclusive
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${config.googleMapsApiKey}&libraries=places&callback=${CB}`;
     script.async = true;
     script.defer = true;
     script.dataset.gmaps = '1';
-    script.onerror = () => setScriptLoading(false);
+    script.onerror = () => {
+      setScriptLoading(false);
+      console.warn('Google Maps script failed to load. Check API key restrictions.');
+    };
     document.head.appendChild(script);
   }, [config, initAutocomplete]);
 
   return (
     <div className="relative">
-      <MapPin className="absolute left-3 top-3 w-5 h-5 text-muted-foreground z-10" />
+      <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground z-10 pointer-events-none" />
       <Input
         ref={inputRef}
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
-        className={`pl-10 pr-8 ${className}`}
+        className={`pl-9 pr-8 ${className}`}
         data-testid={testId}
         autoComplete="off"
       />
       {scriptLoading && (
-        <Loader2 className="absolute right-3 top-3 w-4 h-4 animate-spin text-muted-foreground" />
+        <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 animate-spin text-muted-foreground" />
       )}
     </div>
   );
