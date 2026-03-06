@@ -16,6 +16,9 @@ interface PlacesAutocompleteProps {
   testId?: string;
 }
 
+// Global callback name to avoid conflicts
+const GMAPS_CALLBACK = '__gmapsReady__';
+
 export function PlacesAutocomplete({
   value,
   onChange,
@@ -28,7 +31,6 @@ export function PlacesAutocomplete({
   const autocompleteRef = useRef<any>(null);
   const onChangeRef = useRef(onChange);
   const onPlaceSelectRef = useRef(onPlaceSelect);
-  // Start as false — input is immediately usable; spinner only shows when actually loading script
   const [scriptLoading, setScriptLoading] = useState(false);
 
   // Keep refs in sync without triggering effects
@@ -41,8 +43,10 @@ export function PlacesAutocomplete({
 
   const initAutocomplete = useCallback(() => {
     if (!inputRef.current || autocompleteRef.current) return;
+    const g = (window as any).google;
+    if (!g?.maps?.places) return;
     try {
-      const ac = new (window as any).google.maps.places.Autocomplete(inputRef.current, {
+      const ac = new g.maps.places.Autocomplete(inputRef.current, {
         fields: ['formatted_address', 'geometry', 'name'],
         types: ['(cities)'],
       });
@@ -64,32 +68,46 @@ export function PlacesAutocomplete({
   }, []);
 
   useEffect(() => {
-    if (!config) return;
-    if (!config.googleMapsApiKey) return; // no key — plain text input, no error shown
+    if (!config?.googleMapsApiKey) return;
 
-    // Already loaded
+    // Already loaded — init immediately
     if ((window as any).google?.maps?.places) {
       initAutocomplete();
       return;
     }
 
-    // Avoid loading the script twice
-    if (document.querySelector('script[data-gmaps]')) return;
+    // Script already injected — wait for callback
+    if (document.querySelector('script[data-gmaps]')) {
+      // Register to be called when it finishes loading
+      const prev = (window as any)[GMAPS_CALLBACK];
+      (window as any)[GMAPS_CALLBACK] = () => {
+        prev?.();
+        initAutocomplete();
+      };
+      return;
+    }
 
     setScriptLoading(true);
+
+    // Register global callback before injecting script
+    (window as any)[GMAPS_CALLBACK] = () => {
+      initAutocomplete();
+      setScriptLoading(false);
+    };
+
     const script = document.createElement('script');
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${config.googleMapsApiKey}&libraries=places`;
+    // Use callback= for reliable async loading; loading=async for performance
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${config.googleMapsApiKey}&libraries=places&loading=async&callback=${GMAPS_CALLBACK}`;
     script.async = true;
     script.defer = true;
     script.dataset.gmaps = '1';
-    script.onload = () => initAutocomplete();
-    script.onerror = () => setScriptLoading(false); // fail silently
+    script.onerror = () => setScriptLoading(false);
     document.head.appendChild(script);
   }, [config, initAutocomplete]);
 
   return (
     <div className="relative">
-      <MapPin className="absolute left-3 top-3 w-5 h-5 text-muted-foreground" />
+      <MapPin className="absolute left-3 top-3 w-5 h-5 text-muted-foreground z-10" />
       <Input
         ref={inputRef}
         value={value}
@@ -97,6 +115,7 @@ export function PlacesAutocomplete({
         placeholder={placeholder}
         className={`pl-10 pr-8 ${className}`}
         data-testid={testId}
+        autoComplete="off"
       />
       {scriptLoading && (
         <Loader2 className="absolute right-3 top-3 w-4 h-4 animate-spin text-muted-foreground" />

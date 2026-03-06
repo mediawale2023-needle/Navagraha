@@ -9,22 +9,18 @@ import { LoadingSpinner } from '@/components/LoadingSpinner';
 import { ArrowLeft, Calendar, Clock, MapPin, Download } from 'lucide-react';
 import type { Kundli } from '@shared/schema';
 
-// North Indian Chart: 4x4 grid, 4 corners are decorative diagonal cells, 12 remaining = houses
+// North Indian Chart: 4x4 grid, counter-clockwise from top
+// Corners (2, 11, 5, 8) have diagonal decorations; center 4 cells empty
+// Layout (counter-clockwise): 1(top) → 2(TL) → 3 → 4 → 5(BL) → 6 → 7 → 8(BR) → 9 → 10 → 11(TR) → 12
 const NORTH_CHART_LAYOUT = [
-  ['corner', '12', '1',  'corner'],
-  ['11',     null,  null,  '2'],
-  ['10',     null,  null,  '3'],
-  ['corner', '9',  '4',  'corner'],
+  ['2',  '1',  '12', '11'],
+  ['3',  null,  null, '10'],
+  ['4',  null,  null, '9'],
+  ['5',  '6',  '7',  '8'],
 ];
 
-// Planets sample data for demo (positions in house numbers)
-const DEMO_PLANETS: Record<string, string[]> = {
-  '1': ['Asc'],
-  '3': ['Sun', 'Mars'],
-  '5': ['Moon'],
-  '9': ['Jupiter'],
-  '11': ['Venus'],
-};
+// Corner cells that get diagonal decoration (counter-clockwise corners)
+const NORTH_CORNER_CELLS = new Set(['2', '11', '5', '8']);
 
 // South Indian Chart: fixed 4x4 grid with zodiac signs in fixed positions
 // Center 2x2 cells are empty
@@ -35,41 +31,67 @@ const SOUTH_SIGNS = [
   ['Sagittarius', 'Scorpio', 'Libra',    'Virgo'],
 ];
 
-function NorthIndianChart({ ascendant }: { ascendant?: string }) {
-  // Rotate houses based on ascendant sign so Asc always shows in house 1
+function NorthIndianChart({ ascendant, chartData }: { ascendant?: string; chartData?: any }) {
+  // Build planet-per-house map from real chart data
+  const housePlanets: Record<string, string[]> = {};
+  if (chartData?.planets) {
+    for (const [planet, info] of Object.entries(chartData.planets as Record<string, any>)) {
+      const h = String(info?.house ?? '');
+      if (h) {
+        housePlanets[h] = [...(housePlanets[h] || []), planet];
+      }
+    }
+  }
+  // Mark house 1 with Asc label
+  housePlanets['1'] = ['Asc', ...(housePlanets['1'] || [])];
+
   return (
     <div className="relative w-full max-w-xs mx-auto aspect-square">
-      <div className="grid grid-cols-4 grid-rows-4 w-full h-full border-2 border-orange-400 rounded">
+      <div className="grid grid-cols-4 grid-rows-4 w-full h-full border-2 border-orange-400 bg-amber-50">
         {NORTH_CHART_LAYOUT.map((row, ri) =>
           row.map((cell, ci) => {
-            if (cell === 'corner') {
-              return (
-                <div key={`${ri}-${ci}`} className="relative overflow-hidden bg-orange-50">
-                  <svg className="absolute inset-0 w-full h-full" viewBox="0 0 1 1" preserveAspectRatio="none">
-                    <line
-                      x1={ci === 0 || ci === 1 ? '0' : '1'}
-                      y1={ri === 0 || ri === 1 ? '0' : '1'}
-                      x2={ci === 0 || ci === 1 ? '1' : '0'}
-                      y2={ri === 0 || ri === 1 ? '1' : '0'}
-                      stroke="#f97316" strokeWidth="0.05"
-                    />
-                  </svg>
-                </div>
-              );
-            }
             if (cell === null) {
-              return <div key={`${ri}-${ci}`} className="border border-orange-200 bg-orange-50/30" />;
+              // Center cells — draw the inner diamond lines via SVG overlay on first center cell
+              if (ri === 1 && ci === 1) {
+                return (
+                  <div key={`${ri}-${ci}`} className="col-span-2 row-span-2 relative bg-amber-50/60">
+                    <svg className="absolute inset-0 w-full h-full" viewBox="0 0 2 2" preserveAspectRatio="none">
+                      {/* Inner diamond lines */}
+                      <line x1="1" y1="0" x2="0" y2="1" stroke="#d97706" strokeWidth="0.04"/>
+                      <line x1="1" y1="0" x2="2" y2="1" stroke="#d97706" strokeWidth="0.04"/>
+                      <line x1="0" y1="1" x2="1" y2="2" stroke="#d97706" strokeWidth="0.04"/>
+                      <line x1="2" y1="1" x2="1" y2="2" stroke="#d97706" strokeWidth="0.04"/>
+                    </svg>
+                  </div>
+                );
+              }
+              return null; // other center cells merged above
             }
+
             const houseNum = cell;
-            const planets = DEMO_PLANETS[houseNum] || [];
+            const planets = housePlanets[houseNum] || [];
+            const isCorner = NORTH_CORNER_CELLS.has(houseNum);
+
+            // Diagonal direction for corner cells
+            // TL(2): top-right → bottom-left; TR(11): top-left → bottom-right
+            // BL(5): top-left → bottom-right; BR(8): top-right → bottom-left
+            const diagTRtoBL = houseNum === '2' || houseNum === '8';
+            const diagTLtoBR = houseNum === '11' || houseNum === '5';
+
             return (
               <div
                 key={`${ri}-${ci}`}
-                className="border border-orange-200 flex flex-col items-center justify-center p-1 bg-white text-center"
+                className="relative border border-orange-300 flex flex-col items-center justify-center p-0.5 bg-amber-50 text-center overflow-hidden"
               >
-                <span className="text-[9px] text-orange-400 font-semibold">{houseNum}</span>
+                {isCorner && (
+                  <svg className="absolute inset-0 w-full h-full pointer-events-none" viewBox="0 0 1 1" preserveAspectRatio="none">
+                    {diagTRtoBL && <line x1="1" y1="0" x2="0" y2="1" stroke="#d97706" strokeWidth="0.05"/>}
+                    {diagTLtoBR && <line x1="0" y1="0" x2="1" y2="1" stroke="#d97706" strokeWidth="0.05"/>}
+                  </svg>
+                )}
+                <span className="text-[8px] text-orange-500 font-bold leading-none">{houseNum}</span>
                 {planets.map((p) => (
-                  <span key={p} className="text-[9px] font-bold text-gray-700 leading-tight">{p}</span>
+                  <span key={p} className="text-[7px] font-semibold text-gray-800 leading-tight">{p}</span>
                 ))}
               </div>
             );
@@ -286,7 +308,7 @@ export default function KundliView() {
               <CardContent>
                 <div className="flex flex-col items-center gap-4 p-4">
                   {chartStyle === 'north' ? (
-                    <NorthIndianChart ascendant={kundli.ascendant || 'Aries'} />
+                    <NorthIndianChart ascendant={kundli.ascendant || 'Aries'} chartData={kundli.chartData} />
                   ) : (
                     <SouthIndianChart ascendant={kundli.ascendant || 'Aries'} />
                   )}
