@@ -28,8 +28,8 @@ export function PlacesAutocomplete({
   const autocompleteRef = useRef<any>(null);
   const onChangeRef = useRef(onChange);
   const onPlaceSelectRef = useRef(onPlaceSelect);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  // Start as false — input is immediately usable; spinner only shows when actually loading script
+  const [scriptLoading, setScriptLoading] = useState(false);
 
   // Keep refs in sync without triggering effects
   onChangeRef.current = onChange;
@@ -41,37 +41,31 @@ export function PlacesAutocomplete({
 
   const initAutocomplete = useCallback(() => {
     if (!inputRef.current || autocompleteRef.current) return;
-
-    const ac = new (window as any).google.maps.places.Autocomplete(inputRef.current, {
-      fields: ['formatted_address', 'geometry', 'name', 'address_components'],
-      types: ['(cities)'],
-    });
-
-    ac.addListener('place_changed', () => {
-      const place = ac.getPlace();
-      if (!place.geometry || !place.geometry.location) return;
-
-      const address = place.formatted_address || place.name || '';
-      const lat = place.geometry.location.lat();
-      const lng = place.geometry.location.lng();
-
-      onChangeRef.current(address);
-      onPlaceSelectRef.current?.({ address, lat, lng });
-    });
-
-    autocompleteRef.current = ac;
-    setIsLoading(false);
+    try {
+      const ac = new (window as any).google.maps.places.Autocomplete(inputRef.current, {
+        fields: ['formatted_address', 'geometry', 'name'],
+        types: ['(cities)'],
+      });
+      ac.addListener('place_changed', () => {
+        const place = ac.getPlace();
+        if (!place.geometry?.location) return;
+        const address = place.formatted_address || place.name || '';
+        const lat = place.geometry.location.lat();
+        const lng = place.geometry.location.lng();
+        onChangeRef.current(address);
+        onPlaceSelectRef.current?.({ address, lat, lng });
+      });
+      autocompleteRef.current = ac;
+    } catch {
+      // silently fail — user can still type manually
+    } finally {
+      setScriptLoading(false);
+    }
   }, []);
 
   useEffect(() => {
-    if (config === undefined) return;
-    if (!config.googleMapsApiKey) {
-      setError('Google Maps API key not configured');
-      setIsLoading(false);
-      return;
-    }
-
-    setError(null);
+    if (!config) return;
+    if (!config.googleMapsApiKey) return; // no key — plain text input, no error shown
 
     // Already loaded
     if ((window as any).google?.maps?.places) {
@@ -79,16 +73,17 @@ export function PlacesAutocomplete({
       return;
     }
 
-    // Load script
+    // Avoid loading the script twice
+    if (document.querySelector('script[data-gmaps]')) return;
+
+    setScriptLoading(true);
     const script = document.createElement('script');
     script.src = `https://maps.googleapis.com/maps/api/js?key=${config.googleMapsApiKey}&libraries=places`;
     script.async = true;
     script.defer = true;
+    script.dataset.gmaps = '1';
     script.onload = () => initAutocomplete();
-    script.onerror = () => {
-      setError('Failed to load Google Maps');
-      setIsLoading(false);
-    };
+    script.onerror = () => setScriptLoading(false); // fail silently
     document.head.appendChild(script);
   }, [config, initAutocomplete]);
 
@@ -103,13 +98,8 @@ export function PlacesAutocomplete({
         className={`pl-10 pr-8 ${className}`}
         data-testid={testId}
       />
-      {isLoading && !error && (
+      {scriptLoading && (
         <Loader2 className="absolute right-3 top-3 w-4 h-4 animate-spin text-muted-foreground" />
-      )}
-      {error && (
-        <p className="text-xs text-muted-foreground mt-1">
-          {error}. Please enter location manually.
-        </p>
       )}
     </div>
   );
