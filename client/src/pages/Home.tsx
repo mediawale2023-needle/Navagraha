@@ -1,29 +1,36 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { ZodiacIcon } from '@/components/ZodiacIcon';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
-import { ThemeToggle } from '@/components/ThemeToggle';
+import { BottomNav } from '@/components/BottomNav';
 import { Link } from 'wouter';
-import { 
-  Sparkles, Star, Wallet, LogOut, User, 
-  Users, Phone, MessageCircle, Heart, TrendingUp, Activity, Menu
+import {
+  Sparkles, Star, Wallet, LogOut, User,
+  Users, Phone, MessageCircle, Heart, TrendingUp,
+  Activity, CheckCircle2, ChevronRight, Clock, Zap
 } from 'lucide-react';
 import type { User as UserType, Astrologer } from '@shared/schema';
 
 const zodiacSigns = [
-  'aries', 'taurus', 'gemini', 'cancer', 
+  'aries', 'taurus', 'gemini', 'cancer',
   'leo', 'virgo', 'libra', 'scorpio',
   'sagittarius', 'capricorn', 'aquarius', 'pisces'
 ];
 
+const CATEGORIES = [
+  { label: 'Love', emoji: '❤️' },
+  { label: 'Career', emoji: '💼' },
+  { label: 'Finance', emoji: '💰' },
+  { label: 'Health', emoji: '🌿' },
+  { label: 'Marriage', emoji: '💍' },
+  { label: 'Family', emoji: '👨‍👩‍👧' },
+];
+
 export default function Home() {
   const [selectedSign, setSelectedSign] = useState('aries');
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const { data: user, isLoading: userLoading } = useQuery<UserType>({
     queryKey: ['/api/auth/user'],
@@ -42,420 +49,273 @@ export default function Home() {
   });
 
   if (userLoading) {
-    return <LoadingSpinner />;
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-white">
+        <LoadingSpinner />
+      </div>
+    );
   }
 
+  const onlineCount = astrologers?.filter(a => a.isOnline || a.availability === 'available').length || 0;
+
   return (
-    <div className="min-h-screen bg-background">
-      {/* Clean Header */}
-      <header className="sticky top-0 z-50 bg-white/95 backdrop-blur-sm border-b border-border shadow-sm">
+    <div className="min-h-screen bg-gray-50 pb-20 md:pb-0">
+      {/* Top Header */}
+      <header className="sticky top-0 z-50 bg-[#FFCF23] shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
-            {/* Logo */}
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
-                <Sparkles className="w-5 h-5 text-primary" data-testid="icon-logo" />
-              </div>
-              <h1 className="font-serif text-xl font-bold text-foreground">Navagraha</h1>
+          <div className="flex items-center justify-between h-14">
+            <div className="flex items-center gap-2">
+              <Sparkles className="w-5 h-5 text-[#1A1A1A]" />
+              <span className="font-bold text-lg text-[#1A1A1A]">Navagraha</span>
             </div>
-
-            {/* Desktop Navigation */}
-            <nav className="hidden md:flex items-center gap-1">
-              <Link href="/kundli/new">
-                <Button variant="ghost" size="sm" data-testid="nav-link-kundli" className="hover-elevate">
-                  Generate Kundli
-                </Button>
+            <div className="flex items-center gap-2">
+              <Link href="/wallet">
+                <button className="flex items-center gap-1.5 bg-[#1A1A1A] text-[#FFCF23] rounded-full px-3 py-1.5 text-sm font-bold" data-testid="nav-link-wallet">
+                  <Wallet className="w-3.5 h-3.5" />
+                  ₹{wallet?.balance || '0'}
+                </button>
               </Link>
-              <Link href="/astrologers">
-                <Button variant="ghost" size="sm" data-testid="nav-link-astrologers" className="hover-elevate">
-                  Astrologers
-                </Button>
-              </Link>
-              <Link href="/kundli/matchmaking">
-                <Button variant="ghost" size="sm" data-testid="nav-link-matchmaking" className="hover-elevate">
-                  Matchmaking
-                </Button>
-              </Link>
-            </nav>
-
-            {/* Right section */}
-            <div className="flex items-center gap-2 md:gap-3">
-              <Link href="/wallet" className="hidden sm:block">
-                <Button variant="outline" size="sm" data-testid="nav-link-wallet" className="gap-2">
-                  <Wallet className="w-4 h-4" />
-                  <span className="font-semibold">₹{wallet?.balance || '0'}</span>
-                </Button>
-              </Link>
-              <div className="hidden md:block">
-                <ThemeToggle />
-              </div>
-              <Link href="/profile" className="hidden sm:block">
-                <Avatar className="w-8 h-8 cursor-pointer" data-testid="nav-link-profile">
+              <Link href="/profile">
+                <Avatar className="w-8 h-8 cursor-pointer border-2 border-[#1A1A1A]" data-testid="nav-link-profile">
                   <AvatarImage src={user?.profileImageUrl || undefined} />
-                  <AvatarFallback>
-                    <User className="w-4 h-4" />
+                  <AvatarFallback className="bg-[#1A1A1A] text-[#FFCF23] text-xs font-bold">
+                    {user?.firstName?.charAt(0) || <User className="w-3.5 h-3.5" />}
                   </AvatarFallback>
                 </Avatar>
               </Link>
-              <Button 
-                variant="ghost" 
-                size="icon"
+              <button
                 onClick={() => window.location.href = '/api/logout'}
+                className="p-1.5 rounded-full hover:bg-[#1A1A1A]/10"
                 data-testid="button-logout"
-                className="hover-elevate hidden sm:flex"
               >
-                <LogOut className="w-4 h-4" />
-              </Button>
-              
-              {/* Mobile Menu */}
-              <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
-                <SheetTrigger asChild className="md:hidden">
-                  <Button variant="ghost" size="icon" data-testid="button-mobile-menu">
-                    <Menu className="w-5 h-5" />
-                  </Button>
-                </SheetTrigger>
-                <SheetContent side="right" className="w-72">
-                  <nav className="flex flex-col gap-4 mt-8">
-                    <Link href="/kundli/new" onClick={() => setMobileMenuOpen(false)}>
-                      <Button variant="ghost" className="w-full justify-start gap-3 text-lg" data-testid="mobile-nav-kundli">
-                        <Sparkles className="w-5 h-5" />
-                        Generate Kundli
-                      </Button>
-                    </Link>
-                    <Link href="/astrologers" onClick={() => setMobileMenuOpen(false)}>
-                      <Button variant="ghost" className="w-full justify-start gap-3 text-lg" data-testid="mobile-nav-astrologers">
-                        <Users className="w-5 h-5" />
-                        Astrologers
-                      </Button>
-                    </Link>
-                    <Link href="/kundli/matchmaking" onClick={() => setMobileMenuOpen(false)}>
-                      <Button variant="ghost" className="w-full justify-start gap-3 text-lg" data-testid="mobile-nav-matchmaking">
-                        <Heart className="w-5 h-5" />
-                        Matchmaking
-                      </Button>
-                    </Link>
-                    <Link href="/wallet" onClick={() => setMobileMenuOpen(false)}>
-                      <Button variant="ghost" className="w-full justify-start gap-3 text-lg" data-testid="mobile-nav-wallet">
-                        <Wallet className="w-5 h-5" />
-                        Wallet (₹{wallet?.balance || '0'})
-                      </Button>
-                    </Link>
-                    <Link href="/profile" onClick={() => setMobileMenuOpen(false)}>
-                      <Button variant="ghost" className="w-full justify-start gap-3 text-lg" data-testid="mobile-nav-profile">
-                        <User className="w-5 h-5" />
-                        Profile
-                      </Button>
-                    </Link>
-                    <div className="border-t border-border my-2" />
-                    <div className="px-3">
-                      <ThemeToggle />
-                    </div>
-                    <Button 
-                      variant="ghost" 
-                      className="w-full justify-start gap-3 text-lg text-destructive"
-                      onClick={() => window.location.href = '/api/logout'}
-                      data-testid="mobile-nav-logout"
-                    >
-                      <LogOut className="w-5 h-5" />
-                      Logout
-                    </Button>
-                  </nav>
-                </SheetContent>
-              </Sheet>
+                <LogOut className="w-4 h-4 text-[#1A1A1A]" />
+              </button>
             </div>
           </div>
         </div>
       </header>
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        {/* Welcome Hero Section */}
-        <div className="py-12 md:py-16">
-          <div className="text-center max-w-3xl mx-auto">
-            <h2 className="font-serif text-4xl md:text-5xl font-bold text-foreground mb-4">
-              Welcome, {user?.firstName || 'Seeker'}
-            </h2>
-            <p className="text-muted-foreground text-lg md:text-xl mb-8">
-              Discover your cosmic path with ancient Vedic wisdom
-            </p>
-            <div className="flex flex-wrap items-center justify-center gap-4">
-              <Link href="/kundli/new">
-                <Button size="lg" className="gap-2" data-testid="button-hero-kundli">
-                  <Sparkles className="w-5 h-5" />
-                  Generate Free Kundli
+        {/* Welcome Banner */}
+        <div className="pt-6 pb-4">
+          <div className="bg-gradient-to-r from-[#FFCF23] to-[#FFD93D] rounded-2xl p-5">
+            <p className="text-[#1A1A1A]/60 text-sm font-medium">Welcome back,</p>
+            <h2 className="font-bold text-2xl text-[#1A1A1A] mb-1">{user?.firstName || 'Seeker'} 👋</h2>
+            <div className="flex items-center gap-1.5 mb-4">
+              <div className="w-2 h-2 bg-green-600 rounded-full animate-pulse" />
+              <span className="text-sm text-[#1A1A1A]/70 font-medium">{onlineCount} astrologers online</span>
+            </div>
+            <div className="flex gap-2">
+              <Link href="/astrologers">
+                <Button size="sm" className="bg-[#1A1A1A] text-[#FFCF23] hover:bg-[#333] font-bold rounded-xl" data-testid="button-hero-astrologers">
+                  <Users className="w-3.5 h-3.5 mr-1" /> Talk to Astrologer
                 </Button>
               </Link>
-              <Link href="/astrologers">
-                <Button size="lg" variant="outline" className="gap-2" data-testid="button-hero-astrologers">
-                  <Users className="w-5 h-5" />
-                  Talk to Astrologer
+              <Link href="/kundli/new">
+                <Button size="sm" variant="outline" className="border-[#1A1A1A] text-[#1A1A1A] bg-transparent hover:bg-[#1A1A1A]/10 font-semibold rounded-xl" data-testid="button-hero-kundli">
+                  <Sparkles className="w-3.5 h-3.5 mr-1" /> Free Kundli
                 </Button>
               </Link>
             </div>
           </div>
         </div>
 
-        {/* Quick Actions Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
+        {/* Categories */}
+        <div className="mb-6">
+          <h3 className="font-bold text-[#1A1A1A] mb-3">I want guidance on...</h3>
+          <div className="grid grid-cols-3 md:grid-cols-6 gap-2">
+            {CATEGORIES.map(({ label, emoji }) => (
+              <Link key={label} href="/astrologers">
+                <div className="flex flex-col items-center gap-1.5 p-3 rounded-xl bg-white border border-gray-100 hover:border-[#FFCF23] hover:bg-[#FFFBEA] transition-all cursor-pointer shadow-sm">
+                  <span className="text-2xl">{emoji}</span>
+                  <span className="text-xs font-semibold text-[#1A1A1A] text-center leading-tight">{label}</span>
+                </div>
+              </Link>
+            ))}
+          </div>
+        </div>
+
+        {/* Quick Actions */}
+        <div className="mb-6 grid grid-cols-2 md:grid-cols-4 gap-3">
           <Link href="/kundli/new">
-            <Card className="h-full hover-elevate cursor-pointer transition-all border-card-border" data-testid="card-quick-kundli">
-              <CardContent className="p-6">
-                <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center mb-4">
-                  <Sparkles className="w-6 h-6 text-primary" />
-                </div>
-                <h3 className="text-lg font-semibold mb-2 text-card-foreground">Birth Chart</h3>
-                <p className="text-muted-foreground text-sm leading-relaxed">
-                  Get detailed Vedic astrology analysis with planetary positions
-                </p>
-              </CardContent>
-            </Card>
+            <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 hover:border-[#FFCF23] hover:shadow-md transition-all cursor-pointer" data-testid="card-quick-kundli">
+              <div className="w-10 h-10 bg-[#FFCF23] rounded-xl flex items-center justify-center mb-2">
+                <Sparkles className="w-5 h-5 text-[#1A1A1A]" />
+              </div>
+              <h4 className="font-bold text-sm text-[#1A1A1A]">Birth Chart</h4>
+              <p className="text-xs text-gray-500 mt-0.5">Generate free kundli</p>
+            </div>
           </Link>
-
           <Link href="/kundli/matchmaking">
-            <Card className="h-full hover-elevate cursor-pointer transition-all border-card-border" data-testid="card-quick-matchmaking">
-              <CardContent className="p-6">
-                <div className="w-12 h-12 rounded-lg bg-accent/10 flex items-center justify-center mb-4">
-                  <Heart className="w-6 h-6 text-accent" />
-                </div>
-                <h3 className="text-lg font-semibold mb-2 text-card-foreground">Kundli Milan</h3>
-                <p className="text-muted-foreground text-sm leading-relaxed">
-                  Check compatibility and match with your partner's chart
-                </p>
-              </CardContent>
-            </Card>
+            <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 hover:border-[#FFCF23] hover:shadow-md transition-all cursor-pointer" data-testid="card-quick-matchmaking">
+              <div className="w-10 h-10 bg-red-100 rounded-xl flex items-center justify-center mb-2">
+                <Heart className="w-5 h-5 text-red-500" />
+              </div>
+              <h4 className="font-bold text-sm text-[#1A1A1A]">Kundli Milan</h4>
+              <p className="text-xs text-gray-500 mt-0.5">Match compatibility</p>
+            </div>
           </Link>
-
-          <Link href="/astrologers">
-            <Card className="h-full hover-elevate cursor-pointer transition-all border-card-border" data-testid="card-quick-consult">
-              <CardContent className="p-6">
-                <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center mb-4">
-                  <Users className="w-6 h-6 text-primary" />
-                </div>
-                <h3 className="text-lg font-semibold mb-2 text-card-foreground">Consultation</h3>
-                <p className="text-muted-foreground text-sm leading-relaxed">
-                  Connect with expert astrologers for personalized guidance
-                </p>
-              </CardContent>
-            </Card>
+          <Link href="/schedule">
+            <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 hover:border-[#FFCF23] hover:shadow-md transition-all cursor-pointer">
+              <div className="w-10 h-10 bg-blue-100 rounded-xl flex items-center justify-center mb-2">
+                <Clock className="w-5 h-5 text-blue-500" />
+              </div>
+              <h4 className="font-bold text-sm text-[#1A1A1A]">Schedule</h4>
+              <p className="text-xs text-gray-500 mt-0.5">Book appointment</p>
+            </div>
+          </Link>
+          <Link href="/numerology">
+            <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 hover:border-[#FFCF23] hover:shadow-md transition-all cursor-pointer" data-testid="card-quick-numerology">
+              <div className="w-10 h-10 bg-purple-100 rounded-xl flex items-center justify-center mb-2">
+                <span className="text-purple-600 font-black text-lg">#</span>
+              </div>
+              <h4 className="font-bold text-sm text-[#1A1A1A]">Numerology</h4>
+              <p className="text-xs text-gray-500 mt-0.5">Life path &amp; numbers</p>
+            </div>
           </Link>
         </div>
 
         {/* Daily Horoscope */}
-        <Card className="mb-12 border-card-border">
-          <CardHeader className="pb-4">
-            <CardTitle className="font-serif text-2xl">Daily Horoscope</CardTitle>
-            <CardDescription>Select your zodiac sign to view today's prediction</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            {/* Zodiac Selector */}
-            <div className="grid grid-cols-6 md:grid-cols-12 gap-3">
+        <div className="mb-6 bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+          <div className="px-5 pt-5 pb-3 flex items-center justify-between">
+            <h3 className="font-bold text-lg text-[#1A1A1A]">Daily Horoscope</h3>
+            <span className="text-xs text-gray-400 font-medium">Select your sign</span>
+          </div>
+          <div className="px-5 pb-3">
+            <div className="grid grid-cols-6 md:grid-cols-12 gap-2">
               {zodiacSigns.map((sign) => (
                 <button
                   key={sign}
                   onClick={() => setSelectedSign(sign)}
-                  className={`p-3 rounded-lg transition-all hover-elevate active-elevate-2 ${
-                    selectedSign === sign 
-                      ? 'bg-primary text-primary-foreground shadow-sm' 
-                      : 'bg-secondary hover:bg-secondary/80'
+                  className={`p-2 rounded-xl transition-all ${
+                    selectedSign === sign
+                      ? 'bg-[#FFCF23] shadow-sm'
+                      : 'bg-gray-50 hover:bg-gray-100'
                   }`}
                   data-testid={`zodiac-${sign}`}
                   title={sign.charAt(0).toUpperCase() + sign.slice(1)}
                 >
-                  <ZodiacIcon sign={sign} className="w-6 h-6 mx-auto" />
+                  <ZodiacIcon sign={sign} className="w-5 h-5 mx-auto" />
                 </button>
               ))}
             </div>
+          </div>
 
-            {/* Horoscope Content */}
+          <div className="px-5 pb-5">
             {horoscopeLoading ? (
-              <div className="flex justify-center py-8">
+              <div className="flex justify-center py-6">
                 <LoadingSpinner size="sm" />
               </div>
             ) : (
-              <div className="bg-muted/30 rounded-lg p-6 space-y-6">
-                <div>
-                  <h4 className="font-semibold text-xl capitalize mb-3">
-                    {selectedSign}
-                  </h4>
-                  <p className="text-muted-foreground leading-relaxed">
-                    {horoscope?.prediction || "Today brings new opportunities for growth and self-discovery. The cosmic energies are aligned in your favor, encouraging you to trust your intuition and embrace positive changes."}
-                  </p>
-                </div>
-
-                {/* Rating Cards */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div className="bg-card rounded-lg p-4 border border-card-border">
-                    <div className="flex items-center gap-2 mb-2">
-                      <Heart className="w-4 h-4 text-accent" />
-                      <p className="text-sm font-medium">Love & Relationships</p>
+              <div className="bg-[#FFFBEA] rounded-xl p-4">
+                <h4 className="font-bold text-[#1A1A1A] capitalize mb-2">{selectedSign}</h4>
+                <p className="text-sm text-gray-600 leading-relaxed">
+                  {horoscope?.prediction || "Today brings new opportunities for growth and self-discovery. The cosmic energies are aligned in your favor, encouraging you to trust your intuition and embrace positive changes."}
+                </p>
+                <div className="grid grid-cols-3 gap-3 mt-4">
+                  {[
+                    { icon: Heart, label: 'Love', stars: 4, color: 'text-red-400' },
+                    { icon: TrendingUp, label: 'Career', stars: 3, color: 'text-blue-400' },
+                    { icon: Activity, label: 'Health', stars: 4, color: 'text-green-400' },
+                  ].map(({ icon: Icon, label, stars, color }) => (
+                    <div key={label} className="bg-white rounded-lg p-2.5 text-center">
+                      <Icon className={`w-4 h-4 ${color} mx-auto mb-1`} />
+                      <p className="text-xs font-semibold text-gray-600 mb-1">{label}</p>
+                      <div className="flex gap-0.5 justify-center">
+                        {Array.from({ length: 5 }).map((_, i) => (
+                          <Star key={i} className={`w-2.5 h-2.5 ${i < stars ? 'fill-[#FFCF23] text-[#FFCF23]' : 'text-gray-200'}`} />
+                        ))}
+                      </div>
                     </div>
-                    <div className="flex gap-1">
-                      {Array.from({ length: 5 }).map((_, i) => (
-                        <Star 
-                          key={i} 
-                          className={`w-4 h-4 ${i < 4 ? 'fill-primary text-primary' : 'text-muted'}`} 
-                        />
-                      ))}
-                    </div>
-                  </div>
-
-                  <div className="bg-card rounded-lg p-4 border border-card-border">
-                    <div className="flex items-center gap-2 mb-2">
-                      <TrendingUp className="w-4 h-4 text-primary" />
-                      <p className="text-sm font-medium">Career & Finance</p>
-                    </div>
-                    <div className="flex gap-1">
-                      {Array.from({ length: 5 }).map((_, i) => (
-                        <Star 
-                          key={i} 
-                          className={`w-4 h-4 ${i < 3 ? 'fill-primary text-primary' : 'text-muted'}`} 
-                        />
-                      ))}
-                    </div>
-                  </div>
-
-                  <div className="bg-card rounded-lg p-4 border border-card-border">
-                    <div className="flex items-center gap-2 mb-2">
-                      <Activity className="w-4 h-4 text-accent" />
-                      <p className="text-sm font-medium">Health & Wellness</p>
-                    </div>
-                    <div className="flex gap-1">
-                      {Array.from({ length: 5 }).map((_, i) => (
-                        <Star 
-                          key={i} 
-                          className={`w-4 h-4 ${i < 4 ? 'fill-primary text-primary' : 'text-muted'}`} 
-                        />
-                      ))}
-                    </div>
-                  </div>
+                  ))}
                 </div>
               </div>
             )}
-          </CardContent>
-        </Card>
+          </div>
+        </div>
 
         {/* Featured Astrologers */}
-        <div className="pb-12">
-          <div className="flex items-center justify-between mb-6">
-            <div>
-              <h3 className="font-serif text-2xl font-bold text-foreground mb-1">
-                Featured Astrologers
-              </h3>
-              <p className="text-muted-foreground">
-                Connect with our verified experts
-              </p>
-            </div>
+        <div className="mb-6">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="font-bold text-lg text-[#1A1A1A]">Top Astrologers</h3>
             <Link href="/astrologers">
-              <Button variant="ghost" data-testid="link-see-all-astrologers" className="hover-elevate">
-                View All
-                <span className="ml-2">→</span>
+              <Button variant="ghost" size="sm" className="text-[#1A1A1A] font-semibold gap-0.5" data-testid="link-see-all-astrologers">
+                View All <ChevronRight className="w-4 h-4" />
               </Button>
             </Link>
           </div>
 
           {astrologersLoading ? (
-            <div className="flex justify-center py-12">
+            <div className="flex justify-center py-8">
               <LoadingSpinner />
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {astrologers?.slice(0, 3).map((astrologer) => (
-                <Card 
-                  key={astrologer.id} 
-                  className="hover-elevate active-elevate-2 transition-all border-card-border" 
+                <div
+                  key={astrologer.id}
+                  className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 hover:shadow-md transition-shadow"
                   data-testid={`card-astrologer-${astrologer.id}`}
                 >
-                  <CardContent className="p-6 space-y-4">
-                    {/* Astrologer Header */}
-                    <div className="flex items-start gap-4">
-                      <Avatar className="w-16 h-16">
-                        <AvatarImage src={astrologer.profileImageUrl || undefined} alt={astrologer.name} />
-                        <AvatarFallback className="bg-primary/10 text-primary font-semibold text-lg">
+                  <div className="flex items-start gap-3 mb-3">
+                    <div className="relative">
+                      <Avatar className="w-14 h-14">
+                        <AvatarImage src={astrologer.profileImageUrl || undefined} />
+                        <AvatarFallback className="bg-[#FFCF23] text-[#1A1A1A] font-bold text-lg">
                           {astrologer.name.charAt(0)}
                         </AvatarFallback>
                       </Avatar>
-                      <div className="flex-1 min-w-0">
-                        <h4 className="font-semibold text-lg text-card-foreground truncate">
-                          {astrologer.name}
-                        </h4>
-                        <div className="flex items-center gap-1 text-sm text-muted-foreground mt-1">
-                          <Star className="w-4 h-4 fill-primary text-primary" />
-                          <span className="font-medium">{astrologer.rating || '4.8'}</span>
-                          <span className="mx-1">•</span>
-                          <span>{astrologer.experience || 10}+ yrs</span>
+                      {(astrologer.isOnline || astrologer.availability === 'available') && (
+                        <div className="absolute bottom-0.5 right-0.5 w-3 h-3 bg-green-500 rounded-full border-2 border-white" />
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-1">
+                        <h4 className="font-bold text-[#1A1A1A] truncate">{astrologer.name}</h4>
+                        {astrologer.isVerified && <CheckCircle2 className="w-3.5 h-3.5 text-blue-500 flex-shrink-0" />}
+                      </div>
+                      <p className="text-xs text-gray-500 truncate">
+                        {astrologer.specializations?.slice(0, 2).join(' • ') || 'Vedic Astrology'}
+                      </p>
+                      <div className="flex items-center gap-2 mt-1">
+                        <div className="flex items-center gap-0.5">
+                          <Star className="w-3 h-3 fill-[#FFCF23] text-[#FFCF23]" />
+                          <span className="text-xs font-bold">{astrologer.rating || '4.9'}</span>
                         </div>
+                        <span className="text-xs text-gray-400">{astrologer.experience || 10}yr exp</span>
                       </div>
                     </div>
-
-                    {/* Specializations */}
-                    <div className="flex flex-wrap gap-2">
-                      {astrologer.specializations?.slice(0, 3).map((spec, idx) => (
-                        <Badge 
-                          key={idx} 
-                          variant="secondary" 
-                          className="text-xs font-normal"
-                        >
-                          {spec}
-                        </Badge>
-                      ))}
+                    <div className="text-right">
+                      <div className="font-bold text-[#1A1A1A]">₹{astrologer.pricePerMinute || '25'}</div>
+                      <div className="text-xs text-gray-400">/min</div>
                     </div>
-
-                    {/* Price & Status */}
-                    <div className="flex items-center justify-between pt-2 border-t border-border">
-                      <div>
-                        <span className="text-2xl font-bold text-foreground">
-                          ₹{astrologer.pricePerMinute || '25'}
-                        </span>
-                        <span className="text-muted-foreground text-sm">/min</span>
-                      </div>
-                      <Badge 
-                        variant={astrologer.availability === 'available' ? 'default' : 'secondary'}
-                        className="gap-1.5"
-                      >
-                        <div className={`w-2 h-2 rounded-full ${
-                          astrologer.availability === 'available' ? 'bg-green-500' : 'bg-gray-400'
-                        }`} />
-                        {astrologer.availability === 'available' ? 'Available' : 'Busy'}
-                      </Badge>
-                    </div>
-
-                    {/* Action Buttons */}
-                    <div className="grid grid-cols-2 gap-3 pt-2">
-                      <Link href={`/chat/${astrologer.id}`}>
-                        <Button 
-                          className="w-full gap-2" 
-                          size="sm" 
-                          data-testid={`button-chat-${astrologer.id}`}
-                        >
-                          <MessageCircle className="w-4 h-4" />
-                          Chat
-                        </Button>
-                      </Link>
-                      <Button 
-                        className="w-full gap-2" 
-                        variant="outline" 
-                        size="sm" 
-                        data-testid={`button-call-${astrologer.id}`}
-                      >
-                        <Phone className="w-4 h-4" />
-                        Call
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <Link href={`/chat/${astrologer.id}`}>
+                      <Button size="sm" className="w-full bg-[#FFCF23] text-[#1A1A1A] hover:bg-[#F5C500] font-bold rounded-xl" data-testid={`button-chat-${astrologer.id}`}>
+                        <MessageCircle className="w-3.5 h-3.5 mr-1" /> Chat
                       </Button>
-                    </div>
-                  </CardContent>
-                </Card>
+                    </Link>
+                    <Link href={`/call/${astrologer.id}?type=voice`}>
+                      <Button size="sm" variant="outline" className="w-full border-gray-200 text-[#1A1A1A] hover:bg-gray-50 font-semibold rounded-xl" data-testid={`button-call-${astrologer.id}`}>
+                        <Phone className="w-3.5 h-3.5 mr-1" /> Call
+                      </Button>
+                    </Link>
+                  </div>
+                </div>
               ))}
             </div>
           )}
         </div>
       </main>
 
-      {/* Footer */}
-      <footer className="border-t border-border bg-muted/30 py-8">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center text-muted-foreground text-sm">
-            <p>© 2025 Navagraha. Ancient wisdom for modern times.</p>
-          </div>
-        </div>
-      </footer>
+      {/* Desktop nav links */}
+      <div className="hidden md:block fixed right-4 top-1/2 -translate-y-1/2 z-40">
+        {/* noop — desktop uses the top header */}
+      </div>
+
+      {/* Mobile Bottom Navigation */}
+      <BottomNav />
     </div>
   );
 }

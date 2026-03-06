@@ -15,6 +15,11 @@ import Astrologers from "@/pages/Astrologers";
 import Wallet from "@/pages/Wallet";
 import Chat from "@/pages/Chat";
 import Profile from "@/pages/Profile";
+import CallRoom from "@/pages/CallRoom";
+import Schedule from "@/pages/Schedule";
+import AstrologerLogin from "@/pages/AstrologerLogin";
+import AstrologerDashboard from "@/pages/AstrologerDashboard";
+import Numerology from "@/pages/Numerology";
 import NotFound from "@/pages/not-found";
 import { useEffect, useState } from "react";
 
@@ -24,9 +29,7 @@ function Router() {
 
   useEffect(() => {
     const hasSeenSplash = sessionStorage.getItem('hasSeenSplash');
-    if (hasSeenSplash) {
-      setShowSplash(false);
-    }
+    if (hasSeenSplash) setShowSplash(false);
   }, []);
 
   useEffect(() => {
@@ -39,22 +42,26 @@ function Router() {
     }
   }, [showSplash]);
 
-  if (showSplash && !sessionStorage.getItem('hasSeenSplash')) {
-    return <Splash />;
-  }
+  if (showSplash && !sessionStorage.getItem('hasSeenSplash')) return <Splash />;
 
   return (
     <Switch>
-      {/* Public routes accessible to all */}
+      {/* Astrologer portal — always accessible */}
+      <Route path="/astrologer/login" component={AstrologerLogin} />
+      <Route path="/astrologer/dashboard" component={AstrologerDashboard} />
+
+      {/* Public routes */}
       {isLoading || !isAuthenticated ? (
         <>
           <Route path="/" component={Landing} />
           <Route path="/astrologers" component={Astrologers} />
           <Route path="/kundli/matchmaking" component={Matchmaking} />
+          <Route path="/numerology" component={Numerology} />
+          <Route path="/astrologer/login" component={AstrologerLogin} />
         </>
       ) : (
         <>
-          {/* Authenticated routes */}
+          {/* Authenticated user routes */}
           <Route path="/" component={Home} />
           <Route path="/kundli/new" component={KundliNew} />
           <Route path="/kundli/matchmaking" component={Matchmaking} />
@@ -62,7 +69,10 @@ function Router() {
           <Route path="/astrologers" component={Astrologers} />
           <Route path="/wallet" component={Wallet} />
           <Route path="/chat/:astrologerId" component={Chat} />
+          <Route path="/call/:astrologerId" component={CallRoom} />
+          <Route path="/schedule" component={Schedule} />
           <Route path="/profile" component={Profile} />
+          <Route path="/numerology" component={Numerology} />
         </>
       )}
       <Route component={NotFound} />
