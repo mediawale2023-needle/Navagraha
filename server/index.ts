@@ -1,6 +1,7 @@
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
+import { runMigrations } from "./migrate";
 import { setupWebSocket } from "./websocketService";
 
 const app = express();
@@ -71,5 +72,10 @@ app.use((req, res, next) => {
   }, () => {
     log(`serving on port ${port}`);
     log(`WebSocket ready on ws://0.0.0.0:${port}/ws`);
+    // Run DB schema initialisation after the port is bound so the
+    // healthcheck can succeed immediately while tables are being created.
+    runMigrations().catch((err) =>
+      log(`DB migration error: ${err.message}`, "migrate"),
+    );
   });
 })();
