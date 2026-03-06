@@ -1,4 +1,4 @@
-import { Pool } from 'pg';
+import { pool } from './db';
 
 const SCHEMA_SQL = `
 CREATE TABLE IF NOT EXISTS sessions (
@@ -179,14 +179,6 @@ CREATE TABLE IF NOT EXISTS payout_requests (
 `;
 
 export async function runMigrations(): Promise<void> {
-  const pool = new Pool({ connectionString: process.env.DATABASE_URL });
-  try {
-    await pool.query(SCHEMA_SQL);
-    console.log('[migrate] Schema initialised successfully');
-  } catch (err) {
-    console.error('[migrate] Schema initialisation failed:', err);
-    throw err;
-  } finally {
-    await pool.end();
-  }
+  await pool.query(SCHEMA_SQL);
+  console.log('[migrate] Schema initialised successfully');
 }

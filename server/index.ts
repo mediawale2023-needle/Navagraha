@@ -1,22 +1,33 @@
 import express, { type Request, Response, NextFunction } from "express";
+import { createServer } from "http";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import { runMigrations } from "./migrate";
 import { setupWebSocket } from "./websocketService";
 
+// Prevent unhandled errors from killing the process before the port binds
+process.on("uncaughtException", (err) =>
+  console.error("[fatal] Uncaught exception:", err),
+);
+process.on("unhandledRejection", (err) =>
+  console.error("[fatal] Unhandled rejection:", err),
+);
+
 const app = express();
 
-declare module 'http' {
+declare module "http" {
   interface IncomingMessage {
     rawBody: unknown;
   }
 }
 
-app.use(express.json({
-  verify: (req, _res, buf) => {
-    req.rawBody = buf;
-  }
-}));
+app.use(
+  express.json({
+    verify: (req, _res, buf) => {
+      req.rawBody = buf;
+    },
+  }),
+);
 app.use(express.urlencoded({ extended: false }));
 
 app.use((req, res, next) => {
@@ -45,11 +56,30 @@ app.use((req, res, next) => {
   next();
 });
 
-(async () => {
-  const server = await registerRoutes(app);
+// ── Create the HTTP server and bind the port FIRST so the healthcheck
+//    can succeed while the rest of the stack (auth, DB, etc.) initialises. ──
 
-  // Set up WebSocket server on the same HTTP server
-  setupWebSocket(server);
+const httpServer = createServer(app);
+
+const port = parseInt(process.env.PORT || "5000", 10);
+httpServer.listen({ port, host: "0.0.0.0", reusePort: true }, () => {
+  log(`serving on port ${port}`);
+});
+
+// ── Now do everything else (routes, auth, websocket, vite, migrations) ──
+
+(async () => {
+  try {
+    await registerRoutes(app, httpServer);
+  } catch (err) {
+    console.error("[startup] registerRoutes failed:", err);
+  }
+
+  try {
+    setupWebSocket(httpServer);
+  } catch (err) {
+    console.error("[startup] WebSocket setup failed:", err);
+  }
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
     const status = err.status || err.statusCode || 500;
@@ -59,23 +89,13 @@ app.use((req, res, next) => {
   });
 
   if (app.get("env") === "development") {
-    await setupVite(app, server);
+    await setupVite(app, httpServer);
   } else {
     serveStatic(app);
   }
 
-  const port = parseInt(process.env.PORT || '5000', 10);
-  server.listen({
-    port,
-    host: "0.0.0.0",
-    reusePort: true,
-  }, () => {
-    log(`serving on port ${port}`);
-    log(`WebSocket ready on ws://0.0.0.0:${port}/ws`);
-    // Run DB schema initialisation after the port is bound so the
-    // healthcheck can succeed immediately while tables are being created.
-    runMigrations().catch((err) =>
-      log(`DB migration error: ${err.message}`, "migrate"),
-    );
-  });
+  // Run DB schema initialisation in the background
+  runMigrations().catch((err) =>
+    console.error("[migrate] Schema initialisation failed:", err),
+  );
 })();
