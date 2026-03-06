@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useRoute, Link } from 'wouter';
 import { Button } from '@/components/ui/button';
@@ -8,7 +9,117 @@ import { LoadingSpinner } from '@/components/LoadingSpinner';
 import { ArrowLeft, Calendar, Clock, MapPin, Download } from 'lucide-react';
 import type { Kundli } from '@shared/schema';
 
+// North Indian Chart: 4x4 grid, 4 corners are decorative diagonal cells, 12 remaining = houses
+const NORTH_CHART_LAYOUT = [
+  ['corner', '12', '1',  'corner'],
+  ['11',     null,  null,  '2'],
+  ['10',     null,  null,  '3'],
+  ['corner', '9',  '4',  'corner'],
+];
+
+// Planets sample data for demo (positions in house numbers)
+const DEMO_PLANETS: Record<string, string[]> = {
+  '1': ['Asc'],
+  '3': ['Sun', 'Mars'],
+  '5': ['Moon'],
+  '9': ['Jupiter'],
+  '11': ['Venus'],
+};
+
+// South Indian Chart: fixed 4x4 grid with zodiac signs in fixed positions
+// Center 2x2 cells are empty
+const SOUTH_SIGNS = [
+  ['Pisces',      'Aries',  'Taurus',   'Gemini'],
+  ['Aquarius',    null,      null,       'Cancer'],
+  ['Capricorn',   null,      null,       'Leo'],
+  ['Sagittarius', 'Scorpio', 'Libra',    'Virgo'],
+];
+
+function NorthIndianChart({ ascendant }: { ascendant?: string }) {
+  // Rotate houses based on ascendant sign so Asc always shows in house 1
+  return (
+    <div className="relative w-full max-w-xs mx-auto aspect-square">
+      <div className="grid grid-cols-4 grid-rows-4 w-full h-full border-2 border-orange-400 rounded">
+        {NORTH_CHART_LAYOUT.map((row, ri) =>
+          row.map((cell, ci) => {
+            if (cell === 'corner') {
+              return (
+                <div key={`${ri}-${ci}`} className="relative overflow-hidden bg-orange-50">
+                  <svg className="absolute inset-0 w-full h-full" viewBox="0 0 1 1" preserveAspectRatio="none">
+                    <line
+                      x1={ci === 0 || ci === 1 ? '0' : '1'}
+                      y1={ri === 0 || ri === 1 ? '0' : '1'}
+                      x2={ci === 0 || ci === 1 ? '1' : '0'}
+                      y2={ri === 0 || ri === 1 ? '1' : '0'}
+                      stroke="#f97316" strokeWidth="0.05"
+                    />
+                  </svg>
+                </div>
+              );
+            }
+            if (cell === null) {
+              return <div key={`${ri}-${ci}`} className="border border-orange-200 bg-orange-50/30" />;
+            }
+            const houseNum = cell;
+            const planets = DEMO_PLANETS[houseNum] || [];
+            return (
+              <div
+                key={`${ri}-${ci}`}
+                className="border border-orange-200 flex flex-col items-center justify-center p-1 bg-white text-center"
+              >
+                <span className="text-[9px] text-orange-400 font-semibold">{houseNum}</span>
+                {planets.map((p) => (
+                  <span key={p} className="text-[9px] font-bold text-gray-700 leading-tight">{p}</span>
+                ))}
+              </div>
+            );
+          })
+        )}
+      </div>
+    </div>
+  );
+}
+
+function SouthIndianChart({ ascendant }: { ascendant?: string }) {
+  const ascIndex = SOUTH_SIGNS.flat().indexOf(ascendant || 'Aries');
+  return (
+    <div className="relative w-full max-w-xs mx-auto aspect-square">
+      <div className="grid grid-cols-4 grid-rows-4 w-full h-full border-2 border-orange-400 rounded">
+        {SOUTH_SIGNS.map((row, ri) =>
+          row.map((sign, ci) => {
+            const isCenter = ri >= 1 && ri <= 2 && ci >= 1 && ci <= 2;
+            if (isCenter) {
+              // Show name in center
+              if (ri === 1 && ci === 1) {
+                return (
+                  <div key={`${ri}-${ci}`} className="col-span-2 row-span-2 bg-orange-50/50 flex items-center justify-center border border-orange-200">
+                    <span className="text-[10px] text-orange-500 font-bold text-center px-1">Birth Chart</span>
+                  </div>
+                );
+              }
+              return null; // merged cell
+            }
+            const isAsc = sign === (ascendant || 'Aries');
+            return (
+              <div
+                key={`${ri}-${ci}`}
+                className={`border border-orange-200 flex flex-col items-center justify-center p-1 text-center ${isAsc ? 'bg-orange-100' : 'bg-white'}`}
+              >
+                <span className={`text-[9px] font-semibold leading-tight ${isAsc ? 'text-orange-600' : 'text-gray-700'}`}>
+                  {sign}
+                </span>
+                {isAsc && <span className="text-[8px] text-orange-500 font-bold">Asc</span>}
+              </div>
+            );
+          })
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function KundliView() {
+  const [chartStyle, setChartStyle] = useState<'north' | 'south'>('north');
   const [, params] = useRoute('/kundli/:id');
   const kundliId = params?.id;
 
@@ -146,31 +257,44 @@ export default function KundliView() {
           <TabsContent value="chart">
             <Card>
               <CardHeader>
-                <CardTitle>North Indian Birth Chart</CardTitle>
+                <div className="flex items-center justify-between flex-wrap gap-3">
+                  <CardTitle>Birth Chart</CardTitle>
+                  <div className="flex rounded-lg border border-orange-200 overflow-hidden text-sm">
+                    <button
+                      onClick={() => setChartStyle('north')}
+                      className={`px-4 py-1.5 font-medium transition-colors ${
+                        chartStyle === 'north'
+                          ? 'bg-orange-600 text-white'
+                          : 'bg-white text-orange-600 hover:bg-orange-50'
+                      }`}
+                    >
+                      North Indian
+                    </button>
+                    <button
+                      onClick={() => setChartStyle('south')}
+                      className={`px-4 py-1.5 font-medium transition-colors ${
+                        chartStyle === 'south'
+                          ? 'bg-orange-600 text-white'
+                          : 'bg-white text-orange-600 hover:bg-orange-50'
+                      }`}
+                    >
+                      South Indian
+                    </button>
+                  </div>
+                </div>
               </CardHeader>
               <CardContent>
-                <div className="flex items-center justify-center p-8">
-                  <div className="relative w-full max-w-md aspect-square border-2 border-primary rounded-lg">
-                    <div className="absolute inset-0 grid grid-cols-3 grid-rows-3">
-                      {Array.from({ length: 9 }).map((_, i) => (
-                        <div key={i} className={`border border-muted flex items-center justify-center text-sm p-2 ${
-                          i === 4 ? 'bg-primary/10' : ''
-                        }`}>
-                          <div className="text-center">
-                            <div className="font-semibold text-xs text-muted-foreground mb-1">
-                              House {i + 1}
-                            </div>
-                            <div className="text-xs text-foreground">
-                              {i === 0 && 'Sun, Mars'}
-                              {i === 2 && 'Moon'}
-                              {i === 4 && 'Asc'}
-                              {i === 6 && 'Jupiter'}
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
+                <div className="flex flex-col items-center gap-4 p-4">
+                  {chartStyle === 'north' ? (
+                    <NorthIndianChart ascendant={kundli.ascendant || 'Aries'} />
+                  ) : (
+                    <SouthIndianChart ascendant={kundli.ascendant || 'Aries'} />
+                  )}
+                  <p className="text-xs text-muted-foreground text-center">
+                    {chartStyle === 'north'
+                      ? 'North Indian style — houses are fixed, signs rotate'
+                      : 'South Indian style — signs are fixed, houses rotate'}
+                  </p>
                 </div>
               </CardContent>
             </Card>
