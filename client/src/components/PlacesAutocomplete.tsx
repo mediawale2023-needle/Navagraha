@@ -33,12 +33,14 @@ export function PlacesAutocomplete({
   });
 
   useEffect(() => {
-    if (!config?.googleMapsApiKey) {
+    if (config === undefined) return; // still loading, wait
+    if (!config.googleMapsApiKey) {
       setError('Google Maps API key not configured');
       setIsLoading(false);
       return;
     }
 
+    setError(null);
     const apiKey = config.googleMapsApiKey;
 
     const loadGoogleMaps = async () => {
