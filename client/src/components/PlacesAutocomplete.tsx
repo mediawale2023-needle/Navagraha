@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { Input } from '@/components/ui/input';
-import { MapPin } from 'lucide-react';
+import { MapPin, Loader2 } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 
 interface PlacesAutocompleteProps {
@@ -99,11 +99,13 @@ export function PlacesAutocomplete({
         ref={inputRef}
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        placeholder={isLoading ? 'Loading autocomplete...' : placeholder}
-        className={`pl-10 ${className}`}
-        disabled={isLoading}
+        placeholder={placeholder}
+        className={`pl-10 pr-8 ${className}`}
         data-testid={testId}
       />
+      {isLoading && !error && (
+        <Loader2 className="absolute right-3 top-3 w-4 h-4 animate-spin text-muted-foreground" />
+      )}
       {error && (
         <p className="text-xs text-muted-foreground mt-1">
           {error}. Please enter location manually.
