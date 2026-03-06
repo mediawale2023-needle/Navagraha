@@ -9,128 +9,185 @@ import { LoadingSpinner } from '@/components/LoadingSpinner';
 import { ArrowLeft, Calendar, Clock, MapPin, Download } from 'lucide-react';
 import type { Kundli } from '@shared/schema';
 
-// North Indian Chart: 4x4 grid, counter-clockwise from top
-// Corners (2, 11, 5, 8) have diagonal decorations; center 4 cells empty
-// Layout (counter-clockwise): 1(top) → 2(TL) → 3 → 4 → 5(BL) → 6 → 7 → 8(BR) → 9 → 10 → 11(TR) → 12
-const NORTH_CHART_LAYOUT = [
-  ['2',  '1',  '12', '11'],
-  ['3',  null,  null, '10'],
-  ['4',  null,  null, '9'],
-  ['5',  '6',  '7',  '8'],
-];
+// Planet abbreviation map
+const PLANET_ABBR: Record<string, string> = {
+  Sun: 'Su', Moon: 'Mo', Mars: 'Ma', Mercury: 'Me',
+  Jupiter: 'Ju', Venus: 'Ve', Saturn: 'Sa', Rahu: 'Ra', Ketu: 'Ke',
+};
 
-// Corner cells that get diagonal decoration (counter-clockwise corners)
-const NORTH_CORNER_CELLS = new Set(['2', '11', '5', '8']);
+// Zodiac signs in order (for South Indian chart house calculation)
+const ZODIAC = ['Aries','Taurus','Gemini','Cancer','Leo','Virgo','Libra','Scorpio','Sagittarius','Capricorn','Aquarius','Pisces'];
 
-// South Indian Chart: fixed 4x4 grid with zodiac signs in fixed positions
-// Center 2x2 cells are empty
-const SOUTH_SIGNS = [
-  ['Pisces',      'Aries',  'Taurus',   'Gemini'],
-  ['Aquarius',    null,      null,       'Cancer'],
-  ['Capricorn',   null,      null,       'Leo'],
-  ['Sagittarius', 'Scorpio', 'Libra',    'Virgo'],
-];
-
-function NorthIndianChart({ ascendant, chartData }: { ascendant?: string; chartData?: any }) {
-  // Build planet-per-house map from real chart data
-  const housePlanets: Record<string, string[]> = {};
+/**
+ * North Indian Chart — correct 3×3 grid with SVG
+ *
+ * Structure:
+ *   [TL corner] [top-middle H1] [TR corner]
+ *   [left-mid H4] [center empty] [right-mid H10]
+ *   [BL corner] [bottom-mid H7] [BR corner]
+ *
+ * Each corner is split by a diagonal line into 2 triangular houses:
+ *   TL: H2 (upper) + H3 (lower)
+ *   TR: H12 (upper) + H11 (lower)
+ *   BL: H5 (upper) + H6 (lower)
+ *   BR: H9 (upper) + H8 (lower)
+ *
+ * Houses go counter-clockwise: 1→2→3→4→5→6→7→8→9→10→11→12
+ */
+function NorthIndianChart({ chartData }: { chartData?: any }) {
+  // Build planet-per-house map
+  const housePlanets: Record<number, string[]> = {};
   if (chartData?.planets) {
     for (const [planet, info] of Object.entries(chartData.planets as Record<string, any>)) {
-      const h = String(info?.house ?? '');
-      if (h) {
-        housePlanets[h] = [...(housePlanets[h] || []), planet];
+      const h = Number(info?.house);
+      if (h >= 1 && h <= 12) {
+        const abbr = PLANET_ABBR[planet] ?? planet.slice(0, 2);
+        housePlanets[h] = [...(housePlanets[h] || []), abbr];
       }
     }
   }
-  // Mark house 1 with Asc label
-  housePlanets['1'] = ['Asc', ...(housePlanets['1'] || [])];
+
+  const S = 300; // SVG canvas size
+  const C = S / 3; // Cell size (100)
+  const sw = 1.5; // stroke width for internal lines
+
+  // Centroid positions for each house (x, y) in the 300×300 canvas
+  // 3×3 grid: corner cells split by diagonals, edge cells undivided, center empty
+  const housePos: Record<number, [number, number]> = {
+    1:  [S/2,     C*0.42],          // top-middle
+    2:  [C*0.68,  C*0.30],          // TL upper triangle
+    3:  [C*0.32,  C*0.68],          // TL lower triangle
+    4:  [C*0.42,  S/2],             // left-middle
+    5:  [C*0.32,  S - C*0.68],      // BL upper triangle
+    6:  [C*0.68,  S - C*0.30],      // BL lower triangle
+    7:  [S/2,     S - C*0.42],      // bottom-middle
+    8:  [S - C*0.68, S - C*0.30],   // BR lower triangle
+    9:  [S - C*0.32, S - C*0.68],   // BR upper triangle
+    10: [S - C*0.42, S/2],          // right-middle
+    11: [S - C*0.32, C*0.68],       // TR lower triangle
+    12: [S - C*0.68, C*0.30],       // TR upper triangle
+  };
+
+  const renderHouse = (h: number) => {
+    const [x, y] = housePos[h];
+    const planets = housePlanets[h] || [];
+    const lineH = 11;
+    const totalLines = 1 + (h === 1 ? 1 : 0) + planets.length;
+    const startY = y - ((totalLines - 1) * lineH) / 2;
+
+    return (
+      <g key={h}>
+        <text x={x} y={startY} textAnchor="middle" dominantBaseline="middle"
+          fontSize="9" fontWeight="700" fill="#92400e">{h}</text>
+        {h === 1 && (
+          <text x={x} y={startY + lineH} textAnchor="middle" dominantBaseline="middle"
+            fontSize="7.5" fontWeight="600" fill="#b45309">As</text>
+        )}
+        {planets.map((p, i) => (
+          <text key={p} x={x} y={startY + lineH * (h === 1 ? i + 2 : i + 1)}
+            textAnchor="middle" dominantBaseline="middle"
+            fontSize="8" fontWeight="600" fill="#1f2937">{p}</text>
+        ))}
+      </g>
+    );
+  };
 
   return (
-    <div className="relative w-full max-w-xs mx-auto aspect-square">
-      <div className="grid grid-cols-4 grid-rows-4 w-full h-full border-2 border-orange-400 bg-amber-50">
-        {NORTH_CHART_LAYOUT.map((row, ri) =>
-          row.map((cell, ci) => {
-            if (cell === null) {
-              // Center cells — draw the inner diamond lines via SVG overlay on first center cell
-              if (ri === 1 && ci === 1) {
-                return (
-                  <div key={`${ri}-${ci}`} className="col-span-2 row-span-2 relative bg-amber-50/60">
-                    <svg className="absolute inset-0 w-full h-full" viewBox="0 0 2 2" preserveAspectRatio="none">
-                      {/* Inner diamond lines */}
-                      <line x1="1" y1="0" x2="0" y2="1" stroke="#d97706" strokeWidth="0.04"/>
-                      <line x1="1" y1="0" x2="2" y2="1" stroke="#d97706" strokeWidth="0.04"/>
-                      <line x1="0" y1="1" x2="1" y2="2" stroke="#d97706" strokeWidth="0.04"/>
-                      <line x1="2" y1="1" x2="1" y2="2" stroke="#d97706" strokeWidth="0.04"/>
-                    </svg>
-                  </div>
-                );
-              }
-              return null; // other center cells merged above
-            }
+    <div className="w-full max-w-sm mx-auto">
+      <svg viewBox={`0 0 ${S} ${S}`} width="100%" className="block"
+        style={{ background: '#fffbeb', border: '2px solid #d97706', borderRadius: 4 }}>
 
-            const houseNum = cell;
-            const planets = housePlanets[houseNum] || [];
-            const isCorner = NORTH_CORNER_CELLS.has(houseNum);
+        {/* 3×3 internal grid lines */}
+        <line x1={C}   y1="0" x2={C}   y2={S} stroke="#d97706" strokeWidth={sw}/>
+        <line x1={2*C} y1="0" x2={2*C} y2={S} stroke="#d97706" strokeWidth={sw}/>
+        <line x1="0" y1={C}   x2={S} y2={C}   stroke="#d97706" strokeWidth={sw}/>
+        <line x1="0" y1={2*C} x2={S} y2={2*C} stroke="#d97706" strokeWidth={sw}/>
 
-            // Diagonal direction for corner cells
-            // TL(2): top-right → bottom-left; TR(11): top-left → bottom-right
-            // BL(5): top-left → bottom-right; BR(8): top-right → bottom-left
-            const diagTRtoBL = houseNum === '2' || houseNum === '8';
-            const diagTLtoBR = houseNum === '11' || houseNum === '5';
+        {/* Corner diagonals + center X: just 2 full-diagonal lines
+            Line 1: TL(0,0)→BR(S,S) — passes through TL corner, center, BR corner
+            Line 2: TR(S,0)→BL(0,S) — passes through TR corner, center, BL corner */}
+        <line x1="0" y1="0" x2={S} y2={S} stroke="#d97706" strokeWidth={sw}/>
+        <line x1={S} y1="0" x2="0" y2={S} stroke="#d97706" strokeWidth={sw}/>
 
-            return (
-              <div
-                key={`${ri}-${ci}`}
-                className="relative border border-orange-300 flex flex-col items-center justify-center p-0.5 bg-amber-50 text-center overflow-hidden"
-              >
-                {isCorner && (
-                  <svg className="absolute inset-0 w-full h-full pointer-events-none" viewBox="0 0 1 1" preserveAspectRatio="none">
-                    {diagTRtoBL && <line x1="1" y1="0" x2="0" y2="1" stroke="#d97706" strokeWidth="0.05"/>}
-                    {diagTLtoBR && <line x1="0" y1="0" x2="1" y2="1" stroke="#d97706" strokeWidth="0.05"/>}
-                  </svg>
-                )}
-                <span className="text-[8px] text-orange-500 font-bold leading-none">{houseNum}</span>
-                {planets.map((p) => (
-                  <span key={p} className="text-[7px] font-semibold text-gray-800 leading-tight">{p}</span>
-                ))}
-              </div>
-            );
-          })
-        )}
-      </div>
+        {/* House labels */}
+        {([1,2,3,4,5,6,7,8,9,10,11,12] as const).map(h => renderHouse(h))}
+      </svg>
     </div>
   );
 }
 
-function SouthIndianChart({ ascendant }: { ascendant?: string }) {
-  const ascIndex = SOUTH_SIGNS.flat().indexOf(ascendant || 'Aries');
+/**
+ * South Indian Chart — fixed 4×4 grid with clockwise zodiac signs
+ * Houses rotate based on ascendant; signs are fixed.
+ */
+function SouthIndianChart({ ascendant, chartData }: { ascendant?: string; chartData?: any }) {
+  const asc = ascendant || 'Aries';
+  const ascIdx = ZODIAC.indexOf(asc);
+
+  // Build planet-per-sign map from chartData
+  const signPlanets: Record<string, string[]> = {};
+  if (chartData?.planets) {
+    for (const [planet, info] of Object.entries(chartData.planets as Record<string, any>)) {
+      // Derive sign from house + ascendant
+      const h = Number(info?.house);
+      if (h >= 1 && h <= 12) {
+        const signIdx = (ascIdx + h - 1) % 12;
+        const sign = ZODIAC[signIdx];
+        const abbr = PLANET_ABBR[planet] ?? planet.slice(0, 2);
+        signPlanets[sign] = [...(signPlanets[sign] || []), abbr];
+      }
+    }
+  }
+
+  // Fixed 4×4 grid: 12 border cells clockwise, center 4 empty
+  // Row, Col → Sign (clockwise from top-left = Pisces)
+  const GRID: (string | null)[][] = [
+    ['Pisces',      'Aries',   'Taurus',  'Gemini'],
+    ['Aquarius',    null,       null,      'Cancer'],
+    ['Capricorn',   null,       null,      'Leo'],
+    ['Sagittarius', 'Scorpio',  'Libra',   'Virgo'],
+  ];
+
   return (
-    <div className="relative w-full max-w-xs mx-auto aspect-square">
-      <div className="grid grid-cols-4 grid-rows-4 w-full h-full border-2 border-orange-400 rounded">
-        {SOUTH_SIGNS.map((row, ri) =>
+    <div className="w-full max-w-sm mx-auto">
+      <div className="grid grid-cols-4 border-2 border-orange-600"
+        style={{ background: '#fffbeb', aspectRatio: '1' }}>
+        {GRID.map((row, ri) =>
           row.map((sign, ci) => {
-            const isCenter = ri >= 1 && ri <= 2 && ci >= 1 && ci <= 2;
-            if (isCenter) {
-              // Show name in center
+            // Center 2×2 cells merged
+            if (sign === null) {
               if (ri === 1 && ci === 1) {
                 return (
-                  <div key={`${ri}-${ci}`} className="col-span-2 row-span-2 bg-orange-50/50 flex items-center justify-center border border-orange-200">
-                    <span className="text-[10px] text-orange-500 font-bold text-center px-1">Birth Chart</span>
+                  <div key={`${ri}-${ci}`}
+                    className="col-span-2 row-span-2 flex items-center justify-center border border-orange-300"
+                    style={{ background: '#fef3c7' }}>
+                    <span className="text-xs font-bold text-orange-600 text-center leading-tight px-2">
+                      Janma<br/>Kundali
+                    </span>
                   </div>
                 );
               }
-              return null; // merged cell
+              return null;
             }
-            const isAsc = sign === (ascendant || 'Aries');
+
+            const houseNum = ((ZODIAC.indexOf(sign) - ascIdx + 12) % 12) + 1;
+            const isAsc = sign === asc;
+            const planets = signPlanets[sign] || [];
+
             return (
-              <div
-                key={`${ri}-${ci}`}
-                className={`border border-orange-200 flex flex-col items-center justify-center p-1 text-center ${isAsc ? 'bg-orange-100' : 'bg-white'}`}
-              >
-                <span className={`text-[9px] font-semibold leading-tight ${isAsc ? 'text-orange-600' : 'text-gray-700'}`}>
-                  {sign}
+              <div key={`${ri}-${ci}`}
+                className={`border border-orange-300 flex flex-col items-center justify-center p-0.5 text-center overflow-hidden`}
+                style={{ background: isAsc ? '#fed7aa' : '#fffbeb' }}>
+                {/* House number top-left style */}
+                <span className="text-[8px] font-bold text-orange-600 leading-none">{houseNum}</span>
+                {/* Sign abbreviation */}
+                <span className={`text-[7px] font-semibold leading-tight ${isAsc ? 'text-orange-800' : 'text-gray-500'}`}>
+                  {sign.slice(0, 3).toUpperCase()}
                 </span>
-                {isAsc && <span className="text-[8px] text-orange-500 font-bold">Asc</span>}
+                {/* Planets */}
+                {planets.map(p => (
+                  <span key={p} className="text-[8px] font-bold text-gray-800 leading-tight">{p}</span>
+                ))}
               </div>
             );
           })
@@ -308,9 +365,9 @@ export default function KundliView() {
               <CardContent>
                 <div className="flex flex-col items-center gap-4 p-4">
                   {chartStyle === 'north' ? (
-                    <NorthIndianChart ascendant={kundli.ascendant || 'Aries'} chartData={kundli.chartData} />
+                    <NorthIndianChart chartData={kundli.chartData} />
                   ) : (
-                    <SouthIndianChart ascendant={kundli.ascendant || 'Aries'} />
+                    <SouthIndianChart ascendant={kundli.ascendant || 'Aries'} chartData={kundli.chartData} />
                   )}
                   <p className="text-xs text-muted-foreground text-center">
                     {chartStyle === 'north'
