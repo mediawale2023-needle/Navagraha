@@ -201,17 +201,17 @@ export default function Wallet() {
   const balance = parseFloat(wallet?.balance || '0');
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-[#FFF8F0]">
       {/* Header */}
-      <div className="sticky top-0 z-50 bg-[#FFCF23] shadow-sm">
+      <div className="sticky top-0 z-50 bg-gradient-to-r from-orange-600 to-orange-500 shadow-lg">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-3">
           <div className="flex items-center gap-3">
             <Link href="/">
-              <button className="p-2 rounded-xl hover:bg-[#1A1A1A]/10" data-testid="button-back">
-                <ArrowLeft className="w-5 h-5 text-[#1A1A1A]" />
+              <button className="p-2 rounded-xl hover:bg-white/10" data-testid="button-back">
+                <ArrowLeft className="w-5 h-5 text-white" />
               </button>
             </Link>
-            <h1 className="font-bold text-lg text-[#1A1A1A]">My Wallet</h1>
+            <h1 className="font-bold text-lg text-white">My Wallet</h1>
           </div>
         </div>
       </div>
@@ -220,16 +220,16 @@ export default function Wallet() {
         <p className="text-muted-foreground mb-6">Recharge using UPI, cards, or pay later options</p>
 
         {/* Balance Card */}
-        <Card className="mb-6 bg-gradient-to-br from-[#FFCF23] to-[#FFD93D] border-[#FFCF23]">
+        <Card className="mb-6 bg-gradient-to-br from-orange-500 to-amber-400 border-orange-300">
           <CardContent className="p-6">
             <div className="flex items-center gap-3 mb-2">
-              <WalletIcon className="w-7 h-7 text-[#1A1A1A]" />
-              <span className="text-base text-[#1A1A1A]/70 font-medium">Available Balance</span>
+              <WalletIcon className="w-7 h-7 text-white" />
+              <span className="text-base text-white/80 font-medium">Available Balance</span>
             </div>
-            <div className="text-5xl font-bold text-[#1A1A1A] mb-1" data-testid="text-balance">
+            <div className="text-5xl font-bold text-white mb-1" data-testid="text-balance">
               ₹{balance.toFixed(2)}
             </div>
-            <p className="text-sm text-[#1A1A1A]/60">
+            <p className="text-sm text-white/60">
               {balance < 100
                 ? '⚠ Low balance — recharge to continue consultations'
                 : `≈ ${Math.floor(balance / 25)} minutes of consultation time`}
@@ -253,14 +253,14 @@ export default function Wallet() {
                   onClick={() => setPaymentMethod('razorpay')}
                   className={`p-4 rounded-xl border-2 text-left transition-all ${
                     paymentMethod === 'razorpay'
-                      ? 'border-[#FFCF23] bg-[#FFFBEA]'
-                      : 'border-border hover:border-[#FFCF23]'
+                      ? 'border-orange-400 bg-orange-50'
+                      : 'border-border hover:border-orange-400'
                   }`}
                 >
                   <div className="flex items-center gap-2 mb-1">
-                    <CreditCard className="w-4 h-4 text-[#1A1A1A]" />
+                    <CreditCard className="w-4 h-4 text-white" />
                     <span className="font-semibold text-sm">Razorpay</span>
-                    {paymentMethod === 'razorpay' && <CheckCircle2 className="w-4 h-4 text-[#FFCF23] ml-auto" />}
+                    {paymentMethod === 'razorpay' && <CheckCircle2 className="w-4 h-4 text-orange-400 ml-auto" />}
                   </div>
                   <p className="text-xs text-muted-foreground">UPI • Cards • Netbanking</p>
                   <p className="text-xs text-green-600 font-medium mt-1">Snapmint & LazyPay EMI also available</p>

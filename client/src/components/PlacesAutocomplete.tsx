@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import { Input } from '@/components/ui/input';
 import { MapPin } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
@@ -25,15 +25,46 @@ export function PlacesAutocomplete({
   testId = "input-place",
 }: PlacesAutocompleteProps) {
   const inputRef = useRef<HTMLInputElement>(null);
+  const autocompleteRef = useRef<any>(null);
+  const onChangeRef = useRef(onChange);
+  const onPlaceSelectRef = useRef(onPlaceSelect);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // Keep refs in sync without triggering effects
+  onChangeRef.current = onChange;
+  onPlaceSelectRef.current = onPlaceSelect;
 
   const { data: config } = useQuery<{ googleMapsApiKey: string }>({
     queryKey: ['/api/config'],
   });
 
+  const initAutocomplete = useCallback(() => {
+    if (!inputRef.current || autocompleteRef.current) return;
+
+    const ac = new (window as any).google.maps.places.Autocomplete(inputRef.current, {
+      fields: ['formatted_address', 'geometry', 'name', 'address_components'],
+      types: ['(cities)'],
+    });
+
+    ac.addListener('place_changed', () => {
+      const place = ac.getPlace();
+      if (!place.geometry || !place.geometry.location) return;
+
+      const address = place.formatted_address || place.name || '';
+      const lat = place.geometry.location.lat();
+      const lng = place.geometry.location.lng();
+
+      onChangeRef.current(address);
+      onPlaceSelectRef.current?.({ address, lat, lng });
+    });
+
+    autocompleteRef.current = ac;
+    setIsLoading(false);
+  }, []);
+
   useEffect(() => {
-    if (config === undefined) return; // still loading, wait
+    if (config === undefined) return;
     if (!config.googleMapsApiKey) {
       setError('Google Maps API key not configured');
       setIsLoading(false);
@@ -41,88 +72,25 @@ export function PlacesAutocomplete({
     }
 
     setError(null);
-    const apiKey = config.googleMapsApiKey;
 
-    const loadGoogleMaps = async () => {
-      try {
-        const script = document.createElement('script');
-        script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places&callback=initAutocomplete`;
-        script.async = true;
-        script.defer = true;
-
-        (window as any).initAutocomplete = () => {
-          if (!inputRef.current) return;
-
-          const autocomplete = new (window as any).google.maps.places.Autocomplete(inputRef.current, {
-            fields: ['formatted_address', 'geometry', 'name', 'address_components'],
-            types: ['(cities)'],
-          });
-
-          autocomplete.addListener('place_changed', () => {
-            const place = autocomplete.getPlace();
-            
-            if (!place.geometry || !place.geometry.location) {
-              return;
-            }
-
-            const address = place.formatted_address || place.name || '';
-            const lat = place.geometry.location.lat();
-            const lng = place.geometry.location.lng();
-
-            onChange(address);
-            
-            if (onPlaceSelect) {
-              onPlaceSelect({ address, lat, lng });
-            }
-          });
-
-          setIsLoading(false);
-        };
-
-        document.head.appendChild(script);
-      } catch (err) {
-        console.error('Error loading Google Maps:', err);
-        setError('Failed to load Google Maps');
-        setIsLoading(false);
-      }
-    };
-
-    if (!(window as any).google || !(window as any).google.maps || !(window as any).google.maps.places) {
-      loadGoogleMaps();
-    } else {
-      // Google Maps already loaded, initialize directly
-      if (inputRef.current) {
-        const autocomplete = new (window as any).google.maps.places.Autocomplete(inputRef.current, {
-          fields: ['formatted_address', 'geometry', 'name', 'address_components'],
-          types: ['(cities)'],
-        });
-
-        autocomplete.addListener('place_changed', () => {
-          const place = autocomplete.getPlace();
-          
-          if (!place.geometry || !place.geometry.location) {
-            return;
-          }
-
-          const address = place.formatted_address || place.name || '';
-          const lat = place.geometry.location.lat();
-          const lng = place.geometry.location.lng();
-
-          onChange(address);
-          
-          if (onPlaceSelect) {
-            onPlaceSelect({ address, lat, lng });
-          }
-        });
-
-        setIsLoading(false);
-      }
+    // Already loaded
+    if ((window as any).google?.maps?.places) {
+      initAutocomplete();
+      return;
     }
 
-    return () => {
-      delete (window as any).initAutocomplete;
+    // Load script
+    const script = document.createElement('script');
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${config.googleMapsApiKey}&libraries=places`;
+    script.async = true;
+    script.defer = true;
+    script.onload = () => initAutocomplete();
+    script.onerror = () => {
+      setError('Failed to load Google Maps');
+      setIsLoading(false);
     };
-  }, [config, onChange, onPlaceSelect]);
+    document.head.appendChild(script);
+  }, [config, initAutocomplete]);
 
   return (
     <div className="relative">

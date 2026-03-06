@@ -37,24 +37,33 @@ const NUMBER_MEANINGS: Record<number, { title: string; description: string; trai
   33: { title: 'The Master Teacher', description: 'The master of compassion. Called to uplift and serve on a global scale.', traits: ['Compassion', 'Teaching', 'Healing'] },
 };
 
+const CARD_THEMES: Record<string, { border: string; iconBg: string; iconText: string; traitBg: string; traitBorder: string }> = {
+  'Life Path Number':   { border: 'border-orange-200', iconBg: 'bg-orange-100',  iconText: 'text-orange-600', traitBg: 'bg-orange-50',  traitBorder: 'border-orange-200' },
+  'Destiny Number':     { border: 'border-indigo-200', iconBg: 'bg-indigo-100',  iconText: 'text-indigo-600', traitBg: 'bg-indigo-50',  traitBorder: 'border-indigo-200' },
+  'Soul Urge Number':   { border: 'border-rose-200',   iconBg: 'bg-rose-100',    iconText: 'text-rose-600',   traitBg: 'bg-rose-50',    traitBorder: 'border-rose-200' },
+  'Personality Number': { border: 'border-green-200',  iconBg: 'bg-green-100',   iconText: 'text-green-600',  traitBg: 'bg-green-50',   traitBorder: 'border-green-200' },
+  'Birthday Number':    { border: 'border-purple-200', iconBg: 'bg-purple-100',  iconText: 'text-purple-600', traitBg: 'bg-purple-50',  traitBorder: 'border-purple-200' },
+};
+
 function NumberCard({ label, number, icon: Icon }: { label: string; number: number; icon: any }) {
   const meaning = NUMBER_MEANINGS[number] || NUMBER_MEANINGS[9];
+  const theme = CARD_THEMES[label] || CARD_THEMES['Life Path Number'];
   return (
-    <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
+    <div className={`bg-white rounded-2xl p-4 shadow-sm border ${theme.border}`}>
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
-          <div className="w-8 h-8 bg-[#FFCF23] rounded-lg flex items-center justify-center">
-            <Icon className="w-4 h-4 text-[#1A1A1A]" />
+          <div className={`w-8 h-8 ${theme.iconBg} rounded-lg flex items-center justify-center`}>
+            <Icon className={`w-4 h-4 ${theme.iconText}`} />
           </div>
           <span className="text-sm font-semibold text-gray-600">{label}</span>
         </div>
-        <div className="text-3xl font-bold text-[#1A1A1A]">{number}</div>
+        <div className="text-3xl font-bold text-gray-900">{number}</div>
       </div>
-      <p className="text-xs font-bold text-[#1A1A1A] mb-1">{meaning.title}</p>
+      <p className="text-xs font-bold text-gray-900 mb-1">{meaning.title}</p>
       <p className="text-xs text-gray-500 leading-relaxed mb-2">{meaning.description}</p>
       <div className="flex flex-wrap gap-1">
         {meaning.traits.map(t => (
-          <span key={t} className="px-2 py-0.5 bg-[#FFFBEA] border border-[#FFCF23]/40 text-[#1A1A1A] text-xs rounded-full font-medium">
+          <span key={t} className={`px-2 py-0.5 ${theme.traitBg} border ${theme.traitBorder} text-gray-900 text-xs rounded-full font-medium`}>
             {t}
           </span>
         ))}
@@ -91,19 +100,19 @@ export default function Numerology() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 pb-20 md:pb-0">
+    <div className="min-h-screen bg-[#FFF8F0] pb-20 md:pb-0">
       {/* Header */}
-      <div className="sticky top-0 z-50 bg-[#FFCF23] shadow-sm">
+      <div className="sticky top-0 z-50 bg-gradient-to-r from-orange-600 to-orange-500 shadow-sm">
         <div className="max-w-4xl mx-auto px-4 py-3">
           <div className="flex items-center gap-3">
             <Link href="/">
-              <button className="p-2 rounded-xl hover:bg-[#1A1A1A]/10">
-                <ArrowLeft className="w-5 h-5 text-[#1A1A1A]" />
+              <button className="p-2 rounded-xl hover:bg-white/10">
+                <ArrowLeft className="w-5 h-5 text-white" />
               </button>
             </Link>
             <div>
-              <h1 className="font-bold text-lg text-[#1A1A1A]">Numerology</h1>
-              <p className="text-xs text-[#1A1A1A]/60">Discover the power of your numbers</p>
+              <h1 className="font-bold text-lg text-white">Numerology</h1>
+              <p className="text-xs text-white/60">Discover the power of your numbers</p>
             </div>
           </div>
         </div>
@@ -112,10 +121,10 @@ export default function Numerology() {
       <div className="max-w-4xl mx-auto px-4 py-6">
         {/* Hero */}
         {!result && (
-          <div className="bg-gradient-to-br from-[#FFCF23] to-[#FFD93D] rounded-2xl p-6 mb-6 text-center">
-            <Hash className="w-12 h-12 text-[#1A1A1A] mx-auto mb-3" />
-            <h2 className="text-xl font-bold text-[#1A1A1A] mb-2">Your Life by Numbers</h2>
-            <p className="text-sm text-[#1A1A1A]/70 max-w-sm mx-auto">
+          <div className="bg-gradient-to-br from-indigo-600 to-purple-600 rounded-2xl p-6 mb-6 text-center">
+            <Hash className="w-12 h-12 text-white mx-auto mb-3" />
+            <h2 className="text-xl font-bold text-white mb-2">Your Life by Numbers</h2>
+            <p className="text-sm text-white/70 max-w-sm mx-auto">
               Uncover your life path, destiny, soul urge, and personality numbers based on Pythagorean numerology.
             </p>
           </div>
@@ -127,36 +136,36 @@ export default function Numerology() {
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <Label className="text-sm font-semibold text-[#1A1A1A] mb-1.5 block">First Name *</Label>
+                  <Label className="text-sm font-semibold text-gray-900 mb-1.5 block">First Name *</Label>
                   <Input
                     placeholder="e.g. Priya"
                     value={form.firstName}
                     onChange={e => setForm(f => ({ ...f, firstName: e.target.value }))}
-                    className="rounded-xl border-gray-200 focus:border-[#FFCF23] focus:ring-[#FFCF23]"
+                    className="rounded-xl border-gray-200 focus:border-orange-500 focus:ring-orange-500"
                   />
                 </div>
                 <div>
-                  <Label className="text-sm font-semibold text-[#1A1A1A] mb-1.5 block">Last Name</Label>
+                  <Label className="text-sm font-semibold text-gray-900 mb-1.5 block">Last Name</Label>
                   <Input
                     placeholder="e.g. Sharma"
                     value={form.lastName}
                     onChange={e => setForm(f => ({ ...f, lastName: e.target.value }))}
-                    className="rounded-xl border-gray-200 focus:border-[#FFCF23] focus:ring-[#FFCF23]"
+                    className="rounded-xl border-gray-200 focus:border-orange-500 focus:ring-orange-500"
                   />
                 </div>
               </div>
               <div>
-                <Label className="text-sm font-semibold text-[#1A1A1A] mb-1.5 block">Date of Birth *</Label>
+                <Label className="text-sm font-semibold text-gray-900 mb-1.5 block">Date of Birth *</Label>
                 <Input
                   type="date"
                   value={form.dateOfBirth}
                   onChange={e => setForm(f => ({ ...f, dateOfBirth: e.target.value }))}
-                  className="rounded-xl border-gray-200 focus:border-[#FFCF23] focus:ring-[#FFCF23]"
+                  className="rounded-xl border-gray-200 focus:border-orange-500 focus:ring-orange-500"
                   max={new Date().toISOString().split('T')[0]}
                 />
               </div>
               <div>
-                <Label className="text-sm font-semibold text-[#1A1A1A] mb-2 block">System</Label>
+                <Label className="text-sm font-semibold text-gray-900 mb-2 block">System</Label>
                 <div className="grid grid-cols-2 gap-2">
                   {[
                     { value: 'pythagorean', label: 'Pythagorean', desc: 'Most popular Western system' },
@@ -168,12 +177,12 @@ export default function Numerology() {
                       onClick={() => setForm(f => ({ ...f, system: sys.value }))}
                       className={`p-3 rounded-xl border-2 text-left transition-all ${
                         form.system === sys.value
-                          ? 'border-[#FFCF23] bg-[#FFFBEA]'
-                          : 'border-gray-200 hover:border-[#FFCF23]/50'
+                          ? 'border-orange-600 bg-orange-600 text-white'
+                          : 'border-gray-200 bg-white text-gray-600 hover:border-orange-300'
                       }`}
                     >
-                      <div className="font-semibold text-sm text-[#1A1A1A]">{sys.label}</div>
-                      <div className="text-xs text-gray-500 mt-0.5">{sys.desc}</div>
+                      <div className={`font-semibold text-sm ${form.system === sys.value ? 'text-white' : 'text-gray-900'}`}>{sys.label}</div>
+                      <div className={`text-xs mt-0.5 ${form.system === sys.value ? 'text-white/70' : 'text-gray-500'}`}>{sys.desc}</div>
                     </button>
                   ))}
                 </div>
@@ -181,7 +190,7 @@ export default function Numerology() {
               <Button
                 type="submit"
                 disabled={mutation.isPending}
-                className="w-full bg-[#1A1A1A] text-[#FFCF23] hover:bg-[#333] font-bold h-12 rounded-xl"
+                className="w-full bg-orange-600 hover:bg-orange-700 text-white font-bold h-12 rounded-xl"
               >
                 {mutation.isPending ? (
                   <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Calculating...</>
@@ -197,12 +206,12 @@ export default function Numerology() {
         {result && (
           <div className="space-y-4">
             {/* Summary banner */}
-            <div className="bg-[#1A1A1A] rounded-2xl p-5 text-white text-center">
-              <p className="text-[#FFCF23] text-sm font-semibold mb-1">Numerology Report for</p>
+            <div className="bg-gradient-to-r from-gray-800 to-gray-900 rounded-2xl p-5 text-white text-center">
+              <p className="text-orange-400 text-sm font-semibold mb-1">Numerology Report for</p>
               <h3 className="text-2xl font-bold mb-3">{result.name}</h3>
               <div className="flex justify-center gap-6">
                 <div>
-                  <div className="text-4xl font-black text-[#FFCF23]">{result.lifePath}</div>
+                  <div className="text-4xl font-black text-orange-400">{result.lifePath}</div>
                   <div className="text-xs text-gray-400 mt-0.5">Life Path</div>
                 </div>
               </div>
@@ -219,23 +228,23 @@ export default function Numerology() {
             {/* What is life path */}
             <Card className="shadow-sm border-gray-100">
               <CardContent className="p-5">
-                <h4 className="font-bold text-[#1A1A1A] mb-3 flex items-center gap-2">
-                  <Sparkles className="w-4 h-4 text-[#FFCF23]" /> Understanding Your Numbers
+                <h4 className="font-bold text-gray-900 mb-3 flex items-center gap-2">
+                  <Sparkles className="w-4 h-4 text-orange-500" /> Understanding Your Numbers
                 </h4>
                 <div className="space-y-3 text-sm text-gray-600">
-                  <div className="flex gap-2"><span className="font-semibold text-[#1A1A1A] min-w-[140px]">Life Path ({result.lifePath}):</span> Your core purpose and the journey you're destined to take in this lifetime.</div>
-                  <div className="flex gap-2"><span className="font-semibold text-[#1A1A1A] min-w-[140px]">Destiny ({result.destiny}):</span> What you're meant to accomplish and the role you play in the world.</div>
-                  <div className="flex gap-2"><span className="font-semibold text-[#1A1A1A] min-w-[140px]">Soul Urge ({result.soul}):</span> Your innermost desires, motivations, and what truly makes you happy.</div>
-                  <div className="flex gap-2"><span className="font-semibold text-[#1A1A1A] min-w-[140px]">Personality ({result.personality}):</span> How others perceive you and the face you show the world.</div>
-                  <div className="flex gap-2"><span className="font-semibold text-[#1A1A1A] min-w-[140px]">Birthday ({result.birthday}):</span> A special talent or gift bestowed upon you at birth.</div>
+                  <div className="flex gap-2"><span className="font-semibold text-gray-900 min-w-[140px]">Life Path ({result.lifePath}):</span> Your core purpose and the journey you're destined to take in this lifetime.</div>
+                  <div className="flex gap-2"><span className="font-semibold text-gray-900 min-w-[140px]">Destiny ({result.destiny}):</span> What you're meant to accomplish and the role you play in the world.</div>
+                  <div className="flex gap-2"><span className="font-semibold text-gray-900 min-w-[140px]">Soul Urge ({result.soul}):</span> Your innermost desires, motivations, and what truly makes you happy.</div>
+                  <div className="flex gap-2"><span className="font-semibold text-gray-900 min-w-[140px]">Personality ({result.personality}):</span> How others perceive you and the face you show the world.</div>
+                  <div className="flex gap-2"><span className="font-semibold text-gray-900 min-w-[140px]">Birthday ({result.birthday}):</span> A special talent or gift bestowed upon you at birth.</div>
                 </div>
               </CardContent>
             </Card>
 
-            <div className="bg-[#FFFBEA] border border-[#FFCF23]/30 rounded-2xl p-4 text-center">
-              <p className="text-sm text-gray-600 mb-3">Want a deeper numerology reading from an expert?</p>
+            <div className="bg-gradient-to-r from-orange-600 to-amber-500 rounded-2xl p-4 text-center">
+              <p className="text-sm text-white/90 mb-3">Want a deeper numerology reading from an expert?</p>
               <Link href="/astrologers">
-                <Button className="bg-[#FFCF23] text-[#1A1A1A] hover:bg-[#F5C500] font-bold rounded-xl gap-2">
+                <Button className="bg-white text-orange-600 hover:bg-white/90 font-bold rounded-xl gap-2">
                   Talk to an Astrologer <ChevronRight className="w-4 h-4" />
                 </Button>
               </Link>

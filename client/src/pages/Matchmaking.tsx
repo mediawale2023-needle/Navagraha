@@ -13,6 +13,7 @@ import { Progress } from '@/components/ui/progress';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest } from '@/lib/queryClient';
 import { ArrowLeft, Heart, Loader2 } from 'lucide-react';
+import { BottomNav } from '@/components/BottomNav';
 
 const matchmakingSchema = z.object({
   person1Name: z.string().min(2, 'Name is required'),
@@ -73,37 +74,47 @@ export default function Matchmaking() {
     mutation.mutate(data);
   };
 
+  const compatibilityColors = [
+    'bg-orange-500',
+    'bg-green-500',
+    'bg-blue-500',
+    'bg-rose-500',
+  ];
+
   return (
-    <div className="min-h-screen bg-background py-8">
-      <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
-        <Link href="/">
-          <Button variant="ghost" className="mb-6" data-testid="button-back">
-            <ArrowLeft className="w-4 h-4 mr-2" />
-            Back to Home
-          </Button>
-        </Link>
-
-        <div className="text-center mb-8">
-          <Heart className="w-16 h-16 text-primary mx-auto mb-4" />
-          <h1 className="font-serif text-4xl font-bold text-foreground mb-2">
-            Kundli Milan
-          </h1>
-          <p className="text-muted-foreground text-lg">
-            Check compatibility between two birth charts
-          </p>
+    <div className="min-h-screen bg-[#FFF8F0] pb-20">
+      {/* Header */}
+      <div className="bg-gradient-to-r from-orange-600 to-orange-500 px-4 pt-12 pb-8">
+        <div className="max-w-5xl mx-auto">
+          <Link href="/">
+            <button className="mb-4 p-2 rounded-lg hover:bg-white/10 transition-colors" data-testid="button-back">
+              <ArrowLeft className="w-5 h-5 text-white" />
+            </button>
+          </Link>
+          <div className="text-center">
+            <Heart className="w-14 h-14 text-rose-500 mx-auto mb-3" fill="currentColor" />
+            <h1 className="font-serif text-3xl font-bold text-white mb-1">
+              Kundli Milan
+            </h1>
+            <p className="text-white/80 text-base">
+              Check compatibility between two birth charts
+            </p>
+          </div>
         </div>
+      </div>
 
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
         {!result ? (
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {/* Person 1 */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Person 1 Details</CardTitle>
+                <Card className="border-orange-200 border-2 overflow-hidden">
+                  <CardHeader className="bg-orange-50 border-b border-orange-100">
+                    <CardTitle className="text-gray-900">Person 1 Details</CardTitle>
                     <CardDescription>Enter first person's birth information</CardDescription>
                   </CardHeader>
-                  <CardContent className="space-y-4">
+                  <CardContent className="space-y-4 pt-4">
                     <FormField
                       control={form.control}
                       name="person1Name"
@@ -186,12 +197,12 @@ export default function Matchmaking() {
                 </Card>
 
                 {/* Person 2 */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Person 2 Details</CardTitle>
+                <Card className="border-indigo-200 border-2 overflow-hidden">
+                  <CardHeader className="bg-indigo-50 border-b border-indigo-100">
+                    <CardTitle className="text-gray-900">Person 2 Details</CardTitle>
                     <CardDescription>Enter second person's birth information</CardDescription>
                   </CardHeader>
-                  <CardContent className="space-y-4">
+                  <CardContent className="space-y-4 pt-4">
                     <FormField
                       control={form.control}
                       name="person2Name"
@@ -274,10 +285,10 @@ export default function Matchmaking() {
                 </Card>
               </div>
 
-              <Button 
-                type="submit" 
-                size="lg" 
-                className="w-full"
+              <Button
+                type="submit"
+                size="lg"
+                className="w-full bg-orange-600 hover:bg-orange-700 text-white"
                 disabled={mutation.isPending}
                 data-testid="button-calculate-compatibility"
               >
@@ -298,26 +309,30 @@ export default function Matchmaking() {
         ) : (
           <div className="space-y-6">
             {/* Overall Score */}
-            <Card className="bg-gradient-to-br from-primary/10 to-primary/5 border-primary/20">
-              <CardContent className="p-8 text-center">
-                <h2 className="font-serif text-2xl font-semibold mb-2">Compatibility Score</h2>
-                <p className="text-muted-foreground mb-4" data-testid="text-person-names">
-                  {result.person1 || 'Person 1'} & {result.person2 || 'Person 2'}
-                </p>
-                <div className="text-7xl font-bold text-primary mb-2" data-testid="text-compatibility-score">
-                  {result.totalScore || 78}%
+            <Card className="overflow-hidden border-0 shadow-lg">
+              <CardContent className="p-0">
+                <div className="bg-gradient-to-br from-orange-600 to-orange-500 p-8 text-center">
+                  <h2 className="font-serif text-2xl font-semibold mb-2 text-white">Compatibility Score</h2>
+                  <p className="text-white/80 mb-4" data-testid="text-person-names">
+                    {result.person1 || 'Person 1'} & {result.person2 || 'Person 2'}
+                  </p>
+                  <div className="w-32 h-32 mx-auto rounded-full bg-white/20 flex items-center justify-center mb-3">
+                    <span className="text-6xl font-bold text-white" data-testid="text-compatibility-score">
+                      {result.totalScore || 78}%
+                    </span>
+                  </div>
+                  <p className="text-lg text-white/90">
+                    {result.totalScore >= 70 ? 'Excellent Match!' :
+                     result.totalScore >= 50 ? 'Good Match' : 'Fair Match'}
+                  </p>
                 </div>
-                <p className="text-lg text-muted-foreground">
-                  {result.totalScore >= 70 ? 'Excellent Match!' : 
-                   result.totalScore >= 50 ? 'Good Match' : 'Fair Match'}
-                </p>
               </CardContent>
             </Card>
 
             {/* Detailed Breakdown */}
             <Card>
               <CardHeader>
-                <CardTitle>Compatibility Breakdown</CardTitle>
+                <CardTitle className="text-gray-900">Compatibility Breakdown</CardTitle>
                 <CardDescription>Detailed analysis across different aspects</CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
@@ -329,10 +344,15 @@ export default function Matchmaking() {
                 ].map((item, i) => (
                   <div key={i}>
                     <div className="flex items-center justify-between mb-2">
-                      <span className="font-medium">{item.label}</span>
-                      <span className="text-2xl font-bold">{item.score}%</span>
+                      <span className="font-medium text-gray-900">{item.label}</span>
+                      <span className="text-2xl font-bold text-gray-900">{item.score}%</span>
                     </div>
-                    <Progress value={item.score} className="h-3" />
+                    <div className="h-3 w-full bg-gray-100 rounded-full overflow-hidden">
+                      <div
+                        className={`h-full rounded-full ${compatibilityColors[i]} transition-all duration-500`}
+                        style={{ width: `${item.score}%` }}
+                      />
+                    </div>
                   </div>
                 ))}
               </CardContent>
@@ -341,12 +361,12 @@ export default function Matchmaking() {
             {/* Recommendations */}
             <Card>
               <CardHeader>
-                <CardTitle>Astrological Insights</CardTitle>
+                <CardTitle className="text-gray-900">Astrological Insights</CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
-                  <div className="p-4 bg-green-500/10 border border-green-500/20 rounded-lg">
-                    <h4 className="font-semibold mb-2 text-green-700 dark:text-green-400">Strengths</h4>
+                  <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
+                    <h4 className="font-semibold mb-2 text-green-700">Strengths</h4>
                     <ul className="text-sm text-muted-foreground space-y-1 list-disc list-inside">
                       <li>Strong emotional connection</li>
                       <li>Compatible moon signs foster understanding</li>
@@ -354,8 +374,8 @@ export default function Matchmaking() {
                     </ul>
                   </div>
 
-                  <div className="p-4 bg-yellow-500/10 border border-yellow-500/20 rounded-lg">
-                    <h4 className="font-semibold mb-2 text-yellow-700 dark:text-yellow-400">Areas to Work On</h4>
+                  <div className="p-4 bg-amber-50 border border-amber-200 rounded-lg">
+                    <h4 className="font-semibold mb-2 text-amber-700">Areas to Work On</h4>
                     <ul className="text-sm text-muted-foreground space-y-1 list-disc list-inside">
                       <li>Communication during stressful times</li>
                       <li>Financial planning requires attention</li>
@@ -366,8 +386,8 @@ export default function Matchmaking() {
             </Card>
 
             <div className="flex gap-4">
-              <Button 
-                variant="outline" 
+              <Button
+                variant="outline"
                 className="flex-1"
                 onClick={() => {
                   setResult(null);
@@ -388,13 +408,14 @@ export default function Matchmaking() {
               >
                 New Calculation
               </Button>
-              <Button className="flex-1" data-testid="button-download-report">
+              <Button className="flex-1 bg-orange-600 hover:bg-orange-700 text-white" data-testid="button-download-report">
                 Download Report
               </Button>
             </div>
           </div>
         )}
       </div>
+      <BottomNav />
     </div>
   );
 }
