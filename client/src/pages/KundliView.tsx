@@ -46,21 +46,21 @@ const PLANET_COLORS: Record<string, string> = {
 //   11 = right-upper triangle
 //   12 = top-right triangle
 
-// Refined text positions for each house (avoid overlaps)
+// Refined text positions for each house — centroids of each triangular/diamond region
+// rx,ry = rashi number position; px,py = planet list start position
 const HOUSE_TEXT: Record<number, { rx: number; ry: number; px: number; py: number }> = {
-  // rx,ry = rashi number position; px,py = planet list start position
-  1: { rx: 175, ry: 82, px: 200, py: 70 },
-  2: { rx: 108, ry: 82, px: 68, py: 70 },
-  3: { rx: 55, ry: 190, px: 30, py: 178 },
-  4: { rx: 108, ry: 230, px: 68, py: 218 },
-  5: { rx: 108, ry: 320, px: 68, py: 308 },
-  6: { rx: 175, ry: 320, px: 200, py: 308 },
-  7: { rx: 175, ry: 330, px: 200, py: 348 },
-  8: { rx: 290, ry: 320, px: 325, py: 308 },
-  9: { rx: 342, ry: 230, px: 365, py: 215 },
-  10: { rx: 290, ry: 170, px: 325, py: 155 },
-  11: { rx: 290, ry: 82, px: 325, py: 70 },
-  12: { rx: 218, ry: 82, px: 255, py: 70 },
+  1: { rx: 200, ry: 80, px: 200, py: 58 },   // top center diamond
+  2: { rx: 100, ry: 58, px: 80, py: 38 },   // upper left triangle
+  3: { rx: 55, ry: 120, px: 20, py: 110 },   // left upper triangle
+  4: { rx: 75, ry: 205, px: 20, py: 190 },   // left center diamond
+  5: { rx: 55, ry: 290, px: 20, py: 275 },   // left lower triangle
+  6: { rx: 100, ry: 350, px: 80, py: 335 },   // bottom left triangle
+  7: { rx: 200, ry: 335, px: 200, py: 350 },   // bottom center diamond
+  8: { rx: 300, ry: 350, px: 315, py: 335 },   // bottom right triangle
+  9: { rx: 345, ry: 290, px: 365, py: 275 },   // right lower triangle
+  10: { rx: 325, ry: 205, px: 365, py: 190 },   // right center diamond
+  11: { rx: 345, ry: 120, px: 365, py: 110 },   // right upper triangle
+  12: { rx: 300, ry: 58, px: 315, py: 38 },   // top right triangle
 };
 
 interface PlanetPos {

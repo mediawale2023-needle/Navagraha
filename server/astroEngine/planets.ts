@@ -65,34 +65,34 @@ export function moonLongitude(jd: number): number {
   // Fundamental arguments (degrees)
   const L = normalize360(
     218.3164477 +
-      481267.88123421 * T -
-      0.0015786 * T * T +
-      (T * T * T) / 538841 -
-      (T * T * T * T) / 65194000
+    481267.88123421 * T -
+    0.0015786 * T * T +
+    (T * T * T) / 538841 -
+    (T * T * T * T) / 65194000
   );
   const D = normalize360(
     297.8501921 +
-      445267.1114034 * T -
-      0.0018819 * T * T +
-      (T * T * T) / 545868 -
-      (T * T * T * T) / 113065000
+    445267.1114034 * T -
+    0.0018819 * T * T +
+    (T * T * T) / 545868 -
+    (T * T * T * T) / 113065000
   );
   const M = normalize360(
     357.5291092 + 35999.0502909 * T - 0.0001536 * T * T + (T * T * T) / 24490000
   );
   const Mp = normalize360(
     134.9633964 +
-      477198.8675055 * T +
-      0.0087414 * T * T +
-      (T * T * T) / 69699 -
-      (T * T * T * T) / 14712000
+    477198.8675055 * T +
+    0.0087414 * T * T +
+    (T * T * T) / 69699 -
+    (T * T * T * T) / 14712000
   );
   const F = normalize360(
     93.292095 +
-      483202.0175233 * T -
-      0.0036539 * T * T -
-      (T * T * T) / 3526000 +
-      (T * T * T * T) / 863310000
+    483202.0175233 * T -
+    0.0036539 * T * T -
+    (T * T * T) / 3526000 +
+    (T * T * T * T) / 863310000
   );
 
   const A1 = normalize360(119.75 + 131.849 * T);
@@ -189,10 +189,10 @@ interface OrbitalElements {
 // Keplerian elements at J2000.0 (Meeus Table 33.b / JPL)
 const ELEMENTS: Record<string, OrbitalElements> = {
   Mercury: { a: 0.38709831, e: 0.20563175, L0: 252.25084, Ldot: 149472.67411, w: 77.45645 },
-  Venus:   { a: 0.72332982, e: 0.00677188, L0: 181.97973, Ldot:  58517.81539, w: 131.5637  },
-  Mars:    { a: 1.52368946, e: 0.09340062, L0: 355.433,   Ldot:  19140.29934, w: 336.04084 },
-  Jupiter: { a: 5.20248019, e: 0.04853590, L0:  34.33479, Ldot:   3034.90567, w:  14.27495 },
-  Saturn:  { a: 9.54149883, e: 0.05550825, L0:  50.07571, Ldot:   1222.1137,  w:  93.05678 },
+  Venus: { a: 0.72332982, e: 0.00677188, L0: 181.97973, Ldot: 58517.81539, w: 131.5637 },
+  Mars: { a: 1.52368946, e: 0.09340062, L0: 355.433, Ldot: 19140.29934, w: 336.04084 },
+  Jupiter: { a: 5.20248019, e: 0.04853590, L0: 34.33479, Ldot: 3034.90567, w: 14.27495 },
+  Saturn: { a: 9.54149883, e: 0.05550825, L0: 50.07571, Ldot: 1222.1137, w: 93.05678 },
 };
 
 /** Heliocentric ecliptic longitude and distance for a planet */
@@ -205,8 +205,8 @@ function heliocentricPos(elem: OrbitalElements, T: number): { lon: number; r: nu
   // Equation of center (3-term expansion)
   const C = toDegrees(
     (2 * e - (e * e * e) / 4) * Math.sin(Mr) +
-      (5 / 4) * e * e * Math.sin(2 * Mr) +
-      (13 / 12) * e * e * e * Math.sin(3 * Mr)
+    (5 / 4) * e * e * Math.sin(2 * Mr) +
+    (13 / 12) * e * e * e * Math.sin(3 * Mr)
   );
 
   const v = normalize360(M + C); // true anomaly
@@ -304,8 +304,10 @@ export function ascendant(jd: number, lat: number, lon: number): number {
   const phi = toRadians(lat);
 
   // Ecliptic longitude of Ascendant
+  // NOTE: The raw atan2(-cos, sin·tan + cos·sin) yields the *descendant*.
+  // Adding 180° gives the true ascendant (lagna).
   const y = -Math.cos(theta);
   const x = Math.sin(epsilon) * Math.tan(phi) + Math.cos(epsilon) * Math.sin(theta);
 
-  return normalize360(toDegrees(Math.atan2(y, x)));
+  return normalize360(toDegrees(Math.atan2(y, x)) + 180);
 }
