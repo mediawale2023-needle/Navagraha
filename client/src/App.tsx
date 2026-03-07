@@ -83,6 +83,7 @@ function Router() {
     </Switch>
   );
 }
+import BottomNav from "@/components/BottomNav";
 
 function App() {
   return (
@@ -90,7 +91,12 @@ function App() {
       <ThemeProvider defaultTheme="dark">
         <TooltipProvider>
           <Toaster />
-          <Router />
+          <div className="min-h-screen celestial-bg">
+            <div className="pb-20">
+              <Router />
+            </div>
+            <BottomNav />
+          </div>
         </TooltipProvider>
       </ThemeProvider>
     </QueryClientProvider>

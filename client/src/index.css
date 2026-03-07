@@ -1,270 +1,188 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,100..1000;1,9..40,100..1000&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-/* LIGHT MODE */
+/* ═══════════════════════════════════════════════════════════════════════════
+   AstroNex Design System — Celestial Tech Dark Theme
+   Font: DM Sans | Palette: Deep charcoal + pink-purple + gold
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* LIGHT MODE (fallback — app defaults to dark) */
 :root {
   --button-outline: rgba(0,0,0, .10);
   --badge-outline: rgba(0,0,0, .05);
+  --opaque-button-border-intensity: -8;
 
-  /* Automatic computation of border around primary / danger buttons */
-  --opaque-button-border-intensity: -8; /* In terms of percentages */
-
-  /* Backgrounds applied on top of other backgrounds when hovered/active */
   --elevate-1: rgba(0,0,0, .03);
   --elevate-2: rgba(0,0,0, .08);
 
-  --background: 30 50% 98%;
+  --background: 0 0% 5%;
+  --foreground: 0 0% 95%;
+  --border: 260 10% 20%;
+  --card: 260 15% 10%;
+  --card-foreground: 0 0% 95%;
+  --card-border: 260 10% 18%;
 
-  --foreground: 240 10% 15%;
-
-  --border: 30 20% 88%;
-
-  --card: 0 0% 100%;
-
-  --card-foreground: 240 10% 15%;
-
-  --card-border: 30 15% 90%;
-
-  --sidebar: 30 30% 97%;
-
-  --sidebar-foreground: 240 10% 18%;
-
-  --sidebar-border: 30 15% 86%;
-
-  --sidebar-primary: 24 95% 46%;
-
+  --sidebar: 260 15% 8%;
+  --sidebar-foreground: 0 0% 90%;
+  --sidebar-border: 260 10% 18%;
+  --sidebar-primary: 310 80% 55%;
   --sidebar-primary-foreground: 0 0% 100%;
+  --sidebar-accent: 260 15% 14%;
+  --sidebar-accent-foreground: 0 0% 85%;
+  --sidebar-ring: 310 80% 55%;
 
-  --sidebar-accent: 30 20% 92%;
+  --popover: 260 15% 10%;
+  --popover-foreground: 0 0% 90%;
+  --popover-border: 260 10% 20%;
 
-  --sidebar-accent-foreground: 240 10% 25%;
-
-  --sidebar-ring: 24 95% 46%;
-
-  --popover: 0 0% 100%;
-
-  --popover-foreground: 240 10% 15%;
-
-  --popover-border: 30 15% 88%;
-
-  --primary: 24 95% 46%;
-
+  --primary: 310 80% 55%;
   --primary-foreground: 0 0% 100%;
-
-  --secondary: 243 75% 59%;
-
+  --secondary: 270 60% 50%;
   --secondary-foreground: 0 0% 100%;
 
-  --muted: 30 20% 95%;
-
-  --muted-foreground: 240 5% 46%;
-
-  --accent: 243 75% 59%;
-
+  --muted: 260 10% 15%;
+  --muted-foreground: 0 0% 55%;
+  --accent: 270 60% 50%;
   --accent-foreground: 0 0% 100%;
-
   --destructive: 0 72% 48%;
-
   --destructive-foreground: 0 20% 98%;
 
-  --input: 30 15% 86%;
-  --ring: 24 95% 46%;
-  --chart-1: 24 95% 46%;
-  --chart-2: 243 75% 59%;
-  --chart-3: 160 70% 42%;
+  --input: 260 10% 20%;
+  --ring: 310 80% 55%;
+  --chart-1: 310 80% 55%;
+  --chart-2: 270 60% 50%;
+  --chart-3: 43 74% 58%;
   --chart-4: 340 75% 55%;
-  --chart-5: 45 93% 58%;
+  --chart-5: 160 60% 45%;
 
-  --font-sans: Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  --font-serif: 'Crimson Text', Georgia, serif;
+  --font-sans: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-serif: 'DM Sans', Georgia, serif;
   --font-mono: 'JetBrains Mono', Menlo, monospace;
-  --radius: .5rem; /* 8px */
-  --shadow-2xs: 0px 2px 0px 0px hsl(240 6% 10% / 0.02);
-  --shadow-xs: 0px 2px 0px 0px hsl(240 6% 10% / 0.04);
-  --shadow-sm: 0px 2px 0px 0px hsl(240 6% 10% / 0.04), 0px 1px 2px -1px hsl(240 6% 10% / 0.06);
-  --shadow: 0px 2px 0px 0px hsl(240 6% 10% / 0.04), 0px 1px 2px -1px hsl(240 6% 10% / 0.08);
-  --shadow-md: 0px 2px 0px 0px hsl(240 6% 10% / 0.06), 0px 2px 4px -1px hsl(240 6% 10% / 0.10);
-  --shadow-lg: 0px 2px 0px 0px hsl(240 6% 10% / 0.08), 0px 4px 6px -1px hsl(240 6% 10% / 0.12);
-  --shadow-xl: 0px 2px 0px 0px hsl(240 6% 10% / 0.10), 0px 8px 10px -1px hsl(240 6% 10% / 0.14);
-  --shadow-2xl: 0px 2px 0px 0px hsl(240 6% 10% / 0.16);
+  --radius: .75rem;
+  --shadow-2xs: 0px 2px 0px 0px hsl(260 10% 2% / 0.16);
+  --shadow-xs: 0px 2px 0px 0px hsl(260 10% 2% / 0.20);
+  --shadow-sm: 0px 2px 0px 0px hsl(260 10% 2% / 0.24), 0px 1px 2px -1px hsl(260 10% 2% / 0.28);
+  --shadow: 0px 2px 0px 0px hsl(260 10% 2% / 0.28), 0px 1px 2px -1px hsl(260 10% 2% / 0.32);
+  --shadow-md: 0px 2px 0px 0px hsl(260 10% 2% / 0.32), 0px 2px 4px -1px hsl(260 10% 2% / 0.36);
+  --shadow-lg: 0px 2px 0px 0px hsl(260 10% 2% / 0.36), 0px 4px 6px -1px hsl(260 10% 2% / 0.40);
+  --shadow-xl: 0px 2px 0px 0px hsl(260 10% 2% / 0.40), 0px 8px 10px -1px hsl(260 10% 2% / 0.44);
+  --shadow-2xl: 0px 2px 0px 0px hsl(260 10% 2% / 0.48);
   --tracking-normal: 0em;
   --spacing: 0.25rem;
 
-  /* Automatically computed borders - intensity can be controlled by the user by the --opaque-button-border-intensity setting */
-
-  /* Fallback for older browsers */
-  --sidebar-primary-border: hsl(var(--sidebar-primary));
-  --sidebar-primary-border: hsl(from hsl(var(--sidebar-primary)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
-
-  /* Fallback for older browsers */
-  --sidebar-accent-border: hsl(var(--sidebar-accent));
-  --sidebar-accent-border: hsl(from hsl(var(--sidebar-accent)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
-
-  /* Fallback for older browsers */
   --primary-border: hsl(var(--primary));
-  --primary-border: hsl(from hsl(var(--primary)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
-
-  /* Fallback for older browsers */
   --secondary-border: hsl(var(--secondary));
-  --secondary-border: hsl(from hsl(var(--secondary)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
-
-  /* Fallback for older browsers */
   --muted-border: hsl(var(--muted));
-  --muted-border: hsl(from hsl(var(--muted)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
-
-  /* Fallback for older browsers */
   --accent-border: hsl(var(--accent));
-  --accent-border: hsl(from hsl(var(--accent)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
-
-  /* Fallback for older browsers */
   --destructive-border: hsl(var(--destructive));
-  --destructive-border: hsl(from hsl(var(--destructive)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
+  --sidebar-primary-border: hsl(var(--sidebar-primary));
+  --sidebar-accent-border: hsl(var(--sidebar-accent));
 }
 
+/* DARK MODE — AstroNex Celestial Theme */
 .dark {
-  --button-outline: rgba(255,255,255, .10);
+  --button-outline: rgba(255,255,255, .08);
   --badge-outline: rgba(255,255,255, .05);
+  --opaque-button-border-intensity: 9;
 
-  --opaque-button-border-intensity: 9;  /* In terms of percentages */
-
-  /* Backgrounds applied on top of other backgrounds when hovered/active */
   --elevate-1: rgba(255,255,255, .04);
   --elevate-2: rgba(255,255,255, .09);
 
-  --background: 240 20% 8%;
+  /* Deep charcoal backgrounds */
+  --background: 0 0% 5%;
+  --foreground: 0 0% 95%;
+  --border: 260 10% 18%;
 
-  --foreground: 30 20% 92%;
+  /* Card = slightly lighter surface */
+  --card: 260 15% 10%;
+  --card-foreground: 0 0% 95%;
+  --card-border: 260 10% 16%;
 
-  --border: 240 15% 18%;
-
-  --card: 240 18% 12%;
-
-  --card-foreground: 30 15% 90%;
-
-  --card-border: 240 15% 20%;
-
-  --sidebar: 240 18% 10%;
-
-  --sidebar-foreground: 30 15% 88%;
-
-  --sidebar-border: 240 15% 22%;
-
-  --sidebar-primary: 24 95% 52%;
-
+  /* Sidebar (not heavily used but consistent) */
+  --sidebar: 260 15% 8%;
+  --sidebar-foreground: 0 0% 88%;
+  --sidebar-border: 260 10% 16%;
+  --sidebar-primary: 310 80% 55%;
   --sidebar-primary-foreground: 0 0% 100%;
+  --sidebar-accent: 260 15% 14%;
+  --sidebar-accent-foreground: 0 0% 82%;
+  --sidebar-ring: 310 80% 55%;
 
-  --sidebar-accent: 240 15% 16%;
+  /* Popover */
+  --popover: 260 15% 12%;
+  --popover-foreground: 0 0% 90%;
+  --popover-border: 260 10% 22%;
 
-  --sidebar-accent-foreground: 30 15% 86%;
-
-  --sidebar-ring: 24 95% 52%;
-
-  --popover: 240 18% 14%;
-
-  --popover-foreground: 30 15% 86%;
-
-  --popover-border: 240 15% 24%;
-
-  --primary: 24 95% 52%;
-
+  /* Primary = Pink accent (AstroNex gradient start) */
+  --primary: 310 80% 55%;
   --primary-foreground: 0 0% 100%;
 
-  --secondary: 243 60% 55%;
-
+  /* Secondary = Purple accent (AstroNex gradient end) */
+  --secondary: 270 60% 50%;
   --secondary-foreground: 0 0% 100%;
 
-  --muted: 240 15% 16%;
+  /* Muted surfaces */
+  --muted: 260 10% 15%;
+  --muted-foreground: 0 0% 55%;
 
-  --muted-foreground: 30 10% 60%;
-
-  --accent: 243 60% 55%;
-
+  /* Accent = Purple */
+  --accent: 270 60% 50%;
   --accent-foreground: 0 0% 100%;
 
   --destructive: 0 72% 52%;
-
   --destructive-foreground: 0 20% 98%;
 
-  --input: 240 10% 28%;
-  --ring: 24 95% 52%;
-  --chart-1: 24 95% 52%;
-  --chart-2: 243 60% 55%;
-  --chart-3: 160 60% 45%;
+  --input: 260 10% 18%;
+  --ring: 310 80% 55%;
+
+  /* Chart colors */
+  --chart-1: 310 80% 55%;
+  --chart-2: 270 60% 50%;
+  --chart-3: 43 74% 58%;
   --chart-4: 340 70% 55%;
-  --chart-5: 45 90% 60%;
+  --chart-5: 160 60% 45%;
 
-  --shadow-2xs: 0px 2px 0px 0px hsl(240 6% 2% / 0.16);
-  --shadow-xs: 0px 2px 0px 0px hsl(240 6% 2% / 0.20);
-  --shadow-sm: 0px 2px 0px 0px hsl(240 6% 2% / 0.24), 0px 1px 2px -1px hsl(240 6% 2% / 0.28);
-  --shadow: 0px 2px 0px 0px hsl(240 6% 2% / 0.28), 0px 1px 2px -1px hsl(240 6% 2% / 0.32);
-  --shadow-md: 0px 2px 0px 0px hsl(240 6% 2% / 0.32), 0px 2px 4px -1px hsl(240 6% 2% / 0.36);
-  --shadow-lg: 0px 2px 0px 0px hsl(240 6% 2% / 0.36), 0px 4px 6px -1px hsl(240 6% 2% / 0.40);
-  --shadow-xl: 0px 2px 0px 0px hsl(240 6% 2% / 0.40), 0px 8px 10px -1px hsl(240 6% 2% / 0.44);
-  --shadow-2xl: 0px 2px 0px 0px hsl(240 6% 2% / 0.48);
+  --shadow-2xs: 0px 2px 0px 0px hsl(260 10% 2% / 0.16);
+  --shadow-xs: 0px 2px 0px 0px hsl(260 10% 2% / 0.20);
+  --shadow-sm: 0px 2px 0px 0px hsl(260 10% 2% / 0.24), 0px 1px 2px -1px hsl(260 10% 2% / 0.28);
+  --shadow: 0px 2px 0px 0px hsl(260 10% 2% / 0.28), 0px 1px 2px -1px hsl(260 10% 2% / 0.32);
+  --shadow-md: 0px 2px 0px 0px hsl(260 10% 2% / 0.32), 0px 2px 4px -1px hsl(260 10% 2% / 0.36);
+  --shadow-lg: 0px 2px 0px 0px hsl(260 10% 2% / 0.36), 0px 4px 6px -1px hsl(260 10% 2% / 0.40);
+  --shadow-xl: 0px 2px 0px 0px hsl(260 10% 2% / 0.40), 0px 8px 10px -1px hsl(260 10% 2% / 0.44);
+  --shadow-2xl: 0px 2px 0px 0px hsl(260 10% 2% / 0.48);
 
-  /* Fallback for older browsers */
-  --sidebar-primary-border: hsl(var(--sidebar-primary));
-  --sidebar-primary-border: hsl(from hsl(var(--sidebar-primary)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
-
-  /* Fallback for older browsers */
-  --sidebar-accent-border: hsl(var(--sidebar-accent));
-  --sidebar-accent-border: hsl(from hsl(var(--sidebar-accent)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
-
-  /* Fallback for older browsers */
   --primary-border: hsl(var(--primary));
-  --primary-border: hsl(from hsl(var(--primary)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
-
-  /* Fallback for older browsers */
   --secondary-border: hsl(var(--secondary));
-  --secondary-border: hsl(from hsl(var(--secondary)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
-
-  /* Fallback for older browsers */
   --muted-border: hsl(var(--muted));
-  --muted-border: hsl(from hsl(var(--muted)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
-
-  /* Fallback for older browsers */
   --accent-border: hsl(var(--accent));
-  --accent-border: hsl(from hsl(var(--accent)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
-
-  /* Fallback for older browsers */
   --destructive-border: hsl(var(--destructive));
-  --destructive-border: hsl(from hsl(var(--destructive)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
+  --sidebar-primary-border: hsl(var(--sidebar-primary));
+  --sidebar-accent-border: hsl(var(--sidebar-accent));
 }
 
+/* ═══════════════════════════════════════════════════════════════════════════
+   Base layer
+   ═══════════════════════════════════════════════════════════════════════════ */
 @layer base {
   * {
     @apply border-border;
   }
 
   body {
-    @apply font-sans antialiased bg-background text-foreground;
+    font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    @apply antialiased bg-background text-foreground;
   }
 }
 
-/**
- * Using the elevate system.
- * Automatic contrast adjustment.
- *
- * <element className="hover-elevate" />
- * <element className="active-elevate-2" />
- *
- * // Using the tailwind utility when a data attribute is "on"
- * <element className="toggle-elevate data-[state=on]:toggle-elevated" />
- * // Or manually controlling the toggle state
- * <element className="toggle-elevate toggle-elevated" />
- *
- * Elevation systems have to handle many states.
- * - not-hovered, vs. hovered vs. active  (three mutually exclusive states)
- * - toggled or not
- * - focused or not (this is not handled with these utilities)
- *
- * Even without handling focused or not, this is six possible combinations that
- * need to be distinguished from eachother visually.
- */
+/* ═══════════════════════════════════════════════════════════════════════════
+   AstroNex Utility Classes
+   ═══════════════════════════════════════════════════════════════════════════ */
 @layer utilities {
 
-  /* Hide ugly search cancel button in Chrome until we can style it properly */
+  /* Hide ugly search cancel button in Chrome */
   input[type="search"]::-webkit-search-cancel-button {
     @apply hidden;
   }
@@ -276,42 +194,120 @@
     pointer-events: none;
   }
 
-  /* .no-default-hover-elevate/no-default-active-elevate is an escape hatch so consumers of
-   * buttons/badges can remove the automatic brightness adjustment on interactions
-   * and program their own. */
-  .no-default-hover-elevate {}
+  /* ─── Gradient Utilities ──────────────────────────────────────────────── */
 
+  /* Primary pink-to-purple gradient (buttons, highlights) */
+  .gradient-primary {
+    background: linear-gradient(135deg, #E91E8C, #7B2FBE);
+  }
+
+  /* Softer version for hover states */
+  .gradient-primary-hover {
+    background: linear-gradient(135deg, #F23D9E, #8C3FD0);
+  }
+
+  /* Gold gradient for zodiac/celestial decorations */
+  .gradient-gold {
+    background: linear-gradient(135deg, #D4A853, #F0D48A);
+  }
+
+  /* Text gradient (for headings) */
+  .text-gradient {
+    background: linear-gradient(135deg, #E91E8C, #7B2FBE);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .text-gradient-gold {
+    background: linear-gradient(135deg, #D4A853, #F0D48A);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  /* ─── Glassmorphism ───────────────────────────────────────────────────── */
+
+  .glass {
+    background: rgba(255, 255, 255, 0.04);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+  }
+
+  .glass-strong {
+    background: rgba(255, 255, 255, 0.08);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgba(255, 255, 255, 0.10);
+  }
+
+  /* ─── Glow Effects ────────────────────────────────────────────────────── */
+
+  .glow-pink {
+    box-shadow: 0 0 20px rgba(233, 30, 140, 0.3), 0 0 60px rgba(233, 30, 140, 0.1);
+  }
+
+  .glow-purple {
+    box-shadow: 0 0 20px rgba(123, 47, 190, 0.3), 0 0 60px rgba(123, 47, 190, 0.1);
+  }
+
+  .glow-gold {
+    box-shadow: 0 0 20px rgba(212, 168, 83, 0.3), 0 0 60px rgba(212, 168, 83, 0.1);
+  }
+
+  /* Avatar glow halo */
+  .avatar-glow {
+    box-shadow: 0 0 0 3px rgba(233, 30, 140, 0.4), 0 0 15px rgba(233, 30, 140, 0.2);
+  }
+
+  /* ─── Celestial Particle Background (subtle shimmer) ──────────────────── */
+  .celestial-bg {
+    background:
+      radial-gradient(ellipse at 20% 50%, rgba(123, 47, 190, 0.08) 0%, transparent 50%),
+      radial-gradient(ellipse at 80% 20%, rgba(233, 30, 140, 0.06) 0%, transparent 50%),
+      radial-gradient(ellipse at 50% 80%, rgba(212, 168, 83, 0.04) 0%, transparent 50%);
+  }
+
+  /* ─── Card Styles ─────────────────────────────────────────────────────── */
+  .astronex-card {
+    background: rgba(26, 26, 46, 0.8);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 1.5rem;
+  }
+
+  /* ─── Bottom Navigation ───────────────────────────────────────────────── */
+  .bottom-nav {
+    background: rgba(13, 13, 13, 0.85);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+  }
+
+  /* ─── Elevation system (kept for compatibility) ───────────────────────── */
+  .no-default-hover-elevate {}
   .no-default-active-elevate {}
 
-
-  /**
-   * Toggleable backgrounds go behind the content. Hoverable/active goes on top.
-   * This way they can stack/compound. Both will overlap the parent's borders!
-   * So borders will be automatically adjusted both on toggle, and hover/active,
-   * and they will be compounded.
-   */
   .toggle-elevate::before,
   .toggle-elevate-2::before {
     content: "";
     pointer-events: none;
     position: absolute;
     inset: 0px;
-    /*border-radius: inherit;   match rounded corners */
     border-radius: inherit;
     z-index: -1;
-    /* sits behind content but above backdrop */
   }
 
   .toggle-elevate.toggle-elevated::before {
     background-color: var(--elevate-2);
   }
 
-  /* If there's a 1px border, adjust the inset so that it covers that parent's border */
   .border.toggle-elevate::before {
     inset: -1px;
   }
 
-  /* Does not work on elements with overflow:hidden! */
   .hover-elevate:not(.no-default-hover-elevate),
   .active-elevate:not(.no-default-active-elevate),
   .hover-elevate-2:not(.no-default-hover-elevate),
@@ -328,10 +324,8 @@
     pointer-events: none;
     position: absolute;
     inset: 0px;
-    /*border-radius: inherit;   match rounded corners */
     border-radius: inherit;
     z-index: 999;
-    /* sits in front of content */
   }
 
   .hover-elevate:hover:not(.no-default-hover-elevate)::after,
@@ -344,7 +338,6 @@
     background-color: var(--elevate-2);
   }
 
-  /* If there's a 1px border, adjust the inset so that it covers that parent's border */
   .border.hover-elevate:not(.no-hover-interaction-elevate)::after,
   .border.active-elevate:not(.no-active-interaction-elevate)::after,
   .border.hover-elevate-2:not(.no-hover-interaction-elevate)::after,
@@ -354,28 +347,31 @@
   }
 }
 
-/* Fix Google Maps Places Autocomplete dropdown visibility */
+/* ═══════════════════════════════════════════════════════════════════════════
+   Google Maps Places Autocomplete — Dark Theme
+   ═══════════════════════════════════════════════════════════════════════════ */
 .pac-container {
   z-index: 99999 !important;
-  background-color: white !important;
-  border: 1px solid #e2e8f0 !important;
-  border-radius: 0.5rem !important;
-  box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06) !important;
-  font-family: inherit !important;
+  background-color: #1a1a2e !important;
+  border: 1px solid rgba(255,255,255,0.08) !important;
+  border-radius: 0.75rem !important;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.5) !important;
+  font-family: 'DM Sans', sans-serif !important;
 }
 .pac-item {
-  padding: 0.5rem 0.75rem !important;
+  padding: 0.625rem 0.875rem !important;
   cursor: pointer !important;
   font-size: 0.875rem !important;
-  color: #1a202c !important;
+  color: #e0e0e0 !important;
+  border-top: 1px solid rgba(255,255,255,0.04) !important;
 }
 .pac-item:hover, .pac-item-selected {
-  background-color: #fff7ed !important;
+  background-color: rgba(233, 30, 140, 0.1) !important;
 }
 .pac-icon {
   display: none !important;
 }
 .pac-item-query {
   font-size: 0.875rem !important;
-  color: #1a202c !important;
+  color: #ffffff !important;
 }
