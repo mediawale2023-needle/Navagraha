@@ -1,6 +1,8 @@
 import type { Express, Request, Response } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
+import { db } from "./db";
+import { sql } from "drizzle-orm";
 import { setupAuth, isAuthenticated } from "./auth";
 import {
   insertKundliSchema,
@@ -9,6 +11,11 @@ import {
   insertConsultationSchema,
   insertReviewSchema,
   insertScheduledCallSchema,
+  users as usersTable,
+  kundlis as kundlisTable,
+  astrologers as astrologersTable,
+  transactions as transactionsTable,
+  consultations as consultationsTable,
 } from "@shared/schema";
 import { z } from "zod";
 import {
@@ -840,6 +847,50 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
       await storage.markAllNotificationsRead((req.user as any).id);
       res.json({ success: true });
     } catch { res.status(500).json({ message: "Failed to mark notifications" }); }
+  });
+
+  // ─── Admin / Developer Dashboard ──────────────────────────
+  app.get('/api/admin/stats', async (_req, res) => {
+    try {
+      const [
+        [{ count: userCount }],
+        [{ count: kundliCount }],
+        [{ count: consultationCount }],
+        [{ count: totalRevenue }],
+        astrologerList,
+      ] = await Promise.all([
+        db.select({ count: sql<number>`count(*)::int` }).from(usersTable),
+        db.select({ count: sql<number>`count(*)::int` }).from(kundlisTable),
+        db.select({ count: sql<number>`count(*)::int` }).from(consultationsTable),
+        db.select({ count: sql<number>`coalesce(sum(amount::numeric), 0)::int` }).from(transactionsTable).where(sql`type = 'recharge' and status = 'completed'`),
+        storage.getAllAstrologers(),
+      ]);
+      res.json({
+        users: userCount,
+        kundlis: kundliCount,
+        astrologers: astrologerList.length,
+        onlineAstrologers: astrologerList.filter((a) => a.isOnline).length,
+        consultations: consultationCount,
+        totalRevenue,
+      });
+    } catch (err) {
+      console.error('Admin stats error:', err);
+      res.status(500).json({ message: 'Failed to fetch stats' });
+    }
+  });
+
+  app.get('/api/admin/astrologers', async (_req, res) => {
+    try {
+      const list = await storage.getAllAstrologers();
+      res.json(list);
+    } catch { res.status(500).json({ message: 'Failed to fetch astrologers' }); }
+  });
+
+  app.put('/api/admin/astrologers/:id', async (req, res) => {
+    try {
+      const updated = await storage.updateAstrologer(req.params.id, req.body);
+      res.json(updated);
+    } catch { res.status(500).json({ message: 'Failed to update astrologer' }); }
   });
 
   return existingServer ?? createServer(app);

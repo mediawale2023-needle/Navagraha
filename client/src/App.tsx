@@ -19,6 +19,7 @@ import CallRoom from "@/pages/CallRoom";
 import Schedule from "@/pages/Schedule";
 import AstrologerLogin from "@/pages/AstrologerLogin";
 import AstrologerDashboard from "@/pages/AstrologerDashboard";
+import AdminDashboard from "@/pages/AdminDashboard";
 import Numerology from "@/pages/Numerology";
 import NotFound from "@/pages/not-found";
 import { useEffect, useState } from "react";
@@ -49,6 +50,9 @@ function Router() {
       {/* Astrologer portal — always accessible */}
       <Route path="/astrologer/login" component={AstrologerLogin} />
       <Route path="/astrologer/dashboard" component={AstrologerDashboard} />
+
+      {/* Admin / Developer dashboard — always accessible */}
+      <Route path="/admin/dashboard" component={AdminDashboard} />
 
       {/* Public routes */}
       {isLoading || !isAuthenticated ? (
