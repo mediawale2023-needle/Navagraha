@@ -16,117 +16,183 @@ const PLANET_ABBR: Record<string, string> = {
 };
 
 // Zodiac signs in order (for South Indian chart house calculation)
-const ZODIAC = ['Aries','Taurus','Gemini','Cancer','Leo','Virgo','Libra','Scorpio','Sagittarius','Capricorn','Aquarius','Pisces'];
+const ZODIAC = ['Aries', 'Taurus', 'Gemini', 'Cancer', 'Leo', 'Virgo', 'Libra', 'Scorpio', 'Sagittarius', 'Capricorn', 'Aquarius', 'Pisces'];
 
-// ─── North Indian Chart ──────────────────────────────────────────────────────
-// 4×4 CSS grid — houses arranged counter-clockwise, corners have diagonals
-//   Row 0: [H2]  [H1]  [H12] [H11]
-//   Row 1: [H3]  [ctr] [ctr] [H10]
-//   Row 2: [H4]  [ctr] [ctr] [H9 ]
-//   Row 3: [H5]  [H6]  [H7]  [H8 ]
-// Corner cells H2(TL) and H8(BR) → TL-to-BR diagonal (\)
-// Corner cells H11(TR) and H5(BL) → TR-to-BL diagonal (/)
+// Zodiac sign → number (1=Aries, 12=Pisces)
+const SIGN_NUM: Record<string, number> = {};
+ZODIAC.forEach((s, i) => { SIGN_NUM[s] = i + 1; });
 
-const NORTH_LAYOUT: (string | null)[][] = [
-  ['2',  '1',  '12', '11'],
-  ['3',  null,  null, '10'],
-  ['4',  null,  null, '9'],
-  ['5',  '6',  '7',  '8'],
-];
-const CORNER_HOUSES = new Set(['2', '11', '5', '8']);
+// Planet display colors (matching astrotalk.com conventions)
+const PLANET_COLORS: Record<string, string> = {
+  Su: '#d97706', Mo: '#1a202c', Ma: '#c53030', Me: '#2f855a',
+  Ju: '#b7791f', Ve: '#d53f8c', Sa: '#1a202c', Ra: '#4a5568', Ke: '#4a5568',
+  Asc: '#c53030',
+};
+
+// ─── North Indian Chart (Astrotalk.com style) ────────────────────────────────
+// SVG diamond pattern: outer square, inner diamond from midpoints, 12 houses
+//
+// House layout (counter-clockwise from top-center):
+//   1  = top-center diamond (Ascendant / Lagna)
+//   2  = upper-left triangle
+//   3  = left-upper triangle
+//   4  = left-center diamond
+//   5  = left-lower triangle
+//   6  = bottom-left triangle
+//   7  = bottom-center diamond
+//   8  = bottom-right triangle
+//   9  = right-lower triangle
+//   10 = right-center diamond
+//   11 = right-upper triangle
+//   12 = top-right triangle
+
+// Refined text positions for each house (avoid overlaps)
+const HOUSE_TEXT: Record<number, { rx: number; ry: number; px: number; py: number }> = {
+  // rx,ry = rashi number position; px,py = planet list start position
+  1: { rx: 175, ry: 82, px: 200, py: 70 },
+  2: { rx: 108, ry: 82, px: 68, py: 70 },
+  3: { rx: 55, ry: 190, px: 30, py: 178 },
+  4: { rx: 108, ry: 230, px: 68, py: 218 },
+  5: { rx: 108, ry: 320, px: 68, py: 308 },
+  6: { rx: 175, ry: 320, px: 200, py: 308 },
+  7: { rx: 175, ry: 330, px: 200, py: 348 },
+  8: { rx: 290, ry: 320, px: 325, py: 308 },
+  9: { rx: 342, ry: 230, px: 365, py: 215 },
+  10: { rx: 290, ry: 170, px: 325, py: 155 },
+  11: { rx: 290, ry: 82, px: 325, py: 70 },
+  12: { rx: 218, ry: 82, px: 255, py: 70 },
+};
+
+interface PlanetPos {
+  planet: string;
+  sign: string;
+  degree: number;
+  house: number;
+  isRetrograde: boolean;
+}
 
 function NorthIndianChart({ chartData }: { chartData?: any }) {
-  // Build planet-per-house map from planetaryPositions array
-  const housePlanets: Record<number, string[]> = {};
+  // Build per-house data
+  const housePlanets: Record<number, PlanetPos[]> = {};
+  const houseSign: Record<number, string> = {};
+
   if (chartData?.planetaryPositions) {
-    for (const pos of chartData.planetaryPositions as Array<{ planet: string; house: number }>) {
-      if (pos.planet === 'Ascendant') continue;
+    for (const pos of chartData.planetaryPositions as PlanetPos[]) {
       const h = pos.house;
       if (h >= 1 && h <= 12) {
-        const abbr = PLANET_ABBR[pos.planet] ?? pos.planet.slice(0, 2);
-        housePlanets[h] = [...(housePlanets[h] || []), abbr];
+        if (pos.planet === 'Ascendant') {
+          // Ascendant tells us the sign of house 1
+          houseSign[1] = pos.sign;
+        } else {
+          housePlanets[h] = [...(housePlanets[h] || []), pos];
+        }
       }
     }
   }
 
-  return (
-    <div className="w-full max-w-sm mx-auto">
-      <div
-        className="grid grid-cols-4 border-2 border-amber-700"
-        style={{ background: '#fffbeb', aspectRatio: '1' }}
-      >
-        {NORTH_LAYOUT.map((row, ri) =>
-          row.map((houseNum, ci) => {
-            // Null = part of merged center
-            if (houseNum === null) {
-              // Only the top-left null cell renders the merged 2×2 center
-              if (ri === 1 && ci === 1) {
-                return (
-                  <div
-                    key="center"
-                    className="col-span-2 row-span-2 relative border border-amber-600 flex items-center justify-center"
-                    style={{ background: '#fef3c7' }}
-                  >
-                    {/* X lines spanning the merged center */}
-                    <svg
-                      className="absolute inset-0 w-full h-full pointer-events-none"
-                      viewBox="0 0 100 100"
-                      preserveAspectRatio="none"
-                    >
-                      <line x1="0" y1="0" x2="100" y2="100" stroke="#d97706" strokeWidth="1.5" />
-                      <line x1="100" y1="0" x2="0" y2="100" stroke="#d97706" strokeWidth="1.5" />
-                    </svg>
-                  </div>
-                );
-              }
-              return null;
-            }
+  // Fill sign for each house based on ascendant (whole-sign system)
+  if (chartData?.houses) {
+    for (const h of chartData.houses as Array<{ house: number; sign: string }>) {
+      houseSign[h.house] = h.sign;
+    }
+  }
 
-            const h = parseInt(houseNum, 10);
-            const planets = housePlanets[h] || [];
-            const isCorner = CORNER_HOUSES.has(houseNum);
-            // H2(TL) and H8(BR) share the TL→BR diagonal; H11(TR) and H5(BL) share TR→BL
-            const diagTLtoBR = houseNum === '2' || houseNum === '8';
-            const diagTRtoBL = houseNum === '11' || houseNum === '5';
+  // Find ascendant entry for degree display
+  const ascEntry = (chartData?.planetaryPositions as PlanetPos[] | undefined)?.find(
+    (p) => p.planet === 'Ascendant'
+  );
+
+  const S = 400; // viewBox size
+  const M = S / 2; // midpoint = 200
+
+  return (
+    <div className="w-full max-w-md mx-auto">
+      <svg
+        viewBox={`0 0 ${S} ${S}`}
+        className="w-full h-auto"
+        style={{ maxWidth: 420 }}
+      >
+        {/* Background */}
+        <rect x="0" y="0" width={S} height={S} fill="#F5E6CC" rx="4" />
+
+        {/* Outer border */}
+        <rect x="4" y="4" width={S - 8} height={S - 8} fill="none" stroke="#8B6914" strokeWidth="2.5" />
+
+        {/* Inner diamond — lines from midpoints of each side */}
+        <line x1={M} y1="4" x2="4" y2={M} stroke="#8B6914" strokeWidth="1.5" />
+        <line x1="4" y1={M} x2={M} y2={S - 4} stroke="#8B6914" strokeWidth="1.5" />
+        <line x1={M} y1={S - 4} x2={S - 4} y2={M} stroke="#8B6914" strokeWidth="1.5" />
+        <line x1={S - 4} y1={M} x2={M} y2="4" stroke="#8B6914" strokeWidth="1.5" />
+
+        {/* Diagonal crosses — corner to corner */}
+        <line x1="4" y1="4" x2={S - 4} y2={S - 4} stroke="#8B6914" strokeWidth="1.5" />
+        <line x1={S - 4} y1="4" x2="4" y2={S - 4} stroke="#8B6914" strokeWidth="1.5" />
+
+        {/* House 1 — Ascendant label */}
+        {ascEntry && (
+          <text x={M} y={52} textAnchor="middle" fontSize="10" fill="#c53030" fontWeight="600">
+            Asc-{ascEntry.degree}°
+          </text>
+        )}
+
+        {/* Rashi numbers for each house */}
+        {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((h) => {
+          const sign = houseSign[h];
+          const num = sign ? SIGN_NUM[sign] : h;
+          const pos = HOUSE_TEXT[h];
+          if (!pos) return null;
+          return (
+            <text
+              key={`rashi-${h}`}
+              x={pos.rx}
+              y={pos.ry}
+              textAnchor="middle"
+              fontSize="13"
+              fontWeight="700"
+              fill="#c53030"
+            >
+              {num}
+            </text>
+          );
+        })}
+
+        {/* Planet labels per house */}
+        {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((h) => {
+          const planets = housePlanets[h] || [];
+          const pos = HOUSE_TEXT[h];
+          if (!pos || planets.length === 0) return null;
+
+          // Determine text anchor based on position
+          const anchor = pos.px < 100 ? 'start' : pos.px > 300 ? 'end' : 'middle';
+
+          return planets.map((p, i) => {
+            const abbr = PLANET_ABBR[p.planet] ?? p.planet.slice(0, 2);
+            const color = PLANET_COLORS[abbr] || '#1a202c';
+            const retro = p.isRetrograde ? '®' : '';
+            const label = `${abbr}-${p.degree}°${retro}`;
 
             return (
-              <div
-                key={houseNum}
-                className="relative border border-amber-600 flex flex-col items-center justify-center overflow-hidden"
-                style={{ minHeight: 0, minWidth: 0 }}
+              <text
+                key={`${h}-${p.planet}`}
+                x={pos.px}
+                y={pos.py + i * 14}
+                textAnchor={anchor}
+                fontSize="9.5"
+                fontWeight="600"
+                fill={color}
               >
-                {/* Corner diagonal decoration */}
-                {isCorner && (
-                  <svg
-                    className="absolute inset-0 w-full h-full pointer-events-none"
-                    viewBox="0 0 100 100"
-                    preserveAspectRatio="none"
-                  >
-                    {diagTLtoBR && (
-                      <line x1="0" y1="0" x2="100" y2="100" stroke="#d97706" strokeWidth="1.5" />
-                    )}
-                    {diagTRtoBL && (
-                      <line x1="100" y1="0" x2="0" y2="100" stroke="#d97706" strokeWidth="1.5" />
-                    )}
-                  </svg>
-                )}
-                {/* House number */}
-                <span className="text-[9px] font-bold text-amber-700 leading-none z-10">{h}</span>
-                {/* Ascendant marker */}
-                {h === 1 && (
-                  <span className="text-[7px] font-semibold text-amber-600 leading-none z-10">As</span>
-                )}
-                {/* Planet abbreviations */}
-                {planets.map((p) => (
-                  <span key={p} className="text-[8px] font-bold text-gray-800 leading-none z-10">
-                    {p}
-                  </span>
-                ))}
-              </div>
+                {label}
+              </text>
             );
-          })
-        )}
-      </div>
+          });
+        })}
+
+        {/* Small corner decorations (circles like astrotalk) */}
+        <circle cx="8" cy="8" r="4" fill="none" stroke="#8B6914" strokeWidth="1" />
+        <circle cx={S - 8} cy="8" r="4" fill="none" stroke="#8B6914" strokeWidth="1" />
+        <circle cx="8" cy={S - 8} r="4" fill="none" stroke="#8B6914" strokeWidth="1" />
+        <circle cx={S - 8} cy={S - 8} r="4" fill="none" stroke="#8B6914" strokeWidth="1" />
+      </svg>
     </div>
   );
 }
@@ -136,10 +202,10 @@ function NorthIndianChart({ chartData }: { chartData?: any }) {
 // House numbers rotate based on ascendant; planets placed in their zodiac sign cell.
 
 const SOUTH_GRID: (string | null)[][] = [
-  ['Pisces',      'Aries',   'Taurus',  'Gemini'],
-  ['Aquarius',    null,       null,      'Cancer'],
-  ['Capricorn',   null,       null,      'Leo'],
-  ['Sagittarius', 'Scorpio',  'Libra',   'Virgo'],
+  ['Pisces', 'Aries', 'Taurus', 'Gemini'],
+  ['Aquarius', null, null, 'Cancer'],
+  ['Capricorn', null, null, 'Leo'],
+  ['Sagittarius', 'Scorpio', 'Libra', 'Virgo'],
 ];
 
 function SouthIndianChart({ ascendant, chartData }: { ascendant?: string; chartData?: any }) {
@@ -356,21 +422,19 @@ export default function KundliView() {
                   <div className="flex rounded-lg border border-orange-200 overflow-hidden text-sm">
                     <button
                       onClick={() => setChartStyle('north')}
-                      className={`px-4 py-1.5 font-medium transition-colors ${
-                        chartStyle === 'north'
-                          ? 'bg-orange-600 text-white'
-                          : 'bg-white text-orange-600 hover:bg-orange-50'
-                      }`}
+                      className={`px-4 py-1.5 font-medium transition-colors ${chartStyle === 'north'
+                        ? 'bg-orange-600 text-white'
+                        : 'bg-white text-orange-600 hover:bg-orange-50'
+                        }`}
                     >
                       North Indian
                     </button>
                     <button
                       onClick={() => setChartStyle('south')}
-                      className={`px-4 py-1.5 font-medium transition-colors ${
-                        chartStyle === 'south'
-                          ? 'bg-orange-600 text-white'
-                          : 'bg-white text-orange-600 hover:bg-orange-50'
-                      }`}
+                      className={`px-4 py-1.5 font-medium transition-colors ${chartStyle === 'south'
+                        ? 'bg-orange-600 text-white'
+                        : 'bg-white text-orange-600 hover:bg-orange-50'
+                        }`}
                     >
                       South Indian
                     </button>
@@ -459,11 +523,10 @@ export default function KundliView() {
                   ].map((dosha) => (
                     <div
                       key={dosha.key}
-                      className={`p-4 border rounded-lg ${
-                        dosha.present
-                          ? 'bg-red-500/10 border-red-500/20'
-                          : 'bg-green-500/10 border-green-500/20'
-                      }`}
+                      className={`p-4 border rounded-lg ${dosha.present
+                        ? 'bg-red-500/10 border-red-500/20'
+                        : 'bg-green-500/10 border-green-500/20'
+                        }`}
                     >
                       <div className="flex items-center justify-between mb-2">
                         <h4 className="font-semibold">{dosha.label}</h4>
