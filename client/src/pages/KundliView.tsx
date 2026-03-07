@@ -18,151 +18,162 @@ const PLANET_ABBR: Record<string, string> = {
 // Zodiac signs in order (for South Indian chart house calculation)
 const ZODIAC = ['Aries','Taurus','Gemini','Cancer','Leo','Virgo','Libra','Scorpio','Sagittarius','Capricorn','Aquarius','Pisces'];
 
-/**
- * North Indian Chart — correct 3×3 grid with SVG
- *
- * Structure:
- *   [TL corner] [top-middle H1] [TR corner]
- *   [left-mid H4] [center empty] [right-mid H10]
- *   [BL corner] [bottom-mid H7] [BR corner]
- *
- * Each corner is split by a diagonal line into 2 triangular houses:
- *   TL: H2 (upper) + H3 (lower)
- *   TR: H12 (upper) + H11 (lower)
- *   BL: H5 (upper) + H6 (lower)
- *   BR: H9 (upper) + H8 (lower)
- *
- * Houses go counter-clockwise: 1→2→3→4→5→6→7→8→9→10→11→12
- */
+// ─── North Indian Chart ──────────────────────────────────────────────────────
+// 4×4 CSS grid — houses arranged counter-clockwise, corners have diagonals
+//   Row 0: [H2]  [H1]  [H12] [H11]
+//   Row 1: [H3]  [ctr] [ctr] [H10]
+//   Row 2: [H4]  [ctr] [ctr] [H9 ]
+//   Row 3: [H5]  [H6]  [H7]  [H8 ]
+// Corner cells H2(TL) and H8(BR) → TL-to-BR diagonal (\)
+// Corner cells H11(TR) and H5(BL) → TR-to-BL diagonal (/)
+
+const NORTH_LAYOUT: (string | null)[][] = [
+  ['2',  '1',  '12', '11'],
+  ['3',  null,  null, '10'],
+  ['4',  null,  null, '9'],
+  ['5',  '6',  '7',  '8'],
+];
+const CORNER_HOUSES = new Set(['2', '11', '5', '8']);
+
 function NorthIndianChart({ chartData }: { chartData?: any }) {
-  // Build planet-per-house map
+  // Build planet-per-house map from planetaryPositions array
   const housePlanets: Record<number, string[]> = {};
-  if (chartData?.planets) {
-    for (const [planet, info] of Object.entries(chartData.planets as Record<string, any>)) {
-      const h = Number(info?.house);
+  if (chartData?.planetaryPositions) {
+    for (const pos of chartData.planetaryPositions as Array<{ planet: string; house: number }>) {
+      if (pos.planet === 'Ascendant') continue;
+      const h = pos.house;
       if (h >= 1 && h <= 12) {
-        const abbr = PLANET_ABBR[planet] ?? planet.slice(0, 2);
+        const abbr = PLANET_ABBR[pos.planet] ?? pos.planet.slice(0, 2);
         housePlanets[h] = [...(housePlanets[h] || []), abbr];
       }
     }
   }
 
-  const S = 300; // SVG canvas size
-  const C = S / 3; // Cell size (100)
-  const sw = 1.5; // stroke width for internal lines
-
-  // Centroid positions for each house (x, y) in the 300×300 canvas
-  // 3×3 grid: corner cells split by diagonals, edge cells undivided, center empty
-  const housePos: Record<number, [number, number]> = {
-    1:  [S/2,     C*0.42],          // top-middle
-    2:  [C*0.68,  C*0.30],          // TL upper triangle
-    3:  [C*0.32,  C*0.68],          // TL lower triangle
-    4:  [C*0.42,  S/2],             // left-middle
-    5:  [C*0.32,  S - C*0.68],      // BL upper triangle
-    6:  [C*0.68,  S - C*0.30],      // BL lower triangle
-    7:  [S/2,     S - C*0.42],      // bottom-middle
-    8:  [S - C*0.68, S - C*0.30],   // BR lower triangle
-    9:  [S - C*0.32, S - C*0.68],   // BR upper triangle
-    10: [S - C*0.42, S/2],          // right-middle
-    11: [S - C*0.32, C*0.68],       // TR lower triangle
-    12: [S - C*0.68, C*0.30],       // TR upper triangle
-  };
-
-  const renderHouse = (h: number) => {
-    const [x, y] = housePos[h];
-    const planets = housePlanets[h] || [];
-    const lineH = 11;
-    const totalLines = 1 + (h === 1 ? 1 : 0) + planets.length;
-    const startY = y - ((totalLines - 1) * lineH) / 2;
-
-    return (
-      <g key={h}>
-        <text x={x} y={startY} textAnchor="middle" dominantBaseline="middle"
-          fontSize="9" fontWeight="700" fill="#92400e">{h}</text>
-        {h === 1 && (
-          <text x={x} y={startY + lineH} textAnchor="middle" dominantBaseline="middle"
-            fontSize="7.5" fontWeight="600" fill="#b45309">As</text>
-        )}
-        {planets.map((p, i) => (
-          <text key={p} x={x} y={startY + lineH * (h === 1 ? i + 2 : i + 1)}
-            textAnchor="middle" dominantBaseline="middle"
-            fontSize="8" fontWeight="600" fill="#1f2937">{p}</text>
-        ))}
-      </g>
-    );
-  };
-
   return (
     <div className="w-full max-w-sm mx-auto">
-      <svg viewBox={`0 0 ${S} ${S}`} width="100%" className="block"
-        style={{ background: '#fffbeb', border: '2px solid #d97706', borderRadius: 4 }}>
+      <div
+        className="grid grid-cols-4 border-2 border-amber-700"
+        style={{ background: '#fffbeb', aspectRatio: '1' }}
+      >
+        {NORTH_LAYOUT.map((row, ri) =>
+          row.map((houseNum, ci) => {
+            // Null = part of merged center
+            if (houseNum === null) {
+              // Only the top-left null cell renders the merged 2×2 center
+              if (ri === 1 && ci === 1) {
+                return (
+                  <div
+                    key="center"
+                    className="col-span-2 row-span-2 relative border border-amber-600 flex items-center justify-center"
+                    style={{ background: '#fef3c7' }}
+                  >
+                    {/* X lines spanning the merged center */}
+                    <svg
+                      className="absolute inset-0 w-full h-full pointer-events-none"
+                      viewBox="0 0 100 100"
+                      preserveAspectRatio="none"
+                    >
+                      <line x1="0" y1="0" x2="100" y2="100" stroke="#d97706" strokeWidth="1.5" />
+                      <line x1="100" y1="0" x2="0" y2="100" stroke="#d97706" strokeWidth="1.5" />
+                    </svg>
+                  </div>
+                );
+              }
+              return null;
+            }
 
-        {/* 3×3 internal grid lines */}
-        <line x1={C}   y1="0" x2={C}   y2={S} stroke="#d97706" strokeWidth={sw}/>
-        <line x1={2*C} y1="0" x2={2*C} y2={S} stroke="#d97706" strokeWidth={sw}/>
-        <line x1="0" y1={C}   x2={S} y2={C}   stroke="#d97706" strokeWidth={sw}/>
-        <line x1="0" y1={2*C} x2={S} y2={2*C} stroke="#d97706" strokeWidth={sw}/>
+            const h = parseInt(houseNum, 10);
+            const planets = housePlanets[h] || [];
+            const isCorner = CORNER_HOUSES.has(houseNum);
+            // H2(TL) and H8(BR) share the TL→BR diagonal; H11(TR) and H5(BL) share TR→BL
+            const diagTLtoBR = houseNum === '2' || houseNum === '8';
+            const diagTRtoBL = houseNum === '11' || houseNum === '5';
 
-        {/* Corner diagonals + center X: just 2 full-diagonal lines
-            Line 1: TL(0,0)→BR(S,S) — passes through TL corner, center, BR corner
-            Line 2: TR(S,0)→BL(0,S) — passes through TR corner, center, BL corner */}
-        <line x1="0" y1="0" x2={S} y2={S} stroke="#d97706" strokeWidth={sw}/>
-        <line x1={S} y1="0" x2="0" y2={S} stroke="#d97706" strokeWidth={sw}/>
-
-        {/* House labels */}
-        {([1,2,3,4,5,6,7,8,9,10,11,12] as const).map(h => renderHouse(h))}
-      </svg>
+            return (
+              <div
+                key={houseNum}
+                className="relative border border-amber-600 flex flex-col items-center justify-center overflow-hidden"
+                style={{ minHeight: 0, minWidth: 0 }}
+              >
+                {/* Corner diagonal decoration */}
+                {isCorner && (
+                  <svg
+                    className="absolute inset-0 w-full h-full pointer-events-none"
+                    viewBox="0 0 100 100"
+                    preserveAspectRatio="none"
+                  >
+                    {diagTLtoBR && (
+                      <line x1="0" y1="0" x2="100" y2="100" stroke="#d97706" strokeWidth="1.5" />
+                    )}
+                    {diagTRtoBL && (
+                      <line x1="100" y1="0" x2="0" y2="100" stroke="#d97706" strokeWidth="1.5" />
+                    )}
+                  </svg>
+                )}
+                {/* House number */}
+                <span className="text-[9px] font-bold text-amber-700 leading-none z-10">{h}</span>
+                {/* Ascendant marker */}
+                {h === 1 && (
+                  <span className="text-[7px] font-semibold text-amber-600 leading-none z-10">As</span>
+                )}
+                {/* Planet abbreviations */}
+                {planets.map((p) => (
+                  <span key={p} className="text-[8px] font-bold text-gray-800 leading-none z-10">
+                    {p}
+                  </span>
+                ))}
+              </div>
+            );
+          })
+        )}
+      </div>
     </div>
   );
 }
 
-/**
- * South Indian Chart — fixed 4×4 grid with clockwise zodiac signs
- * Houses rotate based on ascendant; signs are fixed.
- */
+// ─── South Indian Chart ──────────────────────────────────────────────────────
+// Fixed 4×4 grid with zodiac signs in fixed positions (clockwise from top-left = Pisces)
+// House numbers rotate based on ascendant; planets placed in their zodiac sign cell.
+
+const SOUTH_GRID: (string | null)[][] = [
+  ['Pisces',      'Aries',   'Taurus',  'Gemini'],
+  ['Aquarius',    null,       null,      'Cancer'],
+  ['Capricorn',   null,       null,      'Leo'],
+  ['Sagittarius', 'Scorpio',  'Libra',   'Virgo'],
+];
+
 function SouthIndianChart({ ascendant, chartData }: { ascendant?: string; chartData?: any }) {
   const asc = ascendant || 'Aries';
-  const ascIdx = ZODIAC.indexOf(asc);
+  const ascIdx = ZODIAC.indexOf(asc) >= 0 ? ZODIAC.indexOf(asc) : 0;
 
-  // Build planet-per-sign map from chartData
+  // Build planet-per-sign map using pos.sign directly from planetaryPositions
   const signPlanets: Record<string, string[]> = {};
-  if (chartData?.planets) {
-    for (const [planet, info] of Object.entries(chartData.planets as Record<string, any>)) {
-      // Derive sign from house + ascendant
-      const h = Number(info?.house);
-      if (h >= 1 && h <= 12) {
-        const signIdx = (ascIdx + h - 1) % 12;
-        const sign = ZODIAC[signIdx];
-        const abbr = PLANET_ABBR[planet] ?? planet.slice(0, 2);
-        signPlanets[sign] = [...(signPlanets[sign] || []), abbr];
-      }
+  if (chartData?.planetaryPositions) {
+    for (const pos of chartData.planetaryPositions as Array<{ planet: string; sign: string }>) {
+      if (pos.planet === 'Ascendant') continue;
+      const abbr = PLANET_ABBR[pos.planet] ?? pos.planet.slice(0, 2);
+      signPlanets[pos.sign] = [...(signPlanets[pos.sign] || []), abbr];
     }
   }
 
-  // Fixed 4×4 grid: 12 border cells clockwise, center 4 empty
-  // Row, Col → Sign (clockwise from top-left = Pisces)
-  const GRID: (string | null)[][] = [
-    ['Pisces',      'Aries',   'Taurus',  'Gemini'],
-    ['Aquarius',    null,       null,      'Cancer'],
-    ['Capricorn',   null,       null,      'Leo'],
-    ['Sagittarius', 'Scorpio',  'Libra',   'Virgo'],
-  ];
-
   return (
     <div className="w-full max-w-sm mx-auto">
-      <div className="grid grid-cols-4 border-2 border-orange-600"
-        style={{ background: '#fffbeb', aspectRatio: '1' }}>
-        {GRID.map((row, ri) =>
+      <div
+        className="grid grid-cols-4 border-2 border-orange-600"
+        style={{ background: '#fffbeb', aspectRatio: '1' }}
+      >
+        {SOUTH_GRID.map((row, ri) =>
           row.map((sign, ci) => {
-            // Center 2×2 cells merged
             if (sign === null) {
               if (ri === 1 && ci === 1) {
                 return (
-                  <div key={`${ri}-${ci}`}
+                  <div
+                    key="center"
                     className="col-span-2 row-span-2 flex items-center justify-center border border-orange-300"
-                    style={{ background: '#fef3c7' }}>
+                    style={{ background: '#fef3c7' }}
+                  >
                     <span className="text-xs font-bold text-orange-600 text-center leading-tight px-2">
-                      Janma<br/>Kundali
+                      Janma<br />Kundali
                     </span>
                   </div>
                 );
@@ -175,17 +186,16 @@ function SouthIndianChart({ ascendant, chartData }: { ascendant?: string; chartD
             const planets = signPlanets[sign] || [];
 
             return (
-              <div key={`${ri}-${ci}`}
-                className={`border border-orange-300 flex flex-col items-center justify-center p-0.5 text-center overflow-hidden`}
-                style={{ background: isAsc ? '#fed7aa' : '#fffbeb' }}>
-                {/* House number top-left style */}
+              <div
+                key={`${ri}-${ci}`}
+                className="border border-orange-300 flex flex-col items-center justify-center p-0.5 text-center overflow-hidden"
+                style={{ background: isAsc ? '#fed7aa' : '#fffbeb' }}
+              >
                 <span className="text-[8px] font-bold text-orange-600 leading-none">{houseNum}</span>
-                {/* Sign abbreviation */}
                 <span className={`text-[7px] font-semibold leading-tight ${isAsc ? 'text-orange-800' : 'text-gray-500'}`}>
                   {sign.slice(0, 3).toUpperCase()}
                 </span>
-                {/* Planets */}
-                {planets.map(p => (
+                {planets.map((p) => (
                   <span key={p} className="text-[8px] font-bold text-gray-800 leading-tight">{p}</span>
                 ))}
               </div>
@@ -197,6 +207,8 @@ function SouthIndianChart({ ascendant, chartData }: { ascendant?: string; chartD
   );
 }
 
+// ─── Main View ───────────────────────────────────────────────────────────────
+
 export default function KundliView() {
   const [chartStyle, setChartStyle] = useState<'north' | 'south'>('north');
   const [, params] = useRoute('/kundli/:id');
@@ -207,9 +219,7 @@ export default function KundliView() {
     enabled: !!kundliId,
   });
 
-  if (isLoading) {
-    return <LoadingSpinner />;
-  }
+  if (isLoading) return <LoadingSpinner />;
 
   if (!kundli) {
     return (
@@ -223,6 +233,10 @@ export default function KundliView() {
   }
 
   const birthDate = new Date(kundli.dateOfBirth);
+  const chartData = kundli.chartData as any;
+  const dashas = (kundli.dashas as any[]) || [];
+  const doshas = (kundli.doshas as any) || {};
+  const remedies = (kundli.remedies as any[]) || [];
 
   return (
     <div className="min-h-screen bg-background py-8">
@@ -283,6 +297,7 @@ export default function KundliView() {
             <TabsTrigger value="remedies" data-testid="tab-remedies">Remedies</TabsTrigger>
           </TabsList>
 
+          {/* Overview */}
           <TabsContent value="overview">
             <Card>
               <CardHeader>
@@ -294,38 +309,37 @@ export default function KundliView() {
                     <h4 className="font-semibold mb-2">Basic Details</h4>
                     <div className="space-y-2 text-sm">
                       <div className="flex justify-between">
-                        <span className="text-muted-foreground">Zodiac Sign:</span>
-                        <span className="font-medium">{kundli.zodiacSign || 'Aries'}</span>
+                        <span className="text-muted-foreground">Zodiac Sign (Sun):</span>
+                        <span className="font-medium">{kundli.zodiacSign || '—'}</span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-muted-foreground">Moon Sign:</span>
-                        <span className="font-medium">{kundli.moonSign || 'Taurus'}</span>
+                        <span className="font-medium">{kundli.moonSign || '—'}</span>
                       </div>
                       <div className="flex justify-between">
-                        <span className="text-muted-foreground">Ascendant:</span>
-                        <span className="font-medium">{kundli.ascendant || 'Gemini'}</span>
+                        <span className="text-muted-foreground">Ascendant (Lagna):</span>
+                        <span className="font-medium">{kundli.ascendant || '—'}</span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-muted-foreground">Gender:</span>
-                        <span className="font-medium capitalize">{kundli.gender || 'Male'}</span>
+                        <span className="font-medium capitalize">{kundli.gender || '—'}</span>
                       </div>
                     </div>
                   </div>
 
                   <div>
-                    <h4 className="font-semibold mb-2">Planetary Strength</h4>
-                    <div className="space-y-3">
-                      {['Sun', 'Moon', 'Mars', 'Mercury'].map((planet) => (
-                        <div key={planet}>
-                          <div className="flex justify-between text-sm mb-1">
-                            <span>{planet}</span>
-                            <span className="text-muted-foreground">Strong</span>
+                    <h4 className="font-semibold mb-2">Planetary Positions</h4>
+                    <div className="space-y-1 text-sm">
+                      {chartData?.planetaryPositions
+                        ?.filter((p: any) => p.planet !== 'Ascendant')
+                        .map((p: any) => (
+                          <div key={p.planet} className="flex justify-between">
+                            <span className="text-muted-foreground">{p.planet}:</span>
+                            <span className="font-medium">
+                              {p.sign} {p.degree}°{p.isRetrograde ? ' (R)' : ''}
+                            </span>
                           </div>
-                          <div className="h-2 bg-muted rounded-full overflow-hidden">
-                            <div className="h-full bg-primary" style={{ width: `${Math.random() * 40 + 60}%` }} />
-                          </div>
-                        </div>
-                      ))}
+                        ))}
                     </div>
                   </div>
                 </div>
@@ -333,6 +347,7 @@ export default function KundliView() {
             </Card>
           </TabsContent>
 
+          {/* Birth Chart */}
           <TabsContent value="chart">
             <Card>
               <CardHeader>
@@ -365,9 +380,9 @@ export default function KundliView() {
               <CardContent>
                 <div className="flex flex-col items-center gap-4 p-4">
                   {chartStyle === 'north' ? (
-                    <NorthIndianChart chartData={kundli.chartData} />
+                    <NorthIndianChart chartData={chartData} />
                   ) : (
-                    <SouthIndianChart ascendant={kundli.ascendant || 'Aries'} chartData={kundli.chartData} />
+                    <SouthIndianChart ascendant={kundli.ascendant || 'Aries'} chartData={chartData} />
                   )}
                   <p className="text-xs text-muted-foreground text-center">
                     {chartStyle === 'north'
@@ -379,33 +394,36 @@ export default function KundliView() {
             </Card>
           </TabsContent>
 
+          {/* Dashas */}
           <TabsContent value="dashas">
             <Card>
               <CardHeader>
                 <CardTitle>Vimshottari Dashas</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="space-y-4">
-                  {[
-                    { planet: 'Sun', period: '2020-2026', status: 'current' },
-                    { planet: 'Moon', period: '2026-2036', status: 'upcoming' },
-                    { planet: 'Mars', period: '2036-2043', status: 'upcoming' },
-                  ].map((dasha, i) => (
+                <div className="space-y-3">
+                  {dashas.length > 0 ? dashas.map((dasha: any, i: number) => (
                     <div key={i} className="flex items-center justify-between p-4 bg-muted/50 rounded-lg">
                       <div>
                         <div className="font-semibold">{dasha.planet} Dasha</div>
-                        <div className="text-sm text-muted-foreground">{dasha.period}</div>
+                        <div className="text-sm text-muted-foreground">
+                          {dasha.startDate} — {dasha.endDate}
+                          {dasha.period ? ` (${dasha.period})` : ''}
+                        </div>
                       </div>
                       {dasha.status === 'current' && (
                         <Badge variant="default">Current</Badge>
                       )}
                     </div>
-                  ))}
+                  )) : (
+                    <p className="text-muted-foreground text-sm">No dasha data available.</p>
+                  )}
                 </div>
               </CardContent>
             </Card>
           </TabsContent>
 
+          {/* Doshas */}
           <TabsContent value="doshas">
             <Card>
               <CardHeader>
@@ -413,30 +431,58 @@ export default function KundliView() {
               </CardHeader>
               <CardContent>
                 <div className="space-y-6">
-                  <div className="p-4 bg-green-500/10 border border-green-500/20 rounded-lg">
-                    <div className="flex items-center justify-between mb-2">
-                      <h4 className="font-semibold">Mangal Dosha</h4>
-                      <Badge variant="secondary" className="bg-green-500/20">Not Present</Badge>
+                  {[
+                    {
+                      key: 'mangalDosha',
+                      label: 'Mangal Dosha',
+                      present: doshas.mangalDosha,
+                      desc: doshas.mangalDosha
+                        ? 'Mangal Dosha is present. Consult an astrologer for remedies.'
+                        : 'No Mangal Dosha detected in your birth chart.',
+                    },
+                    {
+                      key: 'kaalSarpDosha',
+                      label: 'Kaal Sarp Dosha',
+                      present: doshas.kaalSarpDosha,
+                      desc: doshas.kaalSarpDosha
+                        ? 'Kaal Sarp Dosha is present. All planets are between Rahu and Ketu.'
+                        : 'Your chart is free from Kaal Sarp Dosha.',
+                    },
+                    {
+                      key: 'pitruDosha',
+                      label: 'Pitru Dosha',
+                      present: doshas.pitruDosha,
+                      desc: doshas.pitruDosha
+                        ? 'Pitru Dosha is present. Sun and Rahu are in close conjunction.'
+                        : 'No Pitru Dosha detected in your birth chart.',
+                    },
+                  ].map((dosha) => (
+                    <div
+                      key={dosha.key}
+                      className={`p-4 border rounded-lg ${
+                        dosha.present
+                          ? 'bg-red-500/10 border-red-500/20'
+                          : 'bg-green-500/10 border-green-500/20'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-2">
+                        <h4 className="font-semibold">{dosha.label}</h4>
+                        <Badge
+                          variant="secondary"
+                          className={dosha.present ? 'bg-red-500/20' : 'bg-green-500/20'}
+                        >
+                          {dosha.present ? 'Present' : 'Not Present'}
+                        </Badge>
+                      </div>
+                      <p className="text-sm text-muted-foreground">{dosha.desc}</p>
                     </div>
-                    <p className="text-sm text-muted-foreground">
-                      No Mangal Dosha detected in your birth chart.
-                    </p>
-                  </div>
-
-                  <div className="p-4 bg-muted/50 rounded-lg">
-                    <div className="flex items-center justify-between mb-2">
-                      <h4 className="font-semibold">Kaal Sarp Dosha</h4>
-                      <Badge variant="secondary">Not Present</Badge>
-                    </div>
-                    <p className="text-sm text-muted-foreground">
-                      Your chart is free from Kaal Sarp Dosha.
-                    </p>
-                  </div>
+                  ))}
                 </div>
               </CardContent>
             </Card>
           </TabsContent>
 
+          {/* Remedies */}
           <TabsContent value="remedies">
             <Card>
               <CardHeader>
@@ -444,17 +490,20 @@ export default function KundliView() {
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
-                  {[
-                    { title: 'Gemstone Recommendation', desc: 'Wear Ruby for Sun strength', color: 'bg-red-500/10 border-red-500/20' },
-                    { title: 'Mantra', desc: 'Chant "Om Suryaya Namaha" 108 times daily', color: 'bg-yellow-500/10 border-yellow-500/20' },
-                    { title: 'Charity', desc: 'Donate wheat on Sundays', color: 'bg-blue-500/10 border-blue-500/20' },
-                    { title: 'Fasting', desc: 'Fast on Sundays for better results', color: 'bg-green-500/10 border-green-500/20' },
-                  ].map((remedy, i) => (
-                    <div key={i} className={`p-4 border rounded-lg ${remedy.color}`}>
+                  {remedies.length > 0 ? remedies.map((remedy: any, i: number) => (
+                    <div
+                      key={i}
+                      className="p-4 border rounded-lg bg-amber-500/10 border-amber-500/20"
+                    >
                       <h4 className="font-semibold mb-1">{remedy.title}</h4>
-                      <p className="text-sm text-muted-foreground">{remedy.desc}</p>
+                      <p className="text-sm text-muted-foreground">{remedy.description}</p>
+                      {remedy.type && (
+                        <Badge variant="outline" className="mt-2 text-xs">{remedy.type}</Badge>
+                      )}
                     </div>
-                  ))}
+                  )) : (
+                    <p className="text-muted-foreground text-sm">No remedy data available.</p>
+                  )}
                 </div>
               </CardContent>
             </Card>
