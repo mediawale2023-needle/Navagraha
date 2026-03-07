@@ -14,6 +14,7 @@ import { useToast } from '@/hooks/use-toast';
 import { apiRequest } from '@/lib/queryClient';
 import { ArrowLeft, Heart, Loader2 } from 'lucide-react';
 import { BottomNav } from '@/components/BottomNav';
+import { PlacesAutocomplete } from '@/components/PlacesAutocomplete';
 
 const matchmakingSchema = z.object({
   person1Name: z.string().min(2, 'Name is required'),
@@ -187,7 +188,12 @@ export default function Matchmaking() {
                         <FormItem>
                           <FormLabel>Place of Birth</FormLabel>
                           <FormControl>
-                            <Input placeholder="City, State, Country" {...field} data-testid="input-person1-place" />
+                            <PlacesAutocomplete
+                              value={field.value}
+                              onChange={field.onChange}
+                              placeholder="City, State, Country"
+                              testId="input-person1-place"
+                            />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
@@ -275,7 +281,12 @@ export default function Matchmaking() {
                         <FormItem>
                           <FormLabel>Place of Birth</FormLabel>
                           <FormControl>
-                            <Input placeholder="City, State, Country" {...field} data-testid="input-person2-place" />
+                            <PlacesAutocomplete
+                              value={field.value}
+                              onChange={field.onChange}
+                              placeholder="City, State, Country"
+                              testId="input-person2-place"
+                            />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
@@ -323,7 +334,7 @@ export default function Matchmaking() {
                   </div>
                   <p className="text-lg text-white/90">
                     {result.totalScore >= 70 ? 'Excellent Match!' :
-                     result.totalScore >= 50 ? 'Good Match' : 'Fair Match'}
+                      result.totalScore >= 50 ? 'Good Match' : 'Fair Match'}
                   </p>
                 </div>
               </CardContent>
