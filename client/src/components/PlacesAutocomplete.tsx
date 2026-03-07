@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
-import { Input } from '@/components/ui/input';
 import { MapPin, Loader2 } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 
@@ -32,6 +31,8 @@ export function PlacesAutocomplete({
   const onChangeRef = useRef(onChange);
   const onPlaceSelectRef = useRef(onPlaceSelect);
   const [scriptLoading, setScriptLoading] = useState(false);
+  // Track whether the value was set externally (e.g. form reset)
+  const lastExternalValue = useRef(value);
 
   onChangeRef.current = onChange;
   onPlaceSelectRef.current = onPlaceSelect;
@@ -55,6 +56,7 @@ export function PlacesAutocomplete({
         const address = place.formatted_address || place.name || '';
         const lat = place.geometry.location.lat();
         const lng = place.geometry.location.lng();
+        // Sync the uncontrolled input's value back to React state
         onChangeRef.current(address);
         onPlaceSelectRef.current?.({ address, lat, lng });
       });
@@ -64,6 +66,22 @@ export function PlacesAutocomplete({
     } finally {
       setScriptLoading(false);
     }
+  }, []);
+
+  // Sync external value changes (e.g. form reset) into the uncontrolled input
+  useEffect(() => {
+    if (inputRef.current && value !== lastExternalValue.current) {
+      inputRef.current.value = value;
+      lastExternalValue.current = value;
+    }
+  }, [value]);
+
+  // Set the initial value on mount
+  useEffect(() => {
+    if (inputRef.current && value) {
+      inputRef.current.value = value;
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -106,12 +124,16 @@ export function PlacesAutocomplete({
   return (
     <div className="relative">
       <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground z-10 pointer-events-none" />
-      <Input
+      {/* Uncontrolled input — Google's Autocomplete widget owns the DOM value */}
+      <input
         ref={inputRef}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
+        defaultValue={value}
+        onChange={(e) => {
+          lastExternalValue.current = e.target.value;
+          onChange(e.target.value);
+        }}
         placeholder={placeholder}
-        className={`pl-9 pr-8 ${className}`}
+        className={`flex h-9 w-full rounded-md border border-input bg-background pl-9 pr-8 py-2 text-base ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm ${className}`}
         data-testid={testId}
         autoComplete="off"
       />

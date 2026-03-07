@@ -55,14 +55,8 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
     console.error('[startup] Auth setup failed (continuing without auth):', err);
   }
 
-  // ─── Config ───────────────────────────────────────────────
-  app.get('/api/config', (_req, res) => {
-    res.json({
-      googleMapsApiKey: process.env.GOOGLE_MAPS_API_KEY || '',
-      razorpayKeyId: process.env.RAZORPAY_KEY_ID || '',
-      agoraAppId: process.env.AGORA_APP_ID || '',
-    });
-  });
+  // NOTE: /api/config is registered in index.ts (before async init) so it
+  // responds immediately for Railway healthchecks. Do NOT duplicate here.
 
   // ─── Auth ─────────────────────────────────────────────────
   app.get('/api/auth/user', isAuthenticated, async (req: any, res) => {
@@ -100,12 +94,12 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
       const nk = await getKundli(dateOfBirth, validatedData.timeOfBirth, lat, lon);
       const kundliData = {
         zodiacSign: nk.zodiacSign,
-        moonSign:   nk.moonSign,
-        ascendant:  nk.ascendant,
-        chartData:  nk.chartData,
-        dashas:     nk.dashas,
-        doshas:     nk.doshas,
-        remedies:   nk.remedies,
+        moonSign: nk.moonSign,
+        ascendant: nk.ascendant,
+        chartData: nk.chartData,
+        dashas: nk.dashas,
+        doshas: nk.doshas,
+        remedies: nk.remedies,
       };
 
       const kundli = await storage.createKundli({ ...validatedData, ...kundliData });
@@ -155,15 +149,15 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
       const p2 = { dateOfBirth: person2Date, timeOfBirth: person2Time || '12:00:00', latitude: parseFloat(person2Lat) || 19.0760, longitude: parseFloat(person2Lon) || 72.8777 };
       const result = await getKundliMatching(p1, p2);
       res.json({
-        totalScore:     result.percentage,
-        gunaScore:      result.score,
-        maxGunaScore:   result.maxScore,
-        compatibility:  result.compatibility,
+        totalScore: result.percentage,
+        gunaScore: result.score,
+        maxGunaScore: result.maxScore,
+        compatibility: result.compatibility,
         recommendation: result.recommendation,
-        details:        result.details,
-        dosha:          result.dosha,
-        person1:        person1Name,
-        person2:        person2Name,
+        details: result.details,
+        dosha: result.dosha,
+        person1: person1Name,
+        person2: person2Name,
       });
     } catch { res.status(500).json({ message: "Failed to calculate compatibility" }); }
   });
