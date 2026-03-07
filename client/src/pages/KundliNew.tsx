@@ -89,20 +89,20 @@ export default function KundliNew() {
   const stepLabels = ['Personal', 'Date & Time', 'Location'];
 
   return (
-    <div className="min-h-screen bg-[#FFF8F0] pb-20">
+    <div className="min-h-screen bg-[#0D0D0D] text-white pb-20">
       {/* Header */}
-      <div className="bg-gradient-to-r from-orange-600 to-orange-500 px-4 py-4">
+      <div className="border-b border-white/5 px-4 py-4">
         <div className="max-w-3xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-3">
             <Link href="/">
-              <button className="p-2 rounded-lg hover:bg-white/10 transition-colors" data-testid="button-back">
+              <button className="p-2 rounded-lg hover:bg-white/5/10 transition-colors" data-testid="button-back">
                 <ArrowLeft className="w-5 h-5 text-white" />
               </button>
             </Link>
             <h1 className="font-bold text-lg text-white">Generate Kundli</h1>
           </div>
           <div className="flex items-center gap-2">
-            <div className="w-7 h-7 bg-white/20 rounded-lg flex items-center justify-center">
+            <div className="w-7 h-7 bg-white/5/20 rounded-lg flex items-center justify-center">
               <Sparkles className="w-4 h-4 text-white" />
             </div>
             <span className="font-bold text-lg text-white font-serif">Navagraha</span>
@@ -118,7 +118,7 @@ export default function KundliNew() {
               <div className="flex flex-col items-center">
                 <div className={`w-10 h-10 rounded-full flex items-center justify-center font-semibold transition-all ${
                   s === step
-                    ? 'bg-orange-600 text-white'
+                    ? 'gradient-primary text-white'
                     : s < step
                     ? 'bg-green-500 text-white'
                     : 'bg-gray-200 text-gray-500'
@@ -126,7 +126,7 @@ export default function KundliNew() {
                   {s < step ? <Check className="w-5 h-5" /> : s}
                 </div>
                 <span className={`text-xs mt-1.5 font-medium ${
-                  s === step ? 'text-orange-600' : s < step ? 'text-green-600' : 'text-gray-400'
+                  s === step ? 'text-[#E91E8C]' : s < step ? 'text-green-600' : 'text-gray-400'
                 }`}>
                   {stepLabels[s - 1]}
                 </span>
@@ -139,9 +139,9 @@ export default function KundliNew() {
         </div>
 
         {/* Form Card */}
-        <div className="bg-white rounded-2xl border border-orange-100 shadow-sm p-6">
+        <div className="bg-white/5 rounded-2xl border border-white/5  p-6">
           <div className="mb-6">
-            <h2 className="font-serif text-xl font-semibold text-gray-900">
+            <h2 className="font-serif text-xl font-semibold text-white">
               {step === 1 ? 'Personal Details' : step === 2 ? 'Birth Date & Time' : 'Birth Place'}
             </h2>
             <p className="text-sm text-gray-500 mt-1">
@@ -206,7 +206,7 @@ export default function KundliNew() {
                   <Button
                     type="button"
                     onClick={nextStep}
-                    className="w-full bg-orange-600 hover:bg-orange-700 text-white"
+                    className="w-full gradient-primary hover:opacity-90 text-white"
                     data-testid="button-next-step-1"
                   >
                     Continue →
@@ -266,7 +266,7 @@ export default function KundliNew() {
                       type="button"
                       variant="outline"
                       onClick={() => setStep(1)}
-                      className="flex-1 border-orange-200 text-orange-600 hover:bg-orange-50"
+                      className="flex-1 border-white/10 text-[#E91E8C] hover:bg-[#E91E8C]/5"
                       data-testid="button-back-step-2"
                     >
                       ← Back
@@ -274,7 +274,7 @@ export default function KundliNew() {
                     <Button
                       type="button"
                       onClick={nextStep}
-                      className="flex-1 bg-orange-600 hover:bg-orange-700 text-white"
+                      className="flex-1 gradient-primary hover:opacity-90 text-white"
                       data-testid="button-next-step-2"
                     >
                       Continue →
@@ -308,7 +308,7 @@ export default function KundliNew() {
                     )}
                   />
 
-                  <div className="bg-orange-50 border border-orange-100 rounded-lg p-4">
+                  <div className="bg-[#E91E8C]/5 border border-white/5 rounded-lg p-4">
                     <p className="text-sm text-orange-800">
                       <strong>Note:</strong> Accurate birth details are essential for precise astrological calculations.
                       Please ensure all information is correct.
@@ -320,14 +320,14 @@ export default function KundliNew() {
                       type="button"
                       variant="outline"
                       onClick={() => setStep(2)}
-                      className="flex-1 border-orange-200 text-orange-600 hover:bg-orange-50"
+                      className="flex-1 border-white/10 text-[#E91E8C] hover:bg-[#E91E8C]/5"
                       data-testid="button-back-step-3"
                     >
                       ← Back
                     </Button>
                     <Button
                       type="submit"
-                      className="flex-1 bg-orange-600 hover:bg-orange-700 text-white"
+                      className="flex-1 gradient-primary hover:opacity-90 text-white"
                       disabled={mutation.isPending}
                       data-testid="button-generate-kundli"
                     >

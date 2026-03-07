@@ -275,13 +275,13 @@ export default function Chat() {
   return (
     <div className="h-screen flex flex-col bg-background">
       {/* Header */}
-      <div className="sticky top-0 z-50 bg-[#FFCF23] shadow-sm">
+      <div className="sticky top-0 z-50 border-b border-white/5 ">
         <div className="max-w-4xl mx-auto px-4 py-3">
           <div className="flex items-center justify-between gap-4">
             <div className="flex items-center gap-3 flex-1 min-w-0">
               <Link href="/astrologers">
-                <button className="p-2 rounded-xl hover:bg-[#1A1A1A]/10" data-testid="button-back">
-                  <ArrowLeft className="w-5 h-5 text-[#1A1A1A]" />
+                <button className="p-2 rounded-xl hover:bg-white/5/5" data-testid="button-back">
+                  <ArrowLeft className="w-5 h-5 text-white" />
                 </button>
               </Link>
               <Avatar className="w-12 h-12 flex-shrink-0">
@@ -291,11 +291,11 @@ export default function Chat() {
                 </AvatarFallback>
               </Avatar>
               <div className="flex-1 min-w-0">
-                <h3 className="font-bold text-lg text-[#1A1A1A] truncate">{astrologer.name}</h3>
+                <h3 className="font-bold text-lg text-white truncate">{astrologer.name}</h3>
                 <div className="flex items-center gap-2 text-sm">
                   <div className="flex items-center gap-1">
-                    <div className={`w-2 h-2 rounded-full ${astrologer.isOnline ? 'bg-green-600 animate-pulse' : 'bg-gray-500'}`} />
-                    <span className="text-xs text-[#1A1A1A]/70 font-medium">
+                    <div className={`w-2 h-2 rounded-full ${astrologer.isOnline ? 'bg-green-600 animate-pulse' : 'bg-[#0D0D0D]0'}`} />
+                    <span className="text-xs text-white/70 font-medium">
                       {astrologer.availability === 'busy' ? 'In a session' : astrologer.isOnline ? 'Online' : 'Offline'}
                     </span>
                   </div>
@@ -310,12 +310,12 @@ export default function Chat() {
             <div className="flex items-center gap-2">
               <Link href={`/call/${astrologerId}?type=voice`}>
                 <button className="p-2 rounded-xl bg-[#1A1A1A]/10 hover:bg-[#1A1A1A]/20" data-testid="button-voice-call">
-                  <Phone className="w-5 h-5 text-[#1A1A1A]" />
+                  <Phone className="w-5 h-5 text-white" />
                 </button>
               </Link>
               <Link href={`/call/${astrologerId}?type=video`}>
                 <button className="p-2 rounded-xl bg-[#1A1A1A]/10 hover:bg-[#1A1A1A]/20" data-testid="button-video-call">
-                  <Video className="w-5 h-5 text-[#1A1A1A]" />
+                  <Video className="w-5 h-5 text-white" />
                 </button>
               </Link>
             </div>

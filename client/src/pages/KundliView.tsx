@@ -414,8 +414,8 @@ export default function KundliView() {
                     <button
                       onClick={() => setChartStyle('north')}
                       className={`px-4 py-1.5 font-medium transition-colors ${chartStyle === 'north'
-                        ? 'bg-orange-600 text-white'
-                        : 'bg-white text-orange-600 hover:bg-orange-50'
+                        ? 'gradient-primary text-white'
+                        : 'bg-white/5 text-orange-600 hover:bg-orange-50'
                         }`}
                     >
                       North Indian
@@ -423,8 +423,8 @@ export default function KundliView() {
                     <button
                       onClick={() => setChartStyle('south')}
                       className={`px-4 py-1.5 font-medium transition-colors ${chartStyle === 'south'
-                        ? 'bg-orange-600 text-white'
-                        : 'bg-white text-orange-600 hover:bg-orange-50'
+                        ? 'gradient-primary text-white'
+                        : 'bg-white/5 text-orange-600 hover:bg-orange-50'
                         }`}
                     >
                       South Indian

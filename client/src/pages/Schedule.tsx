@@ -82,17 +82,17 @@ export default function Schedule() {
   const typeIcon = (t: string) => t === 'voice' ? <Phone className="w-4 h-4" /> : t === 'video' ? <Video className="w-4 h-4" /> : <MessageCircle className="w-4 h-4" />;
 
   return (
-    <div className="min-h-screen bg-gray-50 pb-20 md:pb-0">
+    <div className="min-h-screen bg-[#0D0D0D] pb-20 md:pb-0">
       {/* Header */}
-      <div className="sticky top-0 z-50 bg-[#FFCF23] shadow-sm">
+      <div className="sticky top-0 z-50 border-b border-white/5 ">
         <div className="max-w-4xl mx-auto px-4 py-3">
           <div className="flex items-center gap-3">
             <Link href="/astrologers">
-              <button className="p-2 rounded-xl hover:bg-[#1A1A1A]/10">
-                <ArrowLeft className="w-5 h-5 text-[#1A1A1A]" />
+              <button className="p-2 rounded-xl hover:bg-white/5/5">
+                <ArrowLeft className="w-5 h-5 text-white" />
               </button>
             </Link>
-            <h1 className="font-bold text-lg text-[#1A1A1A]">Book Appointment</h1>
+            <h1 className="font-bold text-lg text-white">Book Appointment</h1>
           </div>
         </div>
       </div>

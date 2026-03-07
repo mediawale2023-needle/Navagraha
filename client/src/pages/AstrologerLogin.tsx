@@ -90,9 +90,9 @@ export default function AstrologerLogin() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col">
+    <div className="min-h-screen bg-white/3 flex flex-col">
       {/* Header */}
-      <div className="bg-[#FFCF23] px-4 py-3 flex items-center gap-3">
+      <div className="bg-[#0D0D0D] border-b border-white/5 px-4 py-3 flex items-center gap-3">
         <Link href="/">
           <button className="p-2 rounded-xl hover:bg-[#1A1A1A]/10">
             <ArrowLeft className="w-5 h-5 text-[#1A1A1A]" />
@@ -106,7 +106,7 @@ export default function AstrologerLogin() {
           {/* Logo */}
           <div className="text-center mb-8">
             <div className="flex items-center justify-center gap-2 mb-3">
-              <div className="w-14 h-14 bg-[#FFCF23] rounded-2xl flex items-center justify-center mx-auto">
+              <div className="w-14 h-14 bg-[#0D0D0D] border-b border-white/5 rounded-2xl flex items-center justify-center mx-auto">
                 <Star className="w-8 h-8 text-[#1A1A1A] fill-[#1A1A1A]" />
               </div>
             </div>
@@ -254,7 +254,7 @@ export default function AstrologerLogin() {
               { label: '24/7', sub: 'Platform support' },
               { label: 'T+2', sub: 'Fast payouts' },
             ].map(({ label, sub }) => (
-              <div key={sub} className="bg-[#FFCF23] rounded-xl p-3 shadow-sm">
+              <div key={sub} className="bg-[#0D0D0D] border-b border-white/5 rounded-xl p-3 shadow-sm">
                 <div className="text-xl font-bold text-[#1A1A1A]">{label}</div>
                 <div className="text-xs text-[#1A1A1A]/70 font-medium">{sub}</div>
               </div>

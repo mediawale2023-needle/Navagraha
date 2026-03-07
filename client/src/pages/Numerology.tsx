@@ -38,10 +38,10 @@ const NUMBER_MEANINGS: Record<number, { title: string; description: string; trai
 };
 
 const CARD_THEMES: Record<string, { border: string; iconBg: string; iconText: string; traitBg: string; traitBorder: string }> = {
-  'Life Path Number':   { border: 'border-orange-200', iconBg: 'bg-orange-100',  iconText: 'text-orange-600', traitBg: 'bg-orange-50',  traitBorder: 'border-orange-200' },
+  'Life Path Number':   { border: 'border-white/10', iconBg: 'bg-[#E91E8C]/10',  iconText: 'text-[#E91E8C]', traitBg: 'bg-[#E91E8C]/5',  traitBorder: 'border-white/10' },
   'Destiny Number':     { border: 'border-indigo-200', iconBg: 'bg-indigo-100',  iconText: 'text-indigo-600', traitBg: 'bg-indigo-50',  traitBorder: 'border-indigo-200' },
   'Soul Urge Number':   { border: 'border-rose-200',   iconBg: 'bg-rose-100',    iconText: 'text-rose-600',   traitBg: 'bg-rose-50',    traitBorder: 'border-rose-200' },
-  'Personality Number': { border: 'border-green-200',  iconBg: 'bg-green-100',   iconText: 'text-green-600',  traitBg: 'bg-green-50',   traitBorder: 'border-green-200' },
+  'Personality Number': { border: 'border-green-200',  iconBg: 'bg-green-500/10',   iconText: 'text-green-600',  traitBg: 'bg-green-50',   traitBorder: 'border-green-200' },
   'Birthday Number':    { border: 'border-purple-200', iconBg: 'bg-purple-100',  iconText: 'text-purple-600', traitBg: 'bg-purple-50',  traitBorder: 'border-purple-200' },
 };
 
@@ -49,21 +49,21 @@ function NumberCard({ label, number, icon: Icon }: { label: string; number: numb
   const meaning = NUMBER_MEANINGS[number] || NUMBER_MEANINGS[9];
   const theme = CARD_THEMES[label] || CARD_THEMES['Life Path Number'];
   return (
-    <div className={`bg-white rounded-2xl p-4 shadow-sm border ${theme.border}`}>
+    <div className={`bg-white/5 rounded-2xl p-4  border ${theme.border}`}>
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
           <div className={`w-8 h-8 ${theme.iconBg} rounded-lg flex items-center justify-center`}>
             <Icon className={`w-4 h-4 ${theme.iconText}`} />
           </div>
-          <span className="text-sm font-semibold text-gray-600">{label}</span>
+          <span className="text-sm font-semibold text-gray-400">{label}</span>
         </div>
-        <div className="text-3xl font-bold text-gray-900">{number}</div>
+        <div className="text-3xl font-bold text-white">{number}</div>
       </div>
-      <p className="text-xs font-bold text-gray-900 mb-1">{meaning.title}</p>
+      <p className="text-xs font-bold text-white mb-1">{meaning.title}</p>
       <p className="text-xs text-gray-500 leading-relaxed mb-2">{meaning.description}</p>
       <div className="flex flex-wrap gap-1">
         {meaning.traits.map(t => (
-          <span key={t} className={`px-2 py-0.5 ${theme.traitBg} border ${theme.traitBorder} text-gray-900 text-xs rounded-full font-medium`}>
+          <span key={t} className={`px-2 py-0.5 ${theme.traitBg} border ${theme.traitBorder} text-white text-xs rounded-full font-medium`}>
             {t}
           </span>
         ))}
@@ -100,13 +100,13 @@ export default function Numerology() {
   };
 
   return (
-    <div className="min-h-screen bg-[#FFF8F0] pb-20 md:pb-0">
+    <div className="min-h-screen bg-[#0D0D0D] text-white pb-20 md:pb-0">
       {/* Header */}
-      <div className="sticky top-0 z-50 bg-gradient-to-r from-orange-600 to-orange-500 shadow-sm">
+      <div className="sticky top-0 z-50 border-b border-white/5 ">
         <div className="max-w-4xl mx-auto px-4 py-3">
           <div className="flex items-center gap-3">
             <Link href="/">
-              <button className="p-2 rounded-xl hover:bg-white/10">
+              <button className="p-2 rounded-xl hover:bg-white/5/10">
                 <ArrowLeft className="w-5 h-5 text-white" />
               </button>
             </Link>
@@ -121,7 +121,7 @@ export default function Numerology() {
       <div className="max-w-4xl mx-auto px-4 py-6">
         {/* Hero */}
         {!result && (
-          <div className="bg-gradient-to-br from-indigo-600 to-purple-600 rounded-2xl p-6 mb-6 text-center">
+          <div className="bg-gradient-to-br from-[#7B2FBE] to-[#5B1F8E] rounded-2xl p-6 mb-6 text-center">
             <Hash className="w-12 h-12 text-white mx-auto mb-3" />
             <h2 className="text-xl font-bold text-white mb-2">Your Life by Numbers</h2>
             <p className="text-sm text-white/70 max-w-sm mx-auto">
@@ -131,41 +131,41 @@ export default function Numerology() {
         )}
 
         {/* Form */}
-        <Card className="mb-6 shadow-sm border-gray-100">
+        <Card className="mb-6  border-white/5">
           <CardContent className="p-5">
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <Label className="text-sm font-semibold text-gray-900 mb-1.5 block">First Name *</Label>
+                  <Label className="text-sm font-semibold text-white mb-1.5 block">First Name *</Label>
                   <Input
                     placeholder="e.g. Priya"
                     value={form.firstName}
                     onChange={e => setForm(f => ({ ...f, firstName: e.target.value }))}
-                    className="rounded-xl border-gray-200 focus:border-orange-500 focus:ring-orange-500"
+                    className="rounded-xl border-white/10 focus:border-orange-500 focus:ring-orange-500"
                   />
                 </div>
                 <div>
-                  <Label className="text-sm font-semibold text-gray-900 mb-1.5 block">Last Name</Label>
+                  <Label className="text-sm font-semibold text-white mb-1.5 block">Last Name</Label>
                   <Input
                     placeholder="e.g. Sharma"
                     value={form.lastName}
                     onChange={e => setForm(f => ({ ...f, lastName: e.target.value }))}
-                    className="rounded-xl border-gray-200 focus:border-orange-500 focus:ring-orange-500"
+                    className="rounded-xl border-white/10 focus:border-orange-500 focus:ring-orange-500"
                   />
                 </div>
               </div>
               <div>
-                <Label className="text-sm font-semibold text-gray-900 mb-1.5 block">Date of Birth *</Label>
+                <Label className="text-sm font-semibold text-white mb-1.5 block">Date of Birth *</Label>
                 <Input
                   type="date"
                   value={form.dateOfBirth}
                   onChange={e => setForm(f => ({ ...f, dateOfBirth: e.target.value }))}
-                  className="rounded-xl border-gray-200 focus:border-orange-500 focus:ring-orange-500"
+                  className="rounded-xl border-white/10 focus:border-orange-500 focus:ring-orange-500"
                   max={new Date().toISOString().split('T')[0]}
                 />
               </div>
               <div>
-                <Label className="text-sm font-semibold text-gray-900 mb-2 block">System</Label>
+                <Label className="text-sm font-semibold text-white mb-2 block">System</Label>
                 <div className="grid grid-cols-2 gap-2">
                   {[
                     { value: 'pythagorean', label: 'Pythagorean', desc: 'Most popular Western system' },
@@ -177,11 +177,11 @@ export default function Numerology() {
                       onClick={() => setForm(f => ({ ...f, system: sys.value }))}
                       className={`p-3 rounded-xl border-2 text-left transition-all ${
                         form.system === sys.value
-                          ? 'border-orange-600 bg-orange-600 text-white'
-                          : 'border-gray-200 bg-white text-gray-600 hover:border-orange-300'
+                          ? 'border-orange-600 gradient-primary text-white'
+                          : 'border-white/10 bg-white/5 text-gray-400 hover:border-[#E91E8C]/30'
                       }`}
                     >
-                      <div className={`font-semibold text-sm ${form.system === sys.value ? 'text-white' : 'text-gray-900'}`}>{sys.label}</div>
+                      <div className={`font-semibold text-sm ${form.system === sys.value ? 'text-white' : 'text-white'}`}>{sys.label}</div>
                       <div className={`text-xs mt-0.5 ${form.system === sys.value ? 'text-white/70' : 'text-gray-500'}`}>{sys.desc}</div>
                     </button>
                   ))}
@@ -190,7 +190,7 @@ export default function Numerology() {
               <Button
                 type="submit"
                 disabled={mutation.isPending}
-                className="w-full bg-orange-600 hover:bg-orange-700 text-white font-bold h-12 rounded-xl"
+                className="w-full gradient-primary hover:opacity-90 text-white font-bold h-12 rounded-xl"
               >
                 {mutation.isPending ? (
                   <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Calculating...</>
@@ -226,25 +226,25 @@ export default function Numerology() {
             </div>
 
             {/* What is life path */}
-            <Card className="shadow-sm border-gray-100">
+            <Card className=" border-white/5">
               <CardContent className="p-5">
-                <h4 className="font-bold text-gray-900 mb-3 flex items-center gap-2">
-                  <Sparkles className="w-4 h-4 text-orange-500" /> Understanding Your Numbers
+                <h4 className="font-bold text-white mb-3 flex items-center gap-2">
+                  <Sparkles className="w-4 h-4 text-[#E91E8C]" /> Understanding Your Numbers
                 </h4>
-                <div className="space-y-3 text-sm text-gray-600">
-                  <div className="flex gap-2"><span className="font-semibold text-gray-900 min-w-[140px]">Life Path ({result.lifePath}):</span> Your core purpose and the journey you're destined to take in this lifetime.</div>
-                  <div className="flex gap-2"><span className="font-semibold text-gray-900 min-w-[140px]">Destiny ({result.destiny}):</span> What you're meant to accomplish and the role you play in the world.</div>
-                  <div className="flex gap-2"><span className="font-semibold text-gray-900 min-w-[140px]">Soul Urge ({result.soul}):</span> Your innermost desires, motivations, and what truly makes you happy.</div>
-                  <div className="flex gap-2"><span className="font-semibold text-gray-900 min-w-[140px]">Personality ({result.personality}):</span> How others perceive you and the face you show the world.</div>
-                  <div className="flex gap-2"><span className="font-semibold text-gray-900 min-w-[140px]">Birthday ({result.birthday}):</span> A special talent or gift bestowed upon you at birth.</div>
+                <div className="space-y-3 text-sm text-gray-400">
+                  <div className="flex gap-2"><span className="font-semibold text-white min-w-[140px]">Life Path ({result.lifePath}):</span> Your core purpose and the journey you're destined to take in this lifetime.</div>
+                  <div className="flex gap-2"><span className="font-semibold text-white min-w-[140px]">Destiny ({result.destiny}):</span> What you're meant to accomplish and the role you play in the world.</div>
+                  <div className="flex gap-2"><span className="font-semibold text-white min-w-[140px]">Soul Urge ({result.soul}):</span> Your innermost desires, motivations, and what truly makes you happy.</div>
+                  <div className="flex gap-2"><span className="font-semibold text-white min-w-[140px]">Personality ({result.personality}):</span> How others perceive you and the face you show the world.</div>
+                  <div className="flex gap-2"><span className="font-semibold text-white min-w-[140px]">Birthday ({result.birthday}):</span> A special talent or gift bestowed upon you at birth.</div>
                 </div>
               </CardContent>
             </Card>
 
-            <div className="bg-gradient-to-r from-orange-600 to-amber-500 rounded-2xl p-4 text-center">
+            <div className="bg-gradient-to-r from-[#E91E8C] to-[#7B2FBE] rounded-2xl p-4 text-center">
               <p className="text-sm text-white/90 mb-3">Want a deeper numerology reading from an expert?</p>
               <Link href="/astrologers">
-                <Button className="bg-white text-orange-600 hover:bg-white/90 font-bold rounded-xl gap-2">
+                <Button className="bg-white/5 text-[#E91E8C] hover:bg-white/5/90 font-bold rounded-xl gap-2">
                   Talk to an Astrologer <ChevronRight className="w-4 h-4" />
                 </Button>
               </Link>
@@ -252,7 +252,7 @@ export default function Numerology() {
 
             <Button
               variant="outline"
-              className="w-full border-gray-200 rounded-xl"
+              className="w-full border-white/10 rounded-xl"
               onClick={() => { setResult(null); setForm({ firstName: '', lastName: '', dateOfBirth: '', system: 'pythagorean' }); }}
             >
               Calculate for Someone Else

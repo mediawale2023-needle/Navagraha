@@ -296,9 +296,9 @@ export default function AstrologerDashboard() {
   const { astrologer, stats } = dashboard;
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-white/3">
       {/* Header */}
-      <div className="sticky top-0 z-50 bg-[#FFCF23] shadow-sm">
+      <div className="sticky top-0 z-50 bg-[#0D0D0D] border-b border-white/5 shadow-sm">
         <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <Avatar className="w-10 h-10 border-2 border-[#1A1A1A]">
@@ -341,7 +341,7 @@ export default function AstrologerDashboard() {
         <div className="bg-green-50 border-b border-green-200 px-4 py-4">
           <div className="max-w-6xl mx-auto flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-green-100 flex items-center justify-center animate-bounce">
+              <div className="w-10 h-10 rounded-full bg-green-500/10 flex items-center justify-center animate-bounce">
                 {incomingSession.sessionType === 'voice' ? <Phone className="w-5 h-5 text-green-600" /> :
                   incomingSession.sessionType === 'video' ? <Video className="w-5 h-5 text-green-600" /> :
                   <MessageCircle className="w-5 h-5 text-green-600" />}

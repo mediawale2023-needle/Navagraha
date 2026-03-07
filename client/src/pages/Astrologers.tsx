@@ -80,13 +80,13 @@ export default function Astrologers() {
   const onlineCount = astrologers?.filter(isOnline).length || 0;
 
   return (
-    <div className="min-h-screen bg-[#FFF8F0] pb-20 md:pb-0">
+    <div className="min-h-screen bg-[#0D0D0D] text-white pb-20 md:pb-0">
       {/* Header */}
-      <div className="sticky top-0 z-50 bg-gradient-to-r from-orange-600 to-orange-500 shadow-lg">
+      <div className="sticky top-0 z-50 border-b border-white/5 ">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3">
           <div className="flex items-center gap-3">
             <Link href="/">
-              <button className="p-1.5 rounded-lg hover:bg-white/10" data-testid="button-back">
+              <button className="p-1.5 rounded-lg hover:bg-white/5/10" data-testid="button-back">
                 <ArrowLeft className="w-5 h-5 text-white" />
               </button>
             </Link>
@@ -108,7 +108,7 @@ export default function Astrologers() {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
             <Input
               placeholder="Search by name or specialization..."
-              className="pl-9 bg-white border-orange-200 rounded-xl h-10 focus:border-orange-400 focus:ring-orange-400 text-sm"
+              className="pl-9 bg-white/5 border-white/10 rounded-xl h-10 focus:border-[#E91E8C]/50 focus:ring-[#E91E8C]/30 text-sm"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               data-testid="input-search"
@@ -124,8 +124,8 @@ export default function Astrologers() {
               onClick={() => setActiveCategory(cat)}
               className={`flex-shrink-0 px-3.5 py-1.5 rounded-full text-xs font-semibold border transition-all ${
                 activeCategory === cat
-                  ? 'bg-orange-600 border-orange-600 text-white'
-                  : 'bg-white border-gray-200 text-gray-600 hover:border-orange-300'
+                  ? 'gradient-primary border-transparent text-white'
+                  : 'bg-white/5 border-white/10 text-gray-400 hover:border-[#E91E8C]/30'
               }`}
             >
               {cat}
@@ -136,11 +136,11 @@ export default function Astrologers() {
             className={`flex-shrink-0 px-3.5 py-1.5 rounded-full text-xs font-semibold border transition-all flex items-center gap-1.5 ${
               filterOnline
                 ? 'bg-green-600 border-green-600 text-white'
-                : 'bg-white border-gray-200 text-gray-600 hover:border-green-300'
+                : 'bg-white/5 border-white/10 text-gray-400 hover:border-green-300'
             }`}
             data-testid="button-filter-available"
           >
-            <div className={`w-1.5 h-1.5 rounded-full ${filterOnline ? 'bg-white animate-pulse' : 'bg-green-500'}`} />
+            <div className={`w-1.5 h-1.5 rounded-full ${filterOnline ? 'bg-white/5 animate-pulse' : 'bg-green-500'}`} />
             Online
           </button>
         </div>
@@ -158,7 +158,7 @@ export default function Astrologers() {
                 key={s}
                 onClick={() => setSortBy(s)}
                 className={`px-2.5 py-1 rounded-md text-[10px] font-semibold transition-colors ${
-                  sortBy === s ? 'bg-orange-100 text-orange-700' : 'text-gray-400 hover:text-gray-600'
+                  sortBy === s ? 'bg-[#E91E8C]/10 text-[#E91E8C]' : 'text-gray-400 hover:text-gray-400'
                 }`}
               >
                 {s === 'rating' ? 'Top Rated' : s === 'price' ? 'Price: Low' : 'Experience'}
@@ -179,27 +179,27 @@ export default function Astrologers() {
               return (
                 <div
                   key={astrologer.id}
-                  className="bg-white rounded-xl border border-gray-100 hover:shadow-md hover:border-orange-200 transition-all overflow-hidden"
+                  className="astronex-card  hover:border-white/10 transition-all overflow-hidden"
                   data-testid={`card-astrologer-${astrologer.id}`}
                 >
                   <div className="p-3">
                     <div className="flex gap-3">
                       <div className="relative flex-shrink-0">
-                        <Avatar className="w-14 h-14 ring-2 ring-orange-100">
+                        <Avatar className="w-14 h-14 ring-2 ring-[#E91E8C]/30">
                           <AvatarImage src={astrologer.profileImageUrl || undefined} alt={astrologer.name} />
-                          <AvatarFallback className="bg-gradient-to-br from-orange-400 to-amber-300 text-white font-bold text-lg">
+                          <AvatarFallback className="gradient-primary text-white font-bold text-lg">
                             {astrologer.name.charAt(0)}
                           </AvatarFallback>
                         </Avatar>
-                        <div className={`absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full border-2 border-white ${
+                        <div className={`absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full border-2 border-[#0D0D0D] ${
                           online ? 'bg-green-500' : astrologer.availability === 'busy' ? 'bg-yellow-400' : 'bg-gray-300'
                         }`} />
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-1 mb-0.5">
-                          <h3 className="font-bold text-sm text-gray-900 truncate">{astrologer.name}</h3>
+                          <h3 className="font-bold text-sm text-white truncate">{astrologer.name}</h3>
                           {astrologer.isVerified && (
-                            <CheckCircle2 className="w-3.5 h-3.5 text-blue-500 flex-shrink-0" />
+                            <CheckCircle2 className="w-3.5 h-3.5 text-[#E91E8C] flex-shrink-0" />
                           )}
                         </div>
                         <p className="text-[11px] text-gray-500 truncate">
@@ -209,8 +209,8 @@ export default function Astrologers() {
                           {astrologer.languages?.join(', ') || 'Hindi, English'}
                         </p>
                         <div className="flex items-center gap-1.5 mt-1">
-                          <Star className="w-3 h-3 fill-amber-400 text-amber-400" />
-                          <span className="text-xs font-bold text-gray-700">{astrologer.rating || '4.9'}</span>
+                          <Star className="w-3 h-3 fill-[#D4A853] text-[#D4A853]" />
+                          <span className="text-xs font-bold text-gray-300">{astrologer.rating || '4.9'}</span>
                           <span className="text-gray-300 text-xs">&bull;</span>
                           <span className="text-[11px] text-gray-500">{astrologer.experience || 10}yr</span>
                           <span className="text-gray-300 text-xs">&bull;</span>
@@ -220,7 +220,7 @@ export default function Astrologers() {
                     </div>
 
                     {/* Status + Price */}
-                    <div className="flex items-center justify-between mt-2 pt-2 border-t border-gray-50">
+                    <div className="flex items-center justify-between mt-2 pt-2 border-t border-white/5">
                       <div className="flex items-center gap-1.5">
                         {online ? (
                           <>
@@ -240,7 +240,7 @@ export default function Astrologers() {
                         )}
                       </div>
                       <div className="flex items-baseline gap-0.5">
-                        <span className="font-bold text-base text-gray-900">₹{astrologer.pricePerMinute || '25'}</span>
+                        <span className="font-bold text-base text-[#D4A853]">₹{astrologer.pricePerMinute || '25'}</span>
                         <span className="text-[10px] text-gray-400">/min</span>
                       </div>
                     </div>
@@ -250,7 +250,7 @@ export default function Astrologers() {
                       {isAuthenticated ? (
                         <>
                           <Link href={`/chat/${astrologer.id}`}>
-                            <Button size="sm" className="w-full bg-orange-600 hover:bg-orange-700 text-white font-semibold rounded-lg h-8 text-xs" data-testid={`button-chat-${astrologer.id}`}>
+                            <Button size="sm" className="w-full gradient-primary hover:opacity-90 text-white font-semibold rounded-lg h-8 text-xs" data-testid={`button-chat-${astrologer.id}`}>
                               <MessageCircle className="w-3 h-3 mr-1" /> Chat
                             </Button>
                           </Link>
@@ -260,20 +260,20 @@ export default function Astrologers() {
                             </Button>
                           </Link>
                           <Link href={`/call/${astrologer.id}?type=video`}>
-                            <Button size="sm" variant="outline" className="w-full border-indigo-200 text-indigo-600 hover:bg-indigo-50 font-semibold rounded-lg h-8 text-xs">
+                            <Button size="sm" variant="outline" className="w-full glass text-gray-300 hover:text-white font-semibold rounded-lg h-8 text-xs">
                               <Video className="w-3 h-3 mr-1" /> Video
                             </Button>
                           </Link>
                         </>
                       ) : (
                         <>
-                          <Button size="sm" className="w-full bg-orange-600 hover:bg-orange-700 text-white font-semibold rounded-lg h-8 text-xs" onClick={() => handleLoginRequired('chat')} data-testid={`button-chat-${astrologer.id}`}>
+                          <Button size="sm" className="w-full gradient-primary hover:opacity-90 text-white font-semibold rounded-lg h-8 text-xs" onClick={() => handleLoginRequired('chat')} data-testid={`button-chat-${astrologer.id}`}>
                             <MessageCircle className="w-3 h-3 mr-1" /> Chat
                           </Button>
                           <Button size="sm" className="w-full bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg h-8 text-xs" onClick={() => handleLoginRequired('call')} data-testid={`button-call-${astrologer.id}`}>
                             <Phone className="w-3 h-3 mr-1" /> Call
                           </Button>
-                          <Button size="sm" variant="outline" className="w-full border-indigo-200 text-indigo-600 hover:bg-indigo-50 font-semibold rounded-lg h-8 text-xs" onClick={() => handleLoginRequired('video call')}>
+                          <Button size="sm" variant="outline" className="w-full glass text-gray-300 hover:text-white font-semibold rounded-lg h-8 text-xs" onClick={() => handleLoginRequired('video call')}>
                             <Video className="w-3 h-3 mr-1" /> Video
                           </Button>
                         </>

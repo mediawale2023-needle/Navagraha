@@ -26,16 +26,16 @@ export default function Profile() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 pb-20 md:pb-0">
-      <div className="sticky top-0 z-50 bg-[#FFCF23] shadow-sm">
+    <div className="min-h-screen bg-[#0D0D0D] pb-20 md:pb-0">
+      <div className="sticky top-0 z-50 border-b border-white/5 ">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-3">
           <div className="flex items-center gap-3">
             <Link href="/">
-              <button className="p-2 rounded-xl hover:bg-[#1A1A1A]/10" data-testid="button-back">
-                <ArrowLeft className="w-5 h-5 text-[#1A1A1A]" />
+              <button className="p-2 rounded-xl hover:bg-white/5/5" data-testid="button-back">
+                <ArrowLeft className="w-5 h-5 text-white" />
               </button>
             </Link>
-            <h1 className="font-bold text-lg text-[#1A1A1A]">My Profile</h1>
+            <h1 className="font-bold text-lg text-white">My Profile</h1>
           </div>
         </div>
       </div>

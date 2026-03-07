@@ -201,13 +201,13 @@ export default function Wallet() {
   const balance = parseFloat(wallet?.balance || '0');
 
   return (
-    <div className="min-h-screen bg-[#FFF8F0]">
+    <div className="min-h-screen bg-[#0D0D0D] text-white">
       {/* Header */}
-      <div className="sticky top-0 z-50 bg-gradient-to-r from-orange-600 to-orange-500 shadow-lg">
+      <div className="sticky top-0 z-50 border-b border-white/5 ">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-3">
           <div className="flex items-center gap-3">
             <Link href="/">
-              <button className="p-2 rounded-xl hover:bg-white/10" data-testid="button-back">
+              <button className="p-2 rounded-xl hover:bg-white/5/10" data-testid="button-back">
                 <ArrowLeft className="w-5 h-5 text-white" />
               </button>
             </Link>
@@ -220,11 +220,11 @@ export default function Wallet() {
         <p className="text-muted-foreground mb-6">Recharge using UPI, cards, or pay later options</p>
 
         {/* Balance Card */}
-        <Card className="mb-6 bg-gradient-to-br from-orange-500 to-amber-400 border-orange-300">
+        <Card className="mb-6 bg-gradient-to-br from-orange-500 to-amber-400 border-[#E91E8C]/30">
           <CardContent className="p-6">
             <div className="flex items-center gap-3 mb-2">
               <WalletIcon className="w-7 h-7 text-white" />
-              <span className="text-base text-white/80 font-medium">Available Balance</span>
+              <span className="text-base text-[#D4A853]/80 font-medium">Available Balance</span>
             </div>
             <div className="text-5xl font-bold text-white mb-1" data-testid="text-balance">
               ₹{balance.toFixed(2)}
@@ -253,7 +253,7 @@ export default function Wallet() {
                   onClick={() => setPaymentMethod('razorpay')}
                   className={`p-4 rounded-xl border-2 text-left transition-all ${
                     paymentMethod === 'razorpay'
-                      ? 'border-orange-400 bg-orange-50'
+                      ? 'border-orange-400 bg-[#E91E8C]/5'
                       : 'border-border hover:border-orange-400'
                   }`}
                 >
@@ -306,7 +306,7 @@ export default function Wallet() {
               {/* Info banners */}
               {paymentMethod === 'snapmint' && (
                 <div className="mt-3 p-3 bg-blue-50 rounded-lg flex gap-2">
-                  <Info className="w-4 h-4 text-blue-500 flex-shrink-0 mt-0.5" />
+                  <Info className="w-4 h-4 text-[#E91E8C] flex-shrink-0 mt-0.5" />
                   <p className="text-xs text-blue-700">
                     Snapmint offers 0% EMI in 3, 6, or 9 installments with no credit card required.
                     Repayment via UPI. Also available inside Razorpay checkout.

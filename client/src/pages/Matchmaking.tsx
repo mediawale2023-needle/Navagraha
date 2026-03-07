@@ -76,19 +76,19 @@ export default function Matchmaking() {
   };
 
   const compatibilityColors = [
-    'bg-orange-500',
+    'gradient-primary',
     'bg-green-500',
     'bg-blue-500',
     'bg-rose-500',
   ];
 
   return (
-    <div className="min-h-screen bg-[#FFF8F0] pb-20">
+    <div className="min-h-screen bg-[#0D0D0D] text-white pb-20">
       {/* Header */}
-      <div className="bg-gradient-to-r from-orange-600 to-orange-500 px-4 pt-12 pb-8">
+      <div className="border-b border-white/5 px-4 pt-12 pb-8">
         <div className="max-w-5xl mx-auto">
           <Link href="/">
-            <button className="mb-4 p-2 rounded-lg hover:bg-white/10 transition-colors" data-testid="button-back">
+            <button className="mb-4 p-2 rounded-lg hover:bg-white/5/10 transition-colors" data-testid="button-back">
               <ArrowLeft className="w-5 h-5 text-white" />
             </button>
           </Link>
@@ -110,9 +110,9 @@ export default function Matchmaking() {
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {/* Person 1 */}
-                <Card className="border-orange-200 border-2 overflow-hidden">
-                  <CardHeader className="bg-orange-50 border-b border-orange-100">
-                    <CardTitle className="text-gray-900">Person 1 Details</CardTitle>
+                <Card className="border-white/10 border-2 overflow-hidden">
+                  <CardHeader className="bg-[#E91E8C]/5 border-b border-white/5">
+                    <CardTitle className="text-white">Person 1 Details</CardTitle>
                     <CardDescription>Enter first person's birth information</CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-4 pt-4">
@@ -205,7 +205,7 @@ export default function Matchmaking() {
                 {/* Person 2 */}
                 <Card className="border-indigo-200 border-2 overflow-hidden">
                   <CardHeader className="bg-indigo-50 border-b border-indigo-100">
-                    <CardTitle className="text-gray-900">Person 2 Details</CardTitle>
+                    <CardTitle className="text-white">Person 2 Details</CardTitle>
                     <CardDescription>Enter second person's birth information</CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-4 pt-4">
@@ -299,7 +299,7 @@ export default function Matchmaking() {
               <Button
                 type="submit"
                 size="lg"
-                className="w-full bg-orange-600 hover:bg-orange-700 text-white"
+                className="w-full gradient-primary hover:opacity-90 text-white"
                 disabled={mutation.isPending}
                 data-testid="button-calculate-compatibility"
               >
@@ -320,14 +320,14 @@ export default function Matchmaking() {
         ) : (
           <div className="space-y-6">
             {/* Overall Score */}
-            <Card className="overflow-hidden border-0 shadow-lg">
+            <Card className="overflow-hidden border-0 ">
               <CardContent className="p-0">
                 <div className="bg-gradient-to-br from-orange-600 to-orange-500 p-8 text-center">
                   <h2 className="font-serif text-2xl font-semibold mb-2 text-white">Compatibility Score</h2>
                   <p className="text-white/80 mb-4" data-testid="text-person-names">
                     {result.person1 || 'Person 1'} & {result.person2 || 'Person 2'}
                   </p>
-                  <div className="w-32 h-32 mx-auto rounded-full bg-white/20 flex items-center justify-center mb-3">
+                  <div className="w-32 h-32 mx-auto rounded-full bg-white/5/20 flex items-center justify-center mb-3">
                     <span className="text-6xl font-bold text-white" data-testid="text-compatibility-score">
                       {result.totalScore || 78}%
                     </span>
@@ -343,7 +343,7 @@ export default function Matchmaking() {
             {/* Detailed Breakdown */}
             <Card>
               <CardHeader>
-                <CardTitle className="text-gray-900">Compatibility Breakdown</CardTitle>
+                <CardTitle className="text-white">Compatibility Breakdown</CardTitle>
                 <CardDescription>Detailed analysis across different aspects</CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
@@ -355,8 +355,8 @@ export default function Matchmaking() {
                 ].map((item, i) => (
                   <div key={i}>
                     <div className="flex items-center justify-between mb-2">
-                      <span className="font-medium text-gray-900">{item.label}</span>
-                      <span className="text-2xl font-bold text-gray-900">{item.score}%</span>
+                      <span className="font-medium text-white">{item.label}</span>
+                      <span className="text-2xl font-bold text-white">{item.score}%</span>
                     </div>
                     <div className="h-3 w-full bg-gray-100 rounded-full overflow-hidden">
                       <div
@@ -372,7 +372,7 @@ export default function Matchmaking() {
             {/* Recommendations */}
             <Card>
               <CardHeader>
-                <CardTitle className="text-gray-900">Astrological Insights</CardTitle>
+                <CardTitle className="text-white">Astrological Insights</CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
@@ -419,7 +419,7 @@ export default function Matchmaking() {
               >
                 New Calculation
               </Button>
-              <Button className="flex-1 bg-orange-600 hover:bg-orange-700 text-white" data-testid="button-download-report">
+              <Button className="flex-1 gradient-primary hover:opacity-90 text-white" data-testid="button-download-report">
                 Download Report
               </Button>
             </div>
