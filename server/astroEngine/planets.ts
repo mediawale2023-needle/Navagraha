@@ -302,12 +302,15 @@ export function ascendant(jd: number, lat: number, lon: number): number {
   const theta = toRadians(armc);
   const epsilon = toRadians(eps);
   const phi = toRadians(lat);
-
   // Ecliptic longitude of Ascendant
-  // NOTE: The raw atan2(-cos, sin·tan + cos·sin) yields the *descendant*.
-  // Adding 180° gives the true ascendant (lagna).
-  const y = -Math.cos(theta);
-  const x = Math.sin(epsilon) * Math.tan(phi) + Math.cos(epsilon) * Math.sin(theta);
+  // Using the robust formulation from Swiss Ephemeris / standard lib
+  // Ascendant = atan2( cos(ARMC), -(sin(ARMC)*cos(eps) + tan(lat)*sin(eps)) )
 
-  return normalize360(toDegrees(Math.atan2(y, x)) + 180);
+  const y = Math.cos(theta); // numerator
+  const x = -(Math.sin(theta) * Math.cos(epsilon) + Math.tan(phi) * Math.sin(epsilon)); // denominator
+
+  // atan2(y, x) handles quadrant correctly for y, x plane based on ARMC
+  const ascTropical = toDegrees(Math.atan2(y, x));
+
+  return normalize360(ascTropical);
 }
