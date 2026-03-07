@@ -46,21 +46,21 @@ const PLANET_COLORS: Record<string, string> = {
 //   11 = right-upper triangle
 //   12 = top-right triangle
 
-// Refined text positions for each house — centroids of each triangular/diamond region
-// rx,ry = rashi number position; px,py = planet list start position
+// Refined text positions for each house (avoid overlaps)
+// rx,ry = rashi number position (inner corner/tip); px,py = planet list center position (outer body)
 const HOUSE_TEXT: Record<number, { rx: number; ry: number; px: number; py: number }> = {
-  1: { rx: 200, ry: 80, px: 200, py: 58 },   // top center diamond
-  2: { rx: 100, ry: 58, px: 80, py: 38 },   // upper left triangle
-  3: { rx: 55, ry: 120, px: 20, py: 110 },   // left upper triangle
-  4: { rx: 75, ry: 205, px: 20, py: 190 },   // left center diamond
-  5: { rx: 55, ry: 290, px: 20, py: 275 },   // left lower triangle
-  6: { rx: 100, ry: 350, px: 80, py: 335 },   // bottom left triangle
-  7: { rx: 200, ry: 335, px: 200, py: 350 },   // bottom center diamond
-  8: { rx: 300, ry: 350, px: 315, py: 335 },   // bottom right triangle
-  9: { rx: 345, ry: 290, px: 365, py: 275 },   // right lower triangle
-  10: { rx: 325, ry: 205, px: 365, py: 190 },   // right center diamond
-  11: { rx: 345, ry: 120, px: 365, py: 110 },   // right upper triangle
-  12: { rx: 300, ry: 58, px: 315, py: 38 },   // top right triangle
+  1: { rx: 200, ry: 175, px: 200, py: 80 },   // top center diamond
+  2: { rx: 110, ry: 85, px: 100, py: 45 },   // upper left triangle
+  3: { rx: 75, ry: 120, px: 45, py: 100 },   // left upper triangle
+  4: { rx: 160, ry: 205, px: 85, py: 200 },   // left center diamond
+  5: { rx: 75, ry: 290, px: 45, py: 310 },   // left lower triangle
+  6: { rx: 110, ry: 335, px: 100, py: 365 },   // bottom left triangle
+  7: { rx: 200, ry: 235, px: 200, py: 330 },   // bottom center diamond
+  8: { rx: 290, ry: 335, px: 300, py: 365 },   // bottom right triangle
+  9: { rx: 325, ry: 290, px: 355, py: 310 },   // right lower triangle
+  10: { rx: 240, ry: 205, px: 315, py: 200 },   // right center diamond
+  11: { rx: 325, ry: 120, px: 355, py: 100 },   // right upper triangle
+  12: { rx: 290, ry: 85, px: 300, py: 45 },   // top right triangle
 };
 
 interface PlanetPos {
@@ -83,6 +83,8 @@ function NorthIndianChart({ chartData }: { chartData?: any }) {
         if (pos.planet === 'Ascendant') {
           // Ascendant tells us the sign of house 1
           houseSign[1] = pos.sign;
+          // Add Ascendant to the house 1 list so it stacks nicely with planets
+          housePlanets[1] = [...(housePlanets[1] || []), pos];
         } else {
           housePlanets[h] = [...(housePlanets[h] || []), pos];
         }
@@ -96,11 +98,6 @@ function NorthIndianChart({ chartData }: { chartData?: any }) {
       houseSign[h.house] = h.sign;
     }
   }
-
-  // Find ascendant entry for degree display
-  const ascEntry = (chartData?.planetaryPositions as PlanetPos[] | undefined)?.find(
-    (p) => p.planet === 'Ascendant'
-  );
 
   const S = 400; // viewBox size
   const M = S / 2; // midpoint = 200
@@ -127,13 +124,6 @@ function NorthIndianChart({ chartData }: { chartData?: any }) {
         {/* Diagonal crosses — corner to corner */}
         <line x1="4" y1="4" x2={S - 4} y2={S - 4} stroke="#8B6914" strokeWidth="1.5" />
         <line x1={S - 4} y1="4" x2="4" y2={S - 4} stroke="#8B6914" strokeWidth="1.5" />
-
-        {/* House 1 — Ascendant label */}
-        {ascEntry && (
-          <text x={M} y={52} textAnchor="middle" fontSize="10" fill="#c53030" fontWeight="600">
-            Asc-{ascEntry.degree}°
-          </text>
-        )}
 
         {/* Rashi numbers for each house */}
         {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((h) => {
@@ -162,11 +152,12 @@ function NorthIndianChart({ chartData }: { chartData?: any }) {
           const pos = HOUSE_TEXT[h];
           if (!pos || planets.length === 0) return null;
 
-          // Determine text anchor based on position
-          const anchor = pos.px < 100 ? 'start' : pos.px > 300 ? 'end' : 'middle';
+          // Vertically center the text stack within the shape area
+          const totalHeight = planets.length * 14;
+          const startY = pos.py - (totalHeight / 2) + 7;
 
           return planets.map((p, i) => {
-            const abbr = PLANET_ABBR[p.planet] ?? p.planet.slice(0, 2);
+            const abbr = PLANET_ABBR[p.planet] ?? (p.planet === 'Ascendant' ? 'Asc' : p.planet.slice(0, 2));
             const color = PLANET_COLORS[abbr] || '#1a202c';
             const retro = p.isRetrograde ? '®' : '';
             const label = `${abbr}-${p.degree}°${retro}`;
@@ -175,8 +166,8 @@ function NorthIndianChart({ chartData }: { chartData?: any }) {
               <text
                 key={`${h}-${p.planet}`}
                 x={pos.px}
-                y={pos.py + i * 14}
-                textAnchor={anchor}
+                y={startY + i * 14}
+                textAnchor="middle"
                 fontSize="9.5"
                 fontWeight="600"
                 fill={color}
