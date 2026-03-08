@@ -21,12 +21,12 @@ const HERO_BANNERS = [
 ];
 
 const CATEGORIES = [
-  { label: 'Chat\nConsult', icon: MessageCircle },
-  { label: 'Voice\nCall', icon: Phone },
-  { label: 'Deep\nReading', icon: Video },
-  { label: 'Birth\nChart', icon: Sun },
-  { label: 'Match\nMaking', icon: Heart },
-  { label: 'Life\nPath', icon: Hash },
+  { label: 'Chat\nConsult', icon: MessageCircle, href: '/astrologers' },
+  { label: 'Voice\nCall', icon: Phone, href: '/astrologers' },
+  { label: 'Deep\nReading', icon: Video, href: '/astrologers' },
+  { label: 'Birth\nChart', icon: Sun, href: '/kundli/new' },
+  { label: 'Match\nMaking', icon: Heart, href: '/kundli/matchmaking' },
+  { label: 'Life\nPath', icon: Hash, href: '/numerology' },
 ];
 
 export default function Landing() {
@@ -152,14 +152,14 @@ export default function Landing() {
         </motion.div>
 
         <motion.div
-          className="absolute right-[5%] top-[30%] w-72 h-96 astronex-card hidden lg:flex flex-col p-6 animate-float opacity-80 rotate-[5deg]"
+          className="absolute right-[5%] top-[30%] w-60 h-80 sm:w-72 sm:h-96 astronex-card hidden lg:flex flex-col p-6 animate-float opacity-80 rotate-[5deg]"
           style={{ animationDelay: '-3s' }}
         >
           <div className="flex justify-between items-center mb-6">
             <div className="h-4 w-24 bg-white/20 rounded" />
             <Moon className="w-6 h-6 text-[#D4A853]" />
           </div>
-          <div className="flex-1 w-full rounded-[2rem] border border-[#D4A853]/20 flex items-center justify-center relative overflow-hidden">
+          <div className="flex-1 w-full rounded-3xl md:rounded-[2rem] border border-[#D4A853]/20 flex items-center justify-center relative overflow-hidden">
             <div className="absolute inset-0 bg-[#D4A853]/5" />
             <div className="w-24 h-24 rounded-full border border-[#D4A853]/30" />
             <div className="w-16 h-16 rounded-full border border-[#D4A853]/50 absolute" />
@@ -176,23 +176,23 @@ export default function Landing() {
           </div>
 
           <div className="flex flex-wrap justify-center gap-6">
-            {CATEGORIES.map(({ label, icon: Icon }, idx) => (
-              <motion.button
-                key={label}
-                initial={{ opacity: 0, scale: 0.9 }}
-                whileInView={{ opacity: 1, scale: 1 }}
-                viewport={{ once: true }}
-                transition={{ duration: 0.5, delay: idx * 0.1 }}
-                onClick={() => window.location.href = '/api/auth/google'}
-                className="w-32 sm:w-40 aspect-square astronex-card flex flex-col items-center justify-center gap-4 group hover:-translate-y-2 transition-transform duration-500"
-              >
-                <div className="w-16 h-16 rounded-[1.5rem] glass-pill flex items-center justify-center group-hover:bg-[#E27689]/20 group-hover:border-[#E27689]/40 transition-colors duration-500">
-                  <Icon className="w-8 h-8 text-[#E27689] group-hover:scale-110 transition-transform duration-500" />
-                </div>
-                <span className="text-sm font-medium text-gray-300 text-center leading-tight whitespace-pre-line group-hover:text-white">
-                  {label}
-                </span>
-              </motion.button>
+            {CATEGORIES.map(({ label, icon: Icon, href }, idx) => (
+              <Link key={label} href={href}>
+                <motion.button
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  whileInView={{ opacity: 1, scale: 1 }}
+                  viewport={{ once: true }}
+                  transition={{ duration: 0.5, delay: idx * 0.1 }}
+                  className="w-32 sm:w-40 aspect-square astronex-card flex flex-col items-center justify-center gap-4 group hover:-translate-y-2 transition-transform duration-500 rounded-3xl md:rounded-[2rem]"
+                >
+                  <div className="w-16 h-16 rounded-[1.5rem] glass-pill flex items-center justify-center group-hover:bg-[#E27689]/20 group-hover:border-[#E27689]/40 transition-colors duration-500">
+                    <Icon className="w-8 h-8 text-[#E27689] group-hover:scale-110 transition-transform duration-500" />
+                  </div>
+                  <span className="text-sm font-medium text-gray-300 text-center leading-tight whitespace-pre-line group-hover:text-white">
+                    {label}
+                  </span>
+                </motion.button>
+              </Link>
             ))}
           </div>
         </div>
@@ -256,12 +256,13 @@ export default function Landing() {
                     <span className="font-bold text-2xl text-[#D4A853]">₹{astrologer?.pricePerMinute || '25'}</span>
                     <span className="text-sm text-gray-500 font-medium">/min</span>
                   </div>
-                  <Button
-                    className="glass-pill-active text-white font-bold h-10 px-6 hover:scale-105 transition-transform"
-                    onClick={() => window.location.href = '/api/auth/google'}
-                  >
-                    Connect
-                  </Button>
+                  <Link href={`/chat/${astrologer?.id}`}>
+                    <Button
+                      className="glass-pill-active text-white font-bold h-10 px-6 hover:scale-105 transition-transform"
+                    >
+                      Connect
+                    </Button>
+                  </Link>
                 </div>
               </motion.div>
             ))}

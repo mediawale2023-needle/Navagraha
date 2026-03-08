@@ -38,7 +38,7 @@ export default function Home() {
   });
 
   const { data: horoscope, isLoading: horoscopeLoading } = useQuery<{ prediction: string }>({
-    queryKey: ['/api/horoscope', selectedSign],
+    queryKey: ['/api/horoscope/daily', selectedSign],
   });
 
   const { data: astrologers, isLoading: astrologersLoading } = useQuery<Astrologer[]>({
@@ -215,8 +215,8 @@ export default function Home() {
                 key={sign}
                 onClick={() => setSelectedSign(sign)}
                 className={`shrink-0 p-3 w-[72px] rounded-2xl transition-all flex flex-col items-center gap-2 ${selectedSign === sign
-                    ? 'gradient-primary text-white shadow-lg glow-pink scale-105'
-                    : 'glass hover:bg-white/10 text-gray-400'
+                  ? 'gradient-primary text-white shadow-lg glow-pink scale-105'
+                  : 'glass hover:bg-white/10 text-gray-400'
                   }`}
                 data-testid={`zodiac-${sign}`}
                 title={sign.charAt(0).toUpperCase() + sign.slice(1)}
@@ -339,9 +339,8 @@ export default function Home() {
         </div>
       </main>
 
-      {/* Spacing for bottom nav */}
-      <div className="h-20" />
-      <BottomNav />
+      {/* Spacing for bottom nav which is provided by App.tsx */}
+      <div className="h-24" />
     </div>
   );
 }
