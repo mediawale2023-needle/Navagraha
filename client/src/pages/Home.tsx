@@ -159,13 +159,13 @@ export default function Home() {
                   <button
                     key={tab.label}
                     onClick={scrollToHoroscope}
-                    className="shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold text-white/50 hover:text-white hover:bg-white/5 transition-colors whitespace-nowrap"
+                    className="shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold text-foreground/50 hover:text-foreground hover:bg-foreground/5 transition-colors whitespace-nowrap"
                   >
                     {tab.label}
                   </button>
                 ) : (
                   <Link key={tab.label} href={tab.href!}>
-                    <button className="shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold text-white/50 hover:text-white hover:bg-white/5 transition-colors whitespace-nowrap">
+                    <button className="shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold text-foreground/50 hover:text-foreground hover:bg-foreground/5 transition-colors whitespace-nowrap">
                       {tab.label}
                     </button>
                   </Link>
@@ -177,9 +177,9 @@ export default function Home() {
           {/* Right: Wallet + Profile Avatar Dropdown */}
           <div className="flex items-center gap-2 shrink-0">
             <Link href="/wallet">
-              <button className="flex items-center gap-1.5 glass-pill px-3 py-1.5 hover:bg-white/10 transition-colors" data-testid="nav-link-wallet">
+              <button className="flex items-center gap-1.5 glass-pill px-3 py-1.5 hover:bg-foreground/5 transition-colors" data-testid="nav-link-wallet">
                 <Wallet className="w-3.5 h-3.5 text-[var(--gold)]" />
-                <span className="font-bold text-white text-xs">₹{wallet?.balance || '0'}</span>
+                <span className="font-bold text-foreground text-xs">₹{wallet?.balance || '0'}</span>
               </button>
             </Link>
 
@@ -194,25 +194,25 @@ export default function Home() {
                   </Avatar>
                 </button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-48 bg-card border-white/10">
+              <DropdownMenuContent align="end" className="w-48 bg-card border-foreground/10">
                 <div className="px-3 py-2">
-                  <p className="text-sm font-bold text-white">{user?.firstName || 'Seeker'}</p>
-                  <p className="text-xs text-white/40">{user?.email || ''}</p>
+                  <p className="text-sm font-bold text-foreground">{user?.firstName || 'Seeker'}</p>
+                  <p className="text-xs text-foreground/40">{user?.email || ''}</p>
                 </div>
-                <DropdownMenuSeparator className="bg-white/5" />
+                <DropdownMenuSeparator className="bg-foreground/5" />
                 <Link href="/profile">
-                  <DropdownMenuItem className="text-white/70 hover:text-white cursor-pointer">
+                  <DropdownMenuItem className="text-foreground/70 hover:text-foreground cursor-pointer">
                     <User className="w-4 h-4 mr-2" /> My Profile
                   </DropdownMenuItem>
                 </Link>
                 <Link href="/wallet">
-                  <DropdownMenuItem className="text-white/70 hover:text-white cursor-pointer">
+                  <DropdownMenuItem className="text-foreground/70 hover:text-foreground cursor-pointer">
                     <Wallet className="w-4 h-4 mr-2" /> Wallet
                   </DropdownMenuItem>
                 </Link>
-                <DropdownMenuSeparator className="bg-white/5" />
+                <DropdownMenuSeparator className="bg-foreground/5" />
                 <DropdownMenuItem
-                  className="text-red-400 hover:text-red-300 cursor-pointer"
+                  className="text-red-500 hover:text-red-600 cursor-pointer"
                   onClick={() => window.location.href = '/api/logout'}
                   data-testid="button-logout"
                 >
@@ -287,7 +287,7 @@ export default function Home() {
            ═══════════════════════════════════════════════════════ */}
         {featuredAstrologer && (
           <div className="mb-8">
-            <h3 className="font-bold text-lg text-white tracking-tight mb-4 px-1">Featured Astrologer</h3>
+            <h3 className="font-bold text-lg text-foreground tracking-tight mb-4 px-1">Featured Astrologer</h3>
             <div className="astronex-card p-6 flex flex-col sm:flex-row items-center gap-5">
               {/* Large Photo */}
               <div className="relative shrink-0">
@@ -305,21 +305,21 @@ export default function Home() {
               {/* Info + Actions */}
               <div className="flex-1 text-center sm:text-left">
                 <div className="flex items-center justify-center sm:justify-start gap-2 mb-1">
-                  <h4 className="font-bold text-xl text-white">{featuredAstrologer.name}</h4>
-                  {featuredAstrologer.isVerified && <CheckCircle2 className="w-4 h-4 text-[var(--gold)]" />}
+                  <h4 className="font-bold text-xl text-foreground">{featuredAstrologer.name}</h4>
+                  {featuredAstrologer.isVerified && <CheckCircle2 className="w-4 h-4 text-[var(--turmeric)]" />}
                 </div>
-                <p className="text-xs text-white/45 font-medium mb-1">
+                <p className="text-xs text-foreground/50 font-medium mb-1">
                   {featuredAstrologer.specializations?.slice(0, 3).join(', ') || 'Vedic, Numerology, Tarot'}
                 </p>
                 <div className="flex items-center justify-center sm:justify-start gap-3 mb-4">
                   <div className="flex items-center gap-1">
-                    <Star className="w-3.5 h-3.5 fill-[var(--gold)] text-[var(--gold)]" />
-                    <span className="text-sm font-bold text-white/80">{featuredAstrologer.rating || '4.9'}</span>
+                    <Star className="w-3.5 h-3.5 fill-[var(--turmeric)] text-[var(--turmeric)]" />
+                    <span className="text-sm font-bold text-foreground/80">{featuredAstrologer.rating || '4.9'}</span>
                   </div>
-                  <span className="text-white/15">&bull;</span>
-                  <span className="text-xs text-white/40">{featuredAstrologer.experience || 10}y exp</span>
-                  <span className="text-white/15">&bull;</span>
-                  <span className="text-sm font-bold text-[var(--gold)]">₹{featuredAstrologer.pricePerMinute || '25'}<span className="text-xs text-white/30 font-medium">/min</span></span>
+                  <span className="text-foreground/15">&bull;</span>
+                  <span className="text-xs text-foreground/50">{featuredAstrologer.experience || 10}y exp</span>
+                  <span className="text-foreground/15">&bull;</span>
+                  <span className="text-sm font-bold text-[var(--turmeric)]">₹{featuredAstrologer.pricePerMinute || '25'}<span className="text-xs text-foreground/40 font-medium">/min</span></span>
                 </div>
 
                 <div className="flex items-center gap-3 justify-center sm:justify-start">
@@ -344,9 +344,9 @@ export default function Home() {
            ═══════════════════════════════════════════════════════ */}
         <div className="mb-8">
           <div className="flex items-center justify-between mb-4 px-1">
-            <h3 className="font-bold text-lg text-white tracking-tight">Astrology Services</h3>
+            <h3 className="font-bold text-lg text-foreground tracking-tight">Astrology Services</h3>
             <Link href="/astrologers">
-              <button className="text-xs font-semibold text-[var(--gold)] hover:text-white transition-colors flex items-center gap-1">
+              <button className="text-xs font-semibold text-[var(--turmeric)] hover:text-foreground transition-colors flex items-center gap-1">
                 View All <ChevronRight className="w-3.5 h-3.5" />
               </button>
             </Link>
@@ -357,10 +357,10 @@ export default function Home() {
               return (
                 <Link key={id} href={href || '#'}>
                   <div className="astronex-card p-5 flex flex-col items-start gap-3 cursor-pointer group hover:-translate-y-0.5 transition-transform duration-300 min-h-[120px]">
-                    <div className={`w-11 h-11 rounded-2xl bg-gradient-to-br ${gradient || 'from-white/10 to-white/5'} flex items-center justify-center`}>
-                      <IconComp className="w-5 h-5 text-white/80" />
+                    <div className={`w-11 h-11 rounded-2xl bg-gradient-to-br ${gradient || 'from-foreground/10 to-foreground/5'} flex items-center justify-center`}>
+                      <IconComp className="w-5 h-5 text-foreground/80" />
                     </div>
-                    <span className="text-sm font-bold text-white/80 leading-tight whitespace-pre-line group-hover:text-white transition-colors">
+                    <span className="text-sm font-bold text-foreground/80 leading-tight whitespace-pre-line group-hover:text-foreground transition-colors">
                       {title}
                     </span>
                   </div>
@@ -374,8 +374,8 @@ export default function Home() {
             FREE ASTROLOGY SERVICES
            ═══════════════════════════════════════════════════════ */}
         <div className="mb-8">
-          <h3 className="font-bold text-lg text-white tracking-tight mb-4 px-1">
-            <span className="text-emerald-400">FREE</span> Astrology Services
+          <h3 className="font-bold text-lg text-foreground tracking-tight mb-4 px-1">
+            <span className="text-primary">FREE</span> Astrology Services
           </h3>
           <div className="grid grid-cols-2 gap-3">
             {freeServices.map(({ id, href, icon, title, subtitle }) => {
@@ -383,12 +383,12 @@ export default function Home() {
               const isAnchor = href?.startsWith('#');
               const content = (
                 <div className="astronex-card p-4 flex flex-col items-center text-center gap-2.5 cursor-pointer group hover:-translate-y-0.5 transition-transform duration-300 h-full">
-                  <div className="w-12 h-12 rounded-full glass flex items-center justify-center group-hover:bg-[var(--rose)]/10 transition-colors shrink-0">
-                    <IconComp className="w-5 h-5 text-[var(--rose)]" />
+                  <div className="w-12 h-12 rounded-full glass flex items-center justify-center group-hover:bg-[var(--magenta)]/10 transition-colors shrink-0">
+                    <IconComp className="w-5 h-5 text-primary" />
                   </div>
                   <div>
-                    <p className="text-sm font-bold text-white/80 leading-tight group-hover:text-white transition-colors">{title}</p>
-                    {subtitle && <p className="text-[10px] text-white/30 mt-0.5">{subtitle}</p>}
+                    <p className="text-sm font-bold text-foreground/80 leading-tight group-hover:text-foreground transition-colors">{title}</p>
+                    {subtitle && <p className="text-[10px] text-foreground/50 mt-0.5">{subtitle}</p>}
                   </div>
                 </div>
               );
@@ -414,14 +414,14 @@ export default function Home() {
             TODAY'S HOROSCOPE
            ═══════════════════════════════════════════════════════ */}
         <div ref={horoscopeRef} id="horoscope" className="mb-10 astronex-card overflow-hidden scroll-mt-20">
-          <div className="px-6 pt-6 pb-4 flex items-center justify-between border-b border-white/[0.03]">
+          <div className="px-6 pt-6 pb-4 flex items-center justify-between border-b border-foreground/[0.05]">
             <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-full bg-[var(--gold)]/10 flex items-center justify-center">
-                <Sun className="w-4 h-4 text-[var(--gold)]" />
+              <div className="w-8 h-8 rounded-full bg-[var(--turmeric)]/10 flex items-center justify-center">
+                <Sun className="w-4 h-4 text-[var(--turmeric)]" />
               </div>
-              <h3 className="font-bold text-lg text-white tracking-tight">Today's Horoscope</h3>
+              <h3 className="font-bold text-lg text-foreground tracking-tight">Today's Horoscope</h3>
             </div>
-            <span className="text-[11px] text-white/30 font-medium bg-white/[0.03] px-3 py-1 rounded-full">Select Sign</span>
+            <span className="text-[11px] text-foreground/50 font-medium bg-foreground/[0.03] px-3 py-1 rounded-full">Select Sign</span>
           </div>
 
           <div className="px-6 py-4 overflow-x-auto scrollbar-hide flex gap-2">
@@ -431,12 +431,12 @@ export default function Home() {
                 onClick={() => setSelectedSign(sign)}
                 className={`shrink-0 p-3 w-[68px] rounded-2xl transition-all flex flex-col items-center gap-2 ${selectedSign === sign
                   ? 'gradient-primary text-white shadow-lg glow-pink scale-105'
-                  : 'glass hover:bg-white/[0.06] text-white/45'
+                  : 'glass hover:bg-foreground/[0.03] text-foreground/60'
                   }`}
                 data-testid={`zodiac-${sign}`}
                 title={sign.charAt(0).toUpperCase() + sign.slice(1)}
               >
-                <ZodiacIcon sign={sign} className={`w-5 h-5 ${selectedSign === sign ? 'text-white' : 'text-[var(--gold)]'}`} />
+                <ZodiacIcon sign={sign} className={`w-5 h-5 ${selectedSign === sign ? 'text-white' : 'text-[var(--turmeric)]'}`} />
                 <span className="text-[10px] font-bold capitalize leading-none tracking-wide">{sign.slice(0, 3)}</span>
               </button>
             ))}
@@ -449,26 +449,26 @@ export default function Home() {
               </div>
             ) : (
               <div className="glass rounded-2xl p-6 relative overflow-hidden">
-                <div className="absolute -top-10 -right-10 w-28 h-28 bg-[var(--rose)]/[0.04] rounded-full blur-2xl" />
-                <h4 className="font-bold text-white capitalize mb-4 text-base flex items-center gap-2">
-                  <span className="inline-block w-1.5 h-1.5 rounded-full bg-[var(--rose)]" />
+                <div className="absolute -top-10 -right-10 w-28 h-28 bg-[var(--magenta)]/[0.04] rounded-full blur-2xl" />
+                <h4 className="font-bold text-foreground capitalize mb-4 text-base flex items-center gap-2">
+                  <span className="inline-block w-1.5 h-1.5 rounded-full bg-[var(--magenta)]" />
                   {selectedSign} Insights
                 </h4>
-                <p className="text-sm text-white/60 leading-relaxed font-medium mb-6">
+                <p className="text-sm text-foreground/70 leading-relaxed font-medium mb-6">
                   {horoscope?.prediction || "Today brings new opportunities for growth. The cosmic energies encourage you to trust your intuition and embrace positive changes."}
                 </p>
                 <div className="grid grid-cols-3 gap-3">
                   {[
-                    { icon: Heart, label: 'Love', stars: 4, color: 'text-[var(--rose)]' },
-                    { icon: TrendingUp, label: 'Career', stars: 3, color: 'text-[var(--gold)]' },
-                    { icon: Activity, label: 'Health', stars: 4, color: 'text-emerald-400' },
+                    { icon: Heart, label: 'Love', stars: 4, color: 'text-[var(--magenta)]' },
+                    { icon: TrendingUp, label: 'Career', stars: 3, color: 'text-[var(--turmeric)]' },
+                    { icon: Activity, label: 'Health', stars: 4, color: 'text-primary' },
                   ].map(({ icon: Icon, label, stars, color }) => (
-                    <div key={label} className="bg-white/[0.02] rounded-xl p-3 text-center border border-white/[0.03]">
+                    <div key={label} className="bg-foreground/[0.02] rounded-xl p-3 text-center border border-foreground/[0.03]">
                       <Icon className={`w-4 h-4 ${color} mx-auto mb-2`} />
-                      <p className="text-[11px] font-semibold text-white/35 mb-2">{label}</p>
+                      <p className="text-[11px] font-semibold text-foreground/50 mb-2">{label}</p>
                       <div className="flex gap-0.5 justify-center">
                         {Array.from({ length: 5 }).map((_, i) => (
-                          <Star key={i} className={`w-2.5 h-2.5 ${i < stars ? 'fill-[var(--gold)] text-[var(--gold)]' : 'text-white/10'}`} />
+                          <Star key={i} className={`w-2.5 h-2.5 ${i < stars ? 'fill-[var(--turmeric)] text-[var(--turmeric)]' : 'text-foreground/10'}`} />
                         ))}
                       </div>
                     </div>

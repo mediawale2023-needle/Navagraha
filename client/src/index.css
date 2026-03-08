@@ -6,64 +6,77 @@
 
 @layer base {
   :root {
-    /* AstroNex Deep Space Background */
-    --background: 260 30% 5%;
-    --foreground: 0 0% 98%;
+    /* Desi Theme - Sand Beige Background */
+    --background: 49 43% 85%;
+    --foreground: 227 59% 12%;
 
-    --card: 260 25% 9%;
-    --card-foreground: 0 0% 95%;
+    --card: 49 50% 92%;
+    --card-foreground: 227 59% 12%;
 
-    --popover: 260 30% 7%;
-    --popover-foreground: 0 0% 95%;
+    --popover: 49 50% 92%;
+    --popover-foreground: 227 59% 12%;
 
-    /* Soft rose-magenta primary */
-    --primary: 340 60% 55%;
+    /* Magenta Pink primary */
+    --primary: 336 81% 51%;
     --primary-foreground: 0 0% 100%;
 
-    --secondary: 260 25% 13%;
-    --secondary-foreground: 0 0% 98%;
+    /* Teal secondary */
+    --secondary: 180 73% 38%;
+    --secondary-foreground: 0 0% 100%;
 
-    --muted: 260 25% 11%;
-    --muted-foreground: 260 10% 55%;
+    /* Darker beige for muted elements */
+    --muted: 49 30% 75%;
+    --muted-foreground: 227 30% 40%;
 
-    --accent: 340 60% 55%;
-    --accent-foreground: 0 0% 100%;
+    /* Turmeric Yellow accent */
+    --accent: 38 90% 53%;
+    --accent-foreground: 227 59% 12%;
 
     --destructive: 0 62% 30%;
     --destructive-foreground: 0 0% 98%;
 
-    --border: 260 20% 13%;
-    --input: 260 25% 13%;
-    --ring: 340 60% 55%;
+    --border: 49 30% 75%;
+    --input: 49 30% 75%;
+    --ring: 336 81% 51%;
 
     --radius: 1.25rem;
 
-    /* Semantic accent palette */
+    /* Semantic accent palette (matching exact brand hexes) */
     --gold: #D4A853;
+    /* Retaining gold for legacy support, but new highlights use Turmeric */
     --rose: #E27689;
-    --magenta: #A24268;
+    /* Retaining rose for legacy support, primary CTA is Magenta Pink */
+    --magenta: #E61C6E;
+    /* Updated to Magenta Pink */
+    --teal: #1AA6A5;
+    /* New */
+    --turmeric: #F4A51C;
+    /* New */
+    --navy: #0D1533;
+    /* New */
   }
 
+  /* Force the app into the light desi theme regardless of OS presence */
   .dark {
-    --background: 260 30% 5%;
-    --foreground: 0 0% 98%;
-    --card: 260 25% 9%;
-    --card-foreground: 0 0% 95%;
-    --popover: 260 30% 7%;
-    --popover-foreground: 0 0% 95%;
-    --primary: 340 60% 55%;
+    --background: 49 43% 85%;
+    --foreground: 227 59% 12%;
+    --card: 49 50% 92%;
+    --card-foreground: 227 59% 12%;
+    --popover: 49 50% 92%;
+    --popover-foreground: 227 59% 12%;
+    --primary: 336 81% 51%;
     --primary-foreground: 0 0% 100%;
-    --secondary: 260 25% 13%;
-    --secondary-foreground: 0 0% 98%;
-    --muted: 260 25% 11%;
-    --muted-foreground: 260 10% 55%;
-    --accent: 340 60% 55%;
-    --accent-foreground: 0 0% 100%;
+    --secondary: 180 73% 38%;
+    --secondary-foreground: 0 0% 100%;
+    --muted: 49 30% 75%;
+    --muted-foreground: 227 30% 40%;
+    --accent: 38 90% 53%;
+    --accent-foreground: 227 59% 12%;
     --destructive: 0 62% 30%;
     --destructive-foreground: 0 0% 98%;
-    --border: 260 20% 13%;
-    --input: 260 25% 13%;
-    --ring: 340 60% 55%;
+    --border: 49 30% 75%;
+    --input: 49 30% 75%;
+    --ring: 336 81% 51%;
   }
 
   * {
@@ -91,131 +104,134 @@
 
 @layer utilities {
 
-  /* ── AstroNex Gradients ─────────────────────────────── */
+  /* ── Desi Gradients ─────────────────────────────── */
   .gradient-primary {
-    background: linear-gradient(135deg, #E27689 0%, #A24268 100%);
+    background: linear-gradient(135deg, #E61C6E 0%, #F4A51C 100%);
   }
 
   .gradient-text {
-    background: linear-gradient(135deg, #FFFFFF 0%, rgba(255, 255, 255, 0.6) 100%);
+    background: linear-gradient(135deg, #0D1533 0%, #1AA6A5 100%);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
   }
 
   .gradient-text-accent {
-    background: linear-gradient(135deg, #E27689 0%, #D4A853 100%);
+    background: linear-gradient(135deg, #E61C6E 0%, #F4A51C 100%);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
   }
 
-  /* ── AstroNex Glass Cards ───────────────────────────── */
+  /* ── Desi Glass Cards ───────────────────────────── */
   .astronex-card {
     background: linear-gradient(145deg,
-        rgba(255, 255, 255, 0.04) 0%,
-        rgba(255, 255, 255, 0.01) 100%);
+        rgba(255, 255, 255, 0.6) 0%,
+        rgba(255, 255, 255, 0.3) 100%);
     backdrop-filter: blur(40px);
     -webkit-backdrop-filter: blur(40px);
-    border: 1px solid rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.8);
     box-shadow:
-      0 20px 40px rgba(0, 0, 0, 0.3),
-      inset 0 1px 0 rgba(255, 255, 255, 0.06);
+      0 10px 30px rgba(13, 21, 51, 0.05),
+      inset 0 1px 0 rgba(255, 255, 255, 1);
     border-radius: 1.5rem;
   }
 
   /* Glass sub-elements (buttons, pills, tabs) */
   .glass {
-    background: rgba(255, 255, 255, 0.04);
+    background: rgba(255, 255, 255, 0.6);
     backdrop-filter: blur(20px);
     -webkit-backdrop-filter: blur(20px);
-    border: 1px solid rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.7);
   }
 
   .glass-pill {
-    background: rgba(255, 255, 255, 0.05);
+    background: rgba(255, 255, 255, 0.5);
     backdrop-filter: blur(20px);
     -webkit-backdrop-filter: blur(20px);
-    border: 1px solid rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.6);
     border-radius: 3rem;
   }
 
   .glass-pill-active {
     background: linear-gradient(135deg,
-        rgba(226, 118, 137, 0.15) 0%,
-        rgba(162, 66, 104, 0.15) 100%);
+        rgba(230, 28, 110, 0.15) 0%,
+        rgba(244, 165, 28, 0.15) 100%);
     backdrop-filter: blur(20px);
     -webkit-backdrop-filter: blur(20px);
-    border: 1px solid rgba(226, 118, 137, 0.25);
+    border: 1px solid rgba(230, 28, 110, 0.3);
     border-radius: 3rem;
-    box-shadow: 0 0 24px rgba(226, 118, 137, 0.08);
+    box-shadow: 0 0 16px rgba(230, 28, 110, 0.1);
   }
 
   /* ── Background Effects ──────────────────────────────── */
   .celestial-bg {
     background:
-      radial-gradient(circle at 15% 50%, rgba(226, 118, 137, 0.06) 0%, transparent 50%),
-      radial-gradient(circle at 85% 30%, rgba(162, 66, 104, 0.06) 0%, transparent 50%),
-      radial-gradient(circle at 50% 80%, rgba(212, 168, 83, 0.04) 0%, transparent 50%);
+      radial-gradient(circle at 15% 50%, rgba(230, 28, 110, 0.05) 0%, transparent 50%),
+      radial-gradient(circle at 85% 30%, rgba(26, 166, 165, 0.05) 0%, transparent 50%),
+      radial-gradient(circle at 50% 80%, rgba(244, 165, 28, 0.05) 0%, transparent 50%);
   }
 
   .celestial-mesh {
-    background-image: url("data:image/svg+xml,%3Csvg width='100' height='100' viewBox='0 0 100 100' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M0 0h100v100H0z' fill='none'/%3E%3Cpath d='M0 50h100M50 0v100' stroke='rgba(255,255,255,0.015)' stroke-width='0.5'/%3E%3Ccircle cx='50' cy='50' r='0.8' fill='rgba(255,255,255,0.04)'/%3E%3C/svg%3E");
+    background-image: url("data:image/svg+xml,%3Csvg width='100' height='100' viewBox='0 0 100 100' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M0 0h100v100H0z' fill='none'/><path d='M0 50h100M50 0v100' stroke='rgba(13,21,51,0.03)' stroke-width='0.5'/%3E%3Ccircle cx='50' cy='50' r='0.8' fill='rgba(13,21,51,0.08)'/%3E%3C/svg%3E");
     background-size: 40px 40px;
   }
 
   /* ── Glow Effects ────────────────────────────────────── */
   .glow-image {
-    box-shadow: 0 0 30px rgba(226, 118, 137, 0.15);
+    box-shadow: 0 0 30px rgba(230, 28, 110, 0.15);
   }
 
   .glow-pink {
-    box-shadow: 0 0 25px rgba(226, 118, 137, 0.25);
+    box-shadow: 0 0 25px rgba(230, 28, 110, 0.2);
   }
 
   .avatar-glow {
-    box-shadow: 0 0 12px rgba(226, 118, 137, 0.2);
-    border: 1px solid rgba(255, 255, 255, 0.08);
+    box-shadow: 0 0 12px rgba(244, 165, 28, 0.2);
+    border: 1px solid rgba(255, 255, 255, 0.6);
   }
 
   /* ── Bottom Navigation ───────────────────────────────── */
   .bottom-nav {
-    background: rgba(10, 6, 15, 0.85);
+    background: rgba(231, 227, 206, 0.85);
+    /* Sand Beige tinted */
     backdrop-filter: blur(40px) saturate(180%);
     -webkit-backdrop-filter: blur(40px) saturate(180%);
-    border-top: 1px solid rgba(255, 255, 255, 0.04);
+    border-top: 1px solid rgba(255, 255, 255, 0.4);
   }
 
   /* ── Sticky Header ───────────────────────────────────── */
   .header-glass {
-    background: rgba(10, 6, 15, 0.75);
+    background: rgba(231, 227, 206, 0.75);
     backdrop-filter: blur(30px) saturate(150%);
     -webkit-backdrop-filter: blur(30px) saturate(150%);
-    border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.3);
   }
 
   /* ── Text Contrast Overrides ─────────────────────────── */
+  /* These previously forced white text in the dark theme. 
+     Now they force the deep navy foreground color in light theme. */
   .text-gray-200,
   .dark .text-gray-200 {
-    color: rgba(255, 255, 255, 0.88) !important;
+    color: rgba(13, 21, 51, 0.88) !important;
   }
 
   .text-gray-300,
   .dark .text-gray-300 {
-    color: rgba(255, 255, 255, 0.75) !important;
+    color: rgba(13, 21, 51, 0.75) !important;
   }
 
   .text-gray-400,
   .dark .text-gray-400 {
-    color: rgba(255, 255, 255, 0.55) !important;
+    color: rgba(13, 21, 51, 0.55) !important;
   }
 
   .text-gray-500,
   .dark .text-gray-500 {
-    color: rgba(255, 255, 255, 0.38) !important;
+    color: rgba(13, 21, 51, 0.38) !important;
   }
 
   .text-gray-600,
   .dark .text-gray-600 {
-    color: rgba(255, 255, 255, 0.25) !important;
+    color: rgba(13, 21, 51, 0.25) !important;
   }
 }
 

@@ -182,7 +182,7 @@ export default function CallRoom() {
 
     // Leave channel
     if (clientRef.current) {
-      await clientRef.current.leave().catch(() => {});
+      await clientRef.current.leave().catch(() => { });
       clientRef.current = null;
     }
 
@@ -190,7 +190,7 @@ export default function CallRoom() {
     if (consultationId && notify) {
       try {
         await apiRequest('POST', `/api/consultations/${consultationId}/end`, {});
-      } catch {}
+      } catch { }
     }
 
     setCallState('ended');
@@ -222,13 +222,13 @@ export default function CallRoom() {
 
   if (callState === 'error') {
     return (
-      <div className="min-h-screen bg-gray-900 flex items-center justify-center">
+      <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center p-8 max-w-md">
           <div className="w-20 h-20 bg-red-500/20 rounded-full flex items-center justify-center mx-auto mb-6">
-            <PhoneOff className="w-10 h-10 text-red-400" />
+            <PhoneOff className="w-10 h-10 text-red-500" />
           </div>
-          <h2 className="text-white text-2xl font-bold mb-3">Call Failed</h2>
-          <p className="text-gray-400 mb-6">{error}</p>
+          <h2 className="text-foreground text-2xl font-bold mb-3">Call Failed</h2>
+          <p className="text-muted-foreground mb-6">{error}</p>
           {error?.includes('Agora') && (
             <p className="text-xs text-gray-500 mb-6">
               Voice/video calls require an Agora account. Sign up free at{' '}
@@ -245,22 +245,22 @@ export default function CallRoom() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-900 flex flex-col">
+    <div className="min-h-screen bg-background flex flex-col">
       {/* Video area */}
       <div className="flex-1 relative">
         {isVideo ? (
           <>
             {/* Remote video (full screen) */}
-            <div id="remote-video" className="w-full h-full min-h-[400px] bg-gray-800 flex items-center justify-center">
+            <div id="remote-video" className="w-full h-full min-h-[400px] bg-foreground/10 flex items-center justify-center">
               {callState === 'connecting' && (
                 <div className="text-center">
                   <LoadingSpinner />
-                  <p className="text-gray-400 mt-4">Connecting to {astrologer?.name}...</p>
+                  <p className="text-muted-foreground mt-4">Connecting to {astrologer?.name}...</p>
                 </div>
               )}
             </div>
             {/* Local video (picture-in-picture) */}
-            <div id="local-video" className="absolute top-4 right-4 w-32 h-44 bg-gray-700 rounded-lg overflow-hidden" />
+            <div id="local-video" className="absolute top-4 right-4 w-32 h-44 bg-foreground/20 rounded-lg overflow-hidden" />
           </>
         ) : (
           // Voice call UI
@@ -271,8 +271,8 @@ export default function CallRoom() {
                 {astrologer?.name?.charAt(0) || '?'}
               </AvatarFallback>
             </Avatar>
-            <h2 className="text-white text-3xl font-bold mb-2">{astrologer?.name}</h2>
-            <p className="text-gray-400 mb-4">
+            <h2 className="text-foreground text-3xl font-bold mb-2">{astrologer?.name}</h2>
+            <p className="text-muted-foreground mb-4">
               {callState === 'connecting' ? 'Connecting...' : 'Voice Call Active'}
             </p>
             {callState === 'active' && (
@@ -288,8 +288,8 @@ export default function CallRoom() {
 
       {/* Status bar */}
       {callState === 'active' && (
-        <div className="bg-gray-800/80 text-center py-2">
-          <span className="text-gray-300 text-sm">
+        <div className="bg-foreground/5 py-2 text-center">
+          <span className="text-foreground/80 text-sm">
             ₹{astrologer?.pricePerMinute || '25'}/min •
             <Clock className="w-3 h-3 inline mx-1" />
             {formatTime(sessionTime)}
@@ -298,13 +298,12 @@ export default function CallRoom() {
       )}
 
       {/* Controls */}
-      <div className="bg-gray-900 px-8 py-8 flex items-center justify-center gap-6">
+      <div className="bg-background px-8 py-8 flex items-center justify-center gap-6">
         {/* Mic */}
         <button
           onClick={toggleMic}
-          className={`w-14 h-14 rounded-full flex items-center justify-center transition-all ${
-            micMuted ? 'bg-red-500 text-white' : 'bg-gray-700 text-white hover:bg-gray-600'
-          }`}
+          className={`w-14 h-14 rounded-full flex items-center justify-center transition-all ${micMuted ? 'bg-red-500 text-white' : 'bg-gray-700 text-white hover:bg-gray-600'
+            }`}
         >
           {micMuted ? <MicOff className="w-6 h-6" /> : <Mic className="w-6 h-6" />}
         </button>
@@ -321,19 +320,18 @@ export default function CallRoom() {
         {isVideo && (
           <button
             onClick={toggleCamera}
-            className={`w-14 h-14 rounded-full flex items-center justify-center transition-all ${
-              camOff ? 'bg-red-500 text-white' : 'bg-gray-700 text-white hover:bg-gray-600'
-            }`}
+            className={`w-14 h-14 rounded-full flex items-center justify-center transition-all ${camOff ? 'bg-red-500 text-white' : 'bg-foreground/10 text-foreground hover:bg-foreground/20'
+              }`}
           >
-            {camOff ? <VideoOff className="w-6 h-6" /> : <Video className="w-6 h-6" />}
+            {camOff ? <VideoOff className="w-6 h-6 text-white" /> : <Video className="w-6 h-6" />}
           </button>
         )}
       </div>
 
       {/* Back to chat */}
-      <div className="bg-gray-900 pb-4 text-center">
+      <div className="bg-background pb-4 text-center">
         <Link href={`/chat/${astrologerId}`}>
-          <Button variant="ghost" size="sm" className="text-gray-400 hover:text-white">
+          <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-foreground">
             <ArrowLeft className="w-4 h-4 mr-2" /> Back to Chat
           </Button>
         </Link>

@@ -74,14 +74,14 @@ export default function BottomNav() {
               key={i}
               onClick={() => setLocation(item.path)}
               className={`flex flex-col items-center justify-center gap-0.5 transition-all duration-300 ${item.isCenter
-                  ? "relative"
-                  : `min-w-[56px] py-1 ${isActive ? "text-primary" : "text-white/35 hover:text-white/55"}`
+                ? "relative"
+                : `min-w-[56px] py-1 ${isActive ? "text-primary" : "text-muted-foreground hover:text-foreground"}`
                 }`}
             >
               {item.icon(isActive)}
               {item.label && (
                 <span
-                  className={`text-[10px] font-semibold transition-colors ${isActive ? "text-primary" : "text-white/35"
+                  className={`text-[10px] font-semibold transition-colors ${isActive ? "text-primary" : "text-muted-foreground"
                     }`}
                 >
                   {item.label}

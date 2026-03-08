@@ -84,15 +84,15 @@ export default function Schedule() {
   return (
     <div className="min-h-screen bg-background pb-20 md:pb-0">
       {/* Header */}
-      <div className="sticky top-0 z-50 border-b border-white/5 ">
+      <div className="sticky top-0 z-50 border-b border-foreground/5 ">
         <div className="max-w-4xl mx-auto px-4 py-3">
           <div className="flex items-center gap-3">
             <Link href="/astrologers">
-              <button className="p-2 rounded-xl hover:bg-white/5/5">
-                <ArrowLeft className="w-5 h-5 text-white" />
+              <button className="p-2 rounded-xl hover:bg-foreground/5">
+                <ArrowLeft className="w-5 h-5 text-foreground" />
               </button>
             </Link>
-            <h1 className="font-bold text-lg text-white">Book Appointment</h1>
+            <h1 className="font-bold text-lg text-foreground">Book Appointment</h1>
           </div>
         </div>
       </div>

@@ -31,11 +31,11 @@ export default function Profile() {
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-3">
           <div className="flex items-center gap-3">
             <Link href="/">
-              <button className="p-2 rounded-xl hover:bg-white/5/5" data-testid="button-back">
-                <ArrowLeft className="w-5 h-5 text-white" />
+              <button className="p-2 rounded-xl hover:bg-foreground/5" data-testid="button-back">
+                <ArrowLeft className="w-5 h-5 text-foreground" />
               </button>
             </Link>
-            <h1 className="font-bold text-lg text-white">My Profile</h1>
+            <h1 className="font-bold text-lg text-foreground">My Profile</h1>
           </div>
         </div>
       </div>

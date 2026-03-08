@@ -201,17 +201,17 @@ export default function Wallet() {
   const balance = parseFloat(wallet?.balance || '0');
 
   return (
-    <div className="min-h-screen bg-background text-white">
+    <div className="min-h-screen bg-background text-foreground">
       {/* Header */}
-      <div className="sticky top-0 z-50 border-b border-white/5 ">
+      <div className="sticky top-0 z-50 border-b border-foreground/5 ">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-3">
           <div className="flex items-center gap-3">
             <Link href="/">
-              <button className="p-2 rounded-xl hover:bg-white/5/10" data-testid="button-back">
-                <ArrowLeft className="w-5 h-5 text-white" />
+              <button className="p-2 rounded-xl hover:bg-foreground/5" data-testid="button-back">
+                <ArrowLeft className="w-5 h-5 text-foreground" />
               </button>
             </Link>
-            <h1 className="font-bold text-lg text-white">My Wallet</h1>
+            <h1 className="font-bold text-lg text-foreground">My Wallet</h1>
           </div>
         </div>
       </div>
@@ -224,12 +224,12 @@ export default function Wallet() {
           <CardContent className="p-6">
             <div className="flex items-center gap-3 mb-2">
               <WalletIcon className="w-7 h-7 text-white" />
-              <span className="text-base text-[#D4A853]/80 font-medium">Available Balance</span>
+              <span className="text-base text-[#fff]/90 font-medium">Available Balance</span>
             </div>
             <div className="text-5xl font-bold text-white mb-1" data-testid="text-balance">
               ₹{balance.toFixed(2)}
             </div>
-            <p className="text-sm text-white/60">
+            <p className="text-sm text-white/80">
               {balance < 100
                 ? '⚠ Low balance — recharge to continue consultations'
                 : `≈ ${Math.floor(balance / 25)} minutes of consultation time`}
@@ -257,7 +257,7 @@ export default function Wallet() {
                     }`}
                 >
                   <div className="flex items-center gap-2 mb-1">
-                    <CreditCard className="w-4 h-4 text-white" />
+                    <CreditCard className="w-4 h-4 text-foreground" />
                     <span className="font-semibold text-sm">Razorpay</span>
                     {paymentMethod === 'razorpay' && <CheckCircle2 className="w-4 h-4 text-orange-400 ml-auto" />}
                   </div>

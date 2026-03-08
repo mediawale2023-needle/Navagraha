@@ -83,21 +83,21 @@ export default function Matchmaking() {
   ];
 
   return (
-    <div className="min-h-screen bg-background text-white pb-20">
+    <div className="min-h-screen bg-background text-foreground pb-20">
       {/* Header */}
-      <div className="border-b border-white/5 px-4 pt-12 pb-8">
+      <div className="border-b border-foreground/5 px-4 pt-12 pb-8">
         <div className="max-w-5xl mx-auto">
           <Link href="/">
-            <button className="mb-4 p-2 rounded-lg hover:bg-white/5/10 transition-colors" data-testid="button-back">
-              <ArrowLeft className="w-5 h-5 text-white" />
+            <button className="mb-4 p-2 rounded-lg hover:bg-foreground/5 transition-colors" data-testid="button-back">
+              <ArrowLeft className="w-5 h-5 text-foreground" />
             </button>
           </Link>
           <div className="text-center">
-            <Heart className="w-14 h-14 text-rose-500 mx-auto mb-3" fill="currentColor" />
-            <h1 className="font-serif text-3xl font-bold text-white mb-1">
+            <Heart className="w-14 h-14 text-[var(--magenta)] mx-auto mb-3" fill="currentColor" />
+            <h1 className="font-serif text-3xl font-bold text-foreground mb-1">
               Kundli Milan
             </h1>
-            <p className="text-white/80 text-base">
+            <p className="text-foreground/80 text-base">
               Check compatibility between two birth charts
             </p>
           </div>
@@ -110,9 +110,9 @@ export default function Matchmaking() {
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {/* Person 1 */}
-                <Card className="border-white/10 border-2 overflow-hidden">
-                  <CardHeader className="bg-[var(--rose)]/5 border-b border-white/5">
-                    <CardTitle className="text-white">Person 1 Details</CardTitle>
+                <Card className="border-foreground/10 border-2 overflow-hidden">
+                  <CardHeader className="bg-[var(--magenta)]/5 border-b border-foreground/5">
+                    <CardTitle className="text-foreground">Person 1 Details</CardTitle>
                     <CardDescription>Enter first person's birth information</CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-4 pt-4">
@@ -205,7 +205,7 @@ export default function Matchmaking() {
                 {/* Person 2 */}
                 <Card className="border-indigo-200 border-2 overflow-hidden">
                   <CardHeader className="bg-indigo-50 border-b border-indigo-100">
-                    <CardTitle className="text-white">Person 2 Details</CardTitle>
+                    <CardTitle className="text-foreground">Person 2 Details</CardTitle>
                     <CardDescription>Enter second person's birth information</CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-4 pt-4">
@@ -343,7 +343,7 @@ export default function Matchmaking() {
             {/* Detailed Breakdown */}
             <Card>
               <CardHeader>
-                <CardTitle className="text-white">Compatibility Breakdown</CardTitle>
+                <CardTitle className="text-foreground">Compatibility Breakdown</CardTitle>
                 <CardDescription>Detailed analysis across different aspects</CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
@@ -355,8 +355,8 @@ export default function Matchmaking() {
                 ].map((item, i) => (
                   <div key={i}>
                     <div className="flex items-center justify-between mb-2">
-                      <span className="font-medium text-white">{item.label}</span>
-                      <span className="text-2xl font-bold text-white">{item.score}%</span>
+                      <span className="font-medium text-foreground">{item.label}</span>
+                      <span className="text-2xl font-bold text-foreground">{item.score}%</span>
                     </div>
                     <div className="h-3 w-full bg-gray-100 rounded-full overflow-hidden">
                       <div
@@ -372,7 +372,7 @@ export default function Matchmaking() {
             {/* Recommendations */}
             <Card>
               <CardHeader>
-                <CardTitle className="text-white">Astrological Insights</CardTitle>
+                <CardTitle className="text-foreground">Astrological Insights</CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">

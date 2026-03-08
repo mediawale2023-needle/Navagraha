@@ -43,10 +43,10 @@ export default function Landing() {
   return (
     <div className="min-h-screen bg-background text-foreground overflow-hidden font-sans selection:bg-[#E27689]/30">
 
-      {/* ─── Global Ambient Glows (True AstroNex Style) ─── */}
-      <div className="fixed top-[-20%] left-[-10%] w-[50vw] h-[50vw] rounded-full bg-[var(--rose)]/[0.06] blur-[120px] pointer-events-none" />
-      <div className="fixed bottom-[-20%] right-[-10%] w-[50vw] h-[50vw] rounded-full bg-[var(--magenta)]/[0.08] blur-[120px] pointer-events-none" />
-      <div className="fixed top-[40%] left-[60%] w-[30vw] h-[30vw] rounded-full bg-[var(--gold)]/[0.03] blur-[100px] pointer-events-none" />
+      {/* ─── Global Ambient Glows ─── */}
+      <div className="fixed top-[-20%] left-[-10%] w-[50vw] h-[50vw] rounded-full bg-[var(--magenta)]/[0.06] blur-[120px] pointer-events-none" />
+      <div className="fixed bottom-[-20%] right-[-10%] w-[50vw] h-[50vw] rounded-full bg-[var(--teal)]/[0.06] blur-[120px] pointer-events-none" />
+      <div className="fixed top-[40%] left-[60%] w-[30vw] h-[30vw] rounded-full bg-[var(--turmeric)]/[0.03] blur-[100px] pointer-events-none" />
       <div className="fixed inset-0 celestial-mesh opacity-20 pointer-events-none" />
 
       {/* ─── Header ────────────────────────────────────────────── */}
@@ -61,7 +61,7 @@ export default function Landing() {
             <div className="w-10 h-10 rounded-2xl gradient-primary flex items-center justify-center glow-image">
               <Sparkles className="w-5 h-5 text-white" />
             </div>
-            <span className="font-bold text-xl tracking-tight text-white drop-shadow-md">Navagraha</span>
+            <span className="font-bold text-xl tracking-tight text-foreground drop-shadow-none">Navagraha</span>
           </div>
           <div className="flex items-center gap-3">
             <Link href="/astrologer/login">
@@ -90,8 +90,8 @@ export default function Landing() {
             className="mb-8"
           >
             <div className="inline-flex items-center gap-2 glass-pill px-4 py-2">
-              <div className="w-2 h-2 bg-[#E27689] rounded-full animate-pulse shadow-[0_0_10px_#E27689]" />
-              <span className="text-sm font-medium text-gray-200">{liveCount} premium astrologers online</span>
+              <div className="w-2 h-2 bg-[var(--magenta)] rounded-full animate-pulse shadow-[0_0_10px_var(--magenta)]" />
+              <span className="text-sm font-medium text-foreground/80">{liveCount} premium astrologers online</span>
             </div>
           </motion.div>
 
@@ -143,11 +143,11 @@ export default function Landing() {
           <div className="flex items-center gap-3 mb-6">
             <div className="w-10 h-10 rounded-full gradient-primary" />
             <div>
-              <div className="h-3 w-20 bg-white/20 rounded mb-2" />
-              <div className="h-2 w-12 bg-white/10 rounded" />
+              <div className="h-3 w-20 bg-foreground/15 rounded mb-2" />
+              <div className="h-2 w-12 bg-foreground/10 rounded" />
             </div>
           </div>
-          <div className="w-full h-32 rounded-2xl glass-pill mb-4 border border-white/10" />
+          <div className="w-full h-32 rounded-2xl glass-pill mb-4 border border-foreground/10" />
           <div className="w-3/4 h-8 rounded-full gradient-primary opacity-80" />
         </motion.div>
 
@@ -156,13 +156,13 @@ export default function Landing() {
           style={{ animationDelay: '-3s' }}
         >
           <div className="flex justify-between items-center mb-6">
-            <div className="h-4 w-24 bg-white/20 rounded" />
-            <Moon className="w-6 h-6 text-[#D4A853]" />
+            <div className="h-4 w-24 bg-foreground/15 rounded" />
+            <Moon className="w-6 h-6 text-[var(--turmeric)]" />
           </div>
-          <div className="flex-1 w-full rounded-3xl md:rounded-[2rem] border border-[#D4A853]/20 flex items-center justify-center relative overflow-hidden">
-            <div className="absolute inset-0 bg-[#D4A853]/5" />
-            <div className="w-24 h-24 rounded-full border border-[#D4A853]/30" />
-            <div className="w-16 h-16 rounded-full border border-[#D4A853]/50 absolute" />
+          <div className="flex-1 w-full rounded-3xl md:rounded-[2rem] border border-[var(--turmeric)]/20 flex items-center justify-center relative overflow-hidden">
+            <div className="absolute inset-0 bg-[var(--turmeric)]/5" />
+            <div className="w-24 h-24 rounded-full border border-[var(--turmeric)]/30" />
+            <div className="w-16 h-16 rounded-full border border-[var(--turmeric)]/50 absolute" />
           </div>
         </motion.div>
       </div>
@@ -185,10 +185,10 @@ export default function Landing() {
                   transition={{ duration: 0.5, delay: idx * 0.1 }}
                   className="w-32 sm:w-40 aspect-square astronex-card flex flex-col items-center justify-center gap-4 group hover:-translate-y-2 transition-transform duration-500 rounded-3xl md:rounded-[2rem]"
                 >
-                  <div className="w-16 h-16 rounded-[1.5rem] glass-pill flex items-center justify-center group-hover:bg-[#E27689]/20 group-hover:border-[#E27689]/40 transition-colors duration-500">
-                    <Icon className="w-8 h-8 text-[#E27689] group-hover:scale-110 transition-transform duration-500" />
+                  <div className="w-16 h-16 rounded-[1.5rem] glass-pill flex items-center justify-center group-hover:bg-[var(--magenta)]/15 group-hover:border-[var(--magenta)]/30 transition-colors duration-500">
+                    <Icon className="w-8 h-8 text-[var(--magenta)] group-hover:scale-110 transition-transform duration-500" />
                   </div>
-                  <span className="text-sm font-medium text-gray-300 text-center leading-tight whitespace-pre-line group-hover:text-white">
+                  <span className="text-sm font-medium text-foreground/70 text-center leading-tight whitespace-pre-line group-hover:text-foreground">
                     {label}
                   </span>
                 </motion.button>
@@ -204,10 +204,10 @@ export default function Landing() {
           <div className="flex flex-col md:flex-row md:items-end justify-between mb-12 gap-6">
             <div>
               <h2 className="text-3xl md:text-5xl font-bold mb-4">Elite Masters.</h2>
-              <p className="text-gray-400 text-lg">Consult top-tier, highly-verified astrologers instantly.</p>
+              <p className="text-foreground/60 text-lg">Consult top-tier, highly-verified astrologers instantly.</p>
             </div>
             <Link href="/astrologers">
-              <Button variant="ghost" className="glass-pill text-[#E27689] hover:text-white px-6 h-12 text-base shrink-0">
+              <Button variant="ghost" className="glass-pill text-[var(--magenta)] hover:text-foreground px-6 h-12 text-base shrink-0">
                 View All Astrologers <ChevronRight className="w-4 h-4 ml-2" />
               </Button>
             </Link>
@@ -236,29 +236,29 @@ export default function Landing() {
 
                   <div className="flex-1 pt-1">
                     <div className="flex items-center gap-2 mb-1">
-                      <h3 className="font-bold text-lg text-white">{astrologer?.name || 'Astrologer Name'}</h3>
-                      {astrologer?.isVerified && <CheckCircle2 className="w-4 h-4 text-[#D4A853]" />}
+                      <h3 className="font-bold text-lg text-foreground">{astrologer?.name || 'Astrologer Name'}</h3>
+                      {astrologer?.isVerified && <CheckCircle2 className="w-4 h-4 text-[var(--turmeric)]" />}
                     </div>
-                    <p className="text-sm text-gray-400 mb-2 font-medium">
+                    <p className="text-sm text-foreground/60 mb-2 font-medium">
                       {astrologer?.specializations?.slice(0, 2).join(', ') || 'Vedic, Numerology'}
                     </p>
                     <div className="flex items-center gap-2 text-sm">
-                      <Star className="w-4 h-4 fill-[#D4A853] text-[#D4A853]" />
-                      <span className="font-bold text-gray-200">{astrologer?.rating || '4.9'}</span>
-                      <span className="text-gray-600">&bull;</span>
-                      <span className="text-gray-400 font-medium">{astrologer?.experience || '8'}y exp</span>
+                      <Star className="w-4 h-4 fill-[var(--turmeric)] text-[var(--turmeric)]" />
+                      <span className="font-bold text-foreground/80">{astrologer?.rating || '4.9'}</span>
+                      <span className="text-foreground/40">&bull;</span>
+                      <span className="text-foreground/60 font-medium">{astrologer?.experience || '8'}y exp</span>
                     </div>
                   </div>
                 </div>
 
-                <div className="mt-6 pt-6 border-t border-white/5 flex items-center justify-between">
+                <div className="mt-6 pt-6 border-t border-foreground/5 flex items-center justify-between">
                   <div className="flex items-baseline gap-1">
-                    <span className="font-bold text-2xl text-[#D4A853]">₹{astrologer?.pricePerMinute || '25'}</span>
-                    <span className="text-sm text-gray-500 font-medium">/min</span>
+                    <span className="font-bold text-2xl text-[var(--turmeric)]">₹{astrologer?.pricePerMinute || '25'}</span>
+                    <span className="text-sm text-foreground/50 font-medium">/min</span>
                   </div>
                   <Link href={`/chat/${astrologer?.id}`}>
                     <Button
-                      className="glass-pill-active text-white font-bold h-10 px-6 hover:scale-105 transition-transform"
+                      className="glass-pill-active text-[var(--magenta)] font-bold h-10 px-6 hover:scale-105 transition-transform"
                     >
                       Connect
                     </Button>
@@ -271,7 +271,7 @@ export default function Landing() {
       </div>
 
       {/* ─── Footer with Huge Type ─────────────────────────────── */}
-      <footer className="border-t border-white/5 pt-20 pb-10 px-4 relative z-10 overflow-hidden">
+      <footer className="border-t border-foreground/5 pt-20 pb-10 px-4 relative z-10 overflow-hidden">
         <div className="max-w-7xl mx-auto">
           <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-10 mb-20">
             <div>
@@ -287,30 +287,30 @@ export default function Landing() {
               </Button>
             </div>
 
-            <div className="flex flex-col gap-4 text-gray-400 text-lg font-medium">
-              <Link href="/astrologers" className="hover:text-white transition-colors">Our Masters</Link>
-              <Link href="/astrologer/login" className="hover:text-white transition-colors">Partner with Us</Link>
-              <Link href="/kundli/matchmaking" className="hover:text-white transition-colors">Free Chart</Link>
+            <div className="flex flex-col gap-4 text-foreground/60 text-lg font-medium">
+              <Link href="/astrologers" className="hover:text-foreground transition-colors">Our Masters</Link>
+              <Link href="/astrologer/login" className="hover:text-foreground transition-colors">Partner with Us</Link>
+              <Link href="/kundli/matchmaking" className="hover:text-foreground transition-colors">Free Chart</Link>
             </div>
           </div>
 
-          <div className="flex flex-col md:flex-row justify-between items-center gap-6 pt-8 border-t border-white/5 text-gray-500 font-medium">
+          <div className="flex flex-col md:flex-row justify-between items-center gap-6 pt-8 border-t border-foreground/5 text-muted-foreground font-medium">
             <div className="flex items-center gap-3">
               <div className="w-8 h-8 rounded-lg gradient-primary flex items-center justify-center">
                 <Sparkles className="w-4 h-4 text-white" />
               </div>
-              <span className="font-bold text-white">Navagraha © {new Date().getFullYear()}</span>
+              <span className="font-bold text-foreground">Navagraha © {new Date().getFullYear()}</span>
             </div>
             <div className="flex gap-8">
-              <span className="hover:text-gray-300 cursor-pointer transition-colors">Privacy</span>
-              <span className="hover:text-gray-300 cursor-pointer transition-colors">Terms</span>
-              <span className="hover:text-gray-300 cursor-pointer transition-colors">Support</span>
+              <span className="hover:text-foreground/80 cursor-pointer transition-colors">Privacy</span>
+              <span className="hover:text-foreground/80 cursor-pointer transition-colors">Terms</span>
+              <span className="hover:text-foreground/80 cursor-pointer transition-colors">Support</span>
             </div>
           </div>
         </div>
 
         {/* Massive backdrop text */}
-        <div className="absolute -bottom-20 left-1/2 -translate-x-1/2 text-[15vw] font-black tracking-tighter text-white/[0.02] pointer-events-none whitespace-nowrap select-none">
+        <div className="absolute -bottom-20 left-1/2 -translate-x-1/2 text-[15vw] font-black tracking-tighter text-foreground/[0.02] pointer-events-none whitespace-nowrap select-none">
           NAVAGRAHA
         </div>
       </footer>

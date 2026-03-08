@@ -20,7 +20,7 @@ export default function Splash() {
       <div className="absolute inset-0 celestial-bg" />
       <div
         className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[280px] h-[280px] rounded-full"
-        style={{ background: 'radial-gradient(circle, rgba(226,118,137,0.12) 0%, transparent 70%)' }}
+        style={{ background: 'radial-gradient(circle, rgba(230,28,110,0.12) 0%, transparent 70%)' }}
       />
 
       <motion.div
@@ -50,7 +50,7 @@ export default function Splash() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.3, duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
-          className="text-6xl md:text-7xl font-semibold text-white mb-4 tracking-tight"
+          className="text-6xl md:text-7xl font-semibold text-foreground mb-4 tracking-tight"
         >
           Navagraha
         </motion.h1>
@@ -59,9 +59,9 @@ export default function Splash() {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 0.6, duration: 0.6 }}
-          className="text-lg text-white/45 font-light tracking-wide"
+          className="text-lg text-foreground/60 font-medium tracking-wide"
         >
-          Your Personal Vedic Astrology Guide
+          Your Personal Astrological Guide
         </motion.p>
 
         <motion.div
