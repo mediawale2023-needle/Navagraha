@@ -2,7 +2,7 @@ import type { Express, Request, Response } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { db } from "./db";
-import { sql } from "drizzle-orm";
+import { sql, eq, asc } from "drizzle-orm";
 import { setupAuth, isAuthenticated } from "./auth";
 import {
   insertKundliSchema,
@@ -16,6 +16,7 @@ import {
   astrologers as astrologersTable,
   transactions as transactionsTable,
   consultations as consultationsTable,
+  homepageContent as homepageContentTable,
 } from "@shared/schema";
 import { z } from "zod";
 import {
@@ -885,6 +886,88 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
       const updated = await storage.updateAstrologer(req.params.id, req.body);
       res.json(updated);
     } catch { res.status(500).json({ message: 'Failed to update astrologer' }); }
+  });
+
+  // ─── Homepage CMS ──────────────────────────────────────────
+
+  // Public: Get all enabled homepage content grouped by section
+  app.get('/api/homepage-content', async (_req, res) => {
+    try {
+      const rows = await db.select().from(homepageContentTable)
+        .where(eq(homepageContentTable.enabled, true))
+        .orderBy(asc(homepageContentTable.sortOrder));
+      const grouped = {
+        banners: rows.filter(r => r.section === 'banner'),
+        services: rows.filter(r => r.section === 'service'),
+        freeServices: rows.filter(r => r.section === 'free_service'),
+      };
+      res.json(grouped);
+    } catch (err) {
+      console.error('Homepage content error:', err);
+      res.status(500).json({ message: 'Failed to fetch homepage content' });
+    }
+  });
+
+  // Admin: Get ALL homepage content (including disabled)
+  app.get('/api/admin/homepage-content', async (_req, res) => {
+    try {
+      const rows = await db.select().from(homepageContentTable)
+        .orderBy(asc(homepageContentTable.section), asc(homepageContentTable.sortOrder));
+      res.json(rows);
+    } catch { res.status(500).json({ message: 'Failed to fetch content' }); }
+  });
+
+  // Admin: Create new item
+  app.post('/api/admin/homepage-content', async (req, res) => {
+    try {
+      const { section, title, subtitle, icon, href, gradient, cta, sortOrder, enabled } = req.body;
+      if (!section || !title) return res.status(400).json({ message: 'section and title required' });
+      const [row] = await db.insert(homepageContentTable).values({
+        section, title, subtitle, icon, href, gradient, cta,
+        sortOrder: sortOrder ?? 0,
+        enabled: enabled ?? true,
+      }).returning();
+      res.status(201).json(row);
+    } catch (err) {
+      console.error('Create content error:', err);
+      res.status(500).json({ message: 'Failed to create content' });
+    }
+  });
+
+  // Admin: Update item
+  app.put('/api/admin/homepage-content/:id', async (req, res) => {
+    try {
+      const { title, subtitle, icon, href, gradient, cta, sortOrder, enabled } = req.body;
+      const [row] = await db.update(homepageContentTable)
+        .set({ title, subtitle, icon, href, gradient, cta, sortOrder, enabled, updatedAt: new Date() })
+        .where(eq(homepageContentTable.id, req.params.id))
+        .returning();
+      if (!row) return res.status(404).json({ message: 'Not found' });
+      res.json(row);
+    } catch { res.status(500).json({ message: 'Failed to update content' }); }
+  });
+
+  // Admin: Delete item
+  app.delete('/api/admin/homepage-content/:id', async (req, res) => {
+    try {
+      await db.delete(homepageContentTable)
+        .where(eq(homepageContentTable.id, req.params.id));
+      res.json({ success: true });
+    } catch { res.status(500).json({ message: 'Failed to delete content' }); }
+  });
+
+  // Admin: Batch reorder
+  app.put('/api/admin/homepage-content-reorder', async (req, res) => {
+    try {
+      const { items } = req.body; // [{ id, sortOrder }]
+      if (!Array.isArray(items)) return res.status(400).json({ message: 'items array required' });
+      for (const item of items) {
+        await db.update(homepageContentTable)
+          .set({ sortOrder: item.sortOrder, updatedAt: new Date() })
+          .where(eq(homepageContentTable.id, item.id));
+      }
+      res.json({ success: true });
+    } catch { res.status(500).json({ message: 'Failed to reorder' }); }
   });
 
   return existingServer ?? createServer(app);

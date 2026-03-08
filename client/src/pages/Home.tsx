@@ -13,33 +13,56 @@ import {
   Phone, MessageCircle, Heart, TrendingUp,
   Activity, CheckCircle2, ChevronRight,
   Sun, Moon, Calendar, ArrowRight, Video,
-  Users, Scroll, Scale, Zap
+  Users, Scroll, Scale, Zap, Hash, BookOpen,
 } from 'lucide-react';
-import type { User as UserType, Astrologer } from '@shared/schema';
+import type { User as UserType, Astrologer, HomepageContent } from '@shared/schema';
 
 /* ──────────────────────────────────────────────────────── */
-/*  Constants                                               */
+/*  Icon name → component mapping (for CMS)                */
 /* ──────────────────────────────────────────────────────── */
+const ICON_MAP: Record<string, React.ElementType> = {
+  MessageCircle, Phone, Calendar, Zap, Heart, Scale, Scroll, Sun,
+  Moon, Star, Users, Video, Sparkles, Hash, Activity, TrendingUp,
+  Wallet, BookOpen, ArrowRight, ChevronRight,
+};
+
+/* ──────────────────────────────────────────────────────── */
+/*  CMS Types                                               */
+/* ──────────────────────────────────────────────────────── */
+interface CMSData {
+  banners: HomepageContent[];
+  services: HomepageContent[];
+  freeServices: HomepageContent[];
+}
+
+/* ──────────────────────────────────────────────────────── */
+/*  Fallback defaults (used if API hasn't returned yet)     */
+/* ──────────────────────────────────────────────────────── */
+const DEFAULT_BANNERS: HomepageContent[] = [
+  { id: '1', section: 'banner', title: "Today's Insight", subtitle: "Venus guides you toward love and creative flow. Open yourself to positive energy.", icon: null, href: '/astrologers', gradient: 'bg-gradient-to-br from-[#8B2252] via-[#C0506A] to-[#D4847A]', cta: 'Read More', sortOrder: 0, enabled: true, createdAt: null, updatedAt: null },
+  { id: '2', section: 'banner', title: "Premium Plan", subtitle: "Get unlimited AI insights, priority booking, and exclusive content.", icon: null, href: '/wallet', gradient: 'bg-gradient-to-br from-[#8B2252] via-[#C0506A] to-[#D4847A]', cta: 'Upgrade Plan', sortOrder: 1, enabled: true, createdAt: null, updatedAt: null },
+  { id: '3', section: 'banner', title: "Your Birth Chart", subtitle: "Discover your exact planetary positions and dashas for accurate predictions.", icon: null, href: '/kundli/new', gradient: 'bg-gradient-to-br from-[#4A1A6B] via-[#6B3FA0] to-[#8B6CC1]', cta: 'Generate', sortOrder: 2, enabled: true, createdAt: null, updatedAt: null },
+];
+
+const DEFAULT_SERVICES: HomepageContent[] = [
+  { id: '4', section: 'service', title: "Chat with\nAstrologer", subtitle: null, icon: 'MessageCircle', href: '/astrologers', gradient: 'from-pink-500/20 to-rose-500/10', cta: null, sortOrder: 0, enabled: true, createdAt: null, updatedAt: null },
+  { id: '5', section: 'service', title: "Talk to\nAstrologer", subtitle: null, icon: 'Phone', href: '/astrologers', gradient: 'from-amber-500/20 to-yellow-500/10', cta: null, sortOrder: 1, enabled: true, createdAt: null, updatedAt: null },
+  { id: '6', section: 'service', title: "Book\nAppointment", subtitle: null, icon: 'Calendar', href: '/schedule', gradient: 'from-violet-500/20 to-purple-500/10', cta: null, sortOrder: 2, enabled: true, createdAt: null, updatedAt: null },
+  { id: '7', section: 'service', title: "Personalized\nAI Astrology", subtitle: null, icon: 'Zap', href: '/kundli/new', gradient: 'from-emerald-500/20 to-teal-500/10', cta: null, sortOrder: 3, enabled: true, createdAt: null, updatedAt: null },
+];
+
+const DEFAULT_FREE_SERVICES: HomepageContent[] = [
+  { id: '8', section: 'free_service', title: 'Compatibility', subtitle: 'Check your match score', icon: 'Scale', href: '/kundli/matchmaking', gradient: null, cta: null, sortOrder: 0, enabled: true, createdAt: null, updatedAt: null },
+  { id: '9', section: 'free_service', title: 'Kundli Match Making', subtitle: 'Vedic matching', icon: 'Heart', href: '/kundli/matchmaking', gradient: null, cta: null, sortOrder: 1, enabled: true, createdAt: null, updatedAt: null },
+  { id: '10', section: 'free_service', title: 'Free Kundli', subtitle: 'Generate birth chart', icon: 'Scroll', href: '/kundli/new', gradient: null, cta: null, sortOrder: 2, enabled: true, createdAt: null, updatedAt: null },
+  { id: '11', section: 'free_service', title: "Today's Horoscope", subtitle: 'Daily predictions', icon: 'Sun', href: '#horoscope', gradient: null, cta: null, sortOrder: 3, enabled: true, createdAt: null, updatedAt: null },
+];
 
 const NAV_TABS = [
   { label: 'Free Kundli', href: '/kundli/new' },
   { label: 'Matchmaking', href: '/kundli/matchmaking' },
   { label: 'Compatibility', href: '/kundli/matchmaking' },
   { label: 'Horoscope', anchor: 'horoscope' },
-];
-
-const ASTROLOGY_SERVICES = [
-  { href: '/astrologers', icon: MessageCircle, label: 'Chat with\nAstrologer', color: 'from-pink-500/20 to-rose-500/10' },
-  { href: '/astrologers', icon: Phone, label: 'Talk to\nAstrologer', color: 'from-amber-500/20 to-yellow-500/10' },
-  { href: '/schedule', icon: Calendar, label: 'Book\nAppointment', color: 'from-violet-500/20 to-purple-500/10' },
-  { href: '/kundli/new', icon: Zap, label: 'Personalized\nAI Astrology', color: 'from-emerald-500/20 to-teal-500/10' },
-];
-
-const FREE_SERVICES = [
-  { href: '/kundli/matchmaking', icon: Scale, label: 'Compatibility', desc: 'Check your match score' },
-  { href: '/kundli/matchmaking', icon: Heart, label: 'Kundli Match Making', desc: 'Vedic matching' },
-  { href: '/kundli/new', icon: Scroll, label: 'Free Kundli', desc: 'Generate birth chart' },
-  { href: '#horoscope', icon: Sun, label: "Today's Horoscope", desc: 'Daily predictions', anchor: 'horoscope' },
 ];
 
 const zodiacSigns = [
@@ -61,6 +84,15 @@ export default function Home() {
     queryKey: ['/api/auth/user'],
   });
 
+  const { data: cmsData } = useQuery<CMSData>({
+    queryKey: ['/api/homepage-content'],
+  });
+
+  // Resolve CMS content with fallbacks
+  const banners = cmsData?.banners?.length ? cmsData.banners : DEFAULT_BANNERS;
+  const services = cmsData?.services?.length ? cmsData.services : DEFAULT_SERVICES;
+  const freeServices = cmsData?.freeServices?.length ? cmsData.freeServices : DEFAULT_FREE_SERVICES;
+
   const { data: horoscope, isLoading: horoscopeLoading } = useQuery<{ prediction: string }>({
     queryKey: ['/api/horoscope/daily', selectedSign],
   });
@@ -74,9 +106,10 @@ export default function Home() {
   });
 
   useEffect(() => {
-    const t = setInterval(() => setBannerIdx(prev => (prev + 1) % 3), 5000);
+    const len = banners.length || 1;
+    const t = setInterval(() => setBannerIdx(prev => (prev + 1) % len), 5000);
     return () => clearInterval(t);
-  }, []);
+  }, [banners.length]);
 
   if (userLoading) {
     return (
@@ -88,11 +121,7 @@ export default function Home() {
 
   const featuredAstrologer = astrologers?.find(a => a.isOnline || a.availability === 'available') || astrologers?.[0];
 
-  const banners = [
-    { title: "Today's Insight", subtitle: "Venus guides you toward love and creative flow. Open yourself to positive energy.", cta: 'Read More', href: '/astrologers' },
-    { title: "Premium Plan", subtitle: "Get unlimited AI insights, priority booking, and exclusive content.", cta: 'Upgrade Plan', href: '/wallet' },
-    { title: "Your Birth Chart", subtitle: "Discover your exact planetary positions and dashas for accurate predictions.", cta: 'Generate', href: '/kundli/new' },
-  ];
+
 
   const scrollToHoroscope = () => {
     horoscopeRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -200,57 +229,58 @@ export default function Home() {
         {/* ═══════════════════════════════════════════════════════
             BANNER CAROUSEL (solid gradient + zodiac wheel)
            ═══════════════════════════════════════════════════════ */}
-        <div className="mb-8 relative">
-          <Link href={banners[bannerIdx].href}>
-            <div className={`relative overflow-hidden rounded-3xl cursor-pointer transition-all duration-500 hover:-translate-y-0.5 min-h-[190px] flex flex-col justify-center p-7 sm:p-8 ${bannerIdx === 0 ? 'bg-gradient-to-br from-[#8B2252] via-[#C0506A] to-[#D4847A]'
-                : bannerIdx === 1 ? 'bg-gradient-to-br from-[#8B2252] via-[#C0506A] to-[#D4847A]'
-                  : 'bg-gradient-to-br from-[#4A1A6B] via-[#6B3FA0] to-[#8B6CC1]'
-              }`}>
-              {/* Zodiac Wheel */}
-              <svg className="absolute right-[-30px] sm:right-[-10px] top-1/2 -translate-y-1/2 w-[220px] h-[220px] sm:w-[260px] sm:h-[260px] text-white/[0.12]" viewBox="0 0 200 200" fill="none" stroke="currentColor" strokeWidth="0.5">
-                <circle cx="100" cy="100" r="95" /><circle cx="100" cy="100" r="80" /><circle cx="100" cy="100" r="55" /><circle cx="100" cy="100" r="30" />
-                <line x1="100" y1="5" x2="100" y2="195" /><line x1="5" y1="100" x2="195" y2="100" />
-                <line x1="30" y1="30" x2="170" y2="170" /><line x1="170" y1="30" x2="30" y2="170" />
-                <line x1="147" y1="13" x2="53" y2="187" /><line x1="187" y1="53" x2="13" y2="147" />
-                <line x1="187" y1="147" x2="13" y2="53" /><line x1="147" y1="187" x2="53" y2="13" />
-                <text x="97" y="22" fontSize="9" fill="currentColor" fontFamily="serif">♈</text>
-                <text x="130" y="32" fontSize="9" fill="currentColor" fontFamily="serif">♉</text>
-                <text x="172" y="62" fontSize="9" fill="currentColor" fontFamily="serif">♊</text>
-                <text x="182" y="103" fontSize="9" fill="currentColor" fontFamily="serif">♋</text>
-                <text x="172" y="145" fontSize="9" fill="currentColor" fontFamily="serif">♌</text>
-                <text x="130" y="178" fontSize="9" fill="currentColor" fontFamily="serif">♍</text>
-                <text x="93" y="190" fontSize="9" fill="currentColor" fontFamily="serif">♎</text>
-                <text x="58" y="178" fontSize="9" fill="currentColor" fontFamily="serif">♏</text>
-                <text x="17" y="145" fontSize="9" fill="currentColor" fontFamily="serif">♐</text>
-                <text x="7" y="103" fontSize="9" fill="currentColor" fontFamily="serif">♑</text>
-                <text x="17" y="62" fontSize="9" fill="currentColor" fontFamily="serif">♒</text>
-                <text x="58" y="32" fontSize="9" fill="currentColor" fontFamily="serif">♓</text>
-                <circle cx="120" cy="60" r="1.5" fill="currentColor" opacity="0.5" />
-                <circle cx="140" cy="75" r="1" fill="currentColor" opacity="0.4" />
-                <circle cx="155" cy="90" r="1.5" fill="currentColor" opacity="0.4" />
-                <circle cx="160" cy="130" r="1.5" fill="currentColor" opacity="0.5" />
-                <polyline points="120,60 140,75 155,90" strokeWidth="0.3" opacity="0.3" />
-                <polyline points="155,90 160,130" strokeWidth="0.3" opacity="0.3" />
-              </svg>
-              <div className="absolute bottom-0 left-0 w-40 h-40 bg-white/[0.04] rounded-full blur-[50px]" />
-              <div className="relative z-10 max-w-[65%] sm:max-w-[60%]">
-                <h3 className="text-white font-bold text-2xl sm:text-3xl mb-2.5 tracking-tight leading-tight">{banners[bannerIdx].title}</h3>
-                <p className="text-white/75 text-sm leading-relaxed font-medium mb-5">{banners[bannerIdx].subtitle}</p>
-                <button className="bg-[#1a1a1a]/80 hover:bg-[#1a1a1a] text-white font-bold text-sm rounded-full px-6 py-2.5 transition-all hover:scale-105 shadow-lg">
-                  {banners[bannerIdx].cta}
-                </button>
+        {banners.length > 0 && (
+          <div className="mb-8 relative">
+            <Link href={banners[bannerIdx % banners.length]?.href || '#'}>
+              <div className={`relative overflow-hidden rounded-3xl cursor-pointer transition-all duration-500 hover:-translate-y-0.5 min-h-[190px] flex flex-col justify-center p-7 sm:p-8 ${banners[bannerIdx % banners.length]?.gradient || 'bg-gradient-to-br from-[#8B2252] via-[#C0506A] to-[#D4847A]'}`}>
+                {/* Zodiac Wheel */}
+                <svg className="absolute right-[-30px] sm:right-[-10px] top-1/2 -translate-y-1/2 w-[220px] h-[220px] sm:w-[260px] sm:h-[260px] text-white/[0.12]" viewBox="0 0 200 200" fill="none" stroke="currentColor" strokeWidth="0.5">
+                  <circle cx="100" cy="100" r="95" /><circle cx="100" cy="100" r="80" /><circle cx="100" cy="100" r="55" /><circle cx="100" cy="100" r="30" />
+                  <line x1="100" y1="5" x2="100" y2="195" /><line x1="5" y1="100" x2="195" y2="100" />
+                  <line x1="30" y1="30" x2="170" y2="170" /><line x1="170" y1="30" x2="30" y2="170" />
+                  <line x1="147" y1="13" x2="53" y2="187" /><line x1="187" y1="53" x2="13" y2="147" />
+                  <line x1="187" y1="147" x2="13" y2="53" /><line x1="147" y1="187" x2="53" y2="13" />
+                  <text x="97" y="22" fontSize="9" fill="currentColor" fontFamily="serif">♈</text>
+                  <text x="130" y="32" fontSize="9" fill="currentColor" fontFamily="serif">♉</text>
+                  <text x="172" y="62" fontSize="9" fill="currentColor" fontFamily="serif">♊</text>
+                  <text x="182" y="103" fontSize="9" fill="currentColor" fontFamily="serif">♋</text>
+                  <text x="172" y="145" fontSize="9" fill="currentColor" fontFamily="serif">♌</text>
+                  <text x="130" y="178" fontSize="9" fill="currentColor" fontFamily="serif">♍</text>
+                  <text x="93" y="190" fontSize="9" fill="currentColor" fontFamily="serif">♎</text>
+                  <text x="58" y="178" fontSize="9" fill="currentColor" fontFamily="serif">♏</text>
+                  <text x="17" y="145" fontSize="9" fill="currentColor" fontFamily="serif">♐</text>
+                  <text x="7" y="103" fontSize="9" fill="currentColor" fontFamily="serif">♑</text>
+                  <text x="17" y="62" fontSize="9" fill="currentColor" fontFamily="serif">♒</text>
+                  <text x="58" y="32" fontSize="9" fill="currentColor" fontFamily="serif">♓</text>
+                  <circle cx="120" cy="60" r="1.5" fill="currentColor" opacity="0.5" />
+                  <circle cx="140" cy="75" r="1" fill="currentColor" opacity="0.4" />
+                  <circle cx="155" cy="90" r="1.5" fill="currentColor" opacity="0.4" />
+                  <circle cx="160" cy="130" r="1.5" fill="currentColor" opacity="0.5" />
+                  <polyline points="120,60 140,75 155,90" strokeWidth="0.3" opacity="0.3" />
+                  <polyline points="155,90 160,130" strokeWidth="0.3" opacity="0.3" />
+                </svg>
+                <div className="absolute bottom-0 left-0 w-40 h-40 bg-white/[0.04] rounded-full blur-[50px]" />
+                <div className="relative z-10 max-w-[65%] sm:max-w-[60%]">
+                  <h3 className="text-white font-bold text-2xl sm:text-3xl mb-2.5 tracking-tight leading-tight">{banners[bannerIdx % banners.length]?.title}</h3>
+                  {banners[bannerIdx % banners.length]?.subtitle && <p className="text-white/75 text-sm leading-relaxed font-medium mb-5">{banners[bannerIdx % banners.length]?.subtitle}</p>}
+                  {banners[bannerIdx % banners.length]?.cta && (
+                    <button className="bg-[#1a1a1a]/80 hover:bg-[#1a1a1a] text-white font-bold text-sm rounded-full px-6 py-2.5 transition-all hover:scale-105 shadow-lg">
+                      {banners[bannerIdx % banners.length]?.cta}
+                    </button>
+                  )}
+                </div>
               </div>
-            </div>
-          </Link>
+            </Link>
 
-          <div className="flex justify-center gap-2 mt-4">
-            {banners.map((_, i) => (
-              <button key={i} onClick={() => setBannerIdx(i)}
-                className={`h-1 rounded-full transition-all duration-300 ${i === bannerIdx ? 'bg-white/80 w-6' : 'bg-white/15 w-1.5'}`}
-              />
-            ))}
+            <div className="flex justify-center gap-2 mt-4">
+              {banners.map((_, i) => (
+                <button key={i} onClick={() => setBannerIdx(i)}
+                  className={`h-1 rounded-full transition-all duration-300 ${i === (bannerIdx % banners.length) ? 'bg-white/80 w-6' : 'bg-white/15 w-1.5'}`}
+                />
+              ))}
+            </div>
           </div>
-        </div>
+        )}
 
         {/* ═══════════════════════════════════════════════════════
             FEATURED ASTROLOGER
@@ -322,18 +352,21 @@ export default function Home() {
             </Link>
           </div>
           <div className="grid grid-cols-2 gap-3">
-            {ASTROLOGY_SERVICES.map(({ href, icon: Icon, label, color }) => (
-              <Link key={label} href={href}>
-                <div className="astronex-card p-5 flex flex-col items-start gap-3 cursor-pointer group hover:-translate-y-0.5 transition-transform duration-300 min-h-[120px]">
-                  <div className={`w-11 h-11 rounded-2xl bg-gradient-to-br ${color} flex items-center justify-center`}>
-                    <Icon className="w-5 h-5 text-white/80" />
+            {services.map(({ id, href, icon, title, gradient }) => {
+              const IconComp = icon && ICON_MAP[icon] ? ICON_MAP[icon] : Sparkles;
+              return (
+                <Link key={id} href={href || '#'}>
+                  <div className="astronex-card p-5 flex flex-col items-start gap-3 cursor-pointer group hover:-translate-y-0.5 transition-transform duration-300 min-h-[120px]">
+                    <div className={`w-11 h-11 rounded-2xl bg-gradient-to-br ${gradient || 'from-white/10 to-white/5'} flex items-center justify-center`}>
+                      <IconComp className="w-5 h-5 text-white/80" />
+                    </div>
+                    <span className="text-sm font-bold text-white/80 leading-tight whitespace-pre-line group-hover:text-white transition-colors">
+                      {title}
+                    </span>
                   </div>
-                  <span className="text-sm font-bold text-white/80 leading-tight whitespace-pre-line group-hover:text-white transition-colors">
-                    {label}
-                  </span>
-                </div>
-              </Link>
-            ))}
+                </Link>
+              );
+            })}
           </div>
         </div>
 
@@ -345,35 +378,35 @@ export default function Home() {
             <span className="text-emerald-400">FREE</span> Astrology Services
           </h3>
           <div className="grid grid-cols-2 gap-3">
-            {FREE_SERVICES.map(({ href, icon: Icon, label, desc, anchor }) => (
-              anchor ? (
-                <button
-                  key={label}
-                  onClick={scrollToHoroscope}
-                  className="astronex-card p-4 flex flex-col items-center text-center gap-2.5 cursor-pointer group hover:-translate-y-0.5 transition-transform duration-300"
-                >
-                  <div className="w-12 h-12 rounded-full glass flex items-center justify-center group-hover:bg-[var(--rose)]/10 transition-colors">
-                    <Icon className="w-5 h-5 text-[var(--rose)]" />
+            {freeServices.map(({ id, href, icon, title, subtitle }) => {
+              const IconComp = icon && ICON_MAP[icon] ? ICON_MAP[icon] : Sparkles;
+              const isAnchor = href?.startsWith('#');
+              const content = (
+                <div className="astronex-card p-4 flex flex-col items-center text-center gap-2.5 cursor-pointer group hover:-translate-y-0.5 transition-transform duration-300 h-full">
+                  <div className="w-12 h-12 rounded-full glass flex items-center justify-center group-hover:bg-[var(--rose)]/10 transition-colors shrink-0">
+                    <IconComp className="w-5 h-5 text-[var(--rose)]" />
                   </div>
                   <div>
-                    <p className="text-sm font-bold text-white/80 leading-tight group-hover:text-white transition-colors">{label}</p>
-                    <p className="text-[10px] text-white/30 mt-0.5">{desc}</p>
+                    <p className="text-sm font-bold text-white/80 leading-tight group-hover:text-white transition-colors">{title}</p>
+                    {subtitle && <p className="text-[10px] text-white/30 mt-0.5">{subtitle}</p>}
                   </div>
+                </div>
+              );
+
+              return isAnchor ? (
+                <button
+                  key={id}
+                  onClick={scrollToHoroscope}
+                  className="w-full text-left focus:outline-none"
+                >
+                  {content}
                 </button>
               ) : (
-                <Link key={label} href={href}>
-                  <div className="astronex-card p-4 flex flex-col items-center text-center gap-2.5 cursor-pointer group hover:-translate-y-0.5 transition-transform duration-300">
-                    <div className="w-12 h-12 rounded-full glass flex items-center justify-center group-hover:bg-[var(--rose)]/10 transition-colors">
-                      <Icon className="w-5 h-5 text-[var(--rose)]" />
-                    </div>
-                    <div>
-                      <p className="text-sm font-bold text-white/80 leading-tight group-hover:text-white transition-colors">{label}</p>
-                      <p className="text-[10px] text-white/30 mt-0.5">{desc}</p>
-                    </div>
-                  </div>
+                <Link key={id} href={href || '#'}>
+                  {content}
                 </Link>
-              )
-            ))}
+              );
+            })}
           </div>
         </div>
 
@@ -397,8 +430,8 @@ export default function Home() {
                 key={sign}
                 onClick={() => setSelectedSign(sign)}
                 className={`shrink-0 p-3 w-[68px] rounded-2xl transition-all flex flex-col items-center gap-2 ${selectedSign === sign
-                    ? 'gradient-primary text-white shadow-lg glow-pink scale-105'
-                    : 'glass hover:bg-white/[0.06] text-white/45'
+                  ? 'gradient-primary text-white shadow-lg glow-pink scale-105'
+                  : 'glass hover:bg-white/[0.06] text-white/45'
                   }`}
                 data-testid={`zodiac-${sign}`}
                 title={sign.charAt(0).toUpperCase() + sign.slice(1)}

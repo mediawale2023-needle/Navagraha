@@ -176,9 +176,43 @@ CREATE TABLE IF NOT EXISTS payout_requests (
   created_at timestamp DEFAULT now(),
   processed_at timestamp
 );
+
+CREATE TABLE IF NOT EXISTS homepage_content (
+  id varchar PRIMARY KEY DEFAULT gen_random_uuid(),
+  section varchar NOT NULL,
+  title varchar NOT NULL,
+  subtitle text,
+  icon varchar,
+  href varchar,
+  gradient varchar,
+  cta varchar,
+  sort_order integer DEFAULT 0,
+  enabled boolean DEFAULT true,
+  created_at timestamp DEFAULT now(),
+  updated_at timestamp DEFAULT now()
+);
+`;
+
+const SEED_HOMEPAGE_SQL = `
+INSERT INTO homepage_content (section, title, subtitle, icon, href, gradient, cta, sort_order, enabled)
+SELECT * FROM (VALUES
+  ('banner', 'Today''s Insight', 'Venus guides you toward love and creative flow. Open yourself to positive energy.', NULL, '/astrologers', 'bg-gradient-to-br from-[#8B2252] via-[#C0506A] to-[#D4847A]', 'Read More', 0, true),
+  ('banner', 'Premium Plan', 'Get unlimited AI insights, priority booking, and exclusive content.', NULL, '/wallet', 'bg-gradient-to-br from-[#8B2252] via-[#C0506A] to-[#D4847A]', 'Upgrade Plan', 1, true),
+  ('banner', 'Your Birth Chart', 'Discover your exact planetary positions and dashas for accurate predictions.', NULL, '/kundli/new', 'bg-gradient-to-br from-[#4A1A6B] via-[#6B3FA0] to-[#8B6CC1]', 'Generate', 2, true),
+  ('service', 'Chat with Astrologer', NULL, 'MessageCircle', '/astrologers', 'from-pink-500/20 to-rose-500/10', NULL, 0, true),
+  ('service', 'Talk to Astrologer', NULL, 'Phone', '/astrologers', 'from-amber-500/20 to-yellow-500/10', NULL, 1, true),
+  ('service', 'Book Appointment', NULL, 'Calendar', '/schedule', 'from-violet-500/20 to-purple-500/10', NULL, 2, true),
+  ('service', 'Personalized AI Astrology', NULL, 'Zap', '/kundli/new', 'from-emerald-500/20 to-teal-500/10', NULL, 3, true),
+  ('free_service', 'Compatibility', 'Check your match score', 'Scale', '/kundli/matchmaking', NULL, NULL, 0, true),
+  ('free_service', 'Kundli Match Making', 'Vedic matching', 'Heart', '/kundli/matchmaking', NULL, NULL, 1, true),
+  ('free_service', 'Free Kundli', 'Generate birth chart', 'Scroll', '/kundli/new', NULL, NULL, 2, true),
+  ('free_service', 'Today''s Horoscope', 'Daily predictions', 'Sun', '#horoscope', NULL, NULL, 3, true)
+) AS v(section, title, subtitle, icon, href, gradient, cta, sort_order, enabled)
+WHERE NOT EXISTS (SELECT 1 FROM homepage_content LIMIT 1);
 `;
 
 export async function runMigrations(): Promise<void> {
   await pool.query(SCHEMA_SQL);
+  await pool.query(SEED_HOMEPAGE_SQL);
   console.log('[migrate] Schema initialised successfully');
 }

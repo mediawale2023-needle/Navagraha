@@ -374,3 +374,28 @@ export const astrologerEarningsRelations = relations(astrologerEarnings, ({ one 
     references: [astrologers.id],
   }),
 }));
+
+// Homepage CMS content table
+export const homepageContent = pgTable("homepage_content", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  section: varchar("section").notNull(), // 'banner' | 'service' | 'free_service'
+  title: varchar("title").notNull(),
+  subtitle: text("subtitle"),
+  icon: varchar("icon"), // lucide icon name e.g. 'MessageCircle'
+  href: varchar("href"),
+  gradient: varchar("gradient"), // CSS gradient class for banners
+  cta: varchar("cta"), // CTA button text (banners)
+  sortOrder: integer("sort_order").default(0),
+  enabled: boolean("enabled").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertHomepageContentSchema = createInsertSchema(homepageContent).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type InsertHomepageContent = z.infer<typeof insertHomepageContentSchema>;
+export type HomepageContent = typeof homepageContent.$inferSelect;
