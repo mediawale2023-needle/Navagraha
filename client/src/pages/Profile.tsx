@@ -1,14 +1,14 @@
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'wouter';
 import { Button } from '@/components/ui/button';
-import { BottomNav } from '@/components/BottomNav';
+
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
-import { 
-  ArrowLeft, User, Mail, Phone, Calendar, 
-  MapPin, Clock, Sparkles 
+import {
+  ArrowLeft, User, Mail, Phone, Calendar,
+  MapPin, Clock, Sparkles
 } from 'lucide-react';
 import type { User as UserType, Kundli } from '@shared/schema';
 
@@ -26,8 +26,8 @@ export default function Profile() {
   }
 
   return (
-    <div className="min-h-screen bg-[#0D0D0D] pb-20 md:pb-0">
-      <div className="sticky top-0 z-50 border-b border-white/5 ">
+    <div className="min-h-screen bg-background pb-20 md:pb-0">
+      <div className="sticky top-0 z-50 header-glass">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-3">
           <div className="flex items-center gap-3">
             <Link href="/">
@@ -55,7 +55,7 @@ export default function Profile() {
 
               <div className="flex-1">
                 <h2 className="text-3xl font-serif font-semibold text-foreground mb-2">
-                  {user?.firstName || user?.lastName 
+                  {user?.firstName || user?.lastName
                     ? `${user.firstName || ''} ${user.lastName || ''}`.trim()
                     : 'Anonymous User'}
                 </h2>
@@ -108,7 +108,7 @@ export default function Profile() {
                 <div>
                   <div className="text-sm text-muted-foreground">Member Since</div>
                   <div className="text-2xl font-bold text-foreground">
-                    {user?.createdAt 
+                    {user?.createdAt
                       ? new Date(user.createdAt).getFullYear()
                       : new Date().getFullYear()}
                   </div>
@@ -186,7 +186,7 @@ export default function Profile() {
               <div className="space-y-3">
                 {kundlis.map((kundli) => {
                   const birthDate = new Date(kundli.dateOfBirth);
-                  
+
                   return (
                     <Link key={kundli.id} href={`/kundli/${kundli.id}`}>
                       <div
@@ -245,7 +245,7 @@ export default function Profile() {
           </CardContent>
         </Card>
       </div>
-      <BottomNav />
+
     </div>
   );
 }

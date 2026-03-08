@@ -5,7 +5,7 @@ const NAV_ITEMS = [
     label: "Home",
     path: "/",
     icon: (active: boolean) => (
-      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={active ? "#E91E8C" : "#6B7280"} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
         <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
         <polyline points="9 22 9 12 15 12 15 22" />
       </svg>
@@ -15,7 +15,7 @@ const NAV_ITEMS = [
     label: "Charts",
     path: "/kundli/new",
     icon: (active: boolean) => (
-      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={active ? "#E91E8C" : "#6B7280"} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
         <circle cx="12" cy="12" r="10" />
         <circle cx="12" cy="12" r="4" />
         <line x1="12" y1="2" x2="12" y2="6" />
@@ -30,8 +30,8 @@ const NAV_ITEMS = [
     path: "/numerology",
     isCenter: true,
     icon: (_active: boolean) => (
-      <div className="w-14 h-14 rounded-full gradient-primary flex items-center justify-center -mt-7 glow-pink shadow-lg">
-        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <div className="w-14 h-14 rounded-full gradient-primary flex items-center justify-center -mt-7 glow-pink shadow-xl ring-4 ring-background">
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
         </svg>
       </div>
@@ -41,7 +41,7 @@ const NAV_ITEMS = [
     label: "Consult",
     path: "/astrologers",
     icon: (active: boolean) => (
-      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={active ? "#E91E8C" : "#6B7280"} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
         <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
         <circle cx="9" cy="7" r="4" />
         <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
@@ -53,7 +53,7 @@ const NAV_ITEMS = [
     label: "Profile",
     path: "/profile",
     icon: (active: boolean) => (
-      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={active ? "#E91E8C" : "#6B7280"} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
         <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
         <circle cx="12" cy="7" r="4" />
       </svg>
@@ -73,13 +73,15 @@ export default function BottomNav() {
             <button
               key={i}
               onClick={() => setLocation(item.path)}
-              className={`flex flex-col items-center justify-center gap-0.5 transition-all duration-200 ${item.isCenter ? "relative" : "min-w-[56px] py-1"
+              className={`flex flex-col items-center justify-center gap-0.5 transition-all duration-300 ${item.isCenter
+                  ? "relative"
+                  : `min-w-[56px] py-1 ${isActive ? "text-primary" : "text-white/35 hover:text-white/55"}`
                 }`}
             >
               {item.icon(isActive)}
               {item.label && (
                 <span
-                  className={`text-[10px] font-medium transition-colors ${isActive ? "text-[#E91E8C]" : "text-gray-500"
+                  className={`text-[10px] font-semibold transition-colors ${isActive ? "text-primary" : "text-white/35"
                     }`}
                 >
                   {item.label}

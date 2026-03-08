@@ -82,7 +82,7 @@ export default function Schedule() {
   const typeIcon = (t: string) => t === 'voice' ? <Phone className="w-4 h-4" /> : t === 'video' ? <Video className="w-4 h-4" /> : <MessageCircle className="w-4 h-4" />;
 
   return (
-    <div className="min-h-screen bg-[#0D0D0D] pb-20 md:pb-0">
+    <div className="min-h-screen bg-background pb-20 md:pb-0">
       {/* Header */}
       <div className="sticky top-0 z-50 border-b border-white/5 ">
         <div className="max-w-4xl mx-auto px-4 py-3">

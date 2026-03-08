@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
-import { BottomNav } from '@/components/BottomNav';
+
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
 import {
@@ -48,7 +48,7 @@ export default function Astrologers() {
           });
           queryClient.invalidateQueries({ queryKey: ['/api/astrologers'] });
         }
-      } catch {}
+      } catch { }
     };
     return () => ws.close();
   }, [queryClient]);
@@ -80,9 +80,9 @@ export default function Astrologers() {
   const onlineCount = astrologers?.filter(isOnline).length || 0;
 
   return (
-    <div className="min-h-screen bg-[#0D0D0D] text-white pb-20 md:pb-0">
+    <div className="min-h-screen bg-background text-white pb-20 md:pb-0">
       {/* Header */}
-      <div className="sticky top-0 z-50 border-b border-white/5 ">
+      <div className="sticky top-0 z-50 header-glass">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3">
           <div className="flex items-center gap-3">
             <Link href="/">
@@ -108,7 +108,7 @@ export default function Astrologers() {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
             <Input
               placeholder="Search by name or specialization..."
-              className="pl-9 bg-white/5 border-white/10 rounded-xl h-10 focus:border-[#E91E8C]/50 focus:ring-[#E91E8C]/30 text-sm"
+              className="pl-9 bg-white/5 border-white/10 rounded-xl h-10 focus:border-[var(--rose)]/50 focus:ring-[var(--rose)]/30 text-sm"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               data-testid="input-search"
@@ -122,22 +122,20 @@ export default function Astrologers() {
             <button
               key={cat}
               onClick={() => setActiveCategory(cat)}
-              className={`flex-shrink-0 px-3.5 py-1.5 rounded-full text-xs font-semibold border transition-all ${
-                activeCategory === cat
+              className={`flex-shrink-0 px-3.5 py-1.5 rounded-full text-xs font-semibold border transition-all ${activeCategory === cat
                   ? 'gradient-primary border-transparent text-white'
-                  : 'bg-white/5 border-white/10 text-gray-400 hover:border-[#E91E8C]/30'
-              }`}
+                  : 'bg-white/5 border-white/10 text-gray-400 hover:border-[var(--rose)]/30'
+                }`}
             >
               {cat}
             </button>
           ))}
           <button
             onClick={() => setFilterOnline(!filterOnline)}
-            className={`flex-shrink-0 px-3.5 py-1.5 rounded-full text-xs font-semibold border transition-all flex items-center gap-1.5 ${
-              filterOnline
+            className={`flex-shrink-0 px-3.5 py-1.5 rounded-full text-xs font-semibold border transition-all flex items-center gap-1.5 ${filterOnline
                 ? 'bg-green-600 border-green-600 text-white'
                 : 'bg-white/5 border-white/10 text-gray-400 hover:border-green-300'
-            }`}
+              }`}
             data-testid="button-filter-available"
           >
             <div className={`w-1.5 h-1.5 rounded-full ${filterOnline ? 'bg-white/5 animate-pulse' : 'bg-green-500'}`} />
@@ -157,9 +155,8 @@ export default function Astrologers() {
               <button
                 key={s}
                 onClick={() => setSortBy(s)}
-                className={`px-2.5 py-1 rounded-md text-[10px] font-semibold transition-colors ${
-                  sortBy === s ? 'bg-[#E91E8C]/10 text-[#E91E8C]' : 'text-gray-400 hover:text-gray-400'
-                }`}
+                className={`px-2.5 py-1 rounded-md text-[10px] font-semibold transition-colors ${sortBy === s ? 'bg-[var(--rose)]/10 text-[var(--rose)]' : 'text-gray-400 hover:text-gray-400'
+                  }`}
               >
                 {s === 'rating' ? 'Top Rated' : s === 'price' ? 'Price: Low' : 'Experience'}
               </button>
@@ -185,21 +182,20 @@ export default function Astrologers() {
                   <div className="p-3">
                     <div className="flex gap-3">
                       <div className="relative flex-shrink-0">
-                        <Avatar className="w-14 h-14 ring-2 ring-[#E91E8C]/30">
+                        <Avatar className="w-14 h-14 ring-2 ring-[var(--rose)]/30">
                           <AvatarImage src={astrologer.profileImageUrl || undefined} alt={astrologer.name} />
                           <AvatarFallback className="gradient-primary text-white font-bold text-lg">
                             {astrologer.name.charAt(0)}
                           </AvatarFallback>
                         </Avatar>
-                        <div className={`absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full border-2 border-[#0D0D0D] ${
-                          online ? 'bg-green-500' : astrologer.availability === 'busy' ? 'bg-yellow-400' : 'bg-gray-300'
-                        }`} />
+                        <div className={`absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full border-2 border-background ${online ? 'bg-emerald-500' : astrologer.availability === 'busy' ? 'bg-yellow-400' : 'bg-gray-300'
+                          }`} />
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-1 mb-0.5">
                           <h3 className="font-bold text-sm text-white truncate">{astrologer.name}</h3>
                           {astrologer.isVerified && (
-                            <CheckCircle2 className="w-3.5 h-3.5 text-[#E91E8C] flex-shrink-0" />
+                            <CheckCircle2 className="w-3.5 h-3.5 text-[var(--rose)] flex-shrink-0" />
                           )}
                         </div>
                         <p className="text-[11px] text-gray-500 truncate">
@@ -240,7 +236,7 @@ export default function Astrologers() {
                         )}
                       </div>
                       <div className="flex items-baseline gap-0.5">
-                        <span className="font-bold text-base text-[#D4A853]">₹{astrologer.pricePerMinute || '25'}</span>
+                        <span className="font-bold text-base text-[var(--gold)]">₹{astrologer.pricePerMinute || '25'}</span>
                         <span className="text-[10px] text-gray-400">/min</span>
                       </div>
                     </div>
@@ -295,7 +291,7 @@ export default function Astrologers() {
         )}
       </div>
 
-      <BottomNav />
+
     </div>
   );
 }

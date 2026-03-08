@@ -201,7 +201,7 @@ export default function Wallet() {
   const balance = parseFloat(wallet?.balance || '0');
 
   return (
-    <div className="min-h-screen bg-[#0D0D0D] text-white">
+    <div className="min-h-screen bg-background text-white">
       {/* Header */}
       <div className="sticky top-0 z-50 border-b border-white/5 ">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-3">
@@ -220,7 +220,7 @@ export default function Wallet() {
         <p className="text-muted-foreground mb-6">Recharge using UPI, cards, or pay later options</p>
 
         {/* Balance Card */}
-        <Card className="mb-6 bg-gradient-to-br from-orange-500 to-amber-400 border-[#E91E8C]/30">
+        <Card className="mb-6 bg-gradient-to-br from-orange-500 to-amber-400 border-[var(--rose)]/30">
           <CardContent className="p-6">
             <div className="flex items-center gap-3 mb-2">
               <WalletIcon className="w-7 h-7 text-white" />
@@ -251,11 +251,10 @@ export default function Wallet() {
                 {/* Razorpay */}
                 <button
                   onClick={() => setPaymentMethod('razorpay')}
-                  className={`p-4 rounded-xl border-2 text-left transition-all ${
-                    paymentMethod === 'razorpay'
-                      ? 'border-orange-400 bg-[#E91E8C]/5'
-                      : 'border-border hover:border-orange-400'
-                  }`}
+                  className={`p-4 rounded-xl border-2 text-left transition-all ${paymentMethod === 'razorpay'
+                    ? 'border-orange-400 bg-[var(--rose)]/5'
+                    : 'border-border hover:border-orange-400'
+                    }`}
                 >
                   <div className="flex items-center gap-2 mb-1">
                     <CreditCard className="w-4 h-4 text-white" />
@@ -269,11 +268,10 @@ export default function Wallet() {
                 {/* Snapmint Direct */}
                 <button
                   onClick={() => setPaymentMethod('snapmint')}
-                  className={`p-4 rounded-xl border-2 text-left transition-all ${
-                    paymentMethod === 'snapmint'
-                      ? 'border-blue-500 bg-blue-50'
-                      : 'border-border hover:border-blue-300'
-                  }`}
+                  className={`p-4 rounded-xl border-2 text-left transition-all ${paymentMethod === 'snapmint'
+                    ? 'border-blue-500 bg-blue-50'
+                    : 'border-border hover:border-blue-300'
+                    }`}
                 >
                   <div className="flex items-center gap-2 mb-1">
                     <Smartphone className="w-4 h-4 text-blue-600" />
@@ -287,11 +285,10 @@ export default function Wallet() {
                 {/* LazyPay */}
                 <button
                   onClick={() => setPaymentMethod('lazypay')}
-                  className={`p-4 rounded-xl border-2 text-left transition-all ${
-                    paymentMethod === 'lazypay'
-                      ? 'border-purple-500 bg-purple-50'
-                      : 'border-border hover:border-purple-300'
-                  }`}
+                  className={`p-4 rounded-xl border-2 text-left transition-all ${paymentMethod === 'lazypay'
+                    ? 'border-purple-500 bg-purple-50'
+                    : 'border-border hover:border-purple-300'
+                    }`}
                 >
                   <div className="flex items-center gap-2 mb-1">
                     <Gift className="w-4 h-4 text-purple-600" />
@@ -306,7 +303,7 @@ export default function Wallet() {
               {/* Info banners */}
               {paymentMethod === 'snapmint' && (
                 <div className="mt-3 p-3 bg-blue-50 rounded-lg flex gap-2">
-                  <Info className="w-4 h-4 text-[#E91E8C] flex-shrink-0 mt-0.5" />
+                  <Info className="w-4 h-4 text-[var(--rose)] flex-shrink-0 mt-0.5" />
                   <p className="text-xs text-blue-700">
                     Snapmint offers 0% EMI in 3, 6, or 9 installments with no credit card required.
                     Repayment via UPI. Also available inside Razorpay checkout.
@@ -338,9 +335,8 @@ export default function Wallet() {
                         setSelectedPack(pack);
                         handlePayment(pack.amount, pack.id, pack.bonus);
                       }}
-                      className={`relative p-4 rounded-xl border-2 text-left transition-all hover:border-amber-400 ${
-                        pack.popular ? 'border-amber-400 bg-amber-50' : 'border-border'
-                      }`}
+                      className={`relative p-4 rounded-xl border-2 text-left transition-all hover:border-amber-400 ${pack.popular ? 'border-amber-400 bg-amber-50' : 'border-border'
+                        }`}
                       data-testid={`button-pack-${pack.id}`}
                     >
                       {pack.popular && (
@@ -429,9 +425,8 @@ export default function Wallet() {
                       data-testid={`transaction-${transaction.id}`}
                     >
                       <div className="flex items-center gap-4">
-                        <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                          isPending ? 'bg-yellow-500/10' : isCredit ? 'bg-green-500/10' : 'bg-red-500/10'
-                        }`}>
+                        <div className={`w-10 h-10 rounded-full flex items-center justify-center ${isPending ? 'bg-yellow-500/10' : isCredit ? 'bg-green-500/10' : 'bg-red-500/10'
+                          }`}>
                           {isPending ? (
                             <Loader2 className="w-5 h-5 text-yellow-600 animate-spin" />
                           ) : isCredit ? (
@@ -455,9 +450,8 @@ export default function Wallet() {
                         </div>
                       </div>
                       <div className="text-right">
-                        <div className={`text-lg font-semibold ${
-                          isPending ? 'text-yellow-600' : isCredit ? 'text-green-600' : 'text-red-600'
-                        }`}>
+                        <div className={`text-lg font-semibold ${isPending ? 'text-yellow-600' : isCredit ? 'text-green-600' : 'text-red-600'
+                          }`}>
                           {isCredit ? '+' : '-'}₹{transaction.amount}
                         </div>
                         <Badge

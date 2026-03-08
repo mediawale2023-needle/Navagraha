@@ -76,8 +76,8 @@ export default function KundliNew() {
   const nextStep = () => {
     const fieldsToValidate: (keyof KundliFormData)[] =
       step === 1 ? ['name', 'gender'] :
-      step === 2 ? ['dateOfBirth', 'timeOfBirth'] :
-      ['placeOfBirth'];
+        step === 2 ? ['dateOfBirth', 'timeOfBirth'] :
+          ['placeOfBirth'];
 
     form.trigger(fieldsToValidate).then((isValid) => {
       if (isValid) {
@@ -89,7 +89,7 @@ export default function KundliNew() {
   const stepLabels = ['Personal', 'Date & Time', 'Location'];
 
   return (
-    <div className="min-h-screen bg-[#0D0D0D] text-white pb-20">
+    <div className="min-h-screen bg-background text-white pb-20">
       {/* Header */}
       <div className="border-b border-white/5 px-4 py-4">
         <div className="max-w-3xl mx-auto flex items-center justify-between">
@@ -116,18 +116,16 @@ export default function KundliNew() {
           {[1, 2, 3].map((s) => (
             <div key={s} className="flex items-center">
               <div className="flex flex-col items-center">
-                <div className={`w-10 h-10 rounded-full flex items-center justify-center font-semibold transition-all ${
-                  s === step
-                    ? 'gradient-primary text-white'
-                    : s < step
+                <div className={`w-10 h-10 rounded-full flex items-center justify-center font-semibold transition-all ${s === step
+                  ? 'gradient-primary text-white'
+                  : s < step
                     ? 'bg-green-500 text-white'
                     : 'bg-gray-200 text-gray-500'
-                }`}>
+                  }`}>
                   {s < step ? <Check className="w-5 h-5" /> : s}
                 </div>
-                <span className={`text-xs mt-1.5 font-medium ${
-                  s === step ? 'text-[#E91E8C]' : s < step ? 'text-green-600' : 'text-gray-400'
-                }`}>
+                <span className={`text-xs mt-1.5 font-medium ${s === step ? 'text-[var(--rose)]' : s < step ? 'text-green-600' : 'text-gray-400'
+                  }`}>
                   {stepLabels[s - 1]}
                 </span>
               </div>
@@ -148,8 +146,8 @@ export default function KundliNew() {
               {step === 1
                 ? 'Enter your name and gender to get started'
                 : step === 2
-                ? 'Provide your exact birth date and time'
-                : 'Enter your place of birth for accurate calculations'}
+                  ? 'Provide your exact birth date and time'
+                  : 'Enter your place of birth for accurate calculations'}
             </p>
           </div>
 
@@ -266,7 +264,7 @@ export default function KundliNew() {
                       type="button"
                       variant="outline"
                       onClick={() => setStep(1)}
-                      className="flex-1 border-white/10 text-[#E91E8C] hover:bg-[#E91E8C]/5"
+                      className="flex-1 border-white/10 text-[var(--rose)] hover:bg-[var(--rose)]/5"
                       data-testid="button-back-step-2"
                     >
                       ← Back
@@ -308,7 +306,7 @@ export default function KundliNew() {
                     )}
                   />
 
-                  <div className="bg-[#E91E8C]/5 border border-white/5 rounded-lg p-4">
+                  <div className="bg-[var(--rose)]/5 border border-white/5 rounded-lg p-4">
                     <p className="text-sm text-orange-800">
                       <strong>Note:</strong> Accurate birth details are essential for precise astrological calculations.
                       Please ensure all information is correct.
@@ -320,7 +318,7 @@ export default function KundliNew() {
                       type="button"
                       variant="outline"
                       onClick={() => setStep(2)}
-                      className="flex-1 border-white/10 text-[#E91E8C] hover:bg-[#E91E8C]/5"
+                      className="flex-1 border-white/10 text-[var(--rose)] hover:bg-[var(--rose)]/5"
                       data-testid="button-back-step-3"
                     >
                       ← Back

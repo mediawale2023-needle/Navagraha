@@ -14,12 +14,12 @@ import {
 } from 'lucide-react';
 
 interface NumerologyResult {
-  lifePath:    number;
-  destiny:     number;
-  soul:        number;
+  lifePath: number;
+  destiny: number;
+  soul: number;
   personality: number;
-  birthday:    number;
-  name:        string;
+  birthday: number;
+  name: string;
 }
 
 const NUMBER_MEANINGS: Record<number, { title: string; description: string; traits: string[] }> = {
@@ -38,11 +38,11 @@ const NUMBER_MEANINGS: Record<number, { title: string; description: string; trai
 };
 
 const CARD_THEMES: Record<string, { border: string; iconBg: string; iconText: string; traitBg: string; traitBorder: string }> = {
-  'Life Path Number':   { border: 'border-white/10', iconBg: 'bg-[#E91E8C]/10',  iconText: 'text-[#E91E8C]', traitBg: 'bg-[#E91E8C]/5',  traitBorder: 'border-white/10' },
-  'Destiny Number':     { border: 'border-indigo-200', iconBg: 'bg-indigo-100',  iconText: 'text-indigo-600', traitBg: 'bg-indigo-50',  traitBorder: 'border-indigo-200' },
-  'Soul Urge Number':   { border: 'border-rose-200',   iconBg: 'bg-rose-100',    iconText: 'text-rose-600',   traitBg: 'bg-rose-50',    traitBorder: 'border-rose-200' },
-  'Personality Number': { border: 'border-green-200',  iconBg: 'bg-green-500/10',   iconText: 'text-green-600',  traitBg: 'bg-green-50',   traitBorder: 'border-green-200' },
-  'Birthday Number':    { border: 'border-purple-200', iconBg: 'bg-purple-100',  iconText: 'text-purple-600', traitBg: 'bg-purple-50',  traitBorder: 'border-purple-200' },
+  'Life Path Number': { border: 'border-white/10', iconBg: 'bg-[var(--rose)]/10', iconText: 'text-[var(--rose)]', traitBg: 'bg-[var(--rose)]/5', traitBorder: 'border-white/10' },
+  'Destiny Number': { border: 'border-indigo-200', iconBg: 'bg-indigo-100', iconText: 'text-indigo-600', traitBg: 'bg-indigo-50', traitBorder: 'border-indigo-200' },
+  'Soul Urge Number': { border: 'border-rose-200', iconBg: 'bg-rose-100', iconText: 'text-rose-600', traitBg: 'bg-rose-50', traitBorder: 'border-rose-200' },
+  'Personality Number': { border: 'border-green-200', iconBg: 'bg-green-500/10', iconText: 'text-green-600', traitBg: 'bg-green-50', traitBorder: 'border-green-200' },
+  'Birthday Number': { border: 'border-purple-200', iconBg: 'bg-purple-100', iconText: 'text-purple-600', traitBg: 'bg-purple-50', traitBorder: 'border-purple-200' },
 };
 
 function NumberCard({ label, number, icon: Icon }: { label: string; number: number; icon: any }) {
@@ -100,7 +100,7 @@ export default function Numerology() {
   };
 
   return (
-    <div className="min-h-screen bg-[#0D0D0D] text-white pb-20 md:pb-0">
+    <div className="min-h-screen bg-background text-white pb-20 md:pb-0">
       {/* Header */}
       <div className="sticky top-0 z-50 border-b border-white/5 ">
         <div className="max-w-4xl mx-auto px-4 py-3">
@@ -169,17 +169,16 @@ export default function Numerology() {
                 <div className="grid grid-cols-2 gap-2">
                   {[
                     { value: 'pythagorean', label: 'Pythagorean', desc: 'Most popular Western system' },
-                    { value: 'chaldean',    label: 'Chaldean',    desc: 'Ancient Babylonian system' },
+                    { value: 'chaldean', label: 'Chaldean', desc: 'Ancient Babylonian system' },
                   ].map(sys => (
                     <button
                       key={sys.value}
                       type="button"
                       onClick={() => setForm(f => ({ ...f, system: sys.value }))}
-                      className={`p-3 rounded-xl border-2 text-left transition-all ${
-                        form.system === sys.value
-                          ? 'border-orange-600 gradient-primary text-white'
-                          : 'border-white/10 bg-white/5 text-gray-400 hover:border-[#E91E8C]/30'
-                      }`}
+                      className={`p-3 rounded-xl border-2 text-left transition-all ${form.system === sys.value
+                        ? 'border-orange-600 gradient-primary text-white'
+                        : 'border-white/10 bg-white/5 text-gray-400 hover:border-[var(--rose)]/30'
+                        }`}
                     >
                       <div className={`font-semibold text-sm ${form.system === sys.value ? 'text-white' : 'text-white'}`}>{sys.label}</div>
                       <div className={`text-xs mt-0.5 ${form.system === sys.value ? 'text-white/70' : 'text-gray-500'}`}>{sys.desc}</div>
@@ -218,18 +217,18 @@ export default function Numerology() {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <NumberCard label="Life Path Number"   number={result.lifePath}    icon={Star} />
-              <NumberCard label="Destiny Number"     number={result.destiny}     icon={TrendingUp} />
-              <NumberCard label="Soul Urge Number"   number={result.soul}        icon={Heart} />
+              <NumberCard label="Life Path Number" number={result.lifePath} icon={Star} />
+              <NumberCard label="Destiny Number" number={result.destiny} icon={TrendingUp} />
+              <NumberCard label="Soul Urge Number" number={result.soul} icon={Heart} />
               <NumberCard label="Personality Number" number={result.personality} icon={User} />
-              <NumberCard label="Birthday Number"    number={result.birthday}    icon={Calendar} />
+              <NumberCard label="Birthday Number" number={result.birthday} icon={Calendar} />
             </div>
 
             {/* What is life path */}
             <Card className=" border-white/5">
               <CardContent className="p-5">
                 <h4 className="font-bold text-white mb-3 flex items-center gap-2">
-                  <Sparkles className="w-4 h-4 text-[#E91E8C]" /> Understanding Your Numbers
+                  <Sparkles className="w-4 h-4 text-[var(--rose)]" /> Understanding Your Numbers
                 </h4>
                 <div className="space-y-3 text-sm text-gray-400">
                   <div className="flex gap-2"><span className="font-semibold text-white min-w-[140px]">Life Path ({result.lifePath}):</span> Your core purpose and the journey you're destined to take in this lifetime.</div>
@@ -241,10 +240,10 @@ export default function Numerology() {
               </CardContent>
             </Card>
 
-            <div className="bg-gradient-to-r from-[#E91E8C] to-[#7B2FBE] rounded-2xl p-4 text-center">
+            <div className="bg-gradient-to-r from-[var(--rose)] to-[#7B2FBE] rounded-2xl p-4 text-center">
               <p className="text-sm text-white/90 mb-3">Want a deeper numerology reading from an expert?</p>
               <Link href="/astrologers">
-                <Button className="bg-white/5 text-[#E91E8C] hover:bg-white/5/90 font-bold rounded-xl gap-2">
+                <Button className="bg-white/5 text-[var(--rose)] hover:bg-white/5/90 font-bold rounded-xl gap-2">
                   Talk to an Astrologer <ChevronRight className="w-4 h-4" />
                 </Button>
               </Link>

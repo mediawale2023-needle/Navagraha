@@ -83,7 +83,7 @@ export default function Matchmaking() {
   ];
 
   return (
-    <div className="min-h-screen bg-[#0D0D0D] text-white pb-20">
+    <div className="min-h-screen bg-background text-white pb-20">
       {/* Header */}
       <div className="border-b border-white/5 px-4 pt-12 pb-8">
         <div className="max-w-5xl mx-auto">
@@ -111,7 +111,7 @@ export default function Matchmaking() {
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {/* Person 1 */}
                 <Card className="border-white/10 border-2 overflow-hidden">
-                  <CardHeader className="bg-[#E91E8C]/5 border-b border-white/5">
+                  <CardHeader className="bg-[var(--rose)]/5 border-b border-white/5">
                     <CardTitle className="text-white">Person 1 Details</CardTitle>
                     <CardDescription>Enter first person's birth information</CardDescription>
                   </CardHeader>

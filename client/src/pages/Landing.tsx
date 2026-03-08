@@ -44,10 +44,10 @@ export default function Landing() {
     <div className="min-h-screen bg-background text-foreground overflow-hidden font-sans selection:bg-[#E27689]/30">
 
       {/* ─── Global Ambient Glows (True AstroNex Style) ─── */}
-      <div className="fixed top-[-20%] left-[-10%] w-[50vw] h-[50vw] rounded-full bg-[#E27689]/10 blur-[120px] pointer-events-none" />
-      <div className="fixed bottom-[-20%] right-[-10%] w-[50vw] h-[50vw] rounded-full bg-[#A24268]/15 blur-[120px] pointer-events-none" />
-      <div className="fixed top-[40%] left-[60%] w-[30vw] h-[30vw] rounded-full bg-[#D4A853]/5 blur-[100px] pointer-events-none" />
-      <div className="fixed inset-0 celestial-mesh opacity-30 pointer-events-none mix-blend-screen" />
+      <div className="fixed top-[-20%] left-[-10%] w-[50vw] h-[50vw] rounded-full bg-[var(--rose)]/[0.06] blur-[120px] pointer-events-none" />
+      <div className="fixed bottom-[-20%] right-[-10%] w-[50vw] h-[50vw] rounded-full bg-[var(--magenta)]/[0.08] blur-[120px] pointer-events-none" />
+      <div className="fixed top-[40%] left-[60%] w-[30vw] h-[30vw] rounded-full bg-[var(--gold)]/[0.03] blur-[100px] pointer-events-none" />
+      <div className="fixed inset-0 celestial-mesh opacity-20 pointer-events-none" />
 
       {/* ─── Header ────────────────────────────────────────────── */}
       <motion.header
@@ -231,7 +231,7 @@ export default function Landing() {
                         {astrologer?.name?.charAt(0) || 'A'}
                       </AvatarFallback>
                     </Avatar>
-                    <div className="absolute -bottom-1 -right-1 w-5 h-5 bg-green-500 rounded-full border-[3px] border-[#1A1A1A]" />
+                    <div className="absolute -bottom-1 -right-1 w-5 h-5 bg-emerald-500 rounded-full border-[3px] border-background" />
                   </div>
 
                   <div className="flex-1 pt-1">
