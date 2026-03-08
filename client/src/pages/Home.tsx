@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -6,12 +6,41 @@ import { ZodiacIcon } from '@/components/ZodiacIcon';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
 import { Link } from 'wouter';
 import {
-  Sparkles, Star, Wallet, LogOut, User, Video,
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import {
+  Sparkles, Star, Wallet, LogOut, User,
   Phone, MessageCircle, Heart, TrendingUp,
-  Activity, CheckCircle2, ChevronRight, Hash,
-  Sun, Moon, Calendar, ArrowRight
+  Activity, CheckCircle2, ChevronRight,
+  Sun, Moon, Calendar, ArrowRight, Video,
+  Users, Scroll, Scale, Zap
 } from 'lucide-react';
 import type { User as UserType, Astrologer } from '@shared/schema';
+
+/* ──────────────────────────────────────────────────────── */
+/*  Constants                                               */
+/* ──────────────────────────────────────────────────────── */
+
+const NAV_TABS = [
+  { label: 'Free Kundli', href: '/kundli/new' },
+  { label: 'Matchmaking', href: '/kundli/matchmaking' },
+  { label: 'Compatibility', href: '/kundli/matchmaking' },
+  { label: 'Horoscope', anchor: 'horoscope' },
+];
+
+const ASTROLOGY_SERVICES = [
+  { href: '/astrologers', icon: MessageCircle, label: 'Chat with\nAstrologer', color: 'from-pink-500/20 to-rose-500/10' },
+  { href: '/astrologers', icon: Phone, label: 'Talk to\nAstrologer', color: 'from-amber-500/20 to-yellow-500/10' },
+  { href: '/schedule', icon: Calendar, label: 'Book\nAppointment', color: 'from-violet-500/20 to-purple-500/10' },
+  { href: '/kundli/new', icon: Zap, label: 'Personalized\nAI Astrology', color: 'from-emerald-500/20 to-teal-500/10' },
+];
+
+const FREE_SERVICES = [
+  { href: '/kundli/matchmaking', icon: Scale, label: 'Compatibility', desc: 'Check your match score' },
+  { href: '/kundli/matchmaking', icon: Heart, label: 'Kundli Match Making', desc: 'Vedic matching' },
+  { href: '/kundli/new', icon: Scroll, label: 'Free Kundli', desc: 'Generate birth chart' },
+  { href: '#horoscope', icon: Sun, label: "Today's Horoscope", desc: 'Daily predictions', anchor: 'horoscope' },
+];
 
 const zodiacSigns = [
   'aries', 'taurus', 'gemini', 'cancer',
@@ -19,18 +48,14 @@ const zodiacSigns = [
   'sagittarius', 'capricorn', 'aquarius', 'pisces'
 ];
 
-const QUICK_ACTIONS = [
-  { href: '/astrologers', icon: MessageCircle, label: 'Chat' },
-  { href: '/astrologers', icon: Phone, label: 'Call' },
-  { href: '/kundli/new', icon: Sun, label: 'Kundli' },
-  { href: '/kundli/matchmaking', icon: Heart, label: 'Match' },
-  { href: '/schedule', icon: Calendar, label: 'Book' },
-  { href: '/numerology', icon: Hash, label: 'Numbers' },
-];
+/* ──────────────────────────────────────────────────────── */
+/*  Component                                               */
+/* ──────────────────────────────────────────────────────── */
 
 export default function Home() {
   const [selectedSign, setSelectedSign] = useState('aries');
   const [bannerIdx, setBannerIdx] = useState(0);
+  const horoscopeRef = useRef<HTMLDivElement>(null);
 
   const { data: user, isLoading: userLoading } = useQuery<UserType>({
     queryKey: ['/api/auth/user'],
@@ -61,11 +86,17 @@ export default function Home() {
     );
   }
 
+  const featuredAstrologer = astrologers?.find(a => a.isOnline || a.availability === 'available') || astrologers?.[0];
+
   const banners = [
     { title: "Today's Insight", subtitle: "Venus guides you toward love and creative flow. Open yourself to positive energy.", cta: 'Read More', href: '/astrologers' },
     { title: "Premium Plan", subtitle: "Get unlimited AI insights, priority booking, and exclusive content.", cta: 'Upgrade Plan', href: '/wallet' },
     { title: "Your Birth Chart", subtitle: "Discover your exact planetary positions and dashas for accurate predictions.", cta: 'Generate', href: '/kundli/new' },
   ];
+
+  const scrollToHoroscope = () => {
+    horoscopeRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
 
   return (
     <div className="min-h-screen bg-background text-foreground font-sans">
@@ -75,83 +106,113 @@ export default function Home() {
       <div className="fixed bottom-0 right-0 w-[45vw] h-[45vw] rounded-full bg-[var(--gold)]/[0.03] blur-[100px] pointer-events-none" />
       <div className="fixed inset-0 celestial-mesh opacity-20 pointer-events-none" />
 
-      {/* ─── Header ─── */}
+      {/* ═══════════════════════════════════════════════════════
+          HEADER: Logo │ Nav Tabs │ Wallet │ Profile Dropdown
+         ═══════════════════════════════════════════════════════ */}
       <header className="sticky top-0 z-50 header-glass">
-        <div className="max-w-7xl mx-auto flex items-center justify-between h-14 px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center gap-3">
-            <Link href="/profile">
-              <Avatar className="w-10 h-10 cursor-pointer avatar-glow transition-transform hover:scale-105" data-testid="nav-link-profile">
-                <AvatarImage src={user?.profileImageUrl || undefined} className="object-cover" />
-                <AvatarFallback className="gradient-primary text-white text-sm font-bold">
-                  {user?.firstName?.charAt(0) || <User className="w-4 h-4" />}
-                </AvatarFallback>
-              </Avatar>
-            </Link>
-            <div>
-              <h2 className="font-bold text-white text-[15px] leading-tight flex items-center gap-1.5">
-                {user?.firstName || 'Seeker'} <Sparkles className="w-3.5 h-3.5 text-[var(--gold)]" />
-              </h2>
-              <p className="text-[11px] text-white/40 font-medium">Welcome Back ✨</p>
-            </div>
-          </div>
+        <div className="max-w-7xl mx-auto flex items-center h-14 px-4 sm:px-6 lg:px-8 gap-3">
 
-          <div className="flex items-center gap-2">
+          {/* Logo */}
+          <Link href="/">
+            <div className="flex items-center gap-2 shrink-0 cursor-pointer">
+              <div className="w-8 h-8 rounded-xl gradient-primary flex items-center justify-center">
+                <Sparkles className="w-4 h-4 text-white" />
+              </div>
+              <span className="font-bold text-white text-base tracking-tight hidden sm:inline">Navagraha</span>
+            </div>
+          </Link>
+
+          {/* Nav Tabs — scrollable */}
+          <nav className="flex-1 overflow-x-auto scrollbar-hide mx-2">
+            <div className="flex items-center gap-1">
+              {NAV_TABS.map(tab => (
+                tab.anchor ? (
+                  <button
+                    key={tab.label}
+                    onClick={scrollToHoroscope}
+                    className="shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold text-white/50 hover:text-white hover:bg-white/5 transition-colors whitespace-nowrap"
+                  >
+                    {tab.label}
+                  </button>
+                ) : (
+                  <Link key={tab.label} href={tab.href!}>
+                    <button className="shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold text-white/50 hover:text-white hover:bg-white/5 transition-colors whitespace-nowrap">
+                      {tab.label}
+                    </button>
+                  </Link>
+                )
+              ))}
+            </div>
+          </nav>
+
+          {/* Right: Wallet + Profile Avatar Dropdown */}
+          <div className="flex items-center gap-2 shrink-0">
             <Link href="/wallet">
-              <button className="flex items-center gap-2 glass-pill px-4 py-2 hover:bg-white/10 transition-colors" data-testid="nav-link-wallet">
-                <div className="w-5 h-5 rounded-full bg-[var(--gold)]/20 flex items-center justify-center">
-                  <Wallet className="w-3 h-3 text-[var(--gold)]" />
-                </div>
-                <span className="font-bold text-white text-sm">₹{wallet?.balance || '0'}</span>
+              <button className="flex items-center gap-1.5 glass-pill px-3 py-1.5 hover:bg-white/10 transition-colors" data-testid="nav-link-wallet">
+                <Wallet className="w-3.5 h-3.5 text-[var(--gold)]" />
+                <span className="font-bold text-white text-xs">₹{wallet?.balance || '0'}</span>
               </button>
             </Link>
-            <button
-              onClick={() => window.location.href = '/api/logout'}
-              className="w-9 h-9 rounded-full flex items-center justify-center hover:bg-white/5 transition-colors"
-              data-testid="button-logout"
-            >
-              <LogOut className="w-4 h-4 text-white/30" />
-            </button>
+
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button className="focus:outline-none">
+                  <Avatar className="w-9 h-9 cursor-pointer avatar-glow transition-transform hover:scale-105" data-testid="nav-link-profile">
+                    <AvatarImage src={user?.profileImageUrl || undefined} className="object-cover" />
+                    <AvatarFallback className="gradient-primary text-white text-xs font-bold">
+                      {user?.firstName?.charAt(0) || <User className="w-3.5 h-3.5" />}
+                    </AvatarFallback>
+                  </Avatar>
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-48 bg-card border-white/10">
+                <div className="px-3 py-2">
+                  <p className="text-sm font-bold text-white">{user?.firstName || 'Seeker'}</p>
+                  <p className="text-xs text-white/40">{user?.email || ''}</p>
+                </div>
+                <DropdownMenuSeparator className="bg-white/5" />
+                <Link href="/profile">
+                  <DropdownMenuItem className="text-white/70 hover:text-white cursor-pointer">
+                    <User className="w-4 h-4 mr-2" /> My Profile
+                  </DropdownMenuItem>
+                </Link>
+                <Link href="/wallet">
+                  <DropdownMenuItem className="text-white/70 hover:text-white cursor-pointer">
+                    <Wallet className="w-4 h-4 mr-2" /> Wallet
+                  </DropdownMenuItem>
+                </Link>
+                <DropdownMenuSeparator className="bg-white/5" />
+                <DropdownMenuItem
+                  className="text-red-400 hover:text-red-300 cursor-pointer"
+                  onClick={() => window.location.href = '/api/logout'}
+                  data-testid="button-logout"
+                >
+                  <LogOut className="w-4 h-4 mr-2" /> Log Out
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 relative z-10">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-5 relative z-10">
 
-        {/* ─── Banner Carousel ─── */}
+        {/* ═══════════════════════════════════════════════════════
+            BANNER CAROUSEL (solid gradient + zodiac wheel)
+           ═══════════════════════════════════════════════════════ */}
         <div className="mb-8 relative">
           <Link href={banners[bannerIdx].href}>
             <div className={`relative overflow-hidden rounded-3xl cursor-pointer transition-all duration-500 hover:-translate-y-0.5 min-h-[190px] flex flex-col justify-center p-7 sm:p-8 ${bannerIdx === 0 ? 'bg-gradient-to-br from-[#8B2252] via-[#C0506A] to-[#D4847A]'
                 : bannerIdx === 1 ? 'bg-gradient-to-br from-[#8B2252] via-[#C0506A] to-[#D4847A]'
                   : 'bg-gradient-to-br from-[#4A1A6B] via-[#6B3FA0] to-[#8B6CC1]'
               }`}>
-
-              {/* Zodiac Wheel Illustration */}
-              <svg
-                className="absolute right-[-30px] sm:right-[-10px] top-1/2 -translate-y-1/2 w-[220px] h-[220px] sm:w-[260px] sm:h-[260px] text-white/[0.12]"
-                viewBox="0 0 200 200"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="0.5"
-              >
-                {/* Outer ring */}
-                <circle cx="100" cy="100" r="95" />
-                <circle cx="100" cy="100" r="80" />
-                <circle cx="100" cy="100" r="55" />
-                <circle cx="100" cy="100" r="30" />
-                {/* Cross lines */}
-                <line x1="100" y1="5" x2="100" y2="195" />
-                <line x1="5" y1="100" x2="195" y2="100" />
-                {/* Diagonal lines */}
-                <line x1="30" y1="30" x2="170" y2="170" />
-                <line x1="170" y1="30" x2="30" y2="170" />
-                {/* 30° segment lines */}
-                <line x1="100" y1="5" x2="100" y2="195" />
-                <line x1="147" y1="13" x2="53" y2="187" />
-                <line x1="187" y1="53" x2="13" y2="147" />
-                <line x1="195" y1="100" x2="5" y2="100" />
-                <line x1="187" y1="147" x2="13" y2="53" />
-                <line x1="147" y1="187" x2="53" y2="13" />
-                {/* Zodiac symbols (simplified as text) */}
+              {/* Zodiac Wheel */}
+              <svg className="absolute right-[-30px] sm:right-[-10px] top-1/2 -translate-y-1/2 w-[220px] h-[220px] sm:w-[260px] sm:h-[260px] text-white/[0.12]" viewBox="0 0 200 200" fill="none" stroke="currentColor" strokeWidth="0.5">
+                <circle cx="100" cy="100" r="95" /><circle cx="100" cy="100" r="80" /><circle cx="100" cy="100" r="55" /><circle cx="100" cy="100" r="30" />
+                <line x1="100" y1="5" x2="100" y2="195" /><line x1="5" y1="100" x2="195" y2="100" />
+                <line x1="30" y1="30" x2="170" y2="170" /><line x1="170" y1="30" x2="30" y2="170" />
+                <line x1="147" y1="13" x2="53" y2="187" /><line x1="187" y1="53" x2="13" y2="147" />
+                <line x1="187" y1="147" x2="13" y2="53" /><line x1="147" y1="187" x2="53" y2="13" />
                 <text x="97" y="22" fontSize="9" fill="currentColor" fontFamily="serif">♈</text>
                 <text x="130" y="32" fontSize="9" fill="currentColor" fontFamily="serif">♉</text>
                 <text x="172" y="62" fontSize="9" fill="currentColor" fontFamily="serif">♊</text>
@@ -164,23 +225,14 @@ export default function Home() {
                 <text x="7" y="103" fontSize="9" fill="currentColor" fontFamily="serif">♑</text>
                 <text x="17" y="62" fontSize="9" fill="currentColor" fontFamily="serif">♒</text>
                 <text x="58" y="32" fontSize="9" fill="currentColor" fontFamily="serif">♓</text>
-                {/* Constellation dots */}
                 <circle cx="120" cy="60" r="1.5" fill="currentColor" opacity="0.5" />
                 <circle cx="140" cy="75" r="1" fill="currentColor" opacity="0.4" />
-                <circle cx="130" cy="50" r="1" fill="currentColor" opacity="0.3" />
                 <circle cx="155" cy="90" r="1.5" fill="currentColor" opacity="0.4" />
-                <circle cx="145" cy="110" r="1" fill="currentColor" opacity="0.3" />
                 <circle cx="160" cy="130" r="1.5" fill="currentColor" opacity="0.5" />
-                <circle cx="135" cy="145" r="1" fill="currentColor" opacity="0.4" />
-                {/* Connect constellation dots */}
-                <polyline points="120,60 140,75 155,90 145,110" strokeWidth="0.3" opacity="0.3" />
-                <polyline points="130,50 120,60 140,75" strokeWidth="0.3" opacity="0.3" />
-                <polyline points="155,90 160,130 135,145" strokeWidth="0.3" opacity="0.3" />
+                <polyline points="120,60 140,75 155,90" strokeWidth="0.3" opacity="0.3" />
+                <polyline points="155,90 160,130" strokeWidth="0.3" opacity="0.3" />
               </svg>
-
-              {/* Soft glow overlay at bottom-left */}
               <div className="absolute bottom-0 left-0 w-40 h-40 bg-white/[0.04] rounded-full blur-[50px]" />
-
               <div className="relative z-10 max-w-[65%] sm:max-w-[60%]">
                 <h3 className="text-white font-bold text-2xl sm:text-3xl mb-2.5 tracking-tight leading-tight">{banners[bannerIdx].title}</h3>
                 <p className="text-white/75 text-sm leading-relaxed font-medium mb-5">{banners[bannerIdx].subtitle}</p>
@@ -200,17 +252,83 @@ export default function Home() {
           </div>
         </div>
 
-        {/* ─── Quick Actions Grid ─── */}
-        <div className="mb-10">
-          <h3 className="font-bold text-lg text-white tracking-tight mb-4 px-1">Daily Cosmic Influence</h3>
-          <div className="grid grid-cols-4 sm:grid-cols-6 gap-4">
-            {QUICK_ACTIONS.map(({ href, icon: Icon, label }) => (
-              <Link key={label} href={href}>
-                <div className="flex flex-col items-center gap-2.5 cursor-pointer group" data-testid={`card-quick-${label.toLowerCase().replace(/\s/g, '-')}`}>
-                  <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl glass flex items-center justify-center group-hover:bg-[var(--rose)]/10 group-hover:border-[var(--rose)]/20 transition-all duration-300 group-hover:-translate-y-1">
-                    <Icon className="w-5 h-5 sm:w-6 sm:h-6 text-[var(--rose)]" />
+        {/* ═══════════════════════════════════════════════════════
+            FEATURED ASTROLOGER
+           ═══════════════════════════════════════════════════════ */}
+        {featuredAstrologer && (
+          <div className="mb-8">
+            <h3 className="font-bold text-lg text-white tracking-tight mb-4 px-1">Featured Astrologer</h3>
+            <div className="astronex-card p-6 flex flex-col sm:flex-row items-center gap-5">
+              {/* Large Photo */}
+              <div className="relative shrink-0">
+                <Avatar className="w-24 h-24 sm:w-28 sm:h-28 avatar-glow">
+                  <AvatarImage src={featuredAstrologer.profileImageUrl || undefined} className="object-cover" />
+                  <AvatarFallback className="gradient-primary text-white font-bold text-3xl">
+                    {featuredAstrologer.name.charAt(0)}
+                  </AvatarFallback>
+                </Avatar>
+                {(featuredAstrologer.isOnline || featuredAstrologer.availability === 'available') && (
+                  <div className="absolute bottom-1 right-1 w-5 h-5 bg-emerald-500 rounded-full border-[3px] border-background" />
+                )}
+              </div>
+
+              {/* Info + Actions */}
+              <div className="flex-1 text-center sm:text-left">
+                <div className="flex items-center justify-center sm:justify-start gap-2 mb-1">
+                  <h4 className="font-bold text-xl text-white">{featuredAstrologer.name}</h4>
+                  {featuredAstrologer.isVerified && <CheckCircle2 className="w-4 h-4 text-[var(--gold)]" />}
+                </div>
+                <p className="text-xs text-white/45 font-medium mb-1">
+                  {featuredAstrologer.specializations?.slice(0, 3).join(', ') || 'Vedic, Numerology, Tarot'}
+                </p>
+                <div className="flex items-center justify-center sm:justify-start gap-3 mb-4">
+                  <div className="flex items-center gap-1">
+                    <Star className="w-3.5 h-3.5 fill-[var(--gold)] text-[var(--gold)]" />
+                    <span className="text-sm font-bold text-white/80">{featuredAstrologer.rating || '4.9'}</span>
                   </div>
-                  <span className="text-[11px] font-semibold text-white/40 text-center leading-tight group-hover:text-white/70 transition-colors">
+                  <span className="text-white/15">&bull;</span>
+                  <span className="text-xs text-white/40">{featuredAstrologer.experience || 10}y exp</span>
+                  <span className="text-white/15">&bull;</span>
+                  <span className="text-sm font-bold text-[var(--gold)]">₹{featuredAstrologer.pricePerMinute || '25'}<span className="text-xs text-white/30 font-medium">/min</span></span>
+                </div>
+
+                <div className="flex items-center gap-3 justify-center sm:justify-start">
+                  <Link href={`/call/${featuredAstrologer.id}?type=voice`}>
+                    <Button className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-full px-5 h-9 text-sm gap-2 hover:scale-105 transition-transform" data-testid={`button-call-featured`}>
+                      <Phone className="w-4 h-4" /> Call Now
+                    </Button>
+                  </Link>
+                  <Link href={`/chat/${featuredAstrologer.id}`}>
+                    <Button className="glass-pill-active text-white font-bold rounded-full px-5 h-9 text-sm gap-2 hover:scale-105 transition-transform" data-testid={`button-chat-featured`}>
+                      <MessageCircle className="w-4 h-4" /> Chat Now
+                    </Button>
+                  </Link>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ═══════════════════════════════════════════════════════
+            ASTROLOGY SERVICES (2×2 Grid)
+           ═══════════════════════════════════════════════════════ */}
+        <div className="mb-8">
+          <div className="flex items-center justify-between mb-4 px-1">
+            <h3 className="font-bold text-lg text-white tracking-tight">Astrology Services</h3>
+            <Link href="/astrologers">
+              <button className="text-xs font-semibold text-[var(--gold)] hover:text-white transition-colors flex items-center gap-1">
+                View All <ChevronRight className="w-3.5 h-3.5" />
+              </button>
+            </Link>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            {ASTROLOGY_SERVICES.map(({ href, icon: Icon, label, color }) => (
+              <Link key={label} href={href}>
+                <div className="astronex-card p-5 flex flex-col items-start gap-3 cursor-pointer group hover:-translate-y-0.5 transition-transform duration-300 min-h-[120px]">
+                  <div className={`w-11 h-11 rounded-2xl bg-gradient-to-br ${color} flex items-center justify-center`}>
+                    <Icon className="w-5 h-5 text-white/80" />
+                  </div>
+                  <span className="text-sm font-bold text-white/80 leading-tight whitespace-pre-line group-hover:text-white transition-colors">
                     {label}
                   </span>
                 </div>
@@ -219,14 +337,56 @@ export default function Home() {
           </div>
         </div>
 
-        {/* ─── Daily Horoscope ─── */}
-        <div className="mb-10 astronex-card overflow-hidden">
+        {/* ═══════════════════════════════════════════════════════
+            FREE ASTROLOGY SERVICES
+           ═══════════════════════════════════════════════════════ */}
+        <div className="mb-8">
+          <h3 className="font-bold text-lg text-white tracking-tight mb-4 px-1">
+            <span className="text-emerald-400">FREE</span> Astrology Services
+          </h3>
+          <div className="grid grid-cols-2 gap-3">
+            {FREE_SERVICES.map(({ href, icon: Icon, label, desc, anchor }) => (
+              anchor ? (
+                <button
+                  key={label}
+                  onClick={scrollToHoroscope}
+                  className="astronex-card p-4 flex flex-col items-center text-center gap-2.5 cursor-pointer group hover:-translate-y-0.5 transition-transform duration-300"
+                >
+                  <div className="w-12 h-12 rounded-full glass flex items-center justify-center group-hover:bg-[var(--rose)]/10 transition-colors">
+                    <Icon className="w-5 h-5 text-[var(--rose)]" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-bold text-white/80 leading-tight group-hover:text-white transition-colors">{label}</p>
+                    <p className="text-[10px] text-white/30 mt-0.5">{desc}</p>
+                  </div>
+                </button>
+              ) : (
+                <Link key={label} href={href}>
+                  <div className="astronex-card p-4 flex flex-col items-center text-center gap-2.5 cursor-pointer group hover:-translate-y-0.5 transition-transform duration-300">
+                    <div className="w-12 h-12 rounded-full glass flex items-center justify-center group-hover:bg-[var(--rose)]/10 transition-colors">
+                      <Icon className="w-5 h-5 text-[var(--rose)]" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-bold text-white/80 leading-tight group-hover:text-white transition-colors">{label}</p>
+                      <p className="text-[10px] text-white/30 mt-0.5">{desc}</p>
+                    </div>
+                  </div>
+                </Link>
+              )
+            ))}
+          </div>
+        </div>
+
+        {/* ═══════════════════════════════════════════════════════
+            TODAY'S HOROSCOPE
+           ═══════════════════════════════════════════════════════ */}
+        <div ref={horoscopeRef} id="horoscope" className="mb-10 astronex-card overflow-hidden scroll-mt-20">
           <div className="px-6 pt-6 pb-4 flex items-center justify-between border-b border-white/[0.03]">
             <div className="flex items-center gap-3">
               <div className="w-8 h-8 rounded-full bg-[var(--gold)]/10 flex items-center justify-center">
                 <Sun className="w-4 h-4 text-[var(--gold)]" />
               </div>
-              <h3 className="font-bold text-lg text-white tracking-tight">Today</h3>
+              <h3 className="font-bold text-lg text-white tracking-tight">Today's Horoscope</h3>
             </div>
             <span className="text-[11px] text-white/30 font-medium bg-white/[0.03] px-3 py-1 rounded-full">Select Sign</span>
           </div>
@@ -237,8 +397,8 @@ export default function Home() {
                 key={sign}
                 onClick={() => setSelectedSign(sign)}
                 className={`shrink-0 p-3 w-[68px] rounded-2xl transition-all flex flex-col items-center gap-2 ${selectedSign === sign
-                  ? 'gradient-primary text-white shadow-lg glow-pink scale-105'
-                  : 'glass hover:bg-white/[0.06] text-white/45'
+                    ? 'gradient-primary text-white shadow-lg glow-pink scale-105'
+                    : 'glass hover:bg-white/[0.06] text-white/45'
                   }`}
                 data-testid={`zodiac-${sign}`}
                 title={sign.charAt(0).toUpperCase() + sign.slice(1)}
@@ -286,79 +446,6 @@ export default function Home() {
           </div>
         </div>
 
-        {/* ─── Popular Astrologers ─── */}
-        <div className="mb-6">
-          <div className="flex items-center justify-between mb-5 px-1">
-            <div>
-              <h3 className="font-bold text-lg text-white tracking-tight">Popular Astrologers</h3>
-              <p className="text-xs text-white/30 font-medium mt-0.5">Connect with top-tier verified guides</p>
-            </div>
-            <Link href="/astrologers">
-              <Button variant="ghost" className="text-[var(--gold)] hover:text-[var(--gold)] hover:bg-white/5 font-bold gap-1 px-4 rounded-full text-sm">
-                See all <ChevronRight className="w-4 h-4" />
-              </Button>
-            </Link>
-          </div>
-
-          {astrologersLoading ? (
-            <div className="flex justify-center py-10">
-              <LoadingSpinner />
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {astrologers?.slice(0, 6).map((astrologer) => (
-                <div
-                  key={astrologer.id}
-                  className="astronex-card p-5 group hover:-translate-y-0.5 transition-transform duration-500"
-                  data-testid={`card-astrologer-${astrologer.id}`}
-                >
-                  <div className="flex gap-4">
-                    <div className="relative shrink-0">
-                      <Avatar className="w-14 h-14 rounded-2xl avatar-glow">
-                        <AvatarImage src={astrologer.profileImageUrl || undefined} className="object-cover" />
-                        <AvatarFallback className="gradient-primary text-white font-bold text-lg">
-                          {astrologer.name.charAt(0)}
-                        </AvatarFallback>
-                      </Avatar>
-                      {(astrologer.isOnline || astrologer.availability === 'available') && (
-                        <div className="absolute -bottom-1 -right-1 w-3.5 h-3.5 bg-emerald-500 rounded-full border-2 border-background" />
-                      )}
-                    </div>
-                    <div className="flex-1 min-w-0 pt-0.5">
-                      <div className="flex items-center gap-1.5 mb-1">
-                        <h4 className="font-bold text-sm text-white truncate">{astrologer.name}</h4>
-                        {astrologer.isVerified && <CheckCircle2 className="w-3.5 h-3.5 text-[var(--gold)] shrink-0" />}
-                      </div>
-                      <p className="text-[11px] text-white/40 font-medium truncate mb-2">
-                        {astrologer.specializations?.slice(0, 2).join(', ') || 'Vedic, Numerology'}
-                      </p>
-                      <div className="flex items-center gap-2">
-                        <div className="flex items-center gap-1">
-                          <Star className="w-3 h-3 fill-[var(--gold)] text-[var(--gold)]" />
-                          <span className="text-xs font-bold text-white/80">{astrologer.rating || '4.9'}</span>
-                        </div>
-                        <span className="text-white/15 text-xs">&bull;</span>
-                        <span className="text-[11px] font-medium text-white/40">{astrologer.experience || 10}y exp</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="mt-4 pt-4 border-t border-white/[0.04] flex items-center justify-between">
-                    <div className="flex items-baseline gap-1">
-                      <span className="text-base font-bold text-[var(--gold)]">₹{astrologer.pricePerMinute || '25'}</span>
-                      <span className="text-[11px] text-white/30 font-medium">/min</span>
-                    </div>
-                    <Link href={`/chat/${astrologer.id}`}>
-                      <Button className="glass-pill-active text-white font-bold h-8 px-5 text-xs hover:scale-105 transition-transform" data-testid={`button-chat-${astrologer.id}`}>
-                        Connect
-                      </Button>
-                    </Link>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
       </main>
     </div>
   );
