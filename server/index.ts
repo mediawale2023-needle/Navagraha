@@ -79,36 +79,37 @@ httpServer.listen({ port, host: "0.0.0.0", reusePort: true }, () => {
 
 // ── Now do everything else (routes, auth, websocket, vite, migrations) ──
 
-(async () => {
-  try {
-    await registerRoutes(app, httpServer);
-  } catch (err) {
-    console.error("[startup] registerRoutes failed:", err);
-  }
+// Await DB connection properly before registering routes and auth (which use connect-pg-simple)
+waitForDatabase()
+  .then(async () => {
+    try {
+      await registerRoutes(app, httpServer);
+    } catch (err) {
+      console.error("[startup] registerRoutes failed:", err);
+    }
 
-  try {
-    setupWebSocket(httpServer);
-  } catch (err) {
-    console.error("[startup] WebSocket setup failed:", err);
-  }
+    try {
+      setupWebSocket(httpServer);
+    } catch (err) {
+      console.error("[startup] WebSocket setup failed:", err);
+    }
 
-  app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
-    const status = err.status || err.statusCode || 500;
-    const message = err.message || "Internal Server Error";
-    res.status(status).json({ message });
-    throw err;
+    app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
+      const status = err.status || err.statusCode || 500;
+      const message = err.message || "Internal Server Error";
+      res.status(status).json({ message });
+      throw err;
+    });
+
+    if (app.get("env") === "development") {
+      await setupVite(app, httpServer);
+    } else {
+      serveStatic(app);
+    }
+
+    // Run DB migrations
+    return runMigrations();
+  })
+  .catch((err) => {
+    console.error("[startup/migrate] Critical startup failure:", err);
   });
-
-  if (app.get("env") === "development") {
-    await setupVite(app, httpServer);
-  } else {
-    serveStatic(app);
-  }
-
-  // Run DB schema initialisation in the background with a retry mechanism
-  waitForDatabase()
-    .then(() => runMigrations())
-    .catch((err) =>
-      console.error("[migrate] Schema initialisation failed:", err),
-    );
-})();
