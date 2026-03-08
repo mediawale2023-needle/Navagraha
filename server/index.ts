@@ -3,6 +3,7 @@ import { createServer } from "http";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import { runMigrations } from "./migrate";
+import { waitForDatabase } from "./db";
 import { setupWebSocket } from "./websocketService";
 
 // Prevent unhandled errors from killing the process before the port binds
@@ -104,8 +105,10 @@ httpServer.listen({ port, host: "0.0.0.0", reusePort: true }, () => {
     serveStatic(app);
   }
 
-  // Run DB schema initialisation in the background
-  runMigrations().catch((err) =>
-    console.error("[migrate] Schema initialisation failed:", err),
-  );
+  // Run DB schema initialisation in the background with a retry mechanism
+  waitForDatabase()
+    .then(() => runMigrations())
+    .catch((err) =>
+      console.error("[migrate] Schema initialisation failed:", err),
+    );
 })();

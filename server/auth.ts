@@ -21,13 +21,26 @@ import { storage } from './storage';
 
 export function getSession() {
   const sessionTtl = 7 * 24 * 60 * 60 * 1000; // 1 week
+
+  if (!process.env.DATABASE_URL) {
+    console.warn('[auth] DATABASE_URL not set — using MemoryStore for sessions. Sessions will be lost on restart.');
+    return session({
+      secret: process.env.SESSION_SECRET || 'fallback-secret',
+      resave: false,
+      saveUninitialized: false,
+      cookie: { httpOnly: true, secure: process.env.NODE_ENV === 'production', maxAge: sessionTtl },
+    });
+  }
+
   const pgStore = connectPg(session);
   const sessionStore = new pgStore({
     conString: process.env.DATABASE_URL,
     createTableIfMissing: true,
     ttl: sessionTtl,
     tableName: 'sessions',
+    errorLog: (err) => console.error('[session-store] Error:', err),
   });
+
   return session({
     secret: process.env.SESSION_SECRET!,
     store: sessionStore,
@@ -68,18 +81,18 @@ export async function setupAuth(app: Express) {
   passport.use(
     new GoogleStrategy(
       {
-        clientID:     process.env.GOOGLE_CLIENT_ID,
+        clientID: process.env.GOOGLE_CLIENT_ID,
         clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-        callbackURL:  '/api/auth/google/callback',
+        callbackURL: '/api/auth/google/callback',
       },
       async (_accessToken, _refreshToken, profile, done) => {
         try {
           const email = profile.emails?.[0]?.value;
           const user = await storage.upsertUser({
-            id:              profile.id,          // Google's stable sub ID
+            id: profile.id,          // Google's stable sub ID
             email,
-            firstName:       profile.name?.givenName,
-            lastName:        profile.name?.familyName,
+            firstName: profile.name?.givenName,
+            lastName: profile.name?.familyName,
             profileImageUrl: profile.photos?.[0]?.value,
           });
           done(null, user);
