@@ -120,35 +120,73 @@ export default function Home() {
         {/* ─── Banner Carousel ─── */}
         <div className="mb-8 relative">
           <Link href={banners[bannerIdx].href}>
-            <div className="astronex-card overflow-hidden relative p-8 cursor-pointer transition-transform duration-500 hover:-translate-y-0.5 min-h-[200px] flex flex-col justify-end">
-              {bannerIdx === 0 && (
-                <>
-                  <div className="absolute top-[-20%] right-[-10%] w-56 h-56 bg-[var(--rose)]/15 rounded-full blur-[60px]" />
-                  <div className="absolute inset-0 bg-gradient-to-t from-background via-transparent to-transparent z-0" />
-                  <Moon className="absolute top-6 right-6 w-20 h-20 text-white/[0.04]" />
-                </>
-              )}
-              {bannerIdx === 1 && (
-                <>
-                  <div className="absolute top-[-20%] right-[-10%] w-56 h-56 bg-[var(--gold)]/15 rounded-full blur-[60px]" />
-                  <div className="absolute inset-0 bg-gradient-to-t from-background via-transparent to-transparent z-0" />
-                  <Star className="absolute top-6 right-6 w-20 h-20 text-white/[0.04]" />
-                </>
-              )}
-              {bannerIdx === 2 && (
-                <>
-                  <div className="absolute top-[-20%] right-[-10%] w-56 h-56 bg-purple-600/20 rounded-full blur-[60px]" />
-                  <div className="absolute inset-0 bg-gradient-to-t from-background via-transparent to-transparent z-0" />
-                  <Sun className="absolute w-48 h-48 top-[-10px] right-[-40px] text-white/[0.03]" />
-                </>
-              )}
+            <div className={`relative overflow-hidden rounded-3xl cursor-pointer transition-all duration-500 hover:-translate-y-0.5 min-h-[190px] flex flex-col justify-center p-7 sm:p-8 ${bannerIdx === 0 ? 'bg-gradient-to-br from-[#8B2252] via-[#C0506A] to-[#D4847A]'
+                : bannerIdx === 1 ? 'bg-gradient-to-br from-[#8B2252] via-[#C0506A] to-[#D4847A]'
+                  : 'bg-gradient-to-br from-[#4A1A6B] via-[#6B3FA0] to-[#8B6CC1]'
+              }`}>
 
-              <div className="relative z-10 w-full mb-auto mt-4">
-                <h3 className="text-white font-bold text-2xl sm:text-3xl mb-3 tracking-tight">{banners[bannerIdx].title}</h3>
-                <p className="text-white/55 text-sm max-w-[80%] leading-relaxed font-medium mb-6">{banners[bannerIdx].subtitle}</p>
-                <Button size="sm" className="gradient-primary text-white font-bold rounded-full px-6 h-10 shadow-lg glow-image hover:scale-105 transition-transform">
+              {/* Zodiac Wheel Illustration */}
+              <svg
+                className="absolute right-[-30px] sm:right-[-10px] top-1/2 -translate-y-1/2 w-[220px] h-[220px] sm:w-[260px] sm:h-[260px] text-white/[0.12]"
+                viewBox="0 0 200 200"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="0.5"
+              >
+                {/* Outer ring */}
+                <circle cx="100" cy="100" r="95" />
+                <circle cx="100" cy="100" r="80" />
+                <circle cx="100" cy="100" r="55" />
+                <circle cx="100" cy="100" r="30" />
+                {/* Cross lines */}
+                <line x1="100" y1="5" x2="100" y2="195" />
+                <line x1="5" y1="100" x2="195" y2="100" />
+                {/* Diagonal lines */}
+                <line x1="30" y1="30" x2="170" y2="170" />
+                <line x1="170" y1="30" x2="30" y2="170" />
+                {/* 30° segment lines */}
+                <line x1="100" y1="5" x2="100" y2="195" />
+                <line x1="147" y1="13" x2="53" y2="187" />
+                <line x1="187" y1="53" x2="13" y2="147" />
+                <line x1="195" y1="100" x2="5" y2="100" />
+                <line x1="187" y1="147" x2="13" y2="53" />
+                <line x1="147" y1="187" x2="53" y2="13" />
+                {/* Zodiac symbols (simplified as text) */}
+                <text x="97" y="22" fontSize="9" fill="currentColor" fontFamily="serif">♈</text>
+                <text x="130" y="32" fontSize="9" fill="currentColor" fontFamily="serif">♉</text>
+                <text x="172" y="62" fontSize="9" fill="currentColor" fontFamily="serif">♊</text>
+                <text x="182" y="103" fontSize="9" fill="currentColor" fontFamily="serif">♋</text>
+                <text x="172" y="145" fontSize="9" fill="currentColor" fontFamily="serif">♌</text>
+                <text x="130" y="178" fontSize="9" fill="currentColor" fontFamily="serif">♍</text>
+                <text x="93" y="190" fontSize="9" fill="currentColor" fontFamily="serif">♎</text>
+                <text x="58" y="178" fontSize="9" fill="currentColor" fontFamily="serif">♏</text>
+                <text x="17" y="145" fontSize="9" fill="currentColor" fontFamily="serif">♐</text>
+                <text x="7" y="103" fontSize="9" fill="currentColor" fontFamily="serif">♑</text>
+                <text x="17" y="62" fontSize="9" fill="currentColor" fontFamily="serif">♒</text>
+                <text x="58" y="32" fontSize="9" fill="currentColor" fontFamily="serif">♓</text>
+                {/* Constellation dots */}
+                <circle cx="120" cy="60" r="1.5" fill="currentColor" opacity="0.5" />
+                <circle cx="140" cy="75" r="1" fill="currentColor" opacity="0.4" />
+                <circle cx="130" cy="50" r="1" fill="currentColor" opacity="0.3" />
+                <circle cx="155" cy="90" r="1.5" fill="currentColor" opacity="0.4" />
+                <circle cx="145" cy="110" r="1" fill="currentColor" opacity="0.3" />
+                <circle cx="160" cy="130" r="1.5" fill="currentColor" opacity="0.5" />
+                <circle cx="135" cy="145" r="1" fill="currentColor" opacity="0.4" />
+                {/* Connect constellation dots */}
+                <polyline points="120,60 140,75 155,90 145,110" strokeWidth="0.3" opacity="0.3" />
+                <polyline points="130,50 120,60 140,75" strokeWidth="0.3" opacity="0.3" />
+                <polyline points="155,90 160,130 135,145" strokeWidth="0.3" opacity="0.3" />
+              </svg>
+
+              {/* Soft glow overlay at bottom-left */}
+              <div className="absolute bottom-0 left-0 w-40 h-40 bg-white/[0.04] rounded-full blur-[50px]" />
+
+              <div className="relative z-10 max-w-[65%] sm:max-w-[60%]">
+                <h3 className="text-white font-bold text-2xl sm:text-3xl mb-2.5 tracking-tight leading-tight">{banners[bannerIdx].title}</h3>
+                <p className="text-white/75 text-sm leading-relaxed font-medium mb-5">{banners[bannerIdx].subtitle}</p>
+                <button className="bg-[#1a1a1a]/80 hover:bg-[#1a1a1a] text-white font-bold text-sm rounded-full px-6 py-2.5 transition-all hover:scale-105 shadow-lg">
                   {banners[bannerIdx].cta}
-                </Button>
+                </button>
               </div>
             </div>
           </Link>
@@ -199,8 +237,8 @@ export default function Home() {
                 key={sign}
                 onClick={() => setSelectedSign(sign)}
                 className={`shrink-0 p-3 w-[68px] rounded-2xl transition-all flex flex-col items-center gap-2 ${selectedSign === sign
-                    ? 'gradient-primary text-white shadow-lg glow-pink scale-105'
-                    : 'glass hover:bg-white/[0.06] text-white/45'
+                  ? 'gradient-primary text-white shadow-lg glow-pink scale-105'
+                  : 'glass hover:bg-white/[0.06] text-white/45'
                   }`}
                 data-testid={`zodiac-${sign}`}
                 title={sign.charAt(0).toUpperCase() + sign.slice(1)}
