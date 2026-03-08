@@ -8,9 +8,9 @@ import { BottomNav } from '@/components/BottomNav';
 import { Link } from 'wouter';
 import {
   Sparkles, Star, Wallet, LogOut, User, Video,
-  Users, Phone, MessageCircle, Heart, TrendingUp,
-  Activity, CheckCircle2, ChevronRight, Clock, Hash,
-  Sun, Moon, Calendar, ArrowRight
+  Phone, MessageCircle, Heart, TrendingUp,
+  Activity, CheckCircle2, ChevronRight, Hash,
+  Sun, Moon, Calendar, ArrowRight, X
 } from 'lucide-react';
 import type { User as UserType, Astrologer } from '@shared/schema';
 
@@ -21,12 +21,12 @@ const zodiacSigns = [
 ];
 
 const QUICK_ACTIONS = [
-  { href: '/astrologers', icon: MessageCircle, label: 'Chat with\nAstrologer' },
-  { href: '/astrologers', icon: Phone, label: 'Talk to\nAstrologer' },
-  { href: '/kundli/new', icon: Sun, label: 'Free\nKundli' },
-  { href: '/kundli/matchmaking', icon: Heart, label: 'Kundli\nMatching' },
-  { href: '/schedule', icon: Calendar, label: 'Book\nAppointment' },
-  { href: '/numerology', icon: Hash, label: 'Numerology' },
+  { href: '/astrologers', icon: MessageCircle, label: 'Chat' },
+  { href: '/astrologers', icon: Phone, label: 'Call' },
+  { href: '/kundli/new', icon: Sun, label: 'Kundli' },
+  { href: '/kundli/matchmaking', icon: Heart, label: 'Match' },
+  { href: '/schedule', icon: Calendar, label: 'Book' },
+  { href: '/numerology', icon: Hash, label: 'Numbers' },
 ];
 
 export default function Home() {
@@ -50,13 +50,13 @@ export default function Home() {
   });
 
   useEffect(() => {
-    const t = setInterval(() => setBannerIdx(prev => (prev + 1) % 3), 4000);
+    const t = setInterval(() => setBannerIdx(prev => (prev + 1) % 3), 5000);
     return () => clearInterval(t);
   }, []);
 
   if (userLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[#0D0D0D]">
+      <div className="min-h-screen flex items-center justify-center bg-background">
         <LoadingSpinner />
       </div>
     );
@@ -65,95 +65,130 @@ export default function Home() {
   const onlineCount = astrologers?.filter(a => a.isOnline || a.availability === 'available').length || 0;
 
   const banners = [
-    { title: 'Talk to Expert Astrologers', subtitle: 'Get answers about love, career & more', cta: 'Consult Now', href: '/astrologers' },
-    { title: 'Free Kundli Report', subtitle: 'Detailed birth chart with dashas & doshas', cta: 'Generate', href: '/kundli/new' },
-    { title: 'Kundli Matching', subtitle: '36 Gunas Ashtakoot compatibility', cta: 'Match Now', href: '/kundli/matchmaking' },
+    { title: "Today's Insight", subtitle: "Venus guides you toward love and creative flow. Open yourself to positive energy.", cta: 'Read More', href: '/astrologers' },
+    { title: "Premium Plan", subtitle: "Get unlimited AI insights, priority booking, and exclusive content.", cta: 'Upgrade Plan', href: '/wallet' },
+    { title: "Your Birth Chart", subtitle: "Discover your exact planetary positions and dashas for accurate predictions.", cta: 'Generate', href: '/kundli/new' },
   ];
 
   return (
-    <div className="min-h-screen bg-[#0D0D0D] text-white pb-20 md:pb-0">
+    <div className="min-h-screen bg-background text-foreground pb-24 md:pb-0 font-sans selection:bg-[#E27689]/30">
+
+      {/* ─── Global Ambient Glows ─── */}
+      <div className="fixed top-0 left-0 w-[50vw] h-[50vw] rounded-full bg-[#E27689]/5 blur-[100px] pointer-events-none mix-blend-screen" />
+      <div className="fixed bottom-0 right-0 w-[50vw] h-[50vw] rounded-full bg-[#D4A853]/5 blur-[100px] pointer-events-none mix-blend-screen" />
+      <div className="fixed inset-0 celestial-mesh opacity-30 pointer-events-none mix-blend-screen" />
+
       {/* ─── Header ─────────────────────────────────────────── */}
-      <header className="sticky top-0 z-50 border-b border-white/5" style={{ background: 'rgba(13,13,13,0.85)', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)' }}>
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-14">
-            <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-xl gradient-primary flex items-center justify-center">
-                <Sparkles className="w-4 h-4 text-white" />
-              </div>
-              <span className="font-semibold text-lg text-white">Navagraha</span>
+      <header className="sticky top-0 z-50 pt-2 pb-2 px-4 sm:px-6 lg:px-8 border-b border-white/[0.02]" style={{ background: 'rgba(10, 6, 15, 0.7)', backdropFilter: 'blur(30px)', WebkitBackdropFilter: 'blur(30px)' }}>
+        <div className="max-w-7xl mx-auto flex items-center justify-between h-14">
+          <div className="flex items-center gap-3">
+            <Link href="/profile">
+              <Avatar className="w-10 h-10 cursor-pointer avatar-glow transition-transform hover:scale-105" data-testid="nav-link-profile">
+                <AvatarImage src={user?.profileImageUrl || undefined} className="object-cover" />
+                <AvatarFallback className="gradient-primary text-white text-sm font-bold">
+                  {user?.firstName?.charAt(0) || <User className="w-4 h-4" />}
+                </AvatarFallback>
+              </Avatar>
+            </Link>
+            <div>
+              <h2 className="font-bold text-white text-[15px] leading-tight flex items-center gap-1">
+                {user?.firstName || 'Seeker'} <Sparkles className="w-3.5 h-3.5 text-[#D4A853]" />
+              </h2>
+              <p className="text-[11px] text-gray-400 font-medium">Welcome Back✨</p>
             </div>
-            <div className="flex items-center gap-2">
-              <Link href="/wallet">
-                <button className="flex items-center gap-1.5 glass text-white rounded-full px-3 py-1.5 text-sm font-semibold" data-testid="nav-link-wallet">
-                  <Wallet className="w-3.5 h-3.5 text-[#D4A853]" />
-                  ₹{wallet?.balance || '0'}
-                </button>
-              </Link>
-              <Link href="/profile">
-                <Avatar className="w-8 h-8 cursor-pointer avatar-glow" data-testid="nav-link-profile">
-                  <AvatarImage src={user?.profileImageUrl || undefined} />
-                  <AvatarFallback className="gradient-primary text-white text-xs font-semibold">
-                    {user?.firstName?.charAt(0) || <User className="w-3.5 h-3.5" />}
-                  </AvatarFallback>
-                </Avatar>
-              </Link>
-              <button
-                onClick={() => window.location.href = '/api/logout'}
-                className="p-1.5 rounded-full hover:bg-white/5 transition-colors"
-                data-testid="button-logout"
-              >
-                <LogOut className="w-4 h-4 text-gray-500" />
+          </div>
+
+          <div className="flex items-center gap-3">
+            <Link href="/wallet">
+              <button className="flex items-center gap-2 glass-pill px-4 py-2 hover:bg-white/10 transition-colors" data-testid="nav-link-wallet">
+                <div className="w-5 h-5 rounded-full bg-[#D4A853]/20 flex items-center justify-center">
+                  <Wallet className="w-3 h-3 text-[#D4A853]" />
+                </div>
+                <span className="font-bold text-white text-sm">₹{wallet?.balance || '0'}</span>
               </button>
-            </div>
+            </Link>
+            <button
+              onClick={() => window.location.href = '/api/logout'}
+              className="w-10 h-10 rounded-full flex items-center justify-center hover:bg-white/5 transition-colors"
+              data-testid="button-logout"
+            >
+              <LogOut className="w-4 h-4 text-gray-500" />
+            </button>
           </div>
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        {/* ─── Welcome ──────────────────────────────────────── */}
-        <div className="pt-5 pb-4">
-          <p className="text-gray-500 text-sm font-medium">Welcome back,</p>
-          <h2 className="font-semibold text-xl text-white">{user?.firstName || 'Seeker'} 👋</h2>
-        </div>
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 relative z-10">
 
-        {/* ─── Banner Carousel ──────────────────────────────── */}
-        <div className="mb-5 relative">
+        {/* ─── Banner Carousel (True AstroNex Style) ────────────── */}
+        <div className="mb-8 relative group">
           <Link href={banners[bannerIdx].href}>
-            <div className="astronex-card overflow-hidden relative p-5 cursor-pointer transition-all duration-500">
-              <div className="absolute inset-0 celestial-bg opacity-60" />
-              <div className="absolute inset-0 bg-gradient-to-r from-[#E91E8C]/15 to-[#7B2FBE]/15" />
-              <div className="relative">
-                <div className="flex items-center gap-1.5 mb-2">
-                  <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse" />
-                  <span className="text-gray-400 text-xs font-medium">{onlineCount} astrologers online</span>
+            <div className="astronex-card overflow-hidden relative p-8 cursor-pointer transition-transform duration-500 hover:-translate-y-1 min-h-[220px] flex flex-col justify-end">
+              {/* Dynamic Banner Backgrounds */}
+              {bannerIdx === 0 && (
+                <>
+                  <div className="absolute top-[-20%] right-[-10%] w-64 h-64 bg-[#E27689]/20 rounded-full blur-[60px]" />
+                  <div className="absolute inset-0 bg-gradient-to-t from-background via-transparent to-transparent z-0" />
+                  <Moon className="absolute top-6 right-6 w-24 h-24 text-[#E27689]/10" />
+                </>
+              )}
+              {bannerIdx === 1 && (
+                <>
+                  <div className="absolute top-[-20%] right-[-10%] w-64 h-64 bg-[#D4A853]/20 rounded-full blur-[60px]" />
+                  <div className="absolute inset-0 bg-gradient-to-t from-background via-transparent to-transparent z-0" />
+                  <Star className="absolute top-6 right-6 w-24 h-24 text-[#D4A853]/10" />
+                </>
+              )}
+              {bannerIdx === 2 && (
+                <>
+                  <div className="absolute top-[-20%] right-[-10%] w-64 h-64 bg-[#7B2FBE]/30 rounded-full blur-[60px]" />
+                  <div className="absolute inset-0 bg-gradient-to-t from-background via-transparent to-transparent z-0" />
+                  <Sun className="absolute w-64 h-64 top-[-20px] right-[-50px] opacity-10" />
+                </>
+              )}
+
+              <div className="relative z-10 w-full mb-auto mt-4">
+                <h3 className="text-white font-bold text-3xl mb-3 tracking-tight">{banners[bannerIdx].title}</h3>
+                <p className="text-gray-300 text-sm max-w-[80%] leading-relaxed font-medium mb-6">{banners[bannerIdx].subtitle}</p>
+
+                <div className="flex items-center justify-between">
+                  <Button size="sm" className="gradient-primary text-white font-bold rounded-full px-6 h-10 shadow-lg glow-image hover:scale-105 transition-transform">
+                    {banners[bannerIdx].cta}
+                  </Button>
+
+                  {bannerIdx === 0 && (
+                    <div className="flex gap-2">
+                      <div className="w-10 h-10 rounded-full border border-white/20 flex items-center justify-center text-xs">Aries</div>
+                      <div className="w-10 h-10 rounded-full border border-white/20 flex items-center justify-center text-xs">Leo</div>
+                    </div>
+                  )}
                 </div>
-                <h3 className="text-white font-semibold text-xl mb-1">{banners[bannerIdx].title}</h3>
-                <p className="text-gray-400 text-sm mb-4">{banners[bannerIdx].subtitle}</p>
-                <Button size="sm" className="gradient-primary hover:opacity-90 text-white font-semibold rounded-full px-5 shadow-lg">
-                  {banners[bannerIdx].cta} <ArrowRight className="w-3.5 h-3.5 ml-1" />
-                </Button>
               </div>
             </div>
           </Link>
-          <div className="flex justify-center gap-2 mt-3">
+
+          <div className="flex justify-center gap-2 mt-4">
             {banners.map((_, i) => (
               <button key={i} onClick={() => setBannerIdx(i)}
-                className={`h-1.5 rounded-full transition-all duration-300 ${i === bannerIdx ? 'gradient-primary w-5' : 'bg-white/15 w-1.5'}`}
+                className={`h-1.5 rounded-full transition-all duration-300 ${i === bannerIdx ? 'bg-white w-6' : 'bg-white/20 w-1.5'}`}
               />
             ))}
           </div>
         </div>
 
-        {/* ─── Quick Actions ────────────────────────────────── */}
-        <div className="mb-6">
-          <div className="grid grid-cols-3 md:grid-cols-6 gap-3">
+        {/* ─── Popular Features Grid ───────────────────────────── */}
+        <div className="mb-10">
+          <div className="flex items-center justify-between mb-4 px-2">
+            <h3 className="font-bold text-xl text-white tracking-tight">Daily Cosmic Influence</h3>
+          </div>
+          <div className="grid grid-cols-4 sm:grid-cols-6 gap-4">
             {QUICK_ACTIONS.map(({ href, icon: Icon, label }) => (
               <Link key={label} href={href}>
-                <div className="flex flex-col items-center gap-2 py-3 cursor-pointer group" data-testid={`card-quick-${label.toLowerCase().replace(/\s/g, '-')}`}>
-                  <div className="w-13 h-13 glass rounded-2xl flex items-center justify-center group-hover:glow-pink transition-all duration-300">
-                    <Icon className="w-5 h-5 text-[#E91E8C]" />
+                <div className="flex flex-col items-center gap-3 cursor-pointer group" data-testid={`card-quick-${label.toLowerCase().replace(/\s/g, '-')}`}>
+                  <div className="w-16 h-16 rounded-[1.2rem] glass flex items-center justify-center group-hover:bg-[#E27689]/10 group-hover:border-[#E27689]/30 transition-all duration-300 group-hover:-translate-y-1">
+                    <Icon className="w-6 h-6 text-[#E27689]" />
                   </div>
-                  <span className="text-[11px] font-medium text-gray-400 text-center leading-tight whitespace-pre-line group-hover:text-white transition-colors">
+                  <span className="text-xs font-bold text-gray-400 text-center leading-tight group-hover:text-white transition-colors">
                     {label}
                   </span>
                 </div>
@@ -162,58 +197,63 @@ export default function Home() {
           </div>
         </div>
 
-        {/* ─── Daily Horoscope ──────────────────────────────── */}
-        <div className="mb-6 astronex-card overflow-hidden">
-          <div className="px-4 pt-4 pb-2 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Sun className="w-5 h-5 text-[#D4A853]" />
-              <h3 className="font-semibold text-base text-white">Daily Horoscope</h3>
+        {/* ─── Daily Horoscope (Deep Dark Glass) ──────────────── */}
+        <div className="mb-10 astronex-card overflow-hidden">
+          <div className="px-6 pt-6 pb-4 flex items-center justify-between border-b border-white/[0.03]">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-full bg-[#D4A853]/10 flex items-center justify-center">
+                <Sun className="w-4 h-4 text-[#D4A853]" />
+              </div>
+              <h3 className="font-bold text-xl text-white tracking-tight">Today</h3>
             </div>
-            <span className="text-[10px] text-gray-600 font-medium">Tap your sign</span>
-          </div>
-          <div className="px-4 pb-2">
-            <div className="grid grid-cols-6 md:grid-cols-12 gap-1.5">
-              {zodiacSigns.map((sign) => (
-                <button
-                  key={sign}
-                  onClick={() => setSelectedSign(sign)}
-                  className={`p-1.5 rounded-xl transition-all flex flex-col items-center gap-0.5 ${selectedSign === sign
-                      ? 'gradient-primary text-white shadow-lg glow-pink'
-                      : 'bg-white/5 hover:bg-white/8 text-gray-400'
-                    }`}
-                  data-testid={`zodiac-${sign}`}
-                  title={sign.charAt(0).toUpperCase() + sign.slice(1)}
-                >
-                  <ZodiacIcon sign={sign} className="w-4 h-4 mx-auto" />
-                  <span className="text-[8px] font-semibold capitalize leading-none">{sign.slice(0, 3)}</span>
-                </button>
-              ))}
-            </div>
+            <span className="text-xs text-gray-500 font-medium bg-white/5 px-3 py-1 rounded-full">Select Sign</span>
           </div>
 
-          <div className="px-4 pb-4">
+          <div className="px-6 py-4 overflow-x-auto scrollbar-hide flex gap-2">
+            {zodiacSigns.map((sign) => (
+              <button
+                key={sign}
+                onClick={() => setSelectedSign(sign)}
+                className={`shrink-0 p-3 w-[72px] rounded-2xl transition-all flex flex-col items-center gap-2 ${selectedSign === sign
+                    ? 'gradient-primary text-white shadow-lg glow-pink scale-105'
+                    : 'glass hover:bg-white/10 text-gray-400'
+                  }`}
+                data-testid={`zodiac-${sign}`}
+                title={sign.charAt(0).toUpperCase() + sign.slice(1)}
+              >
+                <ZodiacIcon sign={sign} className={`w-6 h-6 ${selectedSign === sign ? 'text-white' : 'text-[#D4A853]'}`} />
+                <span className="text-[10px] font-bold capitalize leading-none tracking-wide">{sign.slice(0, 3)}</span>
+              </button>
+            ))}
+          </div>
+
+          <div className="px-6 pb-6">
             {horoscopeLoading ? (
-              <div className="flex justify-center py-6">
+              <div className="flex justify-center py-8">
                 <LoadingSpinner size="sm" />
               </div>
             ) : (
-              <div className="glass rounded-xl p-4">
-                <h4 className="font-semibold text-white capitalize mb-1.5 text-sm">{selectedSign}</h4>
-                <p className="text-xs text-gray-400 leading-relaxed">
+              <div className="glass rounded-[1.5rem] p-6 relative overflow-hidden">
+                <div className="absolute -top-10 -right-10 w-32 h-32 bg-[#E27689]/5 rounded-full blur-2xl" />
+                <h4 className="font-bold text-white capitalize mb-4 text-lg flex items-center gap-2">
+                  <span className="inline-block w-2 h-2 rounded-full bg-[#E27689]" />
+                  {selectedSign} Insights
+                </h4>
+                <p className="text-[15px] text-gray-300 leading-relaxed font-medium mb-6">
                   {horoscope?.prediction || "Today brings new opportunities for growth. The cosmic energies encourage you to trust your intuition and embrace positive changes."}
                 </p>
-                <div className="grid grid-cols-3 gap-2 mt-3">
+                <div className="grid grid-cols-3 gap-3">
                   {[
-                    { icon: Heart, label: 'Love', stars: 4, color: 'text-[#E91E8C]' },
-                    { icon: TrendingUp, label: 'Career', stars: 3, color: 'text-[#7B2FBE]' },
+                    { icon: Heart, label: 'Love', stars: 4, color: 'text-[#E27689]' },
+                    { icon: TrendingUp, label: 'Career', stars: 3, color: 'text-[#D4A853]' },
                     { icon: Activity, label: 'Health', stars: 4, color: 'text-green-400' },
                   ].map(({ icon: Icon, label, stars, color }) => (
-                    <div key={label} className="bg-white/5 rounded-lg p-2 text-center">
-                      <Icon className={`w-3.5 h-3.5 ${color} mx-auto mb-0.5`} />
-                      <p className="text-[10px] font-medium text-gray-400 mb-0.5">{label}</p>
-                      <div className="flex gap-0.5 justify-center">
+                    <div key={label} className="bg-white/[0.02] rounded-[1rem] p-3 text-center border border-white/[0.02]">
+                      <Icon className={`w-4 h-4 ${color} mx-auto mb-2`} />
+                      <p className="text-xs font-bold text-gray-400 mb-2">{label}</p>
+                      <div className="flex gap-1 justify-center">
                         {Array.from({ length: 5 }).map((_, i) => (
-                          <Star key={i} className={`w-2 h-2 ${i < stars ? 'fill-[#D4A853] text-[#D4A853]' : 'text-gray-700'}`} />
+                          <Star key={i} className={`w-2 h-2 ${i < stars ? 'fill-[#D4A853] text-[#D4A853]' : 'text-white/10'}`} />
                         ))}
                       </div>
                     </div>
@@ -224,75 +264,71 @@ export default function Home() {
           </div>
         </div>
 
-        {/* ─── Online Astrologers ───────────────────────────── */}
+        {/* ─── Popular Astrologers ───────────────────────────── */}
         <div className="mb-6">
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="font-semibold text-base text-white">Online Astrologers</h3>
+          <div className="flex items-center justify-between mb-4 px-2">
+            <div>
+              <h3 className="font-bold text-xl text-white tracking-tight">Popular Astrologers</h3>
+              <p className="text-sm text-gray-500 font-medium">Connect with top-tier verified guides</p>
+            </div>
             <Link href="/astrologers">
-              <Button variant="ghost" size="sm" className="text-[#E91E8C] hover:text-[#F23D9E] hover:bg-white/5 font-semibold gap-0.5 h-7 text-xs" data-testid="link-see-all-astrologers">
-                See All <ChevronRight className="w-3.5 h-3.5" />
+              <Button variant="ghost" className="text-[#D4A853] hover:text-[#FFD375] hover:bg-white/5 font-bold gap-1 px-4 rounded-full">
+                See all <ChevronRight className="w-4 h-4" />
               </Button>
             </Link>
           </div>
 
           {astrologersLoading ? (
-            <div className="flex justify-center py-8">
+            <div className="flex justify-center py-10">
               <LoadingSpinner />
             </div>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
               {astrologers?.slice(0, 6).map((astrologer) => (
                 <div
                   key={astrologer.id}
-                  className="astronex-card p-4 hover:border-[#E91E8C]/20 transition-all duration-300"
+                  className="astronex-card p-5 group hover:-translate-y-1 transition-transform duration-500"
                   data-testid={`card-astrologer-${astrologer.id}`}
                 >
-                  <div className="flex gap-3">
-                    <div className="relative flex-shrink-0">
-                      <Avatar className="w-13 h-13 avatar-glow">
-                        <AvatarImage src={astrologer.profileImageUrl || undefined} />
-                        <AvatarFallback className="gradient-primary text-white font-semibold text-lg">
+                  <div className="flex gap-4">
+                    <div className="relative shrink-0">
+                      <Avatar className="w-16 h-16 rounded-2xl avatar-glow">
+                        <AvatarImage src={astrologer.profileImageUrl || undefined} className="object-cover" />
+                        <AvatarFallback className="gradient-primary text-white font-bold text-xl">
                           {astrologer.name.charAt(0)}
                         </AvatarFallback>
                       </Avatar>
                       {(astrologer.isOnline || astrologer.availability === 'available') && (
-                        <div className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 bg-green-500 rounded-full border-2 border-[#0D0D0D]" />
+                        <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-green-500 rounded-full border-2 border-[#1A1A1A]" />
                       )}
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-1">
-                        <h4 className="font-semibold text-sm text-white truncate">{astrologer.name}</h4>
-                        {astrologer.isVerified && <CheckCircle2 className="w-3 h-3 text-[#E91E8C] flex-shrink-0" />}
+                    <div className="flex-1 min-w-0 pt-0.5">
+                      <div className="flex items-center gap-1.5 mb-1">
+                        <h4 className="font-bold text-base text-white truncate">{astrologer.name}</h4>
+                        {astrologer.isVerified && <CheckCircle2 className="w-4 h-4 text-[#D4A853] shrink-0" />}
                       </div>
-                      <p className="text-[11px] text-gray-500 truncate">
+                      <p className="text-xs text-gray-400 font-medium truncate mb-2">
                         {astrologer.specializations?.slice(0, 2).join(', ') || 'Vedic, Numerology'}
                       </p>
-                      <div className="flex items-center gap-1.5 mt-1">
-                        <Star className="w-3 h-3 fill-[#D4A853] text-[#D4A853]" />
-                        <span className="text-xs font-semibold text-gray-300">{astrologer.rating || '4.9'}</span>
+                      <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-1">
+                          <Star className="w-3.5 h-3.5 fill-[#D4A853] text-[#D4A853]" />
+                          <span className="text-xs font-bold text-gray-200">{astrologer.rating || '4.9'}</span>
+                        </div>
                         <span className="text-gray-600 text-xs">&bull;</span>
-                        <span className="text-[11px] text-gray-500">{astrologer.experience || 10}yr</span>
+                        <span className="text-xs font-medium text-gray-400">{astrologer.experience || 10}y exp</span>
                       </div>
                     </div>
-                    <div className="text-right flex-shrink-0">
-                      <div className="text-sm font-semibold text-[#D4A853]">₹{astrologer.pricePerMinute || '25'}</div>
-                      <div className="text-[10px] text-gray-600">/min</div>
-                    </div>
                   </div>
-                  <div className="mt-3 grid grid-cols-3 gap-2">
+
+                  <div className="mt-5 pt-5 border-t border-white/[0.03] flex items-center justify-between">
+                    <div className="flex items-baseline gap-1">
+                      <span className="text-lg font-bold text-[#D4A853]">₹{astrologer.pricePerMinute || '25'}</span>
+                      <span className="text-xs text-gray-500 font-medium">/min</span>
+                    </div>
                     <Link href={`/chat/${astrologer.id}`}>
-                      <Button size="sm" className="w-full gradient-primary hover:opacity-90 text-white font-medium rounded-xl h-7 text-xs" data-testid={`button-chat-${astrologer.id}`}>
-                        <MessageCircle className="w-3 h-3 mr-1" /> Chat
-                      </Button>
-                    </Link>
-                    <Link href={`/call/${astrologer.id}?type=voice`}>
-                      <Button size="sm" className="w-full bg-green-600/20 hover:bg-green-600/30 text-green-400 font-medium rounded-xl h-7 text-xs border border-green-600/20" data-testid={`button-call-${astrologer.id}`}>
-                        <Phone className="w-3 h-3 mr-1" /> Call
-                      </Button>
-                    </Link>
-                    <Link href={`/call/${astrologer.id}?type=video`}>
-                      <Button size="sm" className="w-full glass text-gray-300 hover:text-white font-medium rounded-xl h-7 text-xs">
-                        <Video className="w-3 h-3 mr-1" /> Video
+                      <Button className="glass-pill-active text-white font-bold h-9 px-5 hover:scale-105 transition-transform" data-testid={`button-chat-${astrologer.id}`}>
+                        Connect
                       </Button>
                     </Link>
                   </div>
@@ -302,6 +338,10 @@ export default function Home() {
           )}
         </div>
       </main>
+
+      {/* Spacing for bottom nav */}
+      <div className="h-20" />
+      <BottomNav />
     </div>
   );
 }
