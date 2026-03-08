@@ -6,14 +6,7 @@
 
 @layer base {
   :root {
-    --background: 260 20% 98%;
-    --foreground: 260 20% 10%;
-    --radius: 2rem;
-    /* True AstroNex huge radii */
-  }
-
-  .dark {
-    /* AstroNex True Background: Very deep purple-black, not neutral gray */
+    /* AstroNex True Background: Very deep purple-black */
     --background: 260 30% 6%;
     --foreground: 0 0% 98%;
 
@@ -39,6 +32,31 @@
     --destructive: 0 62% 30%;
     --destructive-foreground: 0 0% 98%;
 
+    --border: 260 20% 15%;
+    --input: 260 25% 15%;
+    --ring: 340 60% 55%;
+
+    --radius: 2rem;
+  }
+
+  .dark {
+    /* Keep .dark block to satisfy tailwind darkMode class strategy if it leaks */
+    --background: 260 30% 6%;
+    --foreground: 0 0% 98%;
+    --card: 260 25% 10%;
+    --card-foreground: 0 0% 95%;
+    --popover: 260 30% 8%;
+    --popover-foreground: 0 0% 95%;
+    --primary: 340 60% 55%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 260 25% 15%;
+    --secondary-foreground: 0 0% 98%;
+    --muted: 260 25% 12%;
+    --muted-foreground: 260 10% 60%;
+    --accent: 340 60% 55%;
+    --accent-foreground: 0 0% 100%;
+    --destructive: 0 62% 30%;
+    --destructive-foreground: 0 0% 98%;
     --border: 260 20% 15%;
     --input: 260 25% 15%;
     --ring: 340 60% 55%;
@@ -137,22 +155,27 @@
   }
 
   /* AstroNex Text Contrast Overrides */
+  .text-gray-200,
   .dark .text-gray-200 {
     color: rgba(255, 255, 255, 0.9) !important;
   }
 
+  .text-gray-300,
   .dark .text-gray-300 {
     color: rgba(255, 255, 255, 0.8) !important;
   }
 
+  .text-gray-400,
   .dark .text-gray-400 {
     color: rgba(255, 255, 255, 0.6) !important;
   }
 
+  .text-gray-500,
   .dark .text-gray-500 {
     color: rgba(255, 255, 255, 0.45) !important;
   }
 
+  .text-gray-600,
   .dark .text-gray-600 {
     color: rgba(255, 255, 255, 0.3) !important;
   }
