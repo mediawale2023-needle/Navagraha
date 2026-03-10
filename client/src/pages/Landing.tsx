@@ -49,12 +49,12 @@ export default function Landing() {
       <div className="fixed top-[40%] left-[60%] w-[30vw] h-[30vw] rounded-full bg-[var(--turmeric)]/[0.03] blur-[100px] pointer-events-none" />
       <div className="fixed inset-0 celestial-mesh opacity-20 pointer-events-none" />
 
-      {/* ─── Header ────────────────────────────────────────────── */}
+      {/* ─── Header (mobile only — desktop handled by Navbar) ────── */}
       <motion.header
         initial={{ y: -20, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
-        className="fixed top-0 inset-x-0 z-50 px-4 sm:px-6 lg:px-8 pt-4 pb-4"
+        className="fixed top-0 inset-x-0 z-40 px-4 sm:px-6 lg:px-8 pt-4 pb-4 md:hidden"
       >
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-3">
