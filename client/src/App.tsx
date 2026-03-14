@@ -21,6 +21,8 @@ import AstrologerLogin from "@/pages/AstrologerLogin";
 import AstrologerDashboard from "@/pages/AstrologerDashboard";
 import AdminDashboard from "@/pages/AdminDashboard";
 import Numerology from "@/pages/Numerology";
+import AIAstrologer from "@/pages/AIAstrologer";
+import Horoscope from "@/pages/Horoscope";
 import NotFound from "@/pages/not-found";
 import { useEffect, useState } from "react";
 
@@ -54,13 +56,16 @@ function Router() {
       {/* Admin / Developer dashboard — always accessible */}
       <Route path="/admin/dashboard" component={AdminDashboard} />
 
-      {/* Public routes */}
+      {/* Public routes — accessible without login */}
+      <Route path="/horoscope" component={Horoscope} />
+      <Route path="/horoscope/:sign" component={Horoscope} />
+      <Route path="/astrologers" component={Astrologers} />
+      <Route path="/kundli/matchmaking" component={Matchmaking} />
+      <Route path="/numerology" component={Numerology} />
+
       {isLoading || !isAuthenticated ? (
         <>
           <Route path="/" component={Landing} />
-          <Route path="/astrologers" component={Astrologers} />
-          <Route path="/kundli/matchmaking" component={Matchmaking} />
-          <Route path="/numerology" component={Numerology} />
           <Route path="/astrologer/login" component={AstrologerLogin} />
         </>
       ) : (
@@ -68,15 +73,13 @@ function Router() {
           {/* Authenticated user routes */}
           <Route path="/" component={Home} />
           <Route path="/kundli/new" component={KundliNew} />
-          <Route path="/kundli/matchmaking" component={Matchmaking} />
           <Route path="/kundli/:id" component={KundliView} />
-          <Route path="/astrologers" component={Astrologers} />
           <Route path="/wallet" component={Wallet} />
           <Route path="/chat/:astrologerId" component={Chat} />
           <Route path="/call/:astrologerId" component={CallRoom} />
           <Route path="/schedule" component={Schedule} />
           <Route path="/profile" component={Profile} />
-          <Route path="/numerology" component={Numerology} />
+          <Route path="/ai-astrologer" component={AIAstrologer} />
         </>
       )}
       <Route component={NotFound} />

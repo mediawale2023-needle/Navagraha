@@ -38,6 +38,9 @@ import {
 } from "./paymentService";
 import { generateAgoraToken, getChannelName } from "./agoraService";
 import { notifyUser, notifyAstrologer } from "./websocketService";
+import { interpretKundli, aiAstrologerChat, aiDailyPrediction } from "./aiAstrologerService";
+import { sendWelcomeEmail, sendPaymentReceipt, sendBookingConfirmation, sendConsultationSummary } from "./emailService";
+import crypto from "crypto";
 
 // ─────────────────────────────────────────────────────────────
 // Astrologer auth middleware
@@ -58,6 +61,71 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
 
   // NOTE: /api/config is registered in index.ts (before async init) so it
   // responds immediately for Railway healthchecks. Do NOT duplicate here.
+
+  // ─── User Email Auth ──────────────────────────────────────
+
+  app.post('/api/auth/register', async (req: any, res) => {
+    try {
+      const { email, password, firstName, lastName } = req.body;
+      if (!email || !password) {
+        return res.status(400).json({ message: "Email and password are required" });
+      }
+      if (password.length < 8) {
+        return res.status(400).json({ message: "Password must be at least 8 characters" });
+      }
+
+      const existing = await storage.getUserByEmail(email);
+      if (existing) {
+        return res.status(409).json({ message: "An account with this email already exists" });
+      }
+
+      const user = await storage.createUserWithPassword({ email, password, firstName, lastName });
+
+      // Log them in immediately
+      (req.session as any).userId = user.id;
+
+      // Auto-create wallet
+      await storage.createWallet(user.id).catch(() => {});
+
+      // Send welcome email (fire-and-forget)
+      sendWelcomeEmail(email, firstName || "").catch(() => {});
+
+      const { passwordHash: _ph, ...safe } = user as any;
+      res.status(201).json(safe);
+    } catch (error) {
+      console.error("Register error:", error);
+      res.status(500).json({ message: "Registration failed" });
+    }
+  });
+
+  app.post('/api/auth/login', async (req: any, res) => {
+    try {
+      const { email, password } = req.body;
+      if (!email || !password) {
+        return res.status(400).json({ message: "Email and password are required" });
+      }
+
+      const user = await storage.verifyUserPassword(email, password);
+      if (!user) {
+        return res.status(401).json({ message: "Invalid email or password" });
+      }
+
+      (req.session as any).userId = user.id;
+
+      const { passwordHash: _ph, ...safe } = user as any;
+      res.json(safe);
+    } catch (error) {
+      console.error("Login error:", error);
+      res.status(500).json({ message: "Login failed" });
+    }
+  });
+
+  app.post('/api/auth/logout', (req: any, res) => {
+    req.session.destroy(() => {
+      res.clearCookie('connect.sid');
+      res.json({ message: "Logged out" });
+    });
+  });
 
   // ─── Auth ─────────────────────────────────────────────────
   app.get('/api/auth/user', isAuthenticated, async (req: any, res) => {
@@ -439,6 +507,18 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
         body: `₹${totalCredit} added to your wallet successfully.`,
       });
 
+      // Send email receipt (fire-and-forget)
+      const user = await storage.getUser(userId);
+      if (user?.email) {
+        sendPaymentReceipt(user.email, {
+          userName: user.firstName || 'User',
+          amount: parseFloat(amount),
+          bonus: parseFloat(bonus || "0"),
+          newBalance: parseFloat(newBalance),
+          paymentId,
+        }).catch(() => {});
+      }
+
       res.json({ success: true, newBalance: parseFloat(newBalance) });
     } catch (error) {
       console.error("Razorpay verify error:", error);
@@ -706,6 +786,21 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
         body: `Your consultation ended. Duration: ${Math.floor((consultation.durationSeconds || 0) / 60)} minutes. Total: ₹${consultation.totalAmount}`,
       });
 
+      // Send consultation summary email (fire-and-forget)
+      const endUser = await storage.getUser(userId);
+      const endAstrologer = consultation.astrologerId
+        ? await storage.getAstrologerById(consultation.astrologerId)
+        : null;
+      if (endUser?.email && endAstrologer) {
+        sendConsultationSummary(endUser.email, {
+          userName: endUser.firstName || 'User',
+          astrologerName: endAstrologer.name,
+          type: consultation.type,
+          durationMinutes: Math.floor((consultation.durationSeconds || 0) / 60),
+          totalAmount: consultation.totalAmount || '0',
+        }).catch(() => {});
+      }
+
       res.json(consultation);
     } catch (error) {
       console.error("End consultation error:", error);
@@ -804,6 +899,19 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
         body: `Your ${type} consultation with ${astrologer?.name} is scheduled for ${new Date(scheduledAt).toLocaleString()}.`,
       });
 
+      // Send booking confirmation email (fire-and-forget)
+      const bookingUser = await storage.getUser(userId);
+      if (bookingUser?.email && astrologer) {
+        sendBookingConfirmation(bookingUser.email, {
+          userName: bookingUser.firstName || 'User',
+          astrologerName: astrologer.name,
+          type,
+          scheduledAt: new Date(scheduledAt),
+          durationMinutes: durationMinutes || 30,
+          totalAmount,
+        }).catch(() => {});
+      }
+
       res.status(201).json(call);
     } catch { res.status(500).json({ message: "Failed to book appointment" }); }
   });
@@ -842,6 +950,103 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
       await storage.markAllNotificationsRead((req.user as any).id);
       res.json({ success: true });
     } catch { res.status(500).json({ message: "Failed to mark notifications" }); }
+  });
+
+  // ─── AI Astrologer ────────────────────────────────────────
+
+  // Interpret a saved Kundli with AI
+  app.post('/api/ai/interpret-kundli', isAuthenticated, async (req: any, res) => {
+    try {
+      const { kundliId } = req.body;
+      if (!kundliId) return res.status(400).json({ message: "kundliId is required" });
+
+      const kundli = await storage.getKundliById(kundliId);
+      if (!kundli) return res.status(404).json({ message: "Kundli not found" });
+
+      // Ensure the kundli belongs to the requesting user
+      if (kundli.userId !== (req.user as any).id) {
+        return res.status(403).json({ message: "Access denied" });
+      }
+
+      const interpretation = await interpretKundli(kundli);
+      res.json(interpretation);
+    } catch (error: any) {
+      if (error.message?.includes("ANTHROPIC_API_KEY")) {
+        return res.status(503).json({ message: "AI features not configured. Set ANTHROPIC_API_KEY." });
+      }
+      console.error("AI interpret error:", error);
+      res.status(500).json({ message: "Failed to generate AI interpretation" });
+    }
+  });
+
+  // AI Astrologer chat — stateless request, history managed by client
+  app.post('/api/ai/chat', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = (req.user as any).id;
+      const { message, history = [], kundliId, sessionId } = req.body;
+
+      if (!message || typeof message !== 'string') {
+        return res.status(400).json({ message: "message is required" });
+      }
+
+      // Optionally attach birth chart context
+      let kundli = null;
+      if (kundliId) {
+        kundli = await storage.getKundliById(kundliId);
+        if (kundli && kundli.userId !== userId) kundli = null; // safety
+      }
+
+      const reply = await aiAstrologerChat(message, history, kundli);
+
+      // Persist to DB for chat history
+      const sid = sessionId || crypto.randomUUID();
+      await storage.saveAiChatMessage({ userId, sessionId: sid, role: 'user', content: message, kundliId: kundliId || null });
+      await storage.saveAiChatMessage({ userId, sessionId: sid, role: 'assistant', content: reply, kundliId: kundliId || null });
+
+      res.json({ reply, sessionId: sid });
+    } catch (error: any) {
+      if (error.message?.includes("ANTHROPIC_API_KEY")) {
+        return res.status(503).json({ message: "AI features not configured. Set ANTHROPIC_API_KEY." });
+      }
+      console.error("AI chat error:", error);
+      res.status(500).json({ message: "AI chat failed" });
+    }
+  });
+
+  // Get AI chat history for a session
+  app.get('/api/ai/chat/:sessionId', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = (req.user as any).id;
+      const messages = await storage.getAiChatHistory(userId, req.params.sessionId);
+      res.json(messages);
+    } catch { res.status(500).json({ message: "Failed to fetch AI chat history" }); }
+  });
+
+  // List user's AI chat sessions
+  app.get('/api/ai/sessions', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = (req.user as any).id;
+      const sessions = await storage.getAiChatSessions(userId);
+      res.json(sessions);
+    } catch { res.status(500).json({ message: "Failed to fetch sessions" }); }
+  });
+
+  // AI-enhanced daily horoscope
+  app.get('/api/ai/horoscope/:sign', async (req, res) => {
+    const sign = req.params.sign.toLowerCase();
+    try {
+      const prediction = await aiDailyPrediction(sign);
+      res.json({ sign, prediction, generatedAt: new Date().toISOString() });
+    } catch (error: any) {
+      if (error.message?.includes("ANTHROPIC_API_KEY")) {
+        // Fall back to native engine
+        try {
+          const horoscope = await getNativeHoroscope(sign, 'today', 'general');
+          return res.json({ sign, prediction: horoscope.prediction, generatedAt: new Date().toISOString() });
+        } catch { /* noop */ }
+      }
+      res.status(500).json({ message: "Failed to generate horoscope" });
+    }
   });
 
   // ─── Admin / Developer Dashboard ──────────────────────────

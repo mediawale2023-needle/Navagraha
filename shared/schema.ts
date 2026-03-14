@@ -36,6 +36,8 @@ export const users = pgTable("users", {
   dateOfBirth: timestamp("date_of_birth"),
   timeOfBirth: varchar("time_of_birth"),
   placeOfBirth: varchar("place_of_birth"),
+  passwordHash: varchar("password_hash"), // for email/password auth
+  authProvider: varchar("auth_provider").default("google"), // google | email
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -399,3 +401,22 @@ export const insertHomepageContentSchema = createInsertSchema(homepageContent).o
 
 export type InsertHomepageContent = z.infer<typeof insertHomepageContentSchema>;
 export type HomepageContent = typeof homepageContent.$inferSelect;
+
+// AI Chat Messages table — conversations with the AI astrologer
+export const aiChatMessages = pgTable("ai_chat_messages", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").references(() => users.id).notNull(),
+  sessionId: varchar("session_id").notNull(), // groups a conversation
+  role: varchar("role").notNull(), // user | assistant
+  content: text("content").notNull(),
+  kundliId: varchar("kundli_id").references(() => kundlis.id),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertAiChatMessageSchema = createInsertSchema(aiChatMessages).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type InsertAiChatMessage = z.infer<typeof insertAiChatMessageSchema>;
+export type AiChatMessage = typeof aiChatMessages.$inferSelect;
