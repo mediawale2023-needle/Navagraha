@@ -18,9 +18,14 @@ CREATE TABLE IF NOT EXISTS users (
   date_of_birth timestamp,
   time_of_birth varchar,
   place_of_birth varchar,
+  password_hash varchar,
+  auth_provider varchar DEFAULT 'google',
   created_at timestamp DEFAULT now(),
   updated_at timestamp DEFAULT now()
 );
+-- Idempotent column additions for existing deployments
+ALTER TABLE users ADD COLUMN IF NOT EXISTS password_hash varchar;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS auth_provider varchar DEFAULT 'google';
 
 CREATE TABLE IF NOT EXISTS astrologers (
   id varchar PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -191,6 +196,17 @@ CREATE TABLE IF NOT EXISTS homepage_content (
   created_at timestamp DEFAULT now(),
   updated_at timestamp DEFAULT now()
 );
+
+CREATE TABLE IF NOT EXISTS ai_chat_messages (
+  id varchar PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id varchar NOT NULL REFERENCES users(id),
+  session_id varchar NOT NULL,
+  role varchar NOT NULL,
+  content text NOT NULL,
+  kundli_id varchar REFERENCES kundlis(id),
+  created_at timestamp DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_ai_chat_user_session ON ai_chat_messages (user_id, session_id);
 `;
 
 const SEED_HOMEPAGE_SQL = `
