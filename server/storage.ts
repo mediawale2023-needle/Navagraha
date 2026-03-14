@@ -11,6 +11,7 @@ import {
   notifications,
   astrologerEarnings,
   payoutRequests,
+  aiChatMessages,
   type User,
   type UpsertUser,
   type Kundli,
@@ -31,16 +32,22 @@ import {
   type Notification,
   type AstrologerEarning,
   type PayoutRequest,
+  type AiChatMessage,
+  type InsertAiChatMessage,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, and, sql } from "drizzle-orm";
 import crypto from "crypto";
+import bcrypt from "bcryptjs";
 
 export interface IStorage {
   // User operations
   getUser(id: string): Promise<User | undefined>;
+  getUserByEmail(email: string): Promise<User | undefined>;
   upsertUser(user: UpsertUser): Promise<User>;
   updateUser(id: string, data: Partial<UpsertUser>): Promise<User>;
+  createUserWithPassword(data: { email: string; password: string; firstName?: string; lastName?: string }): Promise<User>;
+  verifyUserPassword(email: string, password: string): Promise<User | null>;
 
   // Kundli operations
   createKundli(kundli: InsertKundli): Promise<Kundli>;
@@ -116,6 +123,11 @@ export interface IStorage {
   // Payout operations
   createPayoutRequest(astrologerId: string, amount: string, method: string): Promise<PayoutRequest>;
   getAstrologerPayouts(astrologerId: string): Promise<PayoutRequest[]>;
+
+  // AI Chat operations
+  saveAiChatMessage(data: InsertAiChatMessage): Promise<AiChatMessage>;
+  getAiChatHistory(userId: string, sessionId: string): Promise<AiChatMessage[]>;
+  getAiChatSessions(userId: string): Promise<{ sessionId: string; createdAt: Date | null; preview: string }[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -630,6 +642,80 @@ export class DatabaseStorage implements IStorage {
     if (!astrologer || !astrologer.passwordHash) return null;
     const hash = crypto.createHash("sha256").update(password).digest("hex");
     return hash === astrologer.passwordHash ? astrologer : null;
+  }
+
+  // ─── User email auth ───────────────────────────────────────
+
+  async getUserByEmail(email: string): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.email, email));
+    return user;
+  }
+
+  async createUserWithPassword(data: {
+    email: string;
+    password: string;
+    firstName?: string;
+    lastName?: string;
+  }): Promise<User> {
+    const passwordHash = await bcrypt.hash(data.password, 12);
+    const [user] = await db
+      .insert(users)
+      .values({
+        email: data.email,
+        firstName: data.firstName,
+        lastName: data.lastName,
+        passwordHash,
+        authProvider: "email",
+      })
+      .returning();
+    return user;
+  }
+
+  async verifyUserPassword(email: string, password: string): Promise<User | null> {
+    const user = await this.getUserByEmail(email);
+    if (!user || !user.passwordHash) return null;
+    const valid = await bcrypt.compare(password, user.passwordHash);
+    return valid ? user : null;
+  }
+
+  // ─── AI Chat operations ────────────────────────────────────
+
+  async saveAiChatMessage(data: InsertAiChatMessage): Promise<AiChatMessage> {
+    const [msg] = await db.insert(aiChatMessages).values(data).returning();
+    return msg;
+  }
+
+  async getAiChatHistory(userId: string, sessionId: string): Promise<AiChatMessage[]> {
+    return await db
+      .select()
+      .from(aiChatMessages)
+      .where(and(eq(aiChatMessages.userId, userId), eq(aiChatMessages.sessionId, sessionId)))
+      .orderBy(aiChatMessages.createdAt);
+  }
+
+  async getAiChatSessions(
+    userId: string
+  ): Promise<{ sessionId: string; createdAt: Date | null; preview: string }[]> {
+    // Return the latest message from each session as a preview
+    const rows = await db
+      .select()
+      .from(aiChatMessages)
+      .where(eq(aiChatMessages.userId, userId))
+      .orderBy(desc(aiChatMessages.createdAt));
+
+    const seen = new Set<string>();
+    const sessions: { sessionId: string; createdAt: Date | null; preview: string }[] = [];
+    for (const row of rows) {
+      if (!seen.has(row.sessionId)) {
+        seen.add(row.sessionId);
+        sessions.push({
+          sessionId: row.sessionId,
+          createdAt: row.createdAt,
+          preview: row.content.slice(0, 80),
+        });
+      }
+    }
+    return sessions;
   }
 }
 
