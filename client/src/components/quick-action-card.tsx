@@ -3,30 +3,30 @@ import { LucideIcon } from 'lucide-react';
 interface QuickActionCardProps {
     title: string;
     icon: LucideIcon;
-    color: 'teal' | 'magenta' | 'yellow' | 'navy';
+    color: 'teal' | 'magenta' | 'amber' | 'navy';
     onClick?: () => void;
 }
 
 export function QuickActionCard({ title, icon: Icon, color, onClick }: QuickActionCardProps) {
     const colorMap = {
-        teal: 'bg-[var(--teal)] text-white',
-        magenta: 'bg-[var(--magenta)] text-white',
-        yellow: 'bg-[var(--turmeric)] text-foreground',
-        navy: 'bg-[var(--foreground)] text-white'
+        teal: 'bg-nava-teal',
+        magenta: 'bg-nava-magenta',
+        amber: 'bg-nava-amber',
+        navy: 'bg-nava-navy'
     };
 
     return (
         <div
             onClick={onClick}
-            className={`rounded-3xl p-5 flex flex-col items-center justify-center text-center cursor-pointer hover:opacity-90 transition-opacity ${colorMap[color]} min-h-[140px] relative overflow-hidden group`}
+            className={`rounded-2xl p-4 flex flex-col items-center justify-center text-center cursor-pointer hover:opacity-90 hover:scale-[1.02] transition-all ${colorMap[color]} min-h-[120px] relative overflow-hidden shadow-sm`}
         >
-            {/* Decorative subtle shape */}
-            <div className="absolute top-0 right-0 w-16 h-16 bg-white/5 rounded-bl-[100px]" />
+            {/* Decorative subtle corner shape */}
+            <div className="absolute top-0 right-0 w-12 h-12 bg-white/10 rounded-bl-[40px]" />
 
-            <div className="w-12 h-12 rounded-full bg-white/20 flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
-                <Icon className="w-5 h-5 inherit-text" />
+            <div className="w-11 h-11 rounded-full bg-white/20 flex items-center justify-center mb-2">
+                <Icon className="w-5 h-5 text-white" />
             </div>
-            <span className="text-sm font-bold leading-tight inherit-text">
+            <span className="text-sm font-semibold leading-tight text-white">
                 {title}
             </span>
         </div>

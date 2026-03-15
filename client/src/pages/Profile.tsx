@@ -1,7 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'wouter';
 import { Button } from '@/components/ui/button';
-
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -26,12 +25,13 @@ export default function Profile() {
   }
 
   return (
-    <div className="min-h-screen bg-background pb-20 md:pb-0">
-      <div className="sticky top-0 z-50 header-glass">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-3">
+    <div className="min-h-screen bg-background pb-24">
+      {/* Header */}
+      <div className="sticky top-0 z-50 bg-background/95 backdrop-blur-md border-b border-border/30">
+        <div className="max-w-lg mx-auto px-4 py-3">
           <div className="flex items-center gap-3">
             <Link href="/">
-              <button className="p-2 rounded-xl hover:bg-foreground/5" data-testid="button-back">
+              <button className="p-1.5 rounded-lg hover:bg-muted" data-testid="button-back">
                 <ArrowLeft className="w-5 h-5 text-foreground" />
               </button>
             </Link>
@@ -40,99 +40,89 @@ export default function Profile() {
         </div>
       </div>
 
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+      <div className="max-w-lg mx-auto px-4 py-6">
 
         {/* Profile Info Card */}
-        <Card className="mb-8">
-          <CardContent className="p-8">
-            <div className="flex items-start gap-6 mb-6">
-              <Avatar className="w-24 h-24 flex-shrink-0">
-                <AvatarImage src={user?.profileImageUrl || undefined} alt={user?.firstName || 'User'} />
-                <AvatarFallback className="bg-primary/10 text-primary font-semibold text-3xl">
-                  {user?.firstName?.charAt(0) || user?.email?.charAt(0)?.toUpperCase() || 'U'}
-                </AvatarFallback>
-              </Avatar>
+        <Card className="mb-6 bg-card border-border/50 shadow-sm">
+          <CardContent className="p-5">
+            <div className="flex items-center gap-4 mb-5">
+              <div className="w-20 h-20 rounded-full p-1 bg-gradient-to-br from-nava-teal/30 to-nava-amber/30">
+                <Avatar className="w-full h-full border-2 border-card">
+                  <AvatarImage src={user?.profileImageUrl || undefined} alt={user?.firstName || 'User'} className="object-cover" />
+                  <AvatarFallback className="bg-nava-navy text-white font-bold text-2xl">
+                    {user?.firstName?.charAt(0) || user?.email?.charAt(0)?.toUpperCase() || 'U'}
+                  </AvatarFallback>
+                </Avatar>
+              </div>
 
               <div className="flex-1">
-                <h2 className="text-3xl font-serif font-semibold text-foreground mb-2">
+                <h2 className="text-xl font-bold text-foreground mb-1">
                   {user?.firstName || user?.lastName
                     ? `${user.firstName || ''} ${user.lastName || ''}`.trim()
                     : 'Anonymous User'}
                 </h2>
-                <div className="flex flex-wrap gap-4 text-muted-foreground">
-                  {user?.email && (
-                    <div className="flex items-center gap-2">
-                      <Mail className="w-4 h-4" />
-                      <span>{user.email}</span>
-                    </div>
-                  )}
-                  {user?.phoneNumber && (
-                    <div className="flex items-center gap-2">
-                      <Phone className="w-4 h-4" />
-                      <span>{user.phoneNumber}</span>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              <Button variant="outline" data-testid="button-edit-profile">
-                Edit Profile
-              </Button>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-6 border-t border-border">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
-                  <Sparkles className="w-5 h-5 text-primary" />
-                </div>
-                <div>
-                  <div className="text-sm text-muted-foreground">Kundlis</div>
-                  <div className="text-2xl font-bold text-foreground">{kundlis?.length || 0}</div>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-accent/10 flex items-center justify-center">
-                  <User className="w-5 h-5 text-accent" />
-                </div>
-                <div>
-                  <div className="text-sm text-muted-foreground">Consultations</div>
-                  <div className="text-2xl font-bold text-foreground">0</div>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-green-500/10 flex items-center justify-center">
-                  <Calendar className="w-5 h-5 text-green-600" />
-                </div>
-                <div>
-                  <div className="text-sm text-muted-foreground">Member Since</div>
-                  <div className="text-2xl font-bold text-foreground">
-                    {user?.createdAt
-                      ? new Date(user.createdAt).getFullYear()
-                      : new Date().getFullYear()}
+                {user?.email && (
+                  <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
+                    <Mail className="w-3.5 h-3.5" />
+                    <span>{user.email}</span>
                   </div>
-                </div>
+                )}
               </div>
             </div>
+
+            <Button variant="outline" className="w-full rounded-full border-border" data-testid="button-edit-profile">
+              Edit Profile
+            </Button>
           </CardContent>
         </Card>
 
+        {/* Stats Row */}
+        <div className="grid grid-cols-3 gap-3 mb-6">
+          <div className="bg-card rounded-2xl p-4 text-center border border-border/50 shadow-sm">
+            <div className="w-10 h-10 rounded-full bg-nava-teal/10 flex items-center justify-center mx-auto mb-2">
+              <Sparkles className="w-5 h-5 text-nava-teal" />
+            </div>
+            <div className="text-2xl font-bold text-foreground">{kundlis?.length || 0}</div>
+            <div className="text-xs text-muted-foreground">Kundlis</div>
+          </div>
+
+          <div className="bg-card rounded-2xl p-4 text-center border border-border/50 shadow-sm">
+            <div className="w-10 h-10 rounded-full bg-nava-magenta/10 flex items-center justify-center mx-auto mb-2">
+              <User className="w-5 h-5 text-nava-magenta" />
+            </div>
+            <div className="text-2xl font-bold text-foreground">0</div>
+            <div className="text-xs text-muted-foreground">Consults</div>
+          </div>
+
+          <div className="bg-card rounded-2xl p-4 text-center border border-border/50 shadow-sm">
+            <div className="w-10 h-10 rounded-full bg-nava-amber/10 flex items-center justify-center mx-auto mb-2">
+              <Calendar className="w-5 h-5 text-nava-amber" />
+            </div>
+            <div className="text-2xl font-bold text-foreground">
+              {user?.createdAt
+                ? new Date(user.createdAt).getFullYear()
+                : new Date().getFullYear()}
+            </div>
+            <div className="text-xs text-muted-foreground">Member</div>
+          </div>
+        </div>
+
         {/* Birth Details Card */}
         {(user?.dateOfBirth || user?.timeOfBirth || user?.placeOfBirth) && (
-          <Card className="mb-8">
-            <CardHeader>
-              <CardTitle>Birth Details</CardTitle>
-              <CardDescription>Your default birth information</CardDescription>
+          <Card className="mb-6 bg-card border-border/50 shadow-sm">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base">Birth Details</CardTitle>
             </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <CardContent className="pt-0">
+              <div className="space-y-3">
                 {user.dateOfBirth && (
                   <div className="flex items-center gap-3">
-                    <Calendar className="w-5 h-5 text-muted-foreground" />
+                    <div className="w-9 h-9 rounded-full bg-nava-teal/10 flex items-center justify-center">
+                      <Calendar className="w-4 h-4 text-nava-teal" />
+                    </div>
                     <div>
-                      <div className="text-sm text-muted-foreground">Date of Birth</div>
-                      <div className="font-medium">
+                      <div className="text-xs text-muted-foreground">Date of Birth</div>
+                      <div className="text-sm font-medium text-foreground">
                         {new Date(user.dateOfBirth).toLocaleDateString()}
                       </div>
                     </div>
@@ -141,20 +131,24 @@ export default function Profile() {
 
                 {user.timeOfBirth && (
                   <div className="flex items-center gap-3">
-                    <Clock className="w-5 h-5 text-muted-foreground" />
+                    <div className="w-9 h-9 rounded-full bg-nava-amber/10 flex items-center justify-center">
+                      <Clock className="w-4 h-4 text-nava-amber" />
+                    </div>
                     <div>
-                      <div className="text-sm text-muted-foreground">Time of Birth</div>
-                      <div className="font-medium">{user.timeOfBirth}</div>
+                      <div className="text-xs text-muted-foreground">Time of Birth</div>
+                      <div className="text-sm font-medium text-foreground">{user.timeOfBirth}</div>
                     </div>
                   </div>
                 )}
 
                 {user.placeOfBirth && (
                   <div className="flex items-center gap-3">
-                    <MapPin className="w-5 h-5 text-muted-foreground" />
+                    <div className="w-9 h-9 rounded-full bg-nava-magenta/10 flex items-center justify-center">
+                      <MapPin className="w-4 h-4 text-nava-magenta" />
+                    </div>
                     <div>
-                      <div className="text-sm text-muted-foreground">Place of Birth</div>
-                      <div className="font-medium">{user.placeOfBirth}</div>
+                      <div className="text-xs text-muted-foreground">Place of Birth</div>
+                      <div className="text-sm font-medium text-foreground">{user.placeOfBirth}</div>
                     </div>
                   </div>
                 )}
@@ -164,22 +158,19 @@ export default function Profile() {
         )}
 
         {/* Saved Kundlis */}
-        <Card>
-          <CardHeader>
+        <Card className="bg-card border-border/50 shadow-sm">
+          <CardHeader className="pb-3">
             <div className="flex items-center justify-between">
-              <div>
-                <CardTitle>My Kundlis</CardTitle>
-                <CardDescription>Your saved birth charts</CardDescription>
-              </div>
+              <CardTitle className="text-base">My Kundlis</CardTitle>
               <Link href="/kundli/new">
-                <Button data-testid="button-new-kundli">
-                  <Sparkles className="w-4 h-4 mr-2" />
+                <Button size="sm" className="bg-nava-teal hover:bg-nava-teal/90 text-white rounded-full" data-testid="button-new-kundli">
+                  <Sparkles className="w-3.5 h-3.5 mr-1.5" />
                   Generate New
                 </Button>
               </Link>
             </div>
           </CardHeader>
-          <CardContent>
+          <CardContent className="pt-0">
             {kundlisLoading ? (
               <LoadingSpinner size="sm" />
             ) : kundlis && kundlis.length > 0 ? (
@@ -190,35 +181,28 @@ export default function Profile() {
                   return (
                     <Link key={kundli.id} href={`/kundli/${kundli.id}`}>
                       <div
-                        className="p-4 bg-muted/30 rounded-lg hover-elevate active-elevate-2 cursor-pointer transition-all"
+                        className="p-4 bg-background rounded-xl hover:bg-muted transition-colors cursor-pointer"
                         data-testid={`kundli-${kundli.id}`}
                       >
-                        <div className="flex items-start justify-between gap-4">
+                        <div className="flex items-start justify-between gap-3">
                           <div className="flex-1">
-                            <h3 className="font-semibold text-lg text-foreground mb-2">
+                            <h3 className="font-semibold text-sm text-foreground mb-1.5">
                               {kundli.name}
                             </h3>
-                            <div className="flex flex-wrap gap-4 text-sm text-muted-foreground">
+                            <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
                               <div className="flex items-center gap-1">
-                                <Calendar className="w-4 h-4" />
+                                <Calendar className="w-3 h-3" />
                                 <span>{birthDate.toLocaleDateString()}</span>
                               </div>
                               <div className="flex items-center gap-1">
-                                <Clock className="w-4 h-4" />
+                                <Clock className="w-3 h-3" />
                                 <span>{kundli.timeOfBirth}</span>
-                              </div>
-                              <div className="flex items-center gap-1">
-                                <MapPin className="w-4 h-4" />
-                                <span>{kundli.placeOfBirth}</span>
                               </div>
                             </div>
                           </div>
-                          <div className="flex flex-wrap gap-2">
+                          <div className="flex flex-wrap gap-1.5">
                             {kundli.zodiacSign && (
-                              <Badge variant="secondary">{kundli.zodiacSign}</Badge>
-                            )}
-                            {kundli.moonSign && (
-                              <Badge variant="secondary">Moon: {kundli.moonSign}</Badge>
+                              <Badge className="bg-nava-teal/10 text-nava-teal border-0 text-xs">{kundli.zodiacSign}</Badge>
                             )}
                           </div>
                         </div>
@@ -228,14 +212,16 @@ export default function Profile() {
                 })}
               </div>
             ) : (
-              <div className="text-center py-12">
-                <Sparkles className="w-16 h-16 text-muted-foreground mx-auto mb-4 opacity-50" />
-                <p className="text-muted-foreground mb-2">No kundlis generated yet</p>
-                <p className="text-sm text-muted-foreground mb-6">
+              <div className="text-center py-8">
+                <div className="w-14 h-14 rounded-full bg-nava-teal/10 flex items-center justify-center mx-auto mb-3">
+                  <Sparkles className="w-7 h-7 text-nava-teal" />
+                </div>
+                <p className="text-muted-foreground text-sm mb-1">No kundlis generated yet</p>
+                <p className="text-xs text-muted-foreground mb-4">
                   Generate your first birth chart to get started
                 </p>
                 <Link href="/kundli/new">
-                  <Button>
+                  <Button className="bg-nava-teal hover:bg-nava-teal/90 text-white rounded-full">
                     <Sparkles className="w-4 h-4 mr-2" />
                     Generate Kundli
                   </Button>
@@ -245,7 +231,6 @@ export default function Profile() {
           </CardContent>
         </Card>
       </div>
-
     </div>
   );
 }
