@@ -81,8 +81,7 @@ export default function Wallet() {
     }
 
     try {
-      const data = await apiRequest('POST', '/api/payment/razorpay/order', { amount, packId });
-      const orderData = await data.json();
+      const orderData = await apiRequest('POST', '/api/payment/razorpay/order', { amount, packId });
 
       if (orderData.message) {
         toast({ title: 'Payment Gateway', description: orderData.message, variant: 'destructive' });
@@ -98,14 +97,13 @@ export default function Wallet() {
         order_id: orderData.orderId,
         handler: async (response: any) => {
           try {
-            const verifyData = await apiRequest('POST', '/api/payment/razorpay/verify', {
+            const verifyResult = await apiRequest('POST', '/api/payment/razorpay/verify', {
               orderId: response.razorpay_order_id,
               paymentId: response.razorpay_payment_id,
               signature: response.razorpay_signature,
               amount,
               bonus,
             });
-            const verifyResult = await verifyData.json();
             if (verifyResult.success) {
               queryClient.invalidateQueries({ queryKey: ['/api/wallet'] });
               queryClient.invalidateQueries({ queryKey: ['/api/transactions'] });
@@ -134,8 +132,7 @@ export default function Wallet() {
 
   const handleSnapmintPayment = async (amount: number) => {
     try {
-      const data = await apiRequest('POST', '/api/payment/snapmint/order', { amount });
-      const result = await data.json();
+      const result = await apiRequest('POST', '/api/payment/snapmint/order', { amount });
       if (result.message) {
         toast({ title: 'Snapmint Info', description: result.message, variant: 'destructive' });
         return;
@@ -150,8 +147,7 @@ export default function Wallet() {
 
   const handleLazyPayPayment = async (amount: number) => {
     try {
-      const data = await apiRequest('POST', '/api/payment/lazypay/order', { amount });
-      const result = await data.json();
+      const result = await apiRequest('POST', '/api/payment/lazypay/order', { amount });
       if (result.message) {
         toast({ title: 'LazyPay Info', description: result.message, variant: 'destructive' });
         return;

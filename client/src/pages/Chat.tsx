@@ -9,6 +9,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest } from '@/lib/queryClient';
+import { useAuth } from '@/hooks/useAuth';
 import {
   ArrowLeft, Send, Clock, Phone, Video,
   AlertTriangle, WifiOff, Wifi
@@ -19,6 +20,7 @@ export default function Chat() {
   const [, params] = useRoute('/chat/:astrologerId');
   const astrologerId = params?.astrologerId;
   const [, navigate] = useLocation();
+  const { user } = useAuth();
   const [message, setMessage] = useState('');
   const [sessionTime, setSessionTime] = useState(0);
   const [sessionActive, setSessionActive] = useState(false);
@@ -63,10 +65,9 @@ export default function Chat() {
 
     ws.onopen = () => {
       setWsConnected(true);
-      // Authenticate
-      const userId = (window as any).__userId;
-      if (userId) {
-        ws.send(JSON.stringify({ type: 'auth', userId, role: 'user' }));
+      // Authenticate using the logged-in user's id
+      if (user?.id) {
+        ws.send(JSON.stringify({ type: 'auth', userId: user.id, role: 'user' }));
       }
     };
 
@@ -75,7 +76,6 @@ export default function Chat() {
         const msg = JSON.parse(event.data);
         switch (msg.type) {
           case 'auth_ok':
-            (window as any).__userId = msg.userId;
             break;
           case 'new_message':
             if (msg.message) {
@@ -119,7 +119,7 @@ export default function Chat() {
     };
 
     ws.onerror = () => setWsConnected(false);
-  }, [astrologerId, queryClient, toast]);
+  }, [astrologerId, queryClient, toast, user?.id]);
 
   useEffect(() => {
     connectWebSocket();
@@ -152,11 +152,10 @@ export default function Chat() {
 
   const startSessionMutation = useMutation({
     mutationFn: async () => {
-      const response = await apiRequest('POST', '/api/consultations/start', {
+      return await apiRequest('POST', '/api/consultations/start', {
         astrologerId,
         type: 'chat',
       });
-      return response.json();
     },
     onSuccess: (consultation) => {
       setConsultationId(consultation.id);
@@ -164,12 +163,11 @@ export default function Chat() {
       setLowBalance(false);
 
       // Start billing via WebSocket
-      const userId = (window as any).__userId;
-      if (wsRef.current?.readyState === WebSocket.OPEN && userId) {
+      if (wsRef.current?.readyState === WebSocket.OPEN && user?.id) {
         wsRef.current.send(JSON.stringify({
           type: 'start_billing',
           consultationId: consultation.id,
-          userId,
+          userId: user.id,
           astrologerId,
           pricePerMinute: parseFloat(astrologer?.pricePerMinute || '25'),
         }));
@@ -189,8 +187,7 @@ export default function Chat() {
       if (wsRef.current?.readyState === WebSocket.OPEN) {
         wsRef.current.send(JSON.stringify({ type: 'stop_billing', consultationId }));
       }
-      const response = await apiRequest('POST', `/api/consultations/${consultationId}/end`, {});
-      return response.json();
+      return await apiRequest('POST', `/api/consultations/${consultationId}/end`, {});
     },
     onSuccess: (consultation) => {
       setSessionActive(false);
@@ -213,11 +210,10 @@ export default function Chat() {
 
   const sendMessageMutation = useMutation({
     mutationFn: async (messageText: string) => {
-      const response = await apiRequest('POST', `/api/chat/${astrologerId}`, {
+      return await apiRequest('POST', `/api/chat/${astrologerId}`, {
         message: messageText,
         sender: 'user',
       });
-      return response.json();
     },
     onSuccess: (saved, sentText) => {
       // Add to live messages optimistically
@@ -228,11 +224,10 @@ export default function Chat() {
       setMessage('');
 
       // Also send via WebSocket for real-time delivery to astrologer
-      const userId = (window as any).__userId;
-      if (wsRef.current?.readyState === WebSocket.OPEN && userId) {
+      if (wsRef.current?.readyState === WebSocket.OPEN && user?.id) {
         wsRef.current.send(JSON.stringify({
           type: 'chat_message',
-          userId,
+          userId: user.id,
           astrologerId,
           message: sentText,
           consultationId,

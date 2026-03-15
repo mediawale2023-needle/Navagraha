@@ -79,29 +79,16 @@ export default function CallRoom() {
 
     try {
       // Start consultation session
-      const consResponse = await apiRequest('POST', '/api/consultations/start', {
+      const consultation = await apiRequest('POST', '/api/consultations/start', {
         astrologerId,
         type: callType,
       });
-      const consultation = await consResponse.json();
-      if (consultation.message) {
-        setError(consultation.message);
-        setCallState('error');
-        return;
-      }
       setConsultationId(consultation.id);
 
       // Get Agora token
-      const tokenResponse = await apiRequest('GET',
+      const tokenData = await apiRequest('GET',
         `/api/agora/token?channel=${encodeURIComponent(consultation.agoraChannel || consultation.id)}&uid=0&role=publisher`
       );
-      const tokenData = await tokenResponse.json();
-      if (tokenData.message) {
-        setError(tokenData.message);
-        setCallState('error');
-        return;
-      }
-
       // Load Agora SDK
       await loadAgoraSDK();
       const AgoraRTC = window.AgoraRTC;

@@ -73,13 +73,12 @@ export default function AIAstrologer() {
   const chatMutation = useMutation({
     mutationFn: async (message: string) => {
       const history = messages.slice(-20).map(({ role, content }) => ({ role, content }));
-      const res = await apiRequest("POST", "/api/ai/chat", {
+      return await apiRequest("POST", "/api/ai/chat", {
         message,
         history,
         kundliId: selectedKundliId !== "none" ? selectedKundliId : undefined,
         sessionId,
       });
-      return res.json();
     },
     onSuccess: (data) => {
       if (!sessionId) setSessionId(data.sessionId);
@@ -99,8 +98,7 @@ export default function AIAstrologer() {
 
   const interpretMutation = useMutation({
     mutationFn: async (kundliId: string) => {
-      const res = await apiRequest("POST", "/api/ai/interpret-kundli", { kundliId });
-      return res.json();
+      return await apiRequest("POST", "/api/ai/interpret-kundli", { kundliId });
     },
     onSuccess: (data) => {
       setInterpretation(data);

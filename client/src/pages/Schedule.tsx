@@ -44,16 +44,13 @@ export default function Schedule() {
 
   const bookMutation = useMutation({
     mutationFn: async () => {
-      const r = await apiRequest('POST', '/api/schedule', {
+      return await apiRequest('POST', '/api/schedule', {
         astrologerId: selectedAstrologerId,
         scheduledAt: new Date(scheduledAt).toISOString(),
         type,
         durationMinutes: parseInt(durationMinutes),
         notes,
       });
-      const data = await r.json();
-      if (!r.ok) throw new Error(data.message || 'Booking failed');
-      return data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/schedule'] });
