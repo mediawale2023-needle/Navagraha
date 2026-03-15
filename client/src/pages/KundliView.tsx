@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useRoute, Link } from 'wouter';
 import { Button } from '@/components/ui/button';
@@ -268,6 +268,7 @@ function SouthIndianChart({ ascendant, chartData }: { ascendant?: string; chartD
 
 export default function KundliView() {
   const [chartStyle, setChartStyle] = useState<'north' | 'south'>('north');
+  const [expandedDasha, setExpandedDasha] = useState<number | null>(null);
   const [, params] = useRoute('/kundli/:id');
   const kundliId = params?.id;
 
@@ -275,6 +276,15 @@ export default function KundliView() {
     queryKey: ['/api/kundli', kundliId],
     enabled: !!kundliId,
   });
+
+  // Auto-expand the current mahadasha once data loads
+  useEffect(() => {
+    if (kundli) {
+      const dashas = (kundli.dashas as any[]) || [];
+      const idx = dashas.findIndex((d: any) => d.status === 'current');
+      setExpandedDasha(idx >= 0 ? idx : null);
+    }
+  }, [kundli]);
 
   if (isLoading) return <LoadingSpinner />;
 
@@ -292,9 +302,6 @@ export default function KundliView() {
   const birthDate = new Date(kundli.dateOfBirth);
   const chartData = kundli.chartData as any;
   const dashas = (kundli.dashas as any[]) || [];
-  const [expandedDasha, setExpandedDasha] = useState<number | null>(
-    dashas.findIndex((d: any) => d.status === 'current')
-  );
   const doshas = (kundli.doshas as any) || {};
   const remedies = (kundli.remedies as any[]) || [];
 
