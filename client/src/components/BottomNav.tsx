@@ -5,7 +5,7 @@ const NAV_ITEMS = [
     label: "Home",
     path: "/",
     icon: (active: boolean) => (
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill={active ? "currentColor" : "none"} stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
         <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
         <polyline points="9 22 9 12 15 12 15 22" />
       </svg>
@@ -30,8 +30,8 @@ const NAV_ITEMS = [
     path: "/ai-astrologer",
     isCenter: true,
     icon: (_active: boolean) => (
-      <div className="w-14 h-14 rounded-full gradient-primary flex items-center justify-center -mt-7 glow-pink shadow-xl ring-4 ring-background">
-        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <div className="w-14 h-14 rounded-full bg-nava-magenta flex items-center justify-center -mt-7 shadow-lg ring-4 ring-background">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z" />
           <circle cx="12" cy="12" r="3" fill="#FFFFFF" stroke="none" />
         </svg>
@@ -59,7 +59,7 @@ const NAV_ITEMS = [
     label: "Profile",
     path: "/profile",
     icon: (active: boolean) => (
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill={active ? "currentColor" : "none"} stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
         <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
         <circle cx="12" cy="7" r="4" />
       </svg>
@@ -71,7 +71,7 @@ export default function BottomNav() {
   const [location, setLocation] = useLocation();
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 bottom-nav z-50 pb-safe">
+    <nav className="fixed bottom-0 left-0 right-0 bg-nava-cream/95 backdrop-blur-md border-t border-border/30 z-50 pb-safe">
       <div className="flex items-center justify-around h-16 max-w-lg mx-auto px-2">
         {NAV_ITEMS.map((item, i) => {
           const isActive = location === item.path;
@@ -79,22 +79,24 @@ export default function BottomNav() {
             <button
               key={i}
               onClick={() => setLocation(item.path)}
-              className={`flex flex-col items-center justify-center gap-0.5 transition-all duration-300 ${item.isCenter
-                ? "relative"
-                : `min-w-[56px] py-1 ${isActive ? "text-primary" : "text-muted-foreground hover:text-foreground"}`
-                }`}
+              className={`flex flex-col items-center justify-center gap-0.5 transition-all duration-200 ${
+                item.isCenter
+                  ? "relative"
+                  : `min-w-[56px] py-1 ${isActive ? "text-nava-teal" : "text-muted-foreground hover:text-foreground"}`
+              }`}
             >
               {item.icon(isActive)}
               {item.label && (
                 <span
-                  className={`text-[10px] font-semibold transition-colors ${isActive ? "text-primary" : "text-muted-foreground"
-                    }`}
+                  className={`text-[10px] font-semibold transition-colors ${
+                    isActive ? "text-nava-teal" : "text-muted-foreground"
+                  }`}
                 >
                   {item.label}
                 </span>
               )}
               {isActive && !item.isCenter && (
-                <div className="absolute -top-0.5 w-5 h-0.5 rounded-full gradient-primary" />
+                <div className="absolute -top-0.5 w-5 h-0.5 rounded-full bg-nava-teal" />
               )}
             </button>
           );

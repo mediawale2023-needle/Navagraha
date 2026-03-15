@@ -1,4 +1,4 @@
-import { Star } from 'lucide-react';
+import { Star, Phone, MessageCircle } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Link } from 'wouter';
 
@@ -17,43 +17,70 @@ export function AstrologerCard({
     id = 1, name, image, rating, experience, price, specialization, isOnline
 }: AstrologerCardProps) {
     return (
-        <Link href={`/astrologers/${id}`}>
-            <div className="w-[180px] shrink-0 astronex-card p-4 pt-10 flex flex-col items-center text-center relative cursor-pointer group hover:-translate-y-1 transition-all">
-                {/* Decorative faint top borders */}
-                <div className="absolute top-0 left-0 w-8 h-8 rounded-tl-xl border-t border-l border-foreground/[0.05]" />
-                <div className="absolute top-0 right-0 w-8 h-8 rounded-tr-xl border-t border-r border-foreground/[0.05]" />
+        <div className="w-[280px] shrink-0 bg-card rounded-3xl p-4 pt-12 flex flex-col items-center text-center relative shadow-sm border border-border/50">
+            {/* Decorative corner accents */}
+            <div className="absolute top-3 left-3 w-6 h-6 border-t-2 border-l-2 border-nava-teal/20 rounded-tl-lg" />
+            <div className="absolute top-3 right-3 w-6 h-6 border-t-2 border-r-2 border-nava-teal/20 rounded-tr-lg" />
 
-                {/* Avatar overlapping top border */}
-                <div className="absolute -top-7 left-1/2 -translate-x-1/2">
-                    <div className="relative">
-                        <Avatar className="w-16 h-16 border-4 border-background shadow-sm">
+            {/* Avatar overlapping top */}
+            <div className="absolute -top-8 left-1/2 -translate-x-1/2">
+                <div className="relative">
+                    <div className="w-20 h-20 rounded-full p-1 bg-gradient-to-br from-nava-teal/30 to-nava-amber/30">
+                        <Avatar className="w-full h-full border-3 border-card shadow-md">
                             <AvatarImage src={image} className="object-cover" />
-                            <AvatarFallback className="bg-[var(--foreground)] text-white font-bold text-xl">
+                            <AvatarFallback className="bg-nava-navy text-white font-bold text-xl">
                                 {name.charAt(0)}
                             </AvatarFallback>
                         </Avatar>
-                        {isOnline && (
-                            <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 bg-emerald-500 text-white text-[9px] font-bold px-2 py-0.5 rounded-full border-2 border-background flex items-center gap-1 shadow-sm whitespace-nowrap z-10">
-                                <div className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
-                                Online
-                            </div>
-                        )}
                     </div>
-                </div>
-
-                <h4 className="font-bold text-sm text-foreground mb-1 mt-2 line-clamp-1 group-hover:text-[var(--primary)] transition-colors">{name}</h4>
-                <p className="text-[10px] text-[var(--teal)] font-medium mb-2 line-clamp-1">
-                    {specialization}
-                </p>
-                <div className="flex items-center gap-2 text-[10px] text-foreground/50 font-medium w-full justify-center">
-                    <span className="flex items-center gap-0.5">
-                        <Star className="w-2.5 h-2.5 fill-[var(--turmeric)] text-[var(--turmeric)]" />
-                        {rating}
-                    </span>
-                    <span className="text-foreground/15">&bull;</span>
-                    <span>{experience} years exp</span>
+                    {isOnline && (
+                        <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 bg-emerald-500 text-white text-[10px] font-semibold px-3 py-1 rounded-full border-2 border-card flex items-center gap-1.5 shadow-sm whitespace-nowrap z-10">
+                            <div className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
+                            Online
+                        </div>
+                    )}
                 </div>
             </div>
-        </Link>
+
+            {/* Name */}
+            <h4 className="font-bold text-base text-foreground mb-1 mt-2">{name}</h4>
+            
+            {/* Specialization */}
+            <p className="text-xs text-nava-teal font-medium mb-2">
+                {specialization}
+            </p>
+            
+            {/* Rating & Experience */}
+            <div className="flex items-center gap-2 text-xs text-muted-foreground font-medium mb-3">
+                <span className="flex items-center gap-1">
+                    <Star className="w-3.5 h-3.5 fill-nava-amber text-nava-amber" />
+                    {rating}
+                </span>
+                <span className="text-border">|</span>
+                <span>{experience} years exp</span>
+            </div>
+            
+            {/* Price */}
+            <div className="mb-4">
+                <span className="text-nava-teal font-bold text-lg">₹{price}</span>
+                <span className="text-muted-foreground text-sm">/min</span>
+            </div>
+            
+            {/* Action Buttons */}
+            <div className="flex gap-2 w-full">
+                <Link href={`/astrologers/${id}?action=call`} className="flex-1">
+                    <button className="w-full bg-nava-teal hover:bg-nava-teal/90 text-white font-semibold rounded-full py-2.5 px-4 flex items-center justify-center gap-2 transition-all">
+                        <Phone className="w-4 h-4" />
+                        Call
+                    </button>
+                </Link>
+                <Link href={`/astrologers/${id}?action=chat`} className="flex-1">
+                    <button className="w-full bg-nava-navy hover:bg-nava-navy/90 text-white font-semibold rounded-full py-2.5 px-4 flex items-center justify-center gap-2 transition-all">
+                        <MessageCircle className="w-4 h-4" />
+                        Chat
+                    </button>
+                </Link>
+            </div>
+        </div>
     );
 }
