@@ -5,28 +5,19 @@ import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { motion } from 'framer-motion';
 import {
-  Star, Users, MessageCircle, Phone, Sparkles, Video,
-  Heart, TrendingUp, Shield, Clock, ChevronRight,
-  CheckCircle2, Zap, Award, Sun, Moon,
-  Hash, ArrowRight
+  Star, MessageCircle, Phone, Sparkles,
+  Heart, ChevronRight,
+  CheckCircle2, Sun, ArrowRight, Flame
 } from 'lucide-react';
 import type { Astrologer } from '@shared/schema';
 
-const HERO_BANNERS = [
-  {
-    title: 'Personal, clear, and intuitive astrology.',
-    subtitle: 'Step into the world of AstroNex. Daily insights, guided clarity, and premium consultations all in one beautiful place.',
-    cta: 'Start Your Journey',
-  },
-];
-
 const CATEGORIES = [
-  { label: 'Chat\nConsult', icon: MessageCircle, href: '/astrologers' },
-  { label: 'Voice\nCall', icon: Phone, href: '/astrologers' },
-  { label: 'Deep\nReading', icon: Video, href: '/astrologers' },
-  { label: 'Birth\nChart', icon: Sun, href: '/kundli/new' },
-  { label: 'Match\nMaking', icon: Heart, href: '/kundli/matchmaking' },
-  { label: 'Life\nPath', icon: Hash, href: '/numerology' },
+  { label: 'Talk to\nAstrologer', icon: Phone, href: '/astrologers', color: 'bg-nava-teal' },
+  { label: 'Chat with\nAstrologer', icon: MessageCircle, href: '/astrologers', color: 'bg-nava-magenta' },
+  { label: 'AI\nAstrologer', icon: Sparkles, href: '/ai-astrologer', color: 'bg-nava-amber' },
+  { label: 'Book\nA Pooja', icon: Flame, href: '/store', color: 'bg-nava-navy' },
+  { label: 'Birth\nChart', icon: Sun, href: '/kundli/new', color: 'bg-nava-teal' },
+  { label: 'Match\nMaking', icon: Heart, href: '/kundli/matchmaking', color: 'bg-nava-magenta' },
 ];
 
 export default function Landing() {
@@ -41,228 +32,209 @@ export default function Landing() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-background text-foreground overflow-hidden font-sans selection:bg-[#E27689]/30">
-
-      {/* ─── Global Ambient Glows ─── */}
-      <div className="fixed top-[-20%] left-[-10%] w-[50vw] h-[50vw] rounded-full bg-[var(--magenta)]/[0.06] blur-[120px] pointer-events-none" />
-      <div className="fixed bottom-[-20%] right-[-10%] w-[50vw] h-[50vw] rounded-full bg-[var(--teal)]/[0.06] blur-[120px] pointer-events-none" />
-      <div className="fixed top-[40%] left-[60%] w-[30vw] h-[30vw] rounded-full bg-[var(--turmeric)]/[0.03] blur-[100px] pointer-events-none" />
-      <div className="fixed inset-0 celestial-mesh opacity-20 pointer-events-none" />
+    <div className="min-h-screen bg-background text-foreground overflow-hidden font-sans">
 
       {/* ─── Header ────────────────────────────────────────────── */}
       <motion.header
         initial={{ y: -20, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
-        transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
-        className="fixed top-0 inset-x-0 z-50 px-4 sm:px-6 lg:px-8 pt-4 pb-4"
+        transition={{ duration: 0.6 }}
+        className="fixed top-0 inset-x-0 z-50 px-4 pt-4 pb-3 bg-background/80 backdrop-blur-md border-b border-border/30"
       >
-        <div className="max-w-7xl mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl gradient-primary flex items-center justify-center glow-image">
+        <div className="max-w-lg mx-auto flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <div className="w-9 h-9 rounded-xl bg-nava-magenta flex items-center justify-center">
               <Sparkles className="w-5 h-5 text-white" />
             </div>
-            <span className="font-bold text-xl tracking-tight text-foreground drop-shadow-none">Navagraha</span>
+            <span className="font-bold text-lg text-foreground">Navagraha</span>
           </div>
-          <div className="flex items-center gap-3">
-            <Link href="/astrologer/login">
-              <Button variant="ghost" className="text-gray-300 hover:text-white glass-pill border-transparent hover:bg-white/10 hidden sm:flex">
-                Astrologer Portal
-              </Button>
-            </Link>
-            <Button
-              className="gradient-primary text-white font-bold rounded-full px-6 h-10 glow-image transition-transform hover:scale-105"
-              onClick={() => window.location.href = '/api/auth/google'}
-            >
-              Sign In
-            </Button>
-          </div>
+          <Button
+            className="bg-nava-teal hover:bg-nava-teal/90 text-white font-semibold rounded-full px-5 h-9"
+            onClick={() => window.location.href = '/api/auth/google'}
+          >
+            Sign In
+          </Button>
         </div>
       </motion.header>
 
-      {/* ─── Hero Section (Massive Typography & Floating Elements) ─── */}
-      <div className="relative pt-32 pb-20 px-4 min-h-[90vh] flex flex-col justify-center items-center">
-        <div className="max-w-5xl mx-auto w-full relative z-10 text-center flex flex-col items-center">
+      {/* ─── Hero Section ─── */}
+      <div className="relative pt-24 pb-8 px-4">
+        <div className="max-w-lg mx-auto">
+          {/* Branding */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.1 }}
+            className="flex items-center justify-between mb-4"
+          >
+            <div>
+              <h1 className="font-bold text-2xl text-foreground">Navagraha</h1>
+              <div className="flex items-center gap-1.5 text-nava-teal font-medium text-xs">
+                <Sparkles className="w-3 h-3 fill-nava-amber text-nava-amber" />
+                <span>Nine Celestial Powers</span>
+              </div>
+            </div>
+            <div className="w-12 h-12 rounded-full bg-nava-amber/20 flex items-center justify-center">
+              <img 
+                src="https://em-content.zobj.net/source/apple/391/ringed-planet_1fa90.png" 
+                alt="Saturn" 
+                className="w-8 h-8"
+              />
+            </div>
+          </motion.div>
 
+          {/* Greeting Card */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.2 }}
+            className="bg-card rounded-2xl p-4 shadow-sm border border-border/50 mb-6"
+          >
+            <h2 className="font-bold text-xl text-foreground mb-1">
+              Namaste, Seeker 🙏
+            </h2>
+            <p className="text-muted-foreground text-sm">
+              How can the stars guide you today?
+            </p>
+          </motion.div>
+
+          {/* Promotional Banner */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.3 }}
+            className="relative overflow-hidden rounded-3xl bg-nava-magenta p-6 mb-6 cursor-pointer shadow-md"
+            onClick={() => window.location.href = '/api/auth/google'}
+          >
+            {/* Background decorative circles */}
+            <div className="absolute -left-8 top-1/2 -translate-y-1/2 w-24 h-24 border-[20px] border-white/10 rounded-full" />
+            <div className="absolute -right-6 -bottom-6 w-28 h-28 border-[24px] border-white/10 rounded-full" />
+
+            <div className="relative z-10 text-center flex flex-col items-center">
+              <div className="flex gap-2 justify-center mb-3">
+                <Sparkles className="w-4 h-4 text-white/70" />
+                <Sparkles className="w-5 h-5 text-white" />
+                <Sparkles className="w-4 h-4 text-white/70" />
+              </div>
+              
+              <h3 className="text-white font-bold text-xl mb-2">First Consultation Free</h3>
+              <p className="text-white/90 text-sm font-medium mb-4">Connect with expert astrologers</p>
+              
+              <button className="bg-nava-amber hover:bg-nava-amber/90 text-nava-navy font-bold rounded-full px-6 py-2.5 transition-all hover:scale-105 shadow-md">
+                Talk to Astrologer
+              </button>
+            </div>
+          </motion.div>
+
+          {/* Live Count Badge */}
           <motion.div
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
-            transition={{ duration: 1, delay: 0.2 }}
-            className="mb-8"
+            transition={{ duration: 0.5, delay: 0.4 }}
+            className="flex justify-center mb-6"
           >
-            <div className="inline-flex items-center gap-2 glass-pill px-4 py-2">
-              <div className="w-2 h-2 bg-[var(--magenta)] rounded-full animate-pulse shadow-[0_0_10px_var(--magenta)]" />
-              <span className="text-sm font-medium text-foreground/80">{liveCount} premium astrologers online</span>
+            <div className="inline-flex items-center gap-2 bg-card rounded-full px-4 py-2 shadow-sm border border-border/50">
+              <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
+              <span className="text-sm font-medium text-muted-foreground">{liveCount} astrologers online</span>
             </div>
-          </motion.div>
-
-          <motion.h1
-            initial={{ opacity: 0, y: 30 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8, delay: 0.3, ease: [0.16, 1, 0.3, 1] }}
-            className="text-5xl sm:text-7xl font-bold tracking-tight mb-6 leading-[1.1]"
-          >
-            {HERO_BANNERS[0].title.split(', ').map((text, i) => (
-              <span key={i} className="block">
-                {text}{i !== 2 ? ',' : ''}
-              </span>
-            ))}
-            <span className="gradient-text-accent block mt-2">with Navagraha.</span>
-          </motion.h1>
-
-          <motion.p
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8, delay: 0.4 }}
-            className="text-lg sm:text-xl text-gray-400 max-w-2xl mx-auto mb-10 leading-relaxed font-light"
-          >
-            {HERO_BANNERS[0].subtitle}
-          </motion.p>
-
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8, delay: 0.5 }}
-          >
-            <Button
-              size="lg"
-              className="gradient-primary text-white text-lg font-bold h-14 px-10 rounded-full glow-image hover:scale-[1.02] transition-transform"
-              onClick={() => window.location.href = '/api/auth/google'}
-              data-testid="button-login"
-            >
-              {HERO_BANNERS[0].cta}
-              <ArrowRight className="w-5 h-5 ml-2" />
-            </Button>
           </motion.div>
         </div>
-
-        {/* Floating Mockup Elements */}
-        <motion.div
-          className="absolute left-[5%] top-[20%] w-64 h-80 astronex-card hidden lg:flex flex-col p-6 animate-float opacity-80 rotate-[-5deg]"
-          style={{ animationDelay: '0s' }}
-        >
-          <div className="flex items-center gap-3 mb-6">
-            <div className="w-10 h-10 rounded-full gradient-primary" />
-            <div>
-              <div className="h-3 w-20 bg-foreground/15 rounded mb-2" />
-              <div className="h-2 w-12 bg-foreground/10 rounded" />
-            </div>
-          </div>
-          <div className="w-full h-32 rounded-2xl glass-pill mb-4 border border-foreground/10" />
-          <div className="w-3/4 h-8 rounded-full gradient-primary opacity-80" />
-        </motion.div>
-
-        <motion.div
-          className="absolute right-[5%] top-[30%] w-60 h-80 sm:w-72 sm:h-96 astronex-card hidden lg:flex flex-col p-6 animate-float opacity-80 rotate-[5deg]"
-          style={{ animationDelay: '-3s' }}
-        >
-          <div className="flex justify-between items-center mb-6">
-            <div className="h-4 w-24 bg-foreground/15 rounded" />
-            <Moon className="w-6 h-6 text-[var(--turmeric)]" />
-          </div>
-          <div className="flex-1 w-full rounded-3xl md:rounded-[2rem] border border-[var(--turmeric)]/20 flex items-center justify-center relative overflow-hidden">
-            <div className="absolute inset-0 bg-[var(--turmeric)]/5" />
-            <div className="w-24 h-24 rounded-full border border-[var(--turmeric)]/30" />
-            <div className="w-16 h-16 rounded-full border border-[var(--turmeric)]/50 absolute" />
-          </div>
-        </motion.div>
       </div>
 
-      {/* ─── Premium Services Grid ───────────────────────────────── */}
-      <div className="py-24 px-4 relative z-10">
-        <div className="max-w-7xl mx-auto">
-          <div className="text-center mb-16">
-            <h2 className="text-3xl md:text-5xl font-bold mb-4">Daily insights, guided clarity.</h2>
-            <p className="text-gray-400 text-lg">Smart readings for growth, balance, and awareness.</p>
-          </div>
-
-          <div className="flex flex-wrap justify-center gap-6">
-            {CATEGORIES.map(({ label, icon: Icon, href }, idx) => (
-              <Link key={label} href={href}>
-                <motion.button
-                  initial={{ opacity: 0, scale: 0.9 }}
-                  whileInView={{ opacity: 1, scale: 1 }}
-                  viewport={{ once: true }}
-                  transition={{ duration: 0.5, delay: idx * 0.1 }}
-                  className="w-32 sm:w-40 aspect-square astronex-card flex flex-col items-center justify-center gap-4 group hover:-translate-y-2 transition-transform duration-500 rounded-3xl md:rounded-[2rem]"
-                >
-                  <div className="w-16 h-16 rounded-[1.5rem] glass-pill flex items-center justify-center group-hover:bg-[var(--magenta)]/15 group-hover:border-[var(--magenta)]/30 transition-colors duration-500">
-                    <Icon className="w-8 h-8 text-[var(--magenta)] group-hover:scale-110 transition-transform duration-500" />
-                  </div>
-                  <span className="text-sm font-medium text-foreground/70 text-center leading-tight whitespace-pre-line group-hover:text-foreground">
-                    {label}
-                  </span>
-                </motion.button>
-              </Link>
+      {/* ─── Quick Actions Grid ───────────────────────────────── */}
+      <div className="py-6 px-4">
+        <div className="max-w-lg mx-auto">
+          <h2 className="font-bold text-lg text-foreground mb-4">Quick Actions</h2>
+          <div className="grid grid-cols-3 gap-3">
+            {CATEGORIES.map(({ label, icon: Icon, href, color }, idx) => (
+              <motion.div
+                key={label}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.4, delay: 0.1 * idx }}
+              >
+                <Link href={href}>
+                  <button
+                    className={`w-full aspect-square rounded-2xl flex flex-col items-center justify-center gap-2 ${color} hover:opacity-90 transition-opacity shadow-sm`}
+                  >
+                    <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center">
+                      <Icon className="w-5 h-5 text-white" />
+                    </div>
+                    <span className="text-[11px] font-semibold text-white text-center leading-tight whitespace-pre-line">
+                      {label}
+                    </span>
+                  </button>
+                </Link>
+              </motion.div>
             ))}
           </div>
         </div>
       </div>
 
-      {/* ─── Premium Astrologers Matrix ────────────────────────── */}
-      <div className="py-24 px-4 relative z-10">
-        <div className="max-w-7xl mx-auto">
-          <div className="flex flex-col md:flex-row md:items-end justify-between mb-12 gap-6">
+      {/* ─── Featured Astrologers ────────────────────────── */}
+      <div className="py-8 px-4">
+        <div className="max-w-lg mx-auto">
+          <div className="flex items-center justify-between mb-4">
             <div>
-              <h2 className="text-3xl md:text-5xl font-bold mb-4">Elite Masters.</h2>
-              <p className="text-foreground/60 text-lg">Consult top-tier, highly-verified astrologers instantly.</p>
+              <h2 className="font-bold text-lg text-foreground">Online Astrologers</h2>
+              <p className="text-sm text-muted-foreground">Connect instantly with experts</p>
             </div>
             <Link href="/astrologers">
-              <Button variant="ghost" className="glass-pill text-[var(--magenta)] hover:text-foreground px-6 h-12 text-base shrink-0">
-                View All Astrologers <ChevronRight className="w-4 h-4 ml-2" />
-              </Button>
+              <button className="text-nava-teal font-semibold text-sm flex items-center gap-1">
+                View All <ChevronRight className="w-4 h-4" />
+              </button>
             </Link>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {(astrologers?.slice(0, 6) || Array.from({ length: 6 })).map((astrologer: any, idx) => (
+          <div className="space-y-3">
+            {(astrologers?.slice(0, 3) || Array.from({ length: 3 })).map((astrologer: any, idx) => (
               <motion.div
                 key={astrologer?.id || idx}
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ duration: 0.6, delay: idx * 0.1 }}
-                className="astronex-card p-6 flex flex-col group hover:-translate-y-1 transition-transform duration-500"
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ duration: 0.4, delay: idx * 0.1 }}
+                className="bg-card rounded-2xl p-4 flex items-center gap-4 shadow-sm border border-border/50"
               >
-                <div className="flex gap-4">
-                  <div className="relative shrink-0">
-                    <Avatar className="w-20 h-20 rounded-[1.5rem] avatar-glow">
-                      <AvatarImage src={astrologer?.profileImageUrl || undefined} className="object-cover" />
-                      <AvatarFallback className="gradient-primary text-white font-bold text-2xl">
-                        {astrologer?.name?.charAt(0) || 'A'}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div className="absolute -bottom-1 -right-1 w-5 h-5 bg-emerald-500 rounded-full border-[3px] border-background" />
-                  </div>
+                <div className="relative shrink-0">
+                  <Avatar className="w-14 h-14 border-2 border-nava-teal/20">
+                    <AvatarImage src={astrologer?.profileImageUrl || undefined} className="object-cover" />
+                    <AvatarFallback className="bg-nava-navy text-white font-bold text-lg">
+                      {astrologer?.name?.charAt(0) || 'A'}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 bg-emerald-500 rounded-full border-2 border-card" />
+                </div>
 
-                  <div className="flex-1 pt-1">
-                    <div className="flex items-center gap-2 mb-1">
-                      <h3 className="font-bold text-lg text-foreground">{astrologer?.name || 'Astrologer Name'}</h3>
-                      {astrologer?.isVerified && <CheckCircle2 className="w-4 h-4 text-[var(--turmeric)]" />}
-                    </div>
-                    <p className="text-sm text-foreground/60 mb-2 font-medium">
-                      {astrologer?.specializations?.slice(0, 2).join(', ') || 'Vedic, Numerology'}
-                    </p>
-                    <div className="flex items-center gap-2 text-sm">
-                      <Star className="w-4 h-4 fill-[var(--turmeric)] text-[var(--turmeric)]" />
-                      <span className="font-bold text-foreground/80">{astrologer?.rating || '4.9'}</span>
-                      <span className="text-foreground/40">&bull;</span>
-                      <span className="text-foreground/60 font-medium">{astrologer?.experience || '8'}y exp</span>
-                    </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-1.5 mb-0.5">
+                    <h3 className="font-bold text-sm text-foreground truncate">{astrologer?.name || 'Astrologer Name'}</h3>
+                    {astrologer?.isVerified && <CheckCircle2 className="w-3.5 h-3.5 text-nava-amber shrink-0" />}
+                  </div>
+                  <p className="text-xs text-nava-teal font-medium mb-1">
+                    {astrologer?.specializations?.[0] || 'Vedic Astrology'}
+                  </p>
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <span className="flex items-center gap-0.5">
+                      <Star className="w-3 h-3 fill-nava-amber text-nava-amber" />
+                      {astrologer?.rating || '4.9'}
+                    </span>
+                    <span>|</span>
+                    <span>{astrologer?.experience || '10'}y exp</span>
                   </div>
                 </div>
 
-                <div className="mt-6 pt-6 border-t border-foreground/5 flex items-center justify-between">
-                  <div className="flex items-baseline gap-1">
-                    <span className="font-bold text-2xl text-[var(--turmeric)]">₹{astrologer?.pricePerMinute || '25'}</span>
-                    <span className="text-sm text-foreground/50 font-medium">/min</span>
+                <div className="text-right shrink-0">
+                  <div className="mb-2">
+                    <span className="font-bold text-nava-teal">₹{astrologer?.pricePerMinute || '25'}</span>
+                    <span className="text-xs text-muted-foreground">/min</span>
                   </div>
-                  <Link href={`/chat/${astrologer?.id}`}>
-                    <Button
-                      className="glass-pill-active text-[var(--magenta)] font-bold h-10 px-6 hover:scale-105 transition-transform"
-                    >
-                      Connect
-                    </Button>
-                  </Link>
+                  <Button
+                    size="sm"
+                    className="bg-nava-teal hover:bg-nava-teal/90 text-white font-semibold rounded-full px-4 h-8"
+                    onClick={() => window.location.href = '/api/auth/google'}
+                  >
+                    Connect
+                  </Button>
                 </div>
               </motion.div>
             ))}
@@ -270,48 +242,58 @@ export default function Landing() {
         </div>
       </div>
 
-      {/* ─── Footer with Huge Type ─────────────────────────────── */}
-      <footer className="border-t border-foreground/5 pt-20 pb-10 px-4 relative z-10 overflow-hidden">
-        <div className="max-w-7xl mx-auto">
-          <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-10 mb-20">
-            <div>
-              <h2 className="text-4xl md:text-7xl font-bold tracking-tight mb-6">
-                Ready to<br />explore?
-              </h2>
-              <Button
-                size="lg"
-                className="gradient-primary text-white text-lg font-bold h-14 px-10 rounded-full glow-image hover:scale-105 transition-transform"
-                onClick={() => window.location.href = '/api/auth/google'}
-              >
-                Join Navagraha Today
-              </Button>
-            </div>
+      {/* ─── CTA Section ─────────────────────────────── */}
+      <div className="py-12 px-4">
+        <div className="max-w-lg mx-auto text-center">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+          >
+            <h2 className="text-2xl font-bold text-foreground mb-3">
+              Ready to explore your destiny?
+            </h2>
+            <p className="text-muted-foreground mb-6">
+              Join thousands of seekers who have found clarity through Navagraha.
+            </p>
+            <Button
+              size="lg"
+              className="bg-nava-magenta hover:bg-nava-magenta/90 text-white font-bold rounded-full px-8 h-12"
+              onClick={() => window.location.href = '/api/auth/google'}
+            >
+              Start Your Journey
+              <ArrowRight className="w-5 h-5 ml-2" />
+            </Button>
+          </motion.div>
+        </div>
+      </div>
 
-            <div className="flex flex-col gap-4 text-foreground/60 text-lg font-medium">
-              <Link href="/astrologers" className="hover:text-foreground transition-colors">Our Masters</Link>
-              <Link href="/astrologer/login" className="hover:text-foreground transition-colors">Partner with Us</Link>
-              <Link href="/kundli/matchmaking" className="hover:text-foreground transition-colors">Free Chart</Link>
-            </div>
-          </div>
-
-          <div className="flex flex-col md:flex-row justify-between items-center gap-6 pt-8 border-t border-foreground/5 text-muted-foreground font-medium">
-            <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-lg gradient-primary flex items-center justify-center">
+      {/* ─── Footer ─────────────────────────────────────── */}
+      <footer className="border-t border-border/50 py-8 px-4 bg-card">
+        <div className="max-w-lg mx-auto">
+          <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-lg bg-nava-magenta flex items-center justify-center">
                 <Sparkles className="w-4 h-4 text-white" />
               </div>
-              <span className="font-bold text-foreground">Navagraha © {new Date().getFullYear()}</span>
+              <span className="font-bold text-foreground">Navagraha</span>
             </div>
-            <div className="flex gap-8">
-              <span className="hover:text-foreground/80 cursor-pointer transition-colors">Privacy</span>
-              <span className="hover:text-foreground/80 cursor-pointer transition-colors">Terms</span>
-              <span className="hover:text-foreground/80 cursor-pointer transition-colors">Support</span>
-            </div>
+            <Link href="/astrologer/login">
+              <span className="text-sm text-muted-foreground hover:text-foreground transition-colors">
+                Astrologer Portal
+              </span>
+            </Link>
           </div>
-        </div>
 
-        {/* Massive backdrop text */}
-        <div className="absolute -bottom-20 left-1/2 -translate-x-1/2 text-[15vw] font-black tracking-tighter text-foreground/[0.02] pointer-events-none whitespace-nowrap select-none">
-          NAVAGRAHA
+          <div className="flex gap-6 text-sm text-muted-foreground mb-6">
+            <Link href="/astrologers" className="hover:text-foreground transition-colors">Astrologers</Link>
+            <Link href="/horoscope" className="hover:text-foreground transition-colors">Horoscope</Link>
+            <Link href="/kundli/new" className="hover:text-foreground transition-colors">Kundli</Link>
+          </div>
+
+          <div className="text-center text-xs text-muted-foreground">
+            © {new Date().getFullYear()} Navagraha. All rights reserved.
+          </div>
         </div>
       </footer>
     </div>
