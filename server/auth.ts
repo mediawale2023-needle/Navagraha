@@ -137,7 +137,23 @@ export async function setupAuth(app: Express) {
 
 // ─── Auth guard middleware ────────────────────────────────────
 
-export const isAuthenticated: RequestHandler = (req, res, next) => {
+export const isAuthenticated: RequestHandler = async (req: any, res, next) => {
+  // Google OAuth session (Passport)
   if (req.isAuthenticated()) return next();
+
+  // Email/password session
+  const sessionUserId = req.session?.userId;
+  if (sessionUserId) {
+    try {
+      const user = await storage.getUser(sessionUserId);
+      if (user) {
+        req.user = user;
+        return next();
+      }
+    } catch {
+      // fall through to 401
+    }
+  }
+
   res.status(401).json({ message: 'Unauthorized' });
 };

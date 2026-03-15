@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
-import { ArrowLeft, Calendar, Clock, MapPin, Download } from 'lucide-react';
+import { ArrowLeft, Calendar, Clock, MapPin, Download, ChevronDown, ChevronRight } from 'lucide-react';
 import type { Kundli } from '@shared/schema';
 
 // Planet abbreviation map
@@ -292,6 +292,9 @@ export default function KundliView() {
   const birthDate = new Date(kundli.dateOfBirth);
   const chartData = kundli.chartData as any;
   const dashas = (kundli.dashas as any[]) || [];
+  const [expandedDasha, setExpandedDasha] = useState<number | null>(
+    dashas.findIndex((d: any) => d.status === 'current')
+  );
   const doshas = (kundli.doshas as any) || {};
   const remedies = (kundli.remedies as any[]) || [];
 
@@ -456,18 +459,46 @@ export default function KundliView() {
                 <CardTitle>Vimshottari Dashas</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="space-y-3">
+                <div className="space-y-2">
                   {dashas.length > 0 ? dashas.map((dasha: any, i: number) => (
-                    <div key={i} className="flex items-center justify-between p-4 bg-muted/50 rounded-lg">
-                      <div>
-                        <div className="font-semibold">{dasha.planet} Dasha</div>
-                        <div className="text-sm text-muted-foreground">
-                          {dasha.startDate} — {dasha.endDate}
-                          {dasha.period ? ` (${dasha.period})` : ''}
+                    <div key={i} className={`rounded-lg border overflow-hidden ${dasha.status === 'current' ? 'border-primary/50' : 'border-border'}`}>
+                      {/* Mahadasha row */}
+                      <button
+                        className="w-full flex items-center justify-between p-4 text-left hover:bg-muted/40 transition-colors"
+                        onClick={() => setExpandedDasha(expandedDasha === i ? null : i)}
+                      >
+                        <div className="flex items-center gap-3">
+                          {expandedDasha === i
+                            ? <ChevronDown className="w-4 h-4 text-muted-foreground shrink-0" />
+                            : <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0" />
+                          }
+                          <div>
+                            <div className="font-semibold">{dasha.planet} Mahadasha</div>
+                            <div className="text-sm text-muted-foreground">{dasha.period}</div>
+                          </div>
                         </div>
-                      </div>
-                      {dasha.status === 'current' && (
-                        <Badge variant="default">Current</Badge>
+                        {dasha.status === 'current' && <Badge variant="default">Current</Badge>}
+                        {dasha.status === 'past' && <Badge variant="secondary">Past</Badge>}
+                      </button>
+
+                      {/* Antardashas */}
+                      {expandedDasha === i && dasha.antardashas?.length > 0 && (
+                        <div className="border-t border-border bg-muted/20">
+                          {dasha.antardashas.map((ad: any, j: number) => (
+                            <div
+                              key={j}
+                              className={`flex items-center justify-between px-6 py-2.5 text-sm border-b last:border-0 border-border/50 ${ad.status === 'current' ? 'bg-primary/5' : ''}`}
+                            >
+                              <div>
+                                <span className="font-medium">{dasha.planet}/{ad.planet}</span>
+                                <span className="text-muted-foreground ml-2">{ad.period}</span>
+                              </div>
+                              {ad.status === 'current' && (
+                                <Badge variant="outline" className="text-xs">Active</Badge>
+                              )}
+                            </div>
+                          ))}
+                        </div>
                       )}
                     </div>
                   )) : (
