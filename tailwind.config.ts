@@ -75,6 +75,16 @@ export default {
           foreground: "hsl(var(--sidebar-accent-foreground) / <alpha-value>)",
           border: "var(--sidebar-accent-border)"
         },
+        // Navagraha brand palette
+        "nava-navy":    "var(--nava-navy)",
+        "nava-amber":   "var(--nava-amber)",
+        "nava-yellow":  "var(--nava-yellow)",
+        "nava-magenta": "var(--nava-magenta)",
+        "nava-teal":    "var(--nava-teal)",
+        "nava-sand":    "var(--nava-sand)",
+        "nava-coral":   "var(--nava-coral)",
+        "nava-aqua":    "var(--nava-aqua)",
+        "nava-cream":   "var(--nava-cream)",
         status: {
           online: "rgb(34 197 94)",
           away: "rgb(245 158 11)",
