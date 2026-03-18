@@ -45,7 +45,7 @@ function HoroscopeDetail({ sign }: { sign: (typeof ZODIAC_SIGNS)[0] }) {
   });
 
   return (
-    <div className="min-h-screen bg-background px-4 py-6 max-w-lg mx-auto pb-24">
+    <div className="min-h-screen bg-background px-4 md:px-8 lg:px-12 py-6 w-full max-w-7xl mx-auto pb-24 md:pb-8">
       {/* Back */}
       <Link href="/horoscope">
         <Button variant="ghost" size="sm" className="mb-4 text-muted-foreground -ml-2">
@@ -141,7 +141,7 @@ function HoroscopeDetail({ sign }: { sign: (typeof ZODIAC_SIGNS)[0] }) {
 
 function SignGrid({ onSelect }: { onSelect: (sign: (typeof ZODIAC_SIGNS)[0]) => void }) {
   return (
-    <div className="min-h-screen bg-background px-4 py-6 max-w-lg mx-auto pb-24">
+    <div className="min-h-screen bg-background px-4 md:px-8 lg:px-12 py-6 w-full max-w-7xl mx-auto pb-24 md:pb-8">
       {/* Header */}
       <div className="flex items-center gap-3 mb-6">
         <Link href="/">
@@ -155,8 +155,8 @@ function SignGrid({ onSelect }: { onSelect: (sign: (typeof ZODIAC_SIGNS)[0]) => 
         </div>
       </div>
 
-      {/* Zodiac Grid - 4 columns */}
-      <div className="grid grid-cols-4 gap-3">
+      {/* Zodiac Grid - 4 columns on mobile, 6 on desktop */}
+      <div className="grid grid-cols-4 md:grid-cols-6 gap-3">
         {ZODIAC_SIGNS.map((sign) => (
           <button
             key={sign.id}

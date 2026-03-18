@@ -57,11 +57,11 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-background font-sans relative overflow-x-hidden">
       {/* Content */}
-      <div className="relative pb-24 max-w-lg mx-auto">
+      <div className="relative pb-24 md:pb-8 w-full max-w-7xl mx-auto">
         {/* Header */}
-        <header className="pt-6 pb-4 px-4">
+        <header className="pt-6 pb-4 px-4 md:px-8 lg:px-12">
           <div className="flex items-center justify-between mb-5">
-            <div>
+            <div className="md:hidden">
               <h1 className="font-bold text-2xl text-foreground tracking-tight">
                 Navagraha
               </h1>
@@ -128,7 +128,7 @@ export default function Home() {
           </div>
         </header>
 
-        <div className="px-4">
+        <div className="px-4 md:px-8 lg:px-12">
           <HeroBanner
             title={cmsBanner?.title}
             subtitle={cmsBanner?.subtitle ?? undefined}
@@ -140,7 +140,7 @@ export default function Home() {
         {/* Quick Actions - 2x2 Grid */}
         <section className="mb-8">
           <SectionHeader title="Quick Actions" showViewAll={false} />
-          <div className="grid grid-cols-2 gap-3 px-4">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 px-4 md:px-8 lg:px-12">
             {cmsServices.length > 0 ? (
               cmsServices.map((svc, i) => (
                 <QuickActionCard
@@ -189,7 +189,7 @@ export default function Home() {
             subtitle="Connect instantly with experts"
             viewAllLink="/astrologers"
           />
-          <div className="flex gap-4 overflow-x-auto px-4 pb-4 pt-10 scrollbar-hide snap-x snap-mandatory">
+          <div className="flex md:grid md:grid-cols-3 lg:grid-cols-5 gap-4 overflow-x-auto md:overflow-visible px-4 md:px-8 lg:px-12 pb-4 pt-10 scrollbar-hide snap-x snap-mandatory md:snap-none">
             {astrologersLoading && <LoadingSpinner />}
             {(astrologers || []).slice(0, 5).map((astrologer) => (
               <AstrologerCard
@@ -224,7 +224,7 @@ export default function Home() {
             subtitle="Sacred items for your well-being"
             showViewAll={false}
           />
-          <div className="mx-4 rounded-2xl border border-border/50 bg-card p-6 text-center">
+          <div className="mx-4 md:mx-8 lg:mx-12 rounded-2xl border border-border/50 bg-card p-6 text-center">
             <p className="text-sm text-muted-foreground">Remedies coming soon</p>
           </div>
         </section>

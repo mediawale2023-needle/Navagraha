@@ -87,6 +87,7 @@ function Router() {
   );
 }
 import BottomNav from "@/components/BottomNav";
+import TopNav from "@/components/TopNav";
 
 function App() {
   return (
@@ -95,7 +96,8 @@ function App() {
         <TooltipProvider>
           <Toaster />
           <div className="min-h-screen celestial-bg">
-            <div className="pb-20">
+            <TopNav />
+            <div className="pb-20 md:pb-0">
               <Router />
             </div>
             <BottomNav />
