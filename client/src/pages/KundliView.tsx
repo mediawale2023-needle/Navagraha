@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { useRoute, Link } from 'wouter';
+import { useRoute, Link, useLocation } from 'wouter';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -8,6 +8,11 @@ import { Badge } from '@/components/ui/badge';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
 import { ArrowLeft, Calendar, Clock, MapPin, Download, ChevronDown, ChevronRight } from 'lucide-react';
 import type { Kundli } from '@shared/schema';
+import { useAuth } from '@/hooks/useAuth';
+import { apiRequest } from '@/lib/queryClient';
+import { useToast } from '@/hooks/use-toast';
+
+const PDF_PRICE = 10; // ₹10 per PDF download
 
 // Planet abbreviation map
 const PLANET_ABBR: Record<string, string> = {
@@ -269,9 +274,47 @@ function SouthIndianChart({ ascendant, chartData }: { ascendant?: string; chartD
 export default function KundliView() {
   const [chartStyle, setChartStyle] = useState<'north' | 'south'>('north');
   const [expandedDasha, setExpandedDasha] = useState<number | null>(null);
+  const [pdfLoading, setPdfLoading] = useState(false);
 
-  const handleDownloadPDF = () => {
-    window.print();
+  const { isAuthenticated } = useAuth();
+  const { toast } = useToast();
+  const [, navigate] = useLocation();
+
+  const handleDownloadPDF = async () => {
+    if (!isAuthenticated) {
+      toast({ title: "Login required", description: "Please log in to download the PDF report.", variant: "destructive" });
+      return;
+    }
+
+    setPdfLoading(true);
+    try {
+      const wallet = await apiRequest<{ balance: string }>('GET', '/api/wallet');
+      const balance = parseFloat(wallet.balance || '0');
+
+      if (balance < PDF_PRICE) {
+        toast({
+          title: "Insufficient balance",
+          description: `You need ₹${PDF_PRICE} to download the full Kundli report. Your balance: ₹${balance.toFixed(2)}.`,
+          variant: "destructive",
+          action: (
+            <button
+              onClick={() => navigate('/wallet')}
+              className="whitespace-nowrap rounded bg-primary px-3 py-1 text-sm text-primary-foreground hover:opacity-90"
+            >
+              Recharge Wallet
+            </button>
+          ) as any,
+        });
+        return;
+      }
+
+      await apiRequest('POST', '/api/wallet/deduct', { amount: PDF_PRICE, description: 'Kundli PDF download' });
+      window.print();
+    } catch (err: any) {
+      toast({ title: "Error", description: err?.message || "Something went wrong. Please try again.", variant: "destructive" });
+    } finally {
+      setPdfLoading(false);
+    }
   };
   const [, params] = useRoute('/kundli/:id');
   const kundliId = params?.id;
@@ -319,9 +362,9 @@ export default function KundliView() {
               Back
             </Button>
           </Link>
-          <Button variant="outline" data-testid="button-download" onClick={handleDownloadPDF} className="no-print">
+          <Button variant="outline" data-testid="button-download" onClick={handleDownloadPDF} disabled={pdfLoading} className="no-print">
             <Download className="w-4 h-4 mr-2" />
-            Download PDF
+            {pdfLoading ? 'Checking…' : `Download PDF (₹${PDF_PRICE})`}
           </Button>
         </div>
 

@@ -413,6 +413,32 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
     } catch { res.status(500).json({ message: "Failed to fetch wallet" }); }
   });
 
+  // Deduct from wallet (paid features — PDF download, etc.)
+  app.post('/api/wallet/deduct', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = (req.user as any).id;
+      const { amount, description } = req.body;
+      const cost = parseFloat(amount);
+      if (!cost || cost <= 0) return res.status(400).json({ message: "Invalid amount" });
+      let wallet = await storage.getWallet(userId);
+      if (!wallet) wallet = await storage.createWallet(userId);
+      const balance = parseFloat(wallet.balance || "0");
+      if (balance < cost) {
+        return res.status(402).json({ message: "Insufficient balance", balance, required: cost });
+      }
+      const newBalance = (balance - cost).toFixed(2);
+      const updatedWallet = await storage.updateWalletBalance(userId, newBalance);
+      await storage.createTransaction({
+        userId,
+        amount: (-cost).toString(),
+        type: 'deduction',
+        description: description || 'Service charge',
+        status: 'completed',
+      });
+      res.json({ balance: newBalance, wallet: updatedWallet });
+    } catch { res.status(500).json({ message: "Failed to process deduction" }); }
+  });
+
   // Legacy direct add (for testing / admin)
   app.post('/api/wallet/add', isAuthenticated, async (req: any, res) => {
     try {
