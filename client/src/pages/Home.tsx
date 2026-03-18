@@ -1,10 +1,9 @@
 import { useQuery } from '@tanstack/react-query';
-import { Phone, MessageCircle, Sparkles, Flame, User, Wallet, LogOut } from 'lucide-react';
+import { type LucideIcon, Phone, MessageCircle, Sparkles, Flame, User, Wallet, LogOut } from 'lucide-react';
 import { Link, useLocation } from 'wouter';
 import { AstrologerCard } from '@/components/astrologer-card';
 import { QuickActionCard } from '@/components/quick-action-card';
 import { ZodiacWheel } from '@/components/zodiac-wheel';
-import { RemedyCard } from '@/components/remedy-card';
 import { HeroBanner } from '@/components/hero-banner';
 import { SectionHeader } from '@/components/section-header';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
@@ -12,31 +11,18 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import type { User as UserType, Astrologer } from '@shared/schema';
+import type { User as UserType, Astrologer, HomepageContent } from '@shared/schema';
 
-// Static remedies mock since we don't have a commerce endpoint yet
-const remedies = [
-  {
-    title: "Gemstones",
-    image: "https://images.unsplash.com/photo-1599643478524-fb66f70d00f7?w=500&auto=format&fit=crop&q=60&h=500",
-    price: "₹999"
-  },
-  {
-    title: "Rudraksha",
-    image: "https://images.unsplash.com/photo-1605330838128-444743ec9801?w=500&auto=format&fit=crop&q=60&h=500",
-    price: "₹499"
-  },
-  {
-    title: "Yantra",
-    image: "https://images.unsplash.com/photo-1601331792622-c3f25c7e19fc?w=500&auto=format&fit=crop&q=60&h=500",
-    price: "₹799"
-  },
-  {
-    title: "Pooja Services",
-    image: "https://images.unsplash.com/photo-1594191370252-09d6c757c24f?w=500&auto=format&fit=crop&q=60&h=500",
-    price: "₹1499"
-  }
-];
+// Icon name → component lookup for CMS-driven quick actions
+const ICON_MAP: Record<string, LucideIcon> = { Phone, MessageCircle, Sparkles, Flame };
+const COLOR_CYCLE = ['teal', 'magenta', 'amber', 'navy'] as const;
+
+interface CmsHomepageContent {
+  banners: HomepageContent[];
+  services: HomepageContent[];
+  freeServices: HomepageContent[];
+}
+
 
 export default function Home() {
   const [, setLocation] = useLocation();
@@ -52,6 +38,13 @@ export default function Home() {
   const { data: wallet } = useQuery<{ balance: number }>({
     queryKey: ['/api/wallet'],
   });
+
+  const { data: cmsContent } = useQuery<CmsHomepageContent>({
+    queryKey: ['/api/homepage-content'],
+  });
+
+  const cmsBanner = cmsContent?.banners?.[0];
+  const cmsServices = cmsContent?.services ?? [];
 
   if (userLoading) {
     return (
@@ -136,37 +129,56 @@ export default function Home() {
         </header>
 
         <div className="px-4">
-          <HeroBanner />
+          <HeroBanner
+            title={cmsBanner?.title}
+            subtitle={cmsBanner?.subtitle ?? undefined}
+            cta={cmsBanner?.cta ?? undefined}
+            href={cmsBanner?.href ?? undefined}
+          />
         </div>
 
         {/* Quick Actions - 2x2 Grid */}
         <section className="mb-8">
           <SectionHeader title="Quick Actions" showViewAll={false} />
           <div className="grid grid-cols-2 gap-3 px-4">
-            <QuickActionCard
-              title="Talk to Astrologer"
-              icon={Phone}
-              color="teal"
-              onClick={() => setLocation('/astrologers')}
-            />
-            <QuickActionCard
-              title="Chat with Astrologer"
-              icon={MessageCircle}
-              color="magenta"
-              onClick={() => setLocation('/astrologers')}
-            />
-            <QuickActionCard
-              title="AI Astrologer"
-              icon={Sparkles}
-              color="amber"
-              onClick={() => setLocation('/ai-astrologer')}
-            />
-            <QuickActionCard
-              title="Book A Pooja"
-              icon={Flame}
-              color="navy"
-              onClick={() => setLocation('/store')}
-            />
+            {cmsServices.length > 0 ? (
+              cmsServices.map((svc, i) => (
+                <QuickActionCard
+                  key={svc.id}
+                  title={svc.title}
+                  icon={ICON_MAP[svc.icon ?? ''] ?? Sparkles}
+                  color={COLOR_CYCLE[i % COLOR_CYCLE.length]}
+                  onClick={() => setLocation(svc.href || '/')}
+                />
+              ))
+            ) : (
+              <>
+                <QuickActionCard
+                  title="Talk to Astrologer"
+                  icon={Phone}
+                  color="teal"
+                  onClick={() => setLocation('/astrologers')}
+                />
+                <QuickActionCard
+                  title="Chat with Astrologer"
+                  icon={MessageCircle}
+                  color="magenta"
+                  onClick={() => setLocation('/astrologers')}
+                />
+                <QuickActionCard
+                  title="AI Astrologer"
+                  icon={Sparkles}
+                  color="amber"
+                  onClick={() => setLocation('/ai-astrologer')}
+                />
+                <QuickActionCard
+                  title="Book A Pooja"
+                  icon={Flame}
+                  color="navy"
+                  onClick={() => setLocation('/store')}
+                />
+              </>
+            )}
           </div>
         </section>
 
@@ -205,17 +217,15 @@ export default function Home() {
           <ZodiacWheel />
         </section>
 
-        {/* Remedies Marketplace */}
+        {/* Remedies Marketplace — coming soon */}
         <section className="mb-8">
           <SectionHeader
             title="Spiritual Remedies"
             subtitle="Sacred items for your well-being"
-            viewAllLink="/store"
+            showViewAll={false}
           />
-          <div className="flex gap-4 overflow-x-auto px-4 pb-4 scrollbar-hide snap-x snap-mandatory">
-            {remedies.map((remedy, index) => (
-              <RemedyCard key={index} {...remedy} />
-            ))}
+          <div className="mx-4 rounded-2xl border border-border/50 bg-card p-6 text-center">
+            <p className="text-sm text-muted-foreground">Remedies coming soon</p>
           </div>
         </section>
 

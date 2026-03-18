@@ -1,13 +1,21 @@
 import { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { useRoute, Link } from 'wouter';
+import { useRoute, Link, useLocation } from 'wouter';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
-import { ArrowLeft, Calendar, Clock, MapPin, Download, ChevronDown, ChevronRight } from 'lucide-react';
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
+} from '@/components/ui/dialog';
+import { ArrowLeft, Calendar, Clock, MapPin, Download, ChevronDown, ChevronRight, Wallet } from 'lucide-react';
 import type { Kundli } from '@shared/schema';
+import { useAuth } from '@/hooks/useAuth';
+import { apiRequest } from '@/lib/queryClient';
+import { useToast } from '@/hooks/use-toast';
+
+const PDF_PRICE = 10; // ₹10 per PDF download
 
 // Planet abbreviation map
 const PLANET_ABBR: Record<string, string> = {
@@ -266,9 +274,165 @@ function SouthIndianChart({ ascendant, chartData }: { ascendant?: string; chartD
 
 // ─── Main View ───────────────────────────────────────────────────────────────
 
+// ─── PDF Payment Modals ───────────────────────────────────────────────────────
+
+type PdfModal = 'confirm' | 'insufficient' | null;
+
+function ConfirmModal({
+  open, balance, isFree, onConfirm, onCancel, loading,
+}: { open: boolean; balance: number; isFree: boolean; onConfirm: () => void; onCancel: () => void; loading: boolean }) {
+  return (
+    <Dialog open={open} onOpenChange={(v) => { if (!v && !loading) onCancel(); }}>
+      <DialogContent className="max-w-sm">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Download className="w-5 h-5 text-primary" />
+            Download Kundli PDF
+          </DialogTitle>
+          <DialogDescription className="pt-1">
+            {isFree
+              ? 'Your first PDF download is complimentary — no charge!'
+              : `₹${PDF_PRICE} will be deducted from your wallet.`}
+          </DialogDescription>
+        </DialogHeader>
+
+        {isFree ? (
+          <div className="rounded-lg border border-green-200 bg-green-50 dark:bg-green-950/30 dark:border-green-800 px-4 py-3 text-sm flex items-center gap-2">
+            <span className="text-green-600 dark:text-green-400 font-semibold text-base">🎉</span>
+            <span className="text-green-700 dark:text-green-300 font-medium">First PDF FREE — ₹0 charged</span>
+          </div>
+        ) : (
+          <div className="rounded-lg bg-muted px-4 py-3 text-sm space-y-1">
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Current balance</span>
+              <span className="font-medium">₹{balance.toFixed(2)}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">PDF download charge</span>
+              <span className="font-medium text-destructive">− ₹{PDF_PRICE}</span>
+            </div>
+            <div className="border-t border-border pt-1 flex justify-between">
+              <span className="text-muted-foreground">Balance after</span>
+              <span className="font-semibold">₹{(balance - PDF_PRICE).toFixed(2)}</span>
+            </div>
+          </div>
+        )}
+
+        <DialogFooter className="gap-2 sm:gap-0">
+          <Button variant="ghost" onClick={onCancel} disabled={loading}>Cancel</Button>
+          <Button onClick={onConfirm} disabled={loading}>
+            {loading ? 'Processing…' : isFree ? 'Download Free' : 'Confirm & Download'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function InsufficientModal({
+  open, balance, onClose, onRecharge,
+}: { open: boolean; balance: number; onClose: () => void; onRecharge: () => void }) {
+  const shortfall = (PDF_PRICE - balance).toFixed(2);
+  return (
+    <Dialog open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
+      <DialogContent className="max-w-sm">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Wallet className="w-5 h-5 text-destructive" />
+            Insufficient Balance
+          </DialogTitle>
+          <DialogDescription className="pt-1">
+            You don't have enough wallet balance to download this report.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="rounded-lg bg-muted px-4 py-3 text-sm space-y-1">
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">Your balance</span>
+            <span className="font-medium text-destructive">₹{balance.toFixed(2)}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">Required</span>
+            <span className="font-medium">₹{PDF_PRICE}</span>
+          </div>
+          <div className="border-t border-border pt-1 flex justify-between">
+            <span className="text-muted-foreground">Add at least</span>
+            <span className="font-semibold">₹{shortfall}</span>
+          </div>
+        </div>
+
+        <DialogFooter className="gap-2 sm:gap-0">
+          <Button variant="ghost" onClick={onClose}>Later</Button>
+          <Button onClick={onRecharge}>
+            <Wallet className="w-4 h-4 mr-2" />
+            Recharge Now
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ─── Main View ───────────────────────────────────────────────────────────────
+
 export default function KundliView() {
   const [chartStyle, setChartStyle] = useState<'north' | 'south'>('north');
   const [expandedDasha, setExpandedDasha] = useState<number | null>(null);
+
+  // PDF payment flow state
+  const [pdfChecking, setPdfChecking] = useState(false);    // initial balance fetch
+  const [pdfConfirming, setPdfConfirming] = useState(false); // deduction in-flight
+  const [modal, setModal] = useState<PdfModal>(null);
+  const [walletBalance, setWalletBalance] = useState(0);
+  const [pdfIsFree, setPdfIsFree] = useState(false);
+
+  const { isAuthenticated } = useAuth();
+  const { toast } = useToast();
+  const [, navigate] = useLocation();
+
+  // Step 1 — user clicks button: check free eligibility + balance, open the right modal
+  const handleDownloadPDF = async () => {
+    if (!isAuthenticated) {
+      toast({ title: "Login required", description: "Please log in to download the PDF report.", variant: "destructive" });
+      return;
+    }
+    if (pdfChecking || pdfConfirming) return; // guard against double-click
+
+    setPdfChecking(true);
+    try {
+      const check = await apiRequest<{ isFree: boolean; balance: string }>('GET', '/api/wallet/pdf-check');
+      const balance = parseFloat(check.balance || '0');
+      setWalletBalance(balance);
+      setPdfIsFree(check.isFree);
+      // If free → always show confirm (no balance check needed)
+      // If paid → only show confirm when balance is sufficient, else show insufficient modal
+      if (check.isFree || balance >= PDF_PRICE) {
+        setModal('confirm');
+      } else {
+        setModal('insufficient');
+      }
+    } catch (err: any) {
+      toast({ title: "Error", description: err?.message || "Could not fetch wallet. Try again.", variant: "destructive" });
+    } finally {
+      setPdfChecking(false);
+    }
+  };
+
+  // Step 2 — user confirms in modal: deduct then print
+  const handleConfirmPurchase = async () => {
+    if (pdfConfirming) return;
+    setPdfConfirming(true);
+    try {
+      await apiRequest('POST', '/api/wallet/deduct', { amount: PDF_PRICE, description: 'Kundli PDF download' });
+      setModal(null);
+      window.print();
+    } catch (err: any) {
+      toast({ title: "Payment failed", description: err?.message || "Could not process payment. Try again.", variant: "destructive" });
+      setModal(null);
+    } finally {
+      setPdfConfirming(false);
+    }
+  };
   const [, params] = useRoute('/kundli/:id');
   const kundliId = params?.id;
 
@@ -309,15 +473,21 @@ export default function KundliView() {
     <div className="min-h-screen bg-background py-8">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between mb-6">
-          <Link href="/">
+          <Link href="/" className="no-print">
             <Button variant="ghost" data-testid="button-back">
               <ArrowLeft className="w-4 h-4 mr-2" />
               Back
             </Button>
           </Link>
-          <Button variant="outline" data-testid="button-download">
+          <Button
+            variant="outline"
+            data-testid="button-download"
+            onClick={handleDownloadPDF}
+            disabled={pdfChecking || pdfConfirming}
+            className="no-print"
+          >
             <Download className="w-4 h-4 mr-2" />
-            Download PDF
+            {pdfChecking ? 'Checking…' : `Download PDF`}
           </Button>
         </div>
 
@@ -602,6 +772,22 @@ export default function KundliView() {
           </TabsContent>
         </Tabs>
       </div>
+
+      {/* PDF payment modals */}
+      <ConfirmModal
+        open={modal === 'confirm'}
+        balance={walletBalance}
+        isFree={pdfIsFree}
+        onConfirm={handleConfirmPurchase}
+        onCancel={() => setModal(null)}
+        loading={pdfConfirming}
+      />
+      <InsufficientModal
+        open={modal === 'insufficient'}
+        balance={walletBalance}
+        onClose={() => setModal(null)}
+        onRecharge={() => { setModal(null); navigate('/wallet'); }}
+      />
     </div>
   );
 }

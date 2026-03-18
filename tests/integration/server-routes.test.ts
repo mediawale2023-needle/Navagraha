@@ -25,8 +25,7 @@ import {
   getDailyHoroscope,
   getKundliMatching,
   getNumerology,
-  isProkeralaConfigured,
-} from '../../server/prokeralaService';
+} from '../../server/astroEngine/index';
 
 // ── Minimal standalone test app ────────────────────────────────
 function buildTestApp() {
@@ -46,13 +45,8 @@ function buildTestApp() {
   app.get('/api/horoscope/:sign', async (req, res) => {
     try {
       const sign = req.params.sign.toLowerCase();
-      if (isProkeralaConfigured()) {
-        try {
-          const h = await getDailyHoroscope(sign, 'today', 'general');
-          return res.json({ sign, prediction: h.prediction, lucky: h.lucky });
-        } catch { /* fall through to mock */ }
-      }
-      res.json({ sign, prediction: `Mock prediction for ${sign}`, lucky: {} });
+      const h = await getDailyHoroscope(sign, 'today', 'general');
+      res.json({ sign, prediction: h.prediction, lucky: h.lucky });
     } catch {
       res.status(500).json({ message: 'Failed to fetch horoscope' });
     }
@@ -63,22 +57,16 @@ function buildTestApp() {
     try {
       const { person1Name, person1Date, person1Time, person1Lat, person1Lon,
               person2Name, person2Date, person2Time, person2Lat, person2Lon } = req.body;
-
-      if (isProkeralaConfigured()) {
-        try {
-          const result = await getKundliMatching(
-            { dateOfBirth: person1Date, timeOfBirth: person1Time || '12:00:00', latitude: parseFloat(person1Lat) || 28.6139, longitude: parseFloat(person1Lon) || 77.2090 },
-            { dateOfBirth: person2Date, timeOfBirth: person2Time || '12:00:00', latitude: parseFloat(person2Lat) || 19.0760, longitude: parseFloat(person2Lon) || 72.8777 },
-          );
-          return res.json({
-            totalScore: result.percentage, gunaScore: result.score,
-            maxGunaScore: result.maxScore, compatibility: result.compatibility,
-            recommendation: result.recommendation, details: result.details,
-            dosha: result.dosha, person1: person1Name, person2: person2Name,
-          });
-        } catch { /* fall through */ }
-      }
-      res.json({ totalScore: 75, gunaScore: 27, maxGunaScore: 36, compatibility: 'Good', person1: person1Name, person2: person2Name });
+      const result = await getKundliMatching(
+        { dateOfBirth: person1Date, timeOfBirth: person1Time || '12:00:00', latitude: parseFloat(person1Lat) || 28.6139, longitude: parseFloat(person1Lon) || 77.2090 },
+        { dateOfBirth: person2Date, timeOfBirth: person2Time || '12:00:00', latitude: parseFloat(person2Lat) || 19.0760, longitude: parseFloat(person2Lon) || 72.8777 },
+      );
+      res.json({
+        totalScore: result.percentage, gunaScore: result.score,
+        maxGunaScore: result.maxScore, compatibility: result.compatibility,
+        recommendation: result.recommendation, details: result.details,
+        dosha: result.dosha, person1: person1Name, person2: person2Name,
+      });
     } catch {
       res.status(500).json({ message: 'Failed to calculate compatibility' });
     }
@@ -91,15 +79,8 @@ function buildTestApp() {
       if (!dateOfBirth || !firstName) {
         return res.status(400).json({ message: 'dateOfBirth and firstName are required' });
       }
-      if (isProkeralaConfigured()) {
-        try {
-          const result = await getNumerology(dateOfBirth, firstName, lastName || '', system);
-          return res.json(result);
-        } catch {
-          return res.status(502).json({ message: 'Numerology API unavailable. Please try again.' });
-        }
-      }
-      res.json({ lifePath: 5, destiny: 3, soul: 7, personality: 2, birthday: 4, name: `${firstName} ${lastName || ''}`.trim(), details: {}, raw: {} });
+      const result = await getNumerology(dateOfBirth, firstName, lastName || '', system);
+      res.json(result);
     } catch {
       res.status(500).json({ message: 'Failed to calculate numerology' });
     }
