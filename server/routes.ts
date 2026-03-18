@@ -413,6 +413,25 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
     } catch { res.status(500).json({ message: "Failed to fetch wallet" }); }
   });
 
+  // Canonical description used to identify PDF download transactions
+  const PDF_DESCRIPTION = 'Kundli PDF download';
+
+  // Check whether the current user is eligible for a free PDF (first download ever)
+  app.get('/api/wallet/pdf-check', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = (req.user as any).id;
+      const [txns, wallet] = await Promise.all([
+        storage.getUserTransactions(userId),
+        storage.getWallet(userId),
+      ]);
+      const hasUsedFree = txns.some(
+        (t) => t.description === PDF_DESCRIPTION && t.status === 'completed',
+      );
+      const balance = wallet ? parseFloat(wallet.balance || '0') : 0;
+      res.json({ isFree: !hasUsedFree, balance: balance.toFixed(2) });
+    } catch { res.status(500).json({ message: 'Failed to check PDF status' }); }
+  });
+
   // Deduct from wallet (paid features — PDF download, etc.)
   app.post('/api/wallet/deduct', isAuthenticated, async (req: any, res) => {
     try {
@@ -422,6 +441,26 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
       if (!cost || cost <= 0) return res.status(400).json({ message: "Invalid amount" });
       let wallet = await storage.getWallet(userId);
       if (!wallet) wallet = await storage.createWallet(userId);
+
+      // ── First PDF download is free ──────────────────────────────────────────
+      if (description === PDF_DESCRIPTION) {
+        const txns = await storage.getUserTransactions(userId);
+        const hasUsedFree = txns.some(
+          (t) => t.description === PDF_DESCRIPTION && t.status === 'completed',
+        );
+        if (!hasUsedFree) {
+          await storage.createTransaction({
+            userId,
+            amount: '0',
+            type: 'deduction',
+            description: PDF_DESCRIPTION,
+            status: 'completed',
+          });
+          return res.json({ balance: wallet.balance, wallet, free: true });
+        }
+      }
+      // ────────────────────────────────────────────────────────────────────────
+
       const balance = parseFloat(wallet.balance || "0");
       if (balance < cost) {
         return res.status(402).json({ message: "Insufficient balance", balance, required: cost });
@@ -435,7 +474,7 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
         description: description || 'Service charge',
         status: 'completed',
       });
-      res.json({ balance: newBalance, wallet: updatedWallet });
+      res.json({ balance: newBalance, wallet: updatedWallet, free: false });
     } catch { res.status(500).json({ message: "Failed to process deduction" }); }
   });
 
