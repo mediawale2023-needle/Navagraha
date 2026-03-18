@@ -1,5 +1,5 @@
 import { Link, useLocation } from "wouter";
-import { Sparkles, Wallet, User, Sun, Moon } from "lucide-react";
+import { Sparkles, Wallet, Sun, Moon } from "lucide-react";
 import { useTheme } from "@/components/ThemeProvider";
 
 const NAV_LINKS = [
@@ -59,11 +59,6 @@ export default function TopNav() {
           <span className="flex items-center gap-1.5 bg-card rounded-full px-3 py-1.5 hover:bg-card/80 transition-colors shadow-sm border border-border/50 text-xs font-bold text-foreground cursor-pointer">
             <Wallet className="w-3.5 h-3.5 text-nava-amber" />
             Wallet
-          </span>
-        </Link>
-        <Link href="/profile">
-          <span className="w-9 h-9 rounded-full bg-nava-amber/20 flex items-center justify-center hover:bg-nava-amber/30 transition-colors cursor-pointer">
-            <User className="w-4 h-4 text-nava-amber" />
           </span>
         </Link>
       </div>
