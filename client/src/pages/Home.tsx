@@ -73,12 +73,6 @@ export default function Home() {
 
             {/* Profile Saturn Icon */}
             <div className="flex items-center gap-3">
-              <Link href="/wallet">
-                <button className="flex items-center gap-1.5 bg-card rounded-full px-3 py-1.5 hover:bg-card/80 transition-colors shadow-sm border border-border/50">
-                  <Wallet className="w-3.5 h-3.5 text-nava-amber" />
-                  <span className="font-bold text-foreground text-xs">₹{wallet?.balance || '0'}</span>
-                </button>
-              </Link>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <button className="w-10 h-10 rounded-full bg-nava-amber/20 flex items-center justify-center hover:bg-nava-amber/30 transition-colors">

@@ -1,5 +1,6 @@
 import { Link, useLocation } from "wouter";
-import { Sparkles, Wallet, User } from "lucide-react";
+import { Sparkles, Wallet, Sun, Moon } from "lucide-react";
+import { useTheme } from "@/components/ThemeProvider";
 
 const NAV_LINKS = [
   { label: "Home", path: "/" },
@@ -11,6 +12,7 @@ const NAV_LINKS = [
 
 export default function TopNav() {
   const [location] = useLocation();
+  const { theme, setTheme } = useTheme();
 
   return (
     <nav className="hidden md:flex sticky top-0 z-50 bg-background/95 backdrop-blur-md border-b border-border/30 items-center justify-between px-8 lg:px-12 h-14">
@@ -42,15 +44,21 @@ export default function TopNav() {
 
       {/* Actions */}
       <div className="flex items-center gap-3 shrink-0">
+        <button
+          onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+          className="w-9 h-9 rounded-full bg-muted flex items-center justify-center hover:bg-muted/80 transition-colors"
+          aria-label="Toggle theme"
+        >
+          {theme === "dark" ? (
+            <Sun className="w-4 h-4 text-nava-amber" />
+          ) : (
+            <Moon className="w-4 h-4 text-foreground" />
+          )}
+        </button>
         <Link href="/wallet">
           <span className="flex items-center gap-1.5 bg-card rounded-full px-3 py-1.5 hover:bg-card/80 transition-colors shadow-sm border border-border/50 text-xs font-bold text-foreground cursor-pointer">
             <Wallet className="w-3.5 h-3.5 text-nava-amber" />
             Wallet
-          </span>
-        </Link>
-        <Link href="/profile">
-          <span className="w-9 h-9 rounded-full bg-nava-amber/20 flex items-center justify-center hover:bg-nava-amber/30 transition-colors cursor-pointer">
-            <User className="w-4 h-4 text-nava-amber" />
           </span>
         </Link>
       </div>

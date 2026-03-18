@@ -69,6 +69,7 @@ export interface KundliInterpretation {
   relationships: string;
   health: string;
   currentDasha: string;
+  currentAntardasha: string;
   doshaAnalysis: string;
   remedies: string;
   luckyFactors: {
@@ -92,7 +93,8 @@ Return ONLY a valid JSON object (no markdown, no extra text) with exactly these 
   "career": "career path and professional strengths",
   "relationships": "relationships, marriage timing, partner traits",
   "health": "health tendencies and areas to watch",
-  "currentDasha": "current Vimshottari dasha interpretation and its effects",
+  "currentDasha": "current Mahadasha planet, its period dates, and key life effects",
+  "currentAntardasha": "current Antardasha (Pratidasha/Bhukti) planet within the Mahadasha, its period dates, and specific effects right now",
   "doshaAnalysis": "dosha analysis and severity",
   "remedies": "top 3-5 practical Vedic remedies",
   "luckyFactors": {
@@ -126,6 +128,7 @@ Return ONLY a valid JSON object (no markdown, no extra text) with exactly these 
       relationships: "",
       health: "",
       currentDasha: "",
+      currentAntardasha: "",
       doshaAnalysis: "",
       remedies: "",
       luckyFactors: { number: 1, color: "Gold", day: "Sunday", gemstone: "Ruby" },

@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { Link } from "wouter";
-import { Send, Sparkles, Stars, ChevronDown, BookOpen, Loader2, ArrowLeft } from "lucide-react";
+import { Send, Sparkles, Stars, ChevronDown, BookOpen, Loader2, ArrowLeft, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent } from "@/components/ui/card";
@@ -18,6 +18,23 @@ interface Kundli {
   ascendant?: string;
 }
 
+interface AntardashaEntry {
+  planet: string;
+  period: string;
+  status: "past" | "current" | "upcoming";
+}
+
+interface DashaEntry {
+  planet: string;
+  period: string;
+  status: "past" | "current" | "upcoming";
+  antardashas?: AntardashaEntry[];
+}
+
+interface FullKundli extends Kundli {
+  dashas?: DashaEntry[];
+}
+
 interface ChatMessage {
   role: "user" | "assistant";
   content: string;
@@ -31,6 +48,7 @@ interface AiInterpretation {
   relationships: string;
   health: string;
   currentDasha: string;
+  currentAntardasha: string;
   doshaAnalysis: string;
   remedies: string;
   luckyFactors: {
@@ -52,7 +70,6 @@ const SUGGESTED_QUESTIONS = [
 
 export default function AIAstrologer() {
   const { toast } = useToast();
-  const qc = useQueryClient();
   const bottomRef = useRef<HTMLDivElement>(null);
 
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -64,6 +81,11 @@ export default function AIAstrologer() {
 
   const { data: kundlis = [] } = useQuery<Kundli[]>({
     queryKey: ["/api/kundli"],
+  });
+
+  const { data: fullKundli } = useQuery<FullKundli>({
+    queryKey: [`/api/kundli/${selectedKundliId}`],
+    enabled: selectedKundliId !== "none",
   });
 
   useEffect(() => {
@@ -131,11 +153,13 @@ export default function AIAstrologer() {
   }
 
   const selectedKundli = kundlis.find((k) => k.id === selectedKundliId);
+  const currentMahadasha = fullKundli?.dashas?.find((d) => d.status === "current");
+  const currentAntardasha = currentMahadasha?.antardashas?.find((a) => a.status === "current");
 
   return (
-    <div className="min-h-screen bg-background flex flex-col max-w-lg mx-auto">
+    <div className="min-h-screen bg-background flex flex-col w-full max-w-7xl mx-auto">
       {/* Header */}
-      <div className="sticky top-0 z-50 bg-background/95 backdrop-blur-md border-b border-border/30 px-4 py-3">
+      <div className="sticky top-0 z-50 bg-background/95 backdrop-blur-md border-b border-border/30 px-4 md:px-8 lg:px-12 py-3">
         <div className="flex items-center gap-3">
           <Link href="/">
             <button className="p-1.5 rounded-lg hover:bg-muted">
@@ -152,7 +176,8 @@ export default function AIAstrologer() {
         </div>
       </div>
 
-      <div className="flex-1 flex flex-col px-4 py-4">
+      <div className="flex-1 flex flex-col px-4 md:px-8 lg:px-12 py-4">
+
         {/* Kundli Selector */}
         <Card className="mb-4 bg-card border-border/50 shadow-sm">
           <CardContent className="p-4">
@@ -164,7 +189,7 @@ export default function AIAstrologer() {
                     <SelectValue placeholder="Select a birth chart (optional)" />
                   </SelectTrigger>
                   <SelectContent className="bg-card border-border">
-                    <SelectItem value="none">No chart - general guidance</SelectItem>
+                    <SelectItem value="none">No chart — general guidance</SelectItem>
                     {kundlis.map((k) => (
                       <SelectItem key={k.id} value={k.id}>
                         {k.name}
@@ -190,6 +215,7 @@ export default function AIAstrologer() {
                 </Button>
               )}
             </div>
+
             {selectedKundli && (
               <div className="mt-2 flex flex-wrap gap-1.5">
                 {selectedKundli.zodiacSign && (
@@ -209,8 +235,55 @@ export default function AIAstrologer() {
                 )}
               </div>
             )}
+
+            {/* No kundlis — CTA to create one */}
+            {kundlis.length === 0 && (
+              <div className="mt-3 flex items-center gap-3 bg-nava-amber/5 border border-nava-amber/20 rounded-xl px-4 py-3">
+                <Sparkles className="w-4 h-4 text-nava-amber flex-shrink-0" />
+                <p className="text-sm text-foreground flex-1">
+                  Generate your Kundli for personalized AI readings
+                </p>
+                <Link href="/kundli/new">
+                  <Button size="sm" className="bg-nava-amber hover:bg-nava-amber/90 text-white rounded-full gap-1 shrink-0">
+                    <Plus className="w-3.5 h-3.5" />
+                    Create Kundli
+                  </Button>
+                </Link>
+              </div>
+            )}
           </CardContent>
         </Card>
+
+        {/* Live Dasha Timeline — shown when a kundli with dasha data is selected */}
+        {selectedKundliId !== "none" && (currentMahadasha || currentAntardasha) && (
+          <Card className="mb-4 bg-card border-border/50 shadow-sm">
+            <CardContent className="p-4">
+              <h3 className="text-xs font-semibold text-nava-teal uppercase tracking-wider mb-3">
+                Current Planetary Periods
+              </h3>
+              <div className="space-y-2">
+                {currentMahadasha && (
+                  <div className="flex items-center justify-between bg-nava-teal/5 border border-nava-teal/20 rounded-xl px-4 py-2.5">
+                    <div>
+                      <span className="text-[10px] font-semibold text-nava-teal uppercase tracking-wider">Mahadasha</span>
+                      <p className="font-bold text-foreground text-sm">{currentMahadasha.planet}</p>
+                    </div>
+                    <span className="text-xs text-muted-foreground">{currentMahadasha.period}</span>
+                  </div>
+                )}
+                {currentAntardasha && (
+                  <div className="flex items-center justify-between bg-nava-magenta/5 border border-nava-magenta/20 rounded-xl px-4 py-2.5 ml-4">
+                    <div>
+                      <span className="text-[10px] font-semibold text-nava-magenta uppercase tracking-wider">Antardasha · Pratidasha</span>
+                      <p className="font-bold text-foreground text-sm">{currentAntardasha.planet}</p>
+                    </div>
+                    <span className="text-xs text-muted-foreground">{currentAntardasha.period}</span>
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Full Interpretation Panel */}
         {showInterpretation && interpretation && (
@@ -237,7 +310,8 @@ export default function AIAstrologer() {
                   { label: "Career", value: interpretation.career },
                   { label: "Relationships", value: interpretation.relationships },
                   { label: "Health", value: interpretation.health },
-                  { label: "Current Dasha", value: interpretation.currentDasha },
+                  { label: "Current Mahadasha", value: interpretation.currentDasha },
+                  { label: "Antardasha · Pratidasha", value: interpretation.currentAntardasha },
                   { label: "Dosha Analysis", value: interpretation.doshaAnalysis },
                   { label: "Remedies", value: interpretation.remedies },
                 ].map(({ label, value }) =>
@@ -284,9 +358,9 @@ export default function AIAstrologer() {
               <p className="text-muted-foreground mb-6 text-sm">
                 Ask Jyotish AI anything about Vedic astrology,
                 <br />
-                or select a birth chart for personalised insights.
+                or select a birth chart above for personalised insights.
               </p>
-              <div className="grid grid-cols-1 gap-2 max-w-sm mx-auto">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-2 max-w-2xl mx-auto">
                 {SUGGESTED_QUESTIONS.slice(0, 4).map((q) => (
                   <button
                     key={q}
