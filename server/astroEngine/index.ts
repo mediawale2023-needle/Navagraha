@@ -1,11 +1,7 @@
 /**
  * Native Astrology Engine — Public API
  *
- * Drop-in replacement for prokeralaService.ts.
  * All calculations are performed locally with zero external dependencies.
- *
- * Exports the same types and function signatures as prokeralaService so
- * routes.ts can switch between Prokerala and this engine transparently.
  */
 
 import { julianDay, toSidereal, lahiriAyanamsa } from './core.js';
@@ -22,7 +18,7 @@ import { getDailyHoroscope as _getDailyHoroscope } from './horoscope.js';
 // Re-export horoscope types for convenience
 export { getDailyHoroscope } from './horoscope.js';
 
-// ─── Types (mirroring prokeralaService.ts) ────────────────────────────────────
+// ─── Types ────────────────────────────────────────────────────────────────────
 
 export interface NativeKundliResult {
   zodiacSign:  string;
