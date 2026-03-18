@@ -25,10 +25,10 @@ export default function Profile() {
   }
 
   return (
-    <div className="min-h-screen bg-background pb-24">
+    <div className="min-h-screen bg-background pb-24 md:pb-8">
       {/* Header */}
       <div className="sticky top-0 z-50 bg-background/95 backdrop-blur-md border-b border-border/30">
-        <div className="max-w-lg mx-auto px-4 py-3">
+        <div className="w-full max-w-7xl mx-auto px-4 md:px-8 lg:px-12 py-3">
           <div className="flex items-center gap-3">
             <Link href="/">
               <button className="p-1.5 rounded-lg hover:bg-muted" data-testid="button-back">
@@ -40,7 +40,7 @@ export default function Profile() {
         </div>
       </div>
 
-      <div className="max-w-lg mx-auto px-4 py-6">
+      <div className="w-full max-w-7xl mx-auto px-4 md:px-8 lg:px-12 py-6">
 
         {/* Profile Info Card */}
         <Card className="mb-6 bg-card border-border/50 shadow-sm">

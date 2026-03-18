@@ -80,10 +80,10 @@ export default function Astrologers() {
   const onlineCount = astrologers?.filter(isOnline).length || 0;
 
   return (
-    <div className="min-h-screen bg-background text-foreground pb-24">
+    <div className="min-h-screen bg-background text-foreground pb-24 md:pb-8">
       {/* Header */}
       <div className="sticky top-0 z-50 bg-background/95 backdrop-blur-md border-b border-border/30">
-        <div className="max-w-lg mx-auto px-4 py-3">
+        <div className="w-full max-w-7xl mx-auto px-4 md:px-8 lg:px-12 py-3">
           <div className="flex items-center gap-3">
             <Link href="/">
               <button className="p-1.5 rounded-lg hover:bg-muted" data-testid="button-back">
@@ -101,7 +101,7 @@ export default function Astrologers() {
         </div>
       </div>
 
-      <div className="max-w-lg mx-auto px-4">
+      <div className="w-full max-w-7xl mx-auto px-4 md:px-8 lg:px-12">
         {/* Search */}
         <div className="py-3">
           <div className="relative">
@@ -170,7 +170,7 @@ export default function Astrologers() {
             <LoadingSpinner />
           </div>
         ) : (
-          <div className="space-y-3 pb-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 pb-6">
             {filteredAstrologers?.map((astrologer) => {
               const online = isOnline(astrologer);
               return (
