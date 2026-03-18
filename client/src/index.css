@@ -403,3 +403,35 @@
 .pb-safe {
   padding-bottom: env(safe-area-inset-bottom, 0px);
 }
+
+/* ── Print styles for Kundli PDF download ── */
+@media print {
+  .no-print {
+    display: none !important;
+  }
+
+  /* Hide global nav/bottom bars */
+  nav,
+  [data-testid="bottom-nav"] {
+    display: none !important;
+  }
+
+  /* Remove background chrome, let content breathe */
+  body {
+    background: white !important;
+    color: black !important;
+  }
+
+  /* Ensure cards render with borders instead of shadows */
+  .card,
+  [class*="Card"] {
+    box-shadow: none !important;
+    border: 1px solid #ccc !important;
+  }
+
+  /* Keep the SVG chart visible and full width on one page */
+  svg {
+    max-width: 100% !important;
+    page-break-inside: avoid;
+  }
+}

@@ -269,6 +269,10 @@ function SouthIndianChart({ ascendant, chartData }: { ascendant?: string; chartD
 export default function KundliView() {
   const [chartStyle, setChartStyle] = useState<'north' | 'south'>('north');
   const [expandedDasha, setExpandedDasha] = useState<number | null>(null);
+
+  const handleDownloadPDF = () => {
+    window.print();
+  };
   const [, params] = useRoute('/kundli/:id');
   const kundliId = params?.id;
 
@@ -309,13 +313,13 @@ export default function KundliView() {
     <div className="min-h-screen bg-background py-8">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between mb-6">
-          <Link href="/">
+          <Link href="/" className="no-print">
             <Button variant="ghost" data-testid="button-back">
               <ArrowLeft className="w-4 h-4 mr-2" />
               Back
             </Button>
           </Link>
-          <Button variant="outline" data-testid="button-download">
+          <Button variant="outline" data-testid="button-download" onClick={handleDownloadPDF} className="no-print">
             <Download className="w-4 h-4 mr-2" />
             Download PDF
           </Button>
