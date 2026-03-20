@@ -282,7 +282,8 @@ waitForDatabase()
       // Let Sentry and Express handle this; do not crash the process here.
     });
 
-    if (app.get("env") === "development") {
+    const runningInDev = process.env.NODE_ENV !== "production";
+    if (runningInDev) {
       await setupVite(app, httpServer);
     } else {
       serveStatic(app);
