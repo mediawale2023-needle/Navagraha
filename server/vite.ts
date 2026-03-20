@@ -88,8 +88,24 @@ export function serveStatic(app: Express) {
     }),
   );
 
-  // fall through to index.html if the file doesn't exist
-  app.use("*", (_req, res) => {
-    res.sendFile(path.resolve(distPath, "index.html"));
+  // SPA fallback: only for browser navigation requests.
+  // Never rewrite asset/file requests (so JS/CSS don't accidentally load HTML).
+  app.use((req, res, next) => {
+    if (req.method !== "GET") return next();
+
+    const ext = path.extname(req.path);
+    const isAssetRoute =
+      req.path.startsWith("/assets/") ||
+      req.path.startsWith("/favicon") ||
+      req.path === "/favicon.ico" ||
+      ext.length > 0;
+
+    if (isAssetRoute) return next();
+
+    // If the browser is explicitly asking for HTML, serve the SPA shell.
+    const accept = req.headers.accept || "";
+    if (typeof accept === "string" && !accept.includes("text/html")) return next();
+
+    return res.sendFile(path.resolve(distPath, "index.html"));
   });
 }
