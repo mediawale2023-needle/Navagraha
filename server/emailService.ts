@@ -13,6 +13,7 @@
 
 import nodemailer from "nodemailer";
 import type { Transporter } from "nodemailer";
+import { logger } from "./logger";
 
 let _transporter: Transporter | null = null;
 
@@ -85,10 +86,10 @@ async function sendEmail(to: string, subject: string, html: string): Promise<voi
   try {
     const transporter = getTransporter();
     await transporter.sendMail({ from: FROM, to, subject, html });
-    console.log(`[email] Sent "${subject}" to ${to}`);
+    logger.info({ to, subject }, "[email] Sent");
   } catch (err) {
     // Never crash the main flow for email failures
-    console.error(`[email] Failed to send "${subject}" to ${to}:`, (err as Error).message);
+    logger.warn({ err, to, subject }, "[email] Send failed");
   }
 }
 

@@ -55,6 +55,11 @@ export async function createRazorpayOrder(opts: RazorpayOrderOptions) {
   return order;
 }
 
+export async function fetchRazorpayPayment(paymentId: string) {
+  const rz = getRazorpayInstance();
+  return await rz.payments.fetch(paymentId);
+}
+
 /**
  * Verify Razorpay payment signature (HMAC SHA256).
  * Must be called server-side after frontend payment success.
