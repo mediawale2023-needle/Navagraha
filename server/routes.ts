@@ -4,6 +4,7 @@ import { storage } from "./storage";
 import { db } from "./db";
 import { sql, eq, asc } from "drizzle-orm";
 import { setupAuth, isAuthenticated } from "./auth";
+import rateLimit from "express-rate-limit";
 import {
   insertKundliSchema,
   insertTransactionSchema,
@@ -29,6 +30,7 @@ import {
   createRazorpayOrder,
   verifyRazorpaySignature,
   verifyRazorpayWebhookSignature,
+  fetchRazorpayPayment,
   createSnapmintOrder,
   verifySnapmintCallback,
   createLazyPayOrder,
@@ -53,11 +55,32 @@ function isAstrologerAuthenticated(req: any, res: Response, next: Function) {
 }
 
 export async function registerRoutes(app: Express, existingServer?: Server): Promise<Server> {
-  try {
-    await setupAuth(app);
-  } catch (err) {
-    console.error('[startup] Auth setup failed (continuing without auth):', err);
-  }
+  // Auth/session is critical in production (setupAuth will throw if SESSION_SECRET missing)
+  await setupAuth(app);
+
+  // ─── Global rate limits ──────────────────────────────────
+  // (trust proxy is enabled in index.ts to make this work on Railway)
+  app.use(
+    "/api/auth",
+    rateLimit({ windowMs: 15 * 60_000, limit: 30, standardHeaders: "draft-7", legacyHeaders: false }),
+  );
+  app.use(
+    "/api/astrologer/auth",
+    rateLimit({ windowMs: 15 * 60_000, limit: 30, standardHeaders: "draft-7", legacyHeaders: false }),
+  );
+  app.use(
+    "/api/ai",
+    rateLimit({ windowMs: 60_000, limit: 30, standardHeaders: "draft-7", legacyHeaders: false }),
+  );
+  app.use(
+    "/api/payment",
+    rateLimit({ windowMs: 60_000, limit: 60, standardHeaders: "draft-7", legacyHeaders: false }),
+  );
+  // Webhooks: allow higher throughput but still protect against floods
+  app.use(
+    "/api/payment/razorpay/webhook",
+    rateLimit({ windowMs: 60_000, limit: 600, standardHeaders: "draft-7", legacyHeaders: false }),
+  );
 
   // NOTE: /api/config is registered in index.ts (before async init) so it
   // responds immediately for Railway healthchecks. Do NOT duplicate here.
@@ -122,7 +145,7 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
 
   app.post('/api/auth/logout', (req: any, res) => {
     req.session.destroy(() => {
-      res.clearCookie('connect.sid');
+      res.clearCookie(process.env.SESSION_COOKIE_NAME || 'connect.sid');
       res.json({ message: "Logged out" });
     });
   });
@@ -502,18 +525,20 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
   app.post('/api/payment/razorpay/order', isAuthenticated, async (req: any, res) => {
     try {
       const userId = (req.user as any).id;
-      const { amount, packId } = req.body;
+      const { amount: rawAmount, packId } = req.body;
 
+      // If packId is used, amount must come from server-side pack definition
+      const pack = packId ? RECHARGE_PACKS.find(p => p.id === packId) : undefined;
+      const amount = pack ? pack.amount : rawAmount;
       if (!amount || amount < 1) return res.status(400).json({ message: "Invalid amount" });
 
       // Find bonus if pack
-      const pack = RECHARGE_PACKS.find(p => p.id === packId);
       const bonus = pack?.bonus || 0;
 
       const order = await createRazorpayOrder({
         amount,
         receipt: `wallet_${userId}_${Date.now()}`,
-        notes: { userId, bonus: bonus.toString() },
+        notes: { userId, bonus: bonus.toString(), packId: packId || "" },
       });
 
       // Create pending transaction
@@ -545,31 +570,43 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
   app.post('/api/payment/razorpay/verify', isAuthenticated, async (req: any, res) => {
     try {
       const userId = (req.user as any).id;
-      const { orderId, paymentId, signature, amount, bonus } = req.body;
+      const { orderId, paymentId, signature } = req.body;
 
       const valid = verifyRazorpaySignature(orderId, paymentId, signature);
       if (!valid) return res.status(400).json({ message: "Payment verification failed" });
 
-      // Add to wallet
-      let wallet = await storage.getWallet(userId);
-      if (!wallet) wallet = await storage.createWallet(userId);
-
-      const totalCredit = parseFloat(amount) + parseFloat(bonus || "0");
-      const newBalance = (parseFloat(wallet.balance || "0") + totalCredit).toFixed(2);
-      await storage.updateWalletBalance(userId, newBalance);
-
-      // Update transaction status
-      const txns = await storage.getUserTransactions(userId);
-      const pendingTxn = txns.find(t => t.gatewayOrderId === orderId && t.status === 'pending');
-      if (pendingTxn) {
-        await storage.updateTransactionStatus(pendingTxn.id, 'completed', paymentId, signature);
+      // Server-side validation against Razorpay API
+      try {
+        const payment: any = await fetchRazorpayPayment(paymentId);
+        if (payment?.order_id !== orderId) {
+          return res.status(400).json({ message: "Payment/order mismatch" });
+        }
+        const notesUserId = payment?.notes?.userId;
+        if (notesUserId && notesUserId !== userId) {
+          return res.status(400).json({ message: "Payment user mismatch" });
+        }
+        const status = String(payment?.status || "");
+        if (status && !["captured", "authorized"].includes(status)) {
+          return res.status(400).json({ message: "Payment not completed" });
+        }
+      } catch (err) {
+        // If Razorpay API is unavailable, do not credit wallet.
+        console.error("[razorpay/verify] fetch payment failed:", err);
+        return res.status(503).json({ message: "Unable to verify payment with gateway. Please try again." });
       }
+
+      const result = await storage.completeRazorpayWalletRecharge({
+        userId,
+        gatewayOrderId: orderId,
+        gatewayPaymentId: paymentId,
+        gatewaySignature: signature,
+      });
 
       await storage.createNotification({
         userId,
         type: 'payment',
         title: 'Wallet Recharged',
-        body: `₹${totalCredit} added to your wallet successfully.`,
+        body: `₹${result.creditedAmount === "0" ? "0.00" : result.creditedAmount} added to your wallet successfully.`,
       });
 
       // Send email receipt (fire-and-forget)
@@ -577,14 +614,14 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
       if (user?.email) {
         sendPaymentReceipt(user.email, {
           userName: user.firstName || 'User',
-          amount: parseFloat(amount),
-          bonus: parseFloat(bonus || "0"),
-          newBalance: parseFloat(newBalance),
+          amount: parseFloat(result.creditedAmount),
+          bonus: 0,
+          newBalance: parseFloat(result.newBalance),
           paymentId,
         }).catch(() => {});
       }
 
-      res.json({ success: true, newBalance: parseFloat(newBalance) });
+      res.json({ success: true, newBalance: parseFloat(result.newBalance) });
     } catch (error) {
       console.error("Razorpay verify error:", error);
       res.status(500).json({ message: "Payment verification failed" });
@@ -605,8 +642,19 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
       if (event.event === 'payment.captured') {
         const payment = event.payload.payment.entity;
         const userId = payment.notes?.userId;
-        if (userId) {
-          notifyUser(userId, { type: 'payment_confirmed', paymentId: payment.id });
+        const orderId = payment.order_id;
+        const paymentId = payment.id;
+        if (userId && orderId && paymentId) {
+          try {
+            await storage.completeRazorpayWalletRecharge({
+              userId,
+              gatewayOrderId: orderId,
+              gatewayPaymentId: paymentId,
+            });
+          } catch (err) {
+            console.error("[razorpay/webhook] completion error:", err);
+          }
+          notifyUser(userId, { type: 'payment_confirmed', paymentId });
         }
       }
       res.json({ status: 'ok' });
@@ -889,17 +937,46 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
   });
 
   // ─── Agora Token ──────────────────────────────────────────
-  app.get('/api/agora/token', isAuthenticated, async (req: any, res) => {
+  const isAnyAuthenticated = (req: any, res: Response, next: Function) => {
+    if (req.isAuthenticated?.()) return next();
+    if (req.session?.userId) return next();
+    if (req.session?.passport?.user) return next();
+    if (req.session?.astrologerId) return next();
+    return res.status(401).json({ message: "Unauthorized" });
+  };
+
+  app.get('/api/agora/token', isAnyAuthenticated, async (req: any, res) => {
     try {
-      const { channel, uid, role } = req.query;
-      if (!channel) return res.status(400).json({ message: "channel required" });
+      const { consultationId, channel, uid, role } = req.query;
+
+      let consultation: any | undefined;
+      if (consultationId) {
+        consultation = await storage.getConsultationById(consultationId as string);
+      } else if (channel) {
+        // Backwards-compatible: older frontend passes `channel`
+        consultation = await storage.getConsultationByAgoraChannel(channel as string);
+        if (!consultation) {
+          // If the channel param was actually the consultation id
+          consultation = await storage.getConsultationById(channel as string);
+        }
+      }
+
+      if (!consultation) return res.status(404).json({ message: "Consultation not found" });
+      if (!consultation.agoraChannel) return res.status(400).json({ message: "Consultation has no Agora channel" });
+
+      const sessionUserId = req.session?.userId || req.session?.passport?.user || (req.user as any)?.id;
+      const sessionAstrologerId = req.session?.astrologerId;
+      const isParticipant =
+        (sessionUserId && consultation.userId === sessionUserId) ||
+        (sessionAstrologerId && consultation.astrologerId === sessionAstrologerId);
+      if (!isParticipant) return res.status(403).json({ message: "Forbidden" });
 
       const token = generateAgoraToken(
-        channel as string,
+        consultation.agoraChannel,
         parseInt(uid as string) || 0,
-        (role as "publisher" | "subscriber") || "publisher"
+        (role as "publisher" | "subscriber") || "publisher",
       );
-      res.json({ token, channel, appId: process.env.AGORA_APP_ID });
+      res.json({ token, channel: consultation.agoraChannel || consultation.id, appId: process.env.AGORA_APP_ID });
     } catch (error: any) {
       if (error.message?.includes("must be set")) {
         return res.status(503).json({ message: "Voice/video calls not configured. Set AGORA_APP_ID and AGORA_APP_CERTIFICATE." });

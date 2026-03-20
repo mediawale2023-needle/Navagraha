@@ -8,4 +8,4 @@ cmds = ["npm ci"]
 cmds = ["npm run build"]
 
 [start]
-cmd = "node dist/index.js"
+cmd = "npm run db:migrate && node dist/index.js"

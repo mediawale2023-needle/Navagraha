@@ -12,6 +12,8 @@
 import { WebSocketServer, WebSocket } from "ws";
 import type { Server } from "http";
 import { storage } from "./storage";
+import { getSession } from "./auth";
+import { logger } from "./logger";
 
 interface WSClient {
   ws: WebSocket;
@@ -19,6 +21,9 @@ interface WSClient {
   astrologerId?: string;
   role: "user" | "astrologer";
   consultationId?: string;
+  isAlive?: boolean;
+  msgCount?: number;
+  msgWindowStart?: number;
 }
 
 type WSMessage = Record<string, unknown> & { type: string };
@@ -32,11 +37,106 @@ const billingTimers = new Map<string, NodeJS.Timeout>();
 
 export function setupWebSocket(server: Server) {
   const wss = new WebSocketServer({ server, path: "/ws" });
+  const sessionParser = getSession();
+
+  function withSession(req: any): Promise<any> {
+    return new Promise((resolve) => {
+      // Minimal response mock for express-session
+      const res = {
+        getHeader: () => undefined,
+        setHeader: () => {},
+        end: () => {},
+      } as any;
+      sessionParser(req, res, () => resolve(req));
+    });
+  }
+
+  function socketRateLimit(client: WSClient): boolean {
+    const now = Date.now();
+    const windowMs = 10_000;
+    const maxMsgs = 120; // ~12 msg/s average
+    if (!client.msgWindowStart || now - client.msgWindowStart > windowMs) {
+      client.msgWindowStart = now;
+      client.msgCount = 0;
+    }
+    client.msgCount = (client.msgCount || 0) + 1;
+    return client.msgCount <= maxMsgs;
+  }
+
+  // Heartbeat (server ping) to clean up zombies
+  const heartbeatInterval = setInterval(() => {
+    wss.clients.forEach((ws) => {
+      const c = (ws as any).__client as WSClient | undefined;
+      if (c && c.isAlive === false) {
+        try {
+          ws.terminate();
+        } catch {}
+        return;
+      }
+      if (c) c.isAlive = false;
+      try {
+        ws.ping();
+      } catch {}
+    });
+  }, 30_000);
+
+  wss.on("close", () => {
+    clearInterval(heartbeatInterval);
+  });
 
   wss.on("connection", (ws, req) => {
     const client: WSClient = { ws, role: "user" };
+    (ws as any).__client = client;
+    client.isAlive = true;
+
+    ws.on("pong", () => {
+      client.isAlive = true;
+    });
+
+    // Bind identity from signed session cookie
+    withSession(req as any)
+      .then(async (r) => {
+        const sess = (r as any).session;
+        const passportUserId = sess?.passport?.user;
+        const sessionUserId = sess?.userId || passportUserId;
+        const sessionAstrologerId = sess?.astrologerId;
+
+        if (sessionAstrologerId) {
+          client.role = "astrologer";
+          client.astrologerId = sessionAstrologerId;
+          astrologerClients.set(sessionAstrologerId, client);
+          await storage.updateAstrologerOnlineStatus(sessionAstrologerId, true);
+          broadcastAstrologerStatus(sessionAstrologerId, "online");
+          send(ws, { type: "auth_ok", role: "astrologer", astrologerId: sessionAstrologerId });
+          return;
+        }
+
+        if (sessionUserId) {
+          client.role = "user";
+          client.userId = sessionUserId;
+          userClients.set(sessionUserId, client);
+          send(ws, { type: "auth_ok", role: "user", userId: sessionUserId });
+          return;
+        }
+
+        send(ws, { type: "auth_required" });
+        ws.close(1008, "Unauthorized");
+      })
+      .catch(() => {
+        try {
+          send(ws, { type: "auth_required" });
+          ws.close(1008, "Unauthorized");
+        } catch {}
+      });
 
     ws.on("message", async (raw) => {
+      if (!socketRateLimit(client)) {
+        try {
+          ws.close(1013, "Rate limited");
+        } catch {}
+        return;
+      }
+
       let msg: WSMessage;
       try {
         msg = JSON.parse(raw.toString());
@@ -46,39 +146,27 @@ export function setupWebSocket(server: Server) {
 
       switch (msg.type) {
         case "auth": {
-          // Register the connection
-          const { userId, astrologerId, role } = msg as unknown as {
-            userId?: string;
-            astrologerId?: string;
-            role: "user" | "astrologer";
-          };
-          client.role = role;
-          if (role === "astrologer" && astrologerId) {
-            client.astrologerId = astrologerId;
-            astrologerClients.set(astrologerId, client);
-            // Update DB presence
-            await storage.updateAstrologerOnlineStatus(astrologerId, true);
-            // Broadcast updated status
-            broadcastAstrologerStatus(astrologerId, "online");
-            send(ws, { type: "auth_ok", astrologerId });
-          } else if (userId) {
-            client.userId = userId;
-            userClients.set(userId, client);
-            send(ws, { type: "auth_ok", userId });
-          }
+          // No-op: identity is bound to the HTTP session cookie on connect.
+          send(ws, {
+            type: "auth_ok",
+            role: client.role,
+            userId: client.userId,
+            astrologerId: client.astrologerId,
+          });
           break;
         }
 
         case "chat_message": {
           // User sends a chat message
-          const { userId, astrologerId, message, consultationId } = msg as unknown as {
-            userId: string;
+          const { astrologerId, message, consultationId } = msg as unknown as {
             astrologerId: string;
             message: string;
             consultationId?: string;
           };
 
-          if (!userId || !astrologerId || !message) break;
+          if (client.role !== "user" || !client.userId) break;
+          const userId = client.userId;
+          if (!astrologerId || !message) break;
 
           // Save to DB
           const saved = await storage.createChatMessage({
@@ -105,14 +193,15 @@ export function setupWebSocket(server: Server) {
 
         case "astrologer_reply": {
           // Astrologer sends reply
-          const { astrologerId, userId, message, consultationId } = msg as unknown as {
-            astrologerId: string;
+          const { userId, message, consultationId } = msg as unknown as {
             userId: string;
             message: string;
             consultationId?: string;
           };
 
-          if (!astrologerId || !userId || !message) break;
+          if (client.role !== "astrologer" || !client.astrologerId) break;
+          const astrologerId = client.astrologerId;
+          if (!userId || !message) break;
 
           const saved = await storage.createChatMessage({
             userId,
@@ -137,12 +226,19 @@ export function setupWebSocket(server: Server) {
 
         case "start_billing": {
           // Begin per-minute billing for a consultation
-          const { consultationId, userId, astrologerId, pricePerMinute } = msg as unknown as {
+          const { consultationId, pricePerMinute } = msg as unknown as {
             consultationId: string;
-            userId: string;
-            astrologerId: string;
             pricePerMinute: number;
           };
+
+          if (client.role !== "astrologer" || !client.astrologerId) break;
+          if (!consultationId || !pricePerMinute) break;
+          const consultation = await storage.getConsultationById(consultationId);
+          if (!consultation) break;
+          if (consultation.astrologerId !== client.astrologerId) break;
+          const userId = consultation.userId;
+          const astrologerId = consultation.astrologerId;
+          const effectivePricePerMinute = parseFloat(consultation.pricePerMinute || "0") || pricePerMinute;
 
           if (billingTimers.has(consultationId)) break; // already running
 
@@ -151,7 +247,7 @@ export function setupWebSocket(server: Server) {
             try {
               const wallet = await storage.getWallet(userId);
               const balance = parseFloat(wallet?.balance || "0");
-              const cost = pricePerMinute;
+              const cost = effectivePricePerMinute;
 
               if (balance < cost) {
                 // Insufficient balance — end session
@@ -197,7 +293,7 @@ export function setupWebSocket(server: Server) {
                 });
               }
             } catch (err) {
-              console.error("Billing error:", err);
+              logger.error({ err }, "Billing error");
             }
           }, 60_000);
 
@@ -208,6 +304,10 @@ export function setupWebSocket(server: Server) {
 
         case "stop_billing": {
           const { consultationId } = msg as unknown as { consultationId: string };
+          if (client.role !== "astrologer" || !client.astrologerId) break;
+          const consultation = await storage.getConsultationById(consultationId);
+          if (!consultation) break;
+          if (consultation.astrologerId !== client.astrologerId) break;
           const timer = billingTimers.get(consultationId);
           if (timer) {
             clearInterval(timer);
@@ -220,12 +320,13 @@ export function setupWebSocket(server: Server) {
 
         case "call_request": {
           // User requests a call
-          const { userId, astrologerId, callType, consultationId } = msg as unknown as {
-            userId: string;
+          const { astrologerId, callType, consultationId } = msg as unknown as {
             astrologerId: string;
             callType: "voice" | "video";
             consultationId: string;
           };
+          if (client.role !== "user" || !client.userId) break;
+          const userId = client.userId;
 
           const astrClient = astrologerClients.get(astrologerId);
           if (astrClient) {
@@ -243,11 +344,11 @@ export function setupWebSocket(server: Server) {
         }
 
         case "call_accepted": {
-          const { userId, astrologerId, consultationId } = msg as unknown as {
+          const { userId, consultationId } = msg as unknown as {
             userId: string;
-            astrologerId: string;
             consultationId: string;
           };
+          if (client.role !== "astrologer" || !client.astrologerId) break;
           const userClient = userClients.get(userId);
           if (userClient) {
             send(userClient.ws, { type: "call_accepted", consultationId });
@@ -257,6 +358,7 @@ export function setupWebSocket(server: Server) {
 
         case "call_rejected": {
           const { userId, consultationId } = msg as unknown as { userId: string; consultationId: string };
+          if (client.role !== "astrologer" || !client.astrologerId) break;
           const userClient = userClients.get(userId);
           if (userClient) {
             send(userClient.ws, { type: "call_rejected", consultationId });
@@ -282,7 +384,7 @@ export function setupWebSocket(server: Server) {
     });
 
     ws.on("error", (err) => {
-      console.error("WebSocket error:", err.message);
+      logger.warn({ err }, "WebSocket error");
     });
 
     // Send initial connection ack

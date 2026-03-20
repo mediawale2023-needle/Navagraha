@@ -24,6 +24,23 @@ function getClient(): Anthropic {
   return _client;
 }
 
+function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
+  const timeoutMs = Math.max(1000, ms);
+  return new Promise<T>((resolve, reject) => {
+    const t = setTimeout(() => reject(new Error(`${label}_timeout`)), timeoutMs);
+    p.then(
+      (v) => {
+        clearTimeout(t);
+        resolve(v);
+      },
+      (e) => {
+        clearTimeout(t);
+        reject(e);
+      },
+    );
+  });
+}
+
 // ─── System prompt ────────────────────────────────────────────────────────────
 
 function buildSystemPrompt(kundli?: Partial<Kundli> | null): string {
@@ -105,12 +122,16 @@ Return ONLY a valid JSON object (no markdown, no extra text) with exactly these 
   }
 }`;
 
-  const response = await client.messages.create({
-    model: "claude-sonnet-4-6",
-    max_tokens: 1500,
-    system: buildSystemPrompt(kundli),
-    messages: [{ role: "user", content: prompt }],
-  });
+  const response = await withTimeout(
+    client.messages.create({
+      model: "claude-sonnet-4-6",
+      max_tokens: 1500,
+      system: buildSystemPrompt(kundli),
+      messages: [{ role: "user", content: prompt }],
+    }),
+    parseInt(process.env.ANTHROPIC_TIMEOUT_MS || "15000", 10) || 15000,
+    "anthropic_interpret",
+  );
 
   const text =
     response.content[0].type === "text" ? response.content[0].text : "";
@@ -153,18 +174,22 @@ export async function aiAstrologerChat(
   // Build conversation history (max last 20 turns to stay within token limits)
   const recentHistory = history.slice(-20);
 
-  const response = await client.messages.create({
-    model: "claude-sonnet-4-6",
-    max_tokens: 800,
-    system: buildSystemPrompt(kundli),
-    messages: [
-      ...recentHistory.map((m) => ({
-        role: m.role as "user" | "assistant",
-        content: m.content,
-      })),
-      { role: "user", content: userMessage },
-    ],
-  });
+  const response = await withTimeout(
+    client.messages.create({
+      model: "claude-sonnet-4-6",
+      max_tokens: 800,
+      system: buildSystemPrompt(kundli),
+      messages: [
+        ...recentHistory.map((m) => ({
+          role: m.role as "user" | "assistant",
+          content: m.content,
+        })),
+        { role: "user", content: userMessage },
+      ],
+    }),
+    parseInt(process.env.ANTHROPIC_TIMEOUT_MS || "15000", 10) || 15000,
+    "anthropic_chat",
+  );
 
   return response.content[0].type === "text" ? response.content[0].text : "";
 }
@@ -175,18 +200,22 @@ export async function aiDailyPrediction(zodiacSign: string): Promise<string> {
   const client = getClient();
 
   const today = new Date().toDateString();
-  const response = await client.messages.create({
-    model: "claude-haiku-4-5-20251001",
-    max_tokens: 400,
-    system: buildSystemPrompt(null),
-    messages: [
-      {
-        role: "user",
-        content: `Give a concise, insightful daily Vedic astrology prediction for ${zodiacSign} for ${today}.
+  const response = await withTimeout(
+    client.messages.create({
+      model: "claude-haiku-4-5-20251001",
+      max_tokens: 400,
+      system: buildSystemPrompt(null),
+      messages: [
+        {
+          role: "user",
+          content: `Give a concise, insightful daily Vedic astrology prediction for ${zodiacSign} for ${today}.
 Cover: general energy, career, relationships, health. End with a mantra or affirmation. Keep it under 150 words.`,
-      },
-    ],
-  });
+        },
+      ],
+    }),
+    parseInt(process.env.ANTHROPIC_TIMEOUT_MS || "15000", 10) || 15000,
+    "anthropic_daily",
+  );
 
   return response.content[0].type === "text" ? response.content[0].text : "";
 }
