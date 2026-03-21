@@ -435,11 +435,19 @@ export default function KundliView() {
   };
   const [, params] = useRoute('/kundli/:id');
   const kundliId = params?.id;
+  const isPreview = kundliId === 'preview';
 
-  const { data: kundli, isLoading } = useQuery<Kundli>({
+  // For unauthenticated (guest) preview: read from sessionStorage
+  const guestKundli: Kundli | null = isPreview
+    ? (() => { try { return JSON.parse(sessionStorage.getItem('guestKundli') || 'null'); } catch { return null; } })()
+    : null;
+
+  const { data: fetchedKundli, isLoading } = useQuery<Kundli>({
     queryKey: ['/api/kundli', kundliId],
-    enabled: !!kundliId,
+    enabled: !!kundliId && !isPreview,
   });
+
+  const kundli = isPreview ? guestKundli : fetchedKundli;
 
   // Auto-expand the current mahadasha once data loads
   useEffect(() => {
@@ -450,7 +458,7 @@ export default function KundliView() {
     }
   }, [kundli]);
 
-  if (isLoading) return <LoadingSpinner />;
+  if (!isPreview && isLoading) return <LoadingSpinner />;
 
   if (!kundli) {
     return (
@@ -472,6 +480,18 @@ export default function KundliView() {
   return (
     <div className="min-h-screen bg-background py-8">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+        {isPreview && (
+          <div className="mb-4 flex items-center justify-between gap-4 rounded-xl border border-nava-amber/40 bg-nava-amber/5 px-4 py-3">
+            <p className="text-sm text-foreground">
+              <span className="font-semibold">Sign in to save this Kundli</span> and access it anytime.
+            </p>
+            <Link href="/api/auth/google">
+              <Button size="sm" className="bg-nava-teal hover:bg-nava-teal/90 text-white shrink-0">
+                Sign In
+              </Button>
+            </Link>
+          </div>
+        )}
         <div className="flex items-center justify-between mb-6">
           <Link href="/" className="no-print">
             <Button variant="ghost" data-testid="button-back">
