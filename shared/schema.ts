@@ -64,9 +64,7 @@ export const kundlis = pgTable("kundlis", {
   doshas: jsonb("doshas"),
   remedies: jsonb("remedies"),
   createdAt: timestamp("created_at").defaultNow(),
-}, (table) => [
-  index("idx_kundlis_user_id").on(table.userId),
-]);
+});
 
 export const insertKundliSchema = createInsertSchema(kundlis).omit({
   id: true,
@@ -145,11 +143,7 @@ export const transactions = pgTable("transactions", {
   // Consultation reference
   consultationId: varchar("consultation_id"),
   createdAt: timestamp("created_at").defaultNow(),
-}, (table) => [
-  index("idx_transactions_user_id").on(table.userId),
-  index("idx_transactions_gateway_order_id").on(table.gatewayOrderId),
-  index("idx_transactions_consultation_id").on(table.consultationId),
-]);
+});
 
 export const insertTransactionSchema = createInsertSchema(transactions).omit({
   id: true,
@@ -169,9 +163,7 @@ export const chatMessages = pgTable("chat_messages", {
   messageType: varchar("message_type").default("text"), // text | image | audio
   isRead: boolean("is_read").default(false),
   createdAt: timestamp("created_at").defaultNow(),
-}, (table) => [
-  index("idx_chat_messages_user_astrologer").on(table.userId, table.astrologerId),
-]);
+});
 
 export const insertChatMessageSchema = createInsertSchema(chatMessages).omit({
   id: true,
@@ -196,10 +188,7 @@ export const consultations = pgTable("consultations", {
   // Agora channel for calls
   agoraChannel: varchar("agora_channel"),
   createdAt: timestamp("created_at").defaultNow(),
-}, (table) => [
-  index("idx_consultations_user_id").on(table.userId),
-  index("idx_consultations_astrologer_id").on(table.astrologerId),
-]);
+});
 
 export const insertConsultationSchema = createInsertSchema(consultations).omit({
   id: true,

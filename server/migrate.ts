@@ -1,5 +1,4 @@
 import { pool } from './db';
-import { logger } from "./logger";
 
 const SCHEMA_SQL = `
 CREATE TABLE IF NOT EXISTS sessions (
@@ -24,7 +23,6 @@ CREATE TABLE IF NOT EXISTS users (
   created_at timestamp DEFAULT now(),
   updated_at timestamp DEFAULT now()
 );
-CREATE INDEX IF NOT EXISTS idx_users_email ON users (email);
 -- Idempotent column additions for existing deployments
 ALTER TABLE users ADD COLUMN IF NOT EXISTS password_hash varchar;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS auth_provider varchar DEFAULT 'google';
@@ -56,7 +54,6 @@ CREATE TABLE IF NOT EXISTS astrologers (
   last_seen_at timestamp,
   created_at timestamp DEFAULT now()
 );
-CREATE INDEX IF NOT EXISTS idx_astrologers_email ON astrologers (email);
 
 CREATE TABLE IF NOT EXISTS wallets (
   id varchar PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -65,7 +62,6 @@ CREATE TABLE IF NOT EXISTS wallets (
   created_at timestamp DEFAULT now(),
   updated_at timestamp DEFAULT now()
 );
-CREATE INDEX IF NOT EXISTS idx_wallets_user_id ON wallets (user_id);
 
 CREATE TABLE IF NOT EXISTS kundlis (
   id varchar PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -86,7 +82,6 @@ CREATE TABLE IF NOT EXISTS kundlis (
   remedies jsonb,
   created_at timestamp DEFAULT now()
 );
-CREATE INDEX IF NOT EXISTS idx_kundlis_user_id ON kundlis (user_id);
 
 CREATE TABLE IF NOT EXISTS transactions (
   id varchar PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -102,11 +97,6 @@ CREATE TABLE IF NOT EXISTS transactions (
   consultation_id varchar,
   created_at timestamp DEFAULT now()
 );
-CREATE INDEX IF NOT EXISTS idx_transactions_user_id ON transactions (user_id);
-CREATE INDEX IF NOT EXISTS idx_transactions_gateway_order_id ON transactions (gateway_order_id);
-CREATE UNIQUE INDEX IF NOT EXISTS idx_transactions_gateway_payment_id_unique
-  ON transactions (gateway_payment_id)
-  WHERE gateway_payment_id IS NOT NULL;
 
 CREATE TABLE IF NOT EXISTS consultations (
   id varchar PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -122,8 +112,6 @@ CREATE TABLE IF NOT EXISTS consultations (
   agora_channel varchar,
   created_at timestamp DEFAULT now()
 );
-CREATE INDEX IF NOT EXISTS idx_consultations_user_id ON consultations (user_id);
-CREATE INDEX IF NOT EXISTS idx_consultations_astrologer_id ON consultations (astrologer_id);
 
 CREATE TABLE IF NOT EXISTS chat_messages (
   id varchar PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -135,7 +123,6 @@ CREATE TABLE IF NOT EXISTS chat_messages (
   is_read boolean DEFAULT false,
   created_at timestamp DEFAULT now()
 );
-CREATE INDEX IF NOT EXISTS idx_chat_messages_user_astrologer ON chat_messages (user_id, astrologer_id);
 
 CREATE TABLE IF NOT EXISTS reviews (
   id varchar PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -242,11 +229,6 @@ WHERE NOT EXISTS (SELECT 1 FROM homepage_content LIMIT 1);
 
 export async function runMigrations(): Promise<void> {
   await pool.query(SCHEMA_SQL);
-  await seedHomepageContent();
-  logger.info("[migrate] Schema initialised successfully");
-}
-
-export async function seedHomepageContent(): Promise<void> {
   await pool.query(SEED_HOMEPAGE_SQL);
-  logger.info("[seed] homepage_content seeded");
+  console.log('[migrate] Schema initialised successfully');
 }
