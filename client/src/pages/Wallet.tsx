@@ -11,8 +11,7 @@ import { apiRequest } from '@/lib/queryClient';
 import {
   ArrowLeft, Wallet as WalletIcon, Plus,
   ArrowUpRight, ArrowDownLeft, Loader2,
-  CreditCard, Smartphone, Gift, Shield,
-  CheckCircle2, Info
+  Shield
 } from 'lucide-react';
 import type { Transaction, Wallet as WalletType } from '@shared/schema';
 
@@ -44,7 +43,6 @@ function loadRazorpayScript(): Promise<boolean> {
 export default function Wallet() {
   const [customAmount, setCustomAmount] = useState('');
   const [selectedPack, setSelectedPack] = useState<RechargePackType | null>(null);
-  const [paymentMethod, setPaymentMethod] = useState<'razorpay' | 'snapmint' | 'lazypay'>('razorpay');
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [location] = useLocation();
@@ -176,9 +174,7 @@ export default function Wallet() {
   };
 
   const handlePayment = (amount: number, packId?: string, bonus: number = 0) => {
-    if (paymentMethod === 'razorpay') handleRazorpayPayment(amount, packId, bonus);
-    else if (paymentMethod === 'snapmint') handleSnapmintPayment(amount);
-    else if (paymentMethod === 'lazypay') handleLazyPayPayment(amount);
+    handleRazorpayPayment(amount, packId, bonus);
   };
 
   const handleCustomPayment = () => {
@@ -235,57 +231,6 @@ export default function Wallet() {
             <CardDescription>Choose a recharge pack or enter a custom amount</CardDescription>
           </CardHeader>
           <CardContent>
-            {/* Payment Method Selector */}
-            <div className="mb-5">
-              <p className="text-sm font-medium text-foreground mb-3">Payment Method</p>
-              <div className="grid grid-cols-3 gap-2">
-                <button
-                  onClick={() => setPaymentMethod('razorpay')}
-                  className={`p-3 rounded-xl border-2 text-left transition-all ${paymentMethod === 'razorpay'
-                    ? 'border-nava-teal bg-nava-teal/5'
-                    : 'border-border hover:border-nava-teal/50'
-                    }`}
-                >
-                  <div className="flex items-center gap-1.5 mb-1">
-                    <CreditCard className="w-4 h-4 text-foreground" />
-                    <span className="font-semibold text-xs">Razorpay</span>
-                    {paymentMethod === 'razorpay' && <CheckCircle2 className="w-3.5 h-3.5 text-nava-teal ml-auto" />}
-                  </div>
-                  <p className="text-[10px] text-muted-foreground">UPI, Cards</p>
-                </button>
-
-                <button
-                  onClick={() => setPaymentMethod('snapmint')}
-                  className={`p-3 rounded-xl border-2 text-left transition-all ${paymentMethod === 'snapmint'
-                    ? 'border-nava-teal bg-nava-teal/5'
-                    : 'border-border hover:border-nava-teal/50'
-                    }`}
-                >
-                  <div className="flex items-center gap-1.5 mb-1">
-                    <Smartphone className="w-4 h-4 text-foreground" />
-                    <span className="font-semibold text-xs">Snapmint</span>
-                    {paymentMethod === 'snapmint' && <CheckCircle2 className="w-3.5 h-3.5 text-nava-teal ml-auto" />}
-                  </div>
-                  <p className="text-[10px] text-muted-foreground">0% EMI</p>
-                </button>
-
-                <button
-                  onClick={() => setPaymentMethod('lazypay')}
-                  className={`p-3 rounded-xl border-2 text-left transition-all ${paymentMethod === 'lazypay'
-                    ? 'border-nava-teal bg-nava-teal/5'
-                    : 'border-border hover:border-nava-teal/50'
-                    }`}
-                >
-                  <div className="flex items-center gap-1.5 mb-1">
-                    <Gift className="w-4 h-4 text-foreground" />
-                    <span className="font-semibold text-xs">LazyPay</span>
-                    {paymentMethod === 'lazypay' && <CheckCircle2 className="w-3.5 h-3.5 text-nava-teal ml-auto" />}
-                  </div>
-                  <p className="text-[10px] text-muted-foreground">Pay Later</p>
-                </button>
-              </div>
-            </div>
-
             {/* Recharge Packs */}
             {packs && packs.length > 0 && (
               <div className="mb-5">

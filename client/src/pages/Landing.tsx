@@ -1,14 +1,18 @@
-import { useState, useEffect } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useState } from 'react';
+import { useQuery, useMutation } from '@tanstack/react-query';
 import { Link } from 'wouter';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { motion } from 'framer-motion';
 import {
   Star, MessageCircle, Phone, Sparkles,
   Heart, ChevronRight,
-  CheckCircle2, Sun, ArrowRight, Flame
+  CheckCircle2, Sun, ArrowRight, Flame, Mail, Lock, User, Gift
 } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
+import { apiRequest } from '@/lib/queryClient';
 import type { Astrologer } from '@shared/schema';
 
 const CATEGORIES = [
@@ -21,15 +25,34 @@ const CATEGORIES = [
 ];
 
 export default function Landing() {
-  const [liveCount, setLiveCount] = useState(342);
   const { data: astrologers } = useQuery<Astrologer[]>({ queryKey: ['/api/astrologers'] });
+  const [authOpen, setAuthOpen] = useState(false);
+  const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [firstName, setFirstName] = useState('');
+  const { toast } = useToast();
 
-  useEffect(() => {
-    const t = setInterval(() => {
-      setLiveCount(prev => prev + Math.floor(Math.random() * 3) - 1);
-    }, 5000);
-    return () => clearInterval(t);
-  }, []);
+  const onlineCount = astrologers?.filter((a: Astrologer) => a.availability === 'online').length ?? 0;
+
+  const authMutation = useMutation({
+    mutationFn: async () => {
+      const endpoint = authMode === 'login' ? '/api/auth/login' : '/api/auth/register';
+      const body = authMode === 'login'
+        ? { email, password }
+        : { email, password, firstName };
+      const res = await apiRequest('POST', endpoint, body);
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.message || 'Authentication failed');
+      }
+      return res.json();
+    },
+    onSuccess: () => { window.location.href = '/'; },
+    onError: (err: any) => {
+      toast({ title: 'Error', description: err.message, variant: 'destructive' });
+    },
+  });
 
   return (
     <div className="min-h-screen bg-background text-foreground overflow-hidden font-sans">
@@ -50,7 +73,7 @@ export default function Landing() {
           </div>
           <Button
             className="bg-nava-teal hover:bg-nava-teal/90 text-white font-semibold rounded-full px-5 h-9"
-            onClick={() => window.location.href = '/api/auth/google'}
+            onClick={() => setAuthOpen(true)}
           >
             Sign In
           </Button>
@@ -104,7 +127,7 @@ export default function Landing() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.3 }}
             className="relative overflow-hidden rounded-3xl bg-nava-magenta p-6 mb-6 cursor-pointer shadow-md"
-            onClick={() => window.location.href = '/api/auth/google'}
+            onClick={() => setAuthOpen(true)}
           >
             {/* Background decorative circles */}
             <div className="absolute -left-8 top-1/2 -translate-y-1/2 w-24 h-24 border-[20px] border-white/10 rounded-full" />
@@ -126,16 +149,35 @@ export default function Landing() {
             </div>
           </motion.div>
 
-          {/* Live Count Badge */}
+          {/* First-recharge bonus banner */}
           <motion.div
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ duration: 0.5, delay: 0.4 }}
+            className="flex justify-center mb-3"
+          >
+            <div
+              className="inline-flex items-center gap-2 bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 rounded-full px-4 py-2 shadow-sm cursor-pointer hover:bg-emerald-100 dark:hover:bg-emerald-900/40 transition-colors"
+              onClick={() => setAuthOpen(true)}
+            >
+              <Gift className="w-3.5 h-3.5 text-emerald-600" />
+              <span className="text-sm font-semibold text-emerald-700 dark:text-emerald-400">Get up to 25% bonus on first recharge</span>
+              <ArrowRight className="w-3.5 h-3.5 text-emerald-600" />
+            </div>
+          </motion.div>
+
+          {/* Live Count Badge */}
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.5, delay: 0.45 }}
             className="flex justify-center mb-6"
           >
             <div className="inline-flex items-center gap-2 bg-card rounded-full px-4 py-2 shadow-sm border border-border/50">
               <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
-              <span className="text-sm font-medium text-muted-foreground">{liveCount} astrologers online</span>
+              <span className="text-sm font-medium text-muted-foreground">
+                {onlineCount > 0 ? `${onlineCount} astrologers online` : 'Astrologers available now'}
+              </span>
             </div>
           </motion.div>
         </div>
@@ -231,7 +273,7 @@ export default function Landing() {
                   <Button
                     size="sm"
                     className="bg-nava-teal hover:bg-nava-teal/90 text-white font-semibold rounded-full px-4 h-8"
-                    onClick={() => window.location.href = '/api/auth/google'}
+                    onClick={() => setAuthOpen(true)}
                   >
                     Connect
                   </Button>
@@ -259,7 +301,7 @@ export default function Landing() {
             <Button
               size="lg"
               className="bg-nava-magenta hover:bg-nava-magenta/90 text-white font-bold rounded-full px-8 h-12"
-              onClick={() => window.location.href = '/api/auth/google'}
+              onClick={() => setAuthOpen(true)}
             >
               Start Your Journey
               <ArrowRight className="w-5 h-5 ml-2" />
@@ -267,6 +309,85 @@ export default function Landing() {
           </motion.div>
         </div>
       </div>
+
+      {/* ─── Auth Dialog ─────────────────────────────────── */}
+      <Dialog open={authOpen} onOpenChange={setAuthOpen}>
+        <DialogContent className="max-w-sm mx-auto">
+          <DialogHeader>
+            <DialogTitle className="text-center text-lg font-bold">
+              {authMode === 'login' ? 'Welcome back' : 'Create account'}
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-3">
+            {authMode === 'register' && (
+              <div className="relative">
+                <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <Input
+                  placeholder="First name"
+                  value={firstName}
+                  onChange={(e) => setFirstName(e.target.value)}
+                  className="pl-9"
+                />
+              </div>
+            )}
+            <div className="relative">
+              <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Input
+                type="email"
+                placeholder="Email address"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="pl-9"
+              />
+            </div>
+            <div className="relative">
+              <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Input
+                type="password"
+                placeholder="Password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="pl-9"
+                onKeyDown={(e) => e.key === 'Enter' && authMutation.mutate()}
+              />
+            </div>
+
+            <Button
+              className="w-full bg-nava-teal hover:bg-nava-teal/90 text-white font-semibold rounded-xl h-11"
+              onClick={() => authMutation.mutate()}
+              disabled={authMutation.isPending || !email || !password}
+            >
+              {authMutation.isPending ? 'Please wait…' : authMode === 'login' ? 'Sign In' : 'Create Account'}
+            </Button>
+
+            <div className="flex items-center gap-3">
+              <div className="flex-1 border-t border-border" />
+              <span className="text-xs text-muted-foreground">or</span>
+              <div className="flex-1 border-t border-border" />
+            </div>
+
+            <Button
+              variant="outline"
+              className="w-full rounded-xl h-11 font-semibold"
+              onClick={() => { window.location.href = '/api/auth/google'; }}
+            >
+              <img src="https://www.google.com/favicon.ico" alt="" className="w-4 h-4 mr-2" />
+              Continue with Google
+            </Button>
+
+            <p className="text-center text-sm text-muted-foreground">
+              {authMode === 'login' ? "Don't have an account? " : 'Already have an account? '}
+              <button
+                className="text-nava-teal font-semibold hover:underline"
+                onClick={() => setAuthMode(authMode === 'login' ? 'register' : 'login')}
+              >
+                {authMode === 'login' ? 'Sign up' : 'Sign in'}
+              </button>
+            </p>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* ─── Footer ─────────────────────────────────────── */}
       <footer className="border-t border-border/50 py-8 px-4 bg-card">
