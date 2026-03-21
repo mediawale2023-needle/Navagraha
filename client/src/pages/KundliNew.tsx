@@ -52,13 +52,19 @@ export default function KundliNew() {
       };
       return await apiRequest('POST', '/api/kundli', payload);
     },
-    onSuccess: (data) => {
+    onSuccess: (data: any) => {
       queryClient.invalidateQueries({ queryKey: ['/api/kundli'] });
       toast({
         title: 'Kundli Generated!',
         description: 'Your birth chart has been created successfully.',
       });
-      setLocation(`/kundli/${data.id}`);
+      if (data.id) {
+        setLocation(`/kundli/${data.id}`);
+      } else {
+        // Guest flow: store result and navigate to preview
+        sessionStorage.setItem('guestKundli', JSON.stringify(data));
+        setLocation('/kundli/preview');
+      }
     },
     onError: (error: Error) => {
       toast({

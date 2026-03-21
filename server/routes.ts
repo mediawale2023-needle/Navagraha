@@ -153,15 +153,14 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
   });
 
   // ─── Kundli ───────────────────────────────────────────────
-  app.post('/api/kundli', isAuthenticated, async (req: any, res) => {
+  app.post('/api/kundli', async (req: any, res) => {
     try {
-      const userId = (req.user as any).id;
-      const validatedData = insertKundliSchema.parse({ ...req.body, userId });
-      const dateOfBirth = new Date(validatedData.dateOfBirth);
-      const lat = validatedData.latitude ? parseFloat(validatedData.latitude) : 28.6139;
-      const lon = validatedData.longitude ? parseFloat(validatedData.longitude) : 77.2090;
+      const userId = req.user?.id || null;
+      const dateOfBirth = new Date(req.body.dateOfBirth);
+      const lat = req.body.latitude ? parseFloat(req.body.latitude) : 28.6139;
+      const lon = req.body.longitude ? parseFloat(req.body.longitude) : 77.2090;
 
-      const nk = await getKundli(dateOfBirth, validatedData.timeOfBirth, lat, lon);
+      const nk = await getKundli(dateOfBirth, req.body.timeOfBirth, lat, lon);
       const kundliData = {
         zodiacSign: nk.zodiacSign,
         moonSign: nk.moonSign,
@@ -172,6 +171,17 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
         remedies: nk.remedies,
       };
 
+      // Guests: return computed data without saving
+      if (!userId) {
+        return res.json({
+          ...req.body,
+          ...kundliData,
+          id: null,
+          saved: false,
+        });
+      }
+
+      const validatedData = insertKundliSchema.parse({ ...req.body, userId });
       const kundli = await storage.createKundli({ ...validatedData, ...kundliData });
       res.json(kundli);
     } catch (error) {
@@ -188,7 +198,7 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
     } catch { res.status(500).json({ message: "Failed to fetch kundlis" }); }
   });
 
-  app.get('/api/kundli/:id', isAuthenticated, async (req, res) => {
+  app.get('/api/kundli/:id', async (req, res) => {
     try {
       const kundli = await storage.getKundliById(req.params.id);
       if (!kundli) return res.status(404).json({ message: "Kundli not found" });
