@@ -20,27 +20,15 @@ import { storage } from './storage';
 // ─── Session setup ────────────────────────────────────────────
 
 export function getSession() {
-  const ttlDays = Math.max(1, parseInt(process.env.SESSION_TTL_DAYS || "7", 10) || 7);
-  const sessionTtlMs = ttlDays * 24 * 60 * 60 * 1000;
-  const sessionSecret = process.env.SESSION_SECRET;
-  if (!sessionSecret) {
-    throw new Error("SESSION_SECRET must be set");
-  }
-  const sessionCookieName = process.env.SESSION_COOKIE_NAME || "connect.sid";
+  const sessionTtl = 7 * 24 * 60 * 60 * 1000; // 1 week
 
   if (!process.env.DATABASE_URL) {
     console.warn('[auth] DATABASE_URL not set — using MemoryStore for sessions. Sessions will be lost on restart.');
     return session({
-      name: sessionCookieName,
-      secret: sessionSecret,
+      secret: process.env.SESSION_SECRET || 'fallback-secret',
       resave: false,
       saveUninitialized: false,
-      cookie: {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === "production",
-        sameSite: "lax",
-        maxAge: sessionTtlMs,
-      },
+      cookie: { httpOnly: true, secure: process.env.NODE_ENV === 'production', maxAge: sessionTtl },
     });
   }
 
@@ -48,23 +36,20 @@ export function getSession() {
   const sessionStore = new pgStore({
     conString: process.env.DATABASE_URL,
     createTableIfMissing: true,
-    // connect-pg-simple expects seconds
-    ttl: Math.floor(sessionTtlMs / 1000),
+    ttl: sessionTtl,
     tableName: 'sessions',
     errorLog: (err) => console.error('[session-store] Error:', err),
   });
 
   return session({
-    name: sessionCookieName,
-    secret: sessionSecret,
+    secret: process.env.SESSION_SECRET!,
     store: sessionStore,
     resave: false,
     saveUninitialized: false,
     cookie: {
       httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
-      maxAge: sessionTtlMs,
+      secure: process.env.NODE_ENV === 'production',
+      maxAge: sessionTtl,
     },
   });
 }
@@ -98,7 +83,7 @@ export async function setupAuth(app: Express) {
       {
         clientID: process.env.GOOGLE_CLIENT_ID,
         clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-        callbackURL: process.env.GOOGLE_CALLBACK_URL || "/api/auth/google/callback",
+        callbackURL: '/api/auth/google/callback',
       },
       async (_accessToken, _refreshToken, profile, done) => {
         try {

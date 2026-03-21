@@ -5,12 +5,18 @@ import { createServer as createViteServer, createLogger } from "vite";
 import { type Server } from "http";
 import viteConfig from "../vite.config";
 import { nanoid } from "nanoid";
-import { logger } from "./logger";
 
 const viteLogger = createLogger();
 
 export function log(message: string, source = "express") {
-  logger.info({ source }, message);
+  const formattedTime = new Date().toLocaleTimeString("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: true,
+  });
+
+  console.log(`${formattedTime} [${source}] ${message}`);
 }
 
 export async function setupVite(app: Express, server: Server) {
@@ -70,42 +76,10 @@ export function serveStatic(app: Express) {
     );
   }
 
-  // Aggressive caching for hashed assets, no-cache for HTML.
-  app.use(
-    express.static(distPath, {
-      setHeaders(res, filePath) {
-        if (filePath.endsWith(".html")) {
-          res.setHeader("Cache-Control", "no-store");
-          return;
-        }
-        // Vite emits fingerprinted assets under /assets
-        if (filePath.includes(`${path.sep}assets${path.sep}`)) {
-          res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
-          return;
-        }
-        res.setHeader("Cache-Control", "public, max-age=3600");
-      },
-    }),
-  );
+  app.use(express.static(distPath));
 
-  // SPA fallback: only for browser navigation requests.
-  // Never rewrite asset/file requests (so JS/CSS don't accidentally load HTML).
-  app.use((req, res, next) => {
-    if (req.method !== "GET") return next();
-
-    const ext = path.extname(req.path);
-    const isAssetRoute =
-      req.path.startsWith("/assets/") ||
-      req.path.startsWith("/favicon") ||
-      req.path === "/favicon.ico" ||
-      ext.length > 0;
-
-    if (isAssetRoute) return next();
-
-    // If the browser is explicitly asking for HTML, serve the SPA shell.
-    const accept = req.headers.accept || "";
-    if (typeof accept === "string" && !accept.includes("text/html")) return next();
-
-    return res.sendFile(path.resolve(distPath, "index.html"));
+  // fall through to index.html if the file doesn't exist
+  app.use("*", (_req, res) => {
+    res.sendFile(path.resolve(distPath, "index.html"));
   });
 }

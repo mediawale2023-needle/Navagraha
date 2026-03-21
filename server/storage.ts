@@ -71,12 +71,6 @@ export interface IStorage {
   createTransaction(transaction: InsertTransaction): Promise<Transaction>;
   getUserTransactions(userId: string): Promise<Transaction[]>;
   updateTransactionStatus(id: string, status: string, gatewayPaymentId?: string, gatewaySignature?: string): Promise<Transaction>;
-  completeRazorpayWalletRecharge(params: {
-    userId: string;
-    gatewayOrderId: string;
-    gatewayPaymentId: string;
-    gatewaySignature?: string;
-  }): Promise<{ newBalance: string; creditedAmount: string; transactionId: string }>;
 
   // Chat operations
   createChatMessage(message: InsertChatMessage): Promise<ChatMessage>;
@@ -85,7 +79,6 @@ export interface IStorage {
   // Consultation operations
   createConsultation(data: InsertConsultation): Promise<Consultation>;
   getConsultationById(id: string): Promise<Consultation | undefined>;
-  getConsultationByAgoraChannel(agoraChannel: string): Promise<Consultation | undefined>;
   getActiveConsultation(userId: string, astrologerId: string): Promise<Consultation | undefined>;
   getUserConsultations(userId: string): Promise<Consultation[]>;
   getAstrologerConsultations(astrologerId: string): Promise<Consultation[]>;
@@ -299,84 +292,6 @@ export class DatabaseStorage implements IStorage {
     return transaction;
   }
 
-  async completeRazorpayWalletRecharge(params: {
-    userId: string;
-    gatewayOrderId: string;
-    gatewayPaymentId: string;
-    gatewaySignature?: string;
-  }): Promise<{ newBalance: string; creditedAmount: string; transactionId: string }> {
-    const { userId, gatewayOrderId, gatewayPaymentId, gatewaySignature } = params;
-
-    return await db.transaction(async (tx) => {
-      const [txn] = await tx
-        .select()
-        .from(transactions)
-        .where(
-          and(
-            eq(transactions.userId, userId),
-            eq(transactions.paymentMethod, "razorpay"),
-            eq(transactions.gatewayOrderId, gatewayOrderId),
-          ),
-        )
-        .orderBy(desc(transactions.createdAt))
-        .limit(1);
-
-      if (!txn) {
-        throw new Error("Transaction not found for this order");
-      }
-
-      // Idempotency: do not credit twice
-      if (txn.status === "completed") {
-        const [wallet] = await tx.select().from(wallets).where(eq(wallets.userId, userId));
-        return { newBalance: wallet?.balance || "0", creditedAmount: "0", transactionId: txn.id };
-      }
-
-      const creditNum = parseFloat((txn.amount as any)?.toString?.() ?? String(txn.amount));
-      if (!Number.isFinite(creditNum) || creditNum <= 0) {
-        throw new Error("Invalid transaction amount");
-      }
-
-      // Ensure wallet exists
-      let [wallet] = await tx.select().from(wallets).where(eq(wallets.userId, userId));
-      if (!wallet) {
-        const [created] = await tx.insert(wallets).values({ userId, balance: "0" }).returning();
-        wallet = created;
-      }
-
-      // Mark transaction as completed first (guard concurrent double-credit)
-      const [updatedTxn] = await tx
-        .update(transactions)
-        .set({
-          status: "completed",
-          gatewayPaymentId,
-          ...(gatewaySignature ? { gatewaySignature } : {}),
-        })
-        .where(and(eq(transactions.id, txn.id), eq(transactions.status, "pending")))
-        .returning();
-
-      if (!updatedTxn) {
-        const [w] = await tx.select().from(wallets).where(eq(wallets.userId, userId));
-        return { newBalance: w?.balance || "0", creditedAmount: "0", transactionId: txn.id };
-      }
-
-      // Credit wallet atomically
-      const [updatedWallet] = await tx
-        .update(wallets)
-        .set({
-          balance: sql`${wallets.balance} + ${creditNum}`,
-          updatedAt: new Date(),
-        })
-        .where(eq(wallets.userId, userId))
-        .returning();
-
-      return {
-        newBalance: updatedWallet?.balance || wallet.balance || "0",
-        creditedAmount: creditNum.toFixed(2),
-        transactionId: updatedTxn.id,
-      };
-    });
-  }
-
   // ─── Chat operations ───────────────────────────────────────
 
   async createChatMessage(data: InsertChatMessage): Promise<ChatMessage> {
@@ -415,14 +330,6 @@ export class DatabaseStorage implements IStorage {
       .select()
       .from(consultations)
       .where(eq(consultations.id, id));
-    return consultation;
-  }
-
-  async getConsultationByAgoraChannel(agoraChannel: string): Promise<Consultation | undefined> {
-    const [consultation] = await db
-      .select()
-      .from(consultations)
-      .where(eq(consultations.agoraChannel, agoraChannel));
     return consultation;
   }
 
@@ -712,8 +619,10 @@ export class DatabaseStorage implements IStorage {
     password: string;
     phoneNumber?: string;
   }): Promise<Astrologer> {
-    const pepper = process.env.PASSWORD_PEPPER || "";
-    const passwordHash = await bcrypt.hash(`${data.password}${pepper}`, 12);
+    const passwordHash = crypto
+      .createHash("sha256")
+      .update(data.password)
+      .digest("hex");
     const [astrologer] = await db
       .insert(astrologers)
       .values({
@@ -731,25 +640,8 @@ export class DatabaseStorage implements IStorage {
   async verifyAstrologerPassword(email: string, password: string): Promise<Astrologer | null> {
     const astrologer = await this.getAstrologerByEmail(email);
     if (!astrologer || !astrologer.passwordHash) return null;
-    const pepper = process.env.PASSWORD_PEPPER || "";
-    const stored = astrologer.passwordHash;
-
-    // bcrypt
-    if (stored.startsWith("$2")) {
-      const ok = await bcrypt.compare(`${password}${pepper}`, stored);
-      return ok ? astrologer : null;
-    }
-
-    // legacy sha256(hex) → upgrade on successful login
-    const legacy = crypto.createHash("sha256").update(password).digest("hex");
-    if (legacy !== stored) return null;
-
-    const upgraded = await bcrypt.hash(`${password}${pepper}`, 12);
-    await db
-      .update(astrologers)
-      .set({ passwordHash: upgraded })
-      .where(eq(astrologers.id, astrologer.id));
-    return { ...astrologer, passwordHash: upgraded };
+    const hash = crypto.createHash("sha256").update(password).digest("hex");
+    return hash === astrologer.passwordHash ? astrologer : null;
   }
 
   // ─── User email auth ───────────────────────────────────────
