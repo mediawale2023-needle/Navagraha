@@ -61,6 +61,8 @@ function Router() {
       <Route path="/horoscope/:sign" component={Horoscope} />
       <Route path="/astrologers" component={Astrologers} />
       <Route path="/kundli/matchmaking" component={Matchmaking} />
+      <Route path="/kundli/new" component={KundliNew} />
+      <Route path="/kundli/:id" component={KundliView} />
       <Route path="/numerology" component={Numerology} />
 
       {isLoading || !isAuthenticated ? (
@@ -72,8 +74,6 @@ function Router() {
         <>
           {/* Authenticated user routes */}
           <Route path="/" component={Home} />
-          <Route path="/kundli/new" component={KundliNew} />
-          <Route path="/kundli/:id" component={KundliView} />
           <Route path="/wallet" component={Wallet} />
           <Route path="/chat/:astrologerId" component={Chat} />
           <Route path="/call/:astrologerId" component={CallRoom} />

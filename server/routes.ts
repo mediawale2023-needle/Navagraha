@@ -17,6 +17,7 @@ import {
   transactions as transactionsTable,
   consultations as consultationsTable,
   homepageContent as homepageContentTable,
+  aiChatMessages,
 } from "@shared/schema";
 import { z } from "zod";
 import {
@@ -293,6 +294,9 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
       const astrologer = await (storage as any).verifyAstrologerPassword(email, password);
       if (!astrologer) {
         return res.status(401).json({ message: "Invalid email or password" });
+      }
+      if (!astrologer.isVerified) {
+        return res.status(403).json({ message: "Your account is pending admin approval. You'll receive an email once approved." });
       }
       req.session.astrologerId = astrologer.id;
       const { passwordHash: _ph, bankAccountNumber: _ban, bankIfsc: _bi, ...safe } = astrologer;
@@ -1044,6 +1048,23 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
     }
   });
 
+  const FREE_AI_QUESTIONS = 3;
+
+  // Get how many free AI questions the user has used
+  app.get('/api/ai/question-count', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = (req.user as any).id;
+      const rows = await db
+        .select({ count: sql<number>`count(*)` })
+        .from(aiChatMessages as any)
+        .where(sql`user_id = ${userId} AND role = 'user'`);
+      const used = Number(rows[0]?.count ?? 0);
+      res.json({ used, free: FREE_AI_QUESTIONS, remaining: Math.max(0, FREE_AI_QUESTIONS - used) });
+    } catch {
+      res.json({ used: 0, free: FREE_AI_QUESTIONS, remaining: FREE_AI_QUESTIONS });
+    }
+  });
+
   // AI Astrologer chat — stateless request, history managed by client
   app.post('/api/ai/chat', isAuthenticated, async (req: any, res) => {
     try {
@@ -1068,7 +1089,14 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
       await storage.saveAiChatMessage({ userId, sessionId: sid, role: 'user', content: message, kundliId: kundliId || null });
       await storage.saveAiChatMessage({ userId, sessionId: sid, role: 'assistant', content: reply, kundliId: kundliId || null });
 
-      res.json({ reply, sessionId: sid });
+      // Return question count so client can show free questions remaining
+      const countRows = await db
+        .select({ count: sql<number>`count(*)` })
+        .from(aiChatMessages as any)
+        .where(sql`user_id = ${userId} AND role = 'user'`);
+      const questionsUsed = Number(countRows[0]?.count ?? 0);
+
+      res.json({ reply, sessionId: sid, questionsUsed, freeQuestions: FREE_AI_QUESTIONS });
     } catch (error: any) {
       if (error.message?.includes("ANTHROPIC_API_KEY")) {
         return res.status(503).json({ message: "AI features not configured. Set ANTHROPIC_API_KEY." });

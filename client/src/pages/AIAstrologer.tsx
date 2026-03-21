@@ -1,7 +1,7 @@
-import { useState, useRef, useEffect } from "react";
-import { useQuery, useMutation } from "@tanstack/react-query";
+import { useState, useRef, useEffect, useCallback } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link } from "wouter";
-import { Send, Sparkles, Stars, ChevronDown, BookOpen, Loader2, ArrowLeft, Plus } from "lucide-react";
+import { Send, Sparkles, Stars, ChevronDown, BookOpen, Loader2, ArrowLeft, Plus, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent } from "@/components/ui/card";
@@ -68,16 +68,30 @@ const SUGGESTED_QUESTIONS = [
   "What are my lucky colours, numbers, and gemstones?",
 ];
 
+const SESSION_STORAGE_KEY = 'ai_astrologer_session_id';
+
 export default function AIAstrologer() {
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const bottomRef = useRef<HTMLDivElement>(null);
 
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [selectedKundliId, setSelectedKundliId] = useState<string>("none");
-  const [sessionId, setSessionId] = useState<string | null>(null);
+  const [sessionId, setSessionId] = useState<string | null>(
+    () => localStorage.getItem(SESSION_STORAGE_KEY)
+  );
   const [showInterpretation, setShowInterpretation] = useState(false);
   const [interpretation, setInterpretation] = useState<AiInterpretation | null>(null);
+  const [questionsUsed, setQuestionsUsed] = useState<number | null>(null);
+
+  const { data: questionCount } = useQuery<{ used: number; free: number; remaining: number }>({
+    queryKey: ['/api/ai/question-count'],
+  });
+
+  const freeRemaining = questionsUsed !== null
+    ? Math.max(0, 3 - questionsUsed)
+    : (questionCount?.remaining ?? null);
 
   const { data: kundlis = [] } = useQuery<Kundli[]>({
     queryKey: ["/api/kundli"],
@@ -87,6 +101,30 @@ export default function AIAstrologer() {
     queryKey: [`/api/kundli/${selectedKundliId}`],
     enabled: selectedKundliId !== "none",
   });
+
+  // Load previous messages from the persisted session on mount
+  const { data: savedMessages } = useQuery<{ role: string; content: string }[]>({
+    queryKey: [`/api/ai/chat/${sessionId}`],
+    enabled: !!sessionId && messages.length === 0,
+  });
+
+  useEffect(() => {
+    if (savedMessages && savedMessages.length > 0 && messages.length === 0) {
+      setMessages(savedMessages.map((m) => ({
+        role: m.role as "user" | "assistant",
+        content: m.content,
+        id: crypto.randomUUID(),
+      })));
+    }
+  }, [savedMessages]);
+
+  const startNewSession = useCallback(() => {
+    const newId = crypto.randomUUID();
+    localStorage.setItem(SESSION_STORAGE_KEY, newId);
+    setSessionId(newId);
+    setMessages([]);
+    queryClient.removeQueries({ queryKey: [`/api/ai/chat/${sessionId}`] });
+  }, [sessionId, queryClient]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -104,7 +142,11 @@ export default function AIAstrologer() {
       return res.json();
     },
     onSuccess: (data) => {
-      if (!sessionId) setSessionId(data.sessionId);
+      if (!sessionId || sessionId !== data.sessionId) {
+        localStorage.setItem(SESSION_STORAGE_KEY, data.sessionId);
+        setSessionId(data.sessionId);
+      }
+      if (data.questionsUsed !== undefined) setQuestionsUsed(data.questionsUsed);
       setMessages((prev) => [
         ...prev,
         { role: "assistant", content: data.reply, id: crypto.randomUUID() },
@@ -171,8 +213,22 @@ export default function AIAstrologer() {
             <div className="flex items-center gap-1.5">
               <Sparkles className="w-3 h-3 text-nava-amber" />
               <span className="text-xs text-muted-foreground">Powered by AI</span>
+              {freeRemaining !== null && freeRemaining > 0 && (
+                <Badge className="bg-emerald-500/10 text-emerald-600 border-0 text-[10px] ml-1">
+                  {freeRemaining} free {freeRemaining === 1 ? 'question' : 'questions'} left
+                </Badge>
+              )}
             </div>
           </div>
+          {messages.length > 0 && (
+            <button
+              onClick={startNewSession}
+              className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground"
+              title="Start new conversation"
+            >
+              <RotateCcw className="w-4 h-4" />
+            </button>
+          )}
         </div>
       </div>
 

@@ -77,7 +77,7 @@ export default function AstrologerLogin() {
       });
       const data = await response.json();
       if (response.ok) {
-        toast({ title: 'Account Created!', description: 'Welcome to Navagraha. Complete your profile to start receiving clients.' });
+        toast({ title: 'Account Created!', description: 'Your application has been submitted. Admin will review and approve your account within 24 hours.' });
         navigate('/astrologer/dashboard');
       } else {
         toast({ title: 'Registration Failed', description: data.message || 'Please try again', variant: 'destructive' });
