@@ -41,16 +41,14 @@ export default function Landing() {
       const body = authMode === 'login'
         ? { email, password }
         : { email, password, firstName };
-      const res = await apiRequest('POST', endpoint, body);
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.message || 'Authentication failed');
-      }
-      return res.json();
+      // apiRequest throws on non-2xx and returns parsed JSON
+      return await apiRequest('POST', endpoint, body);
     },
     onSuccess: () => { window.location.href = '/'; },
     onError: (err: any) => {
-      toast({ title: 'Error', description: err.message, variant: 'destructive' });
+      // Strip the leading "4xx: " prefix from throwIfResNotOk errors
+      const msg = err.message?.replace(/^\d{3}:\s*/, '') || 'Authentication failed';
+      toast({ title: 'Error', description: msg, variant: 'destructive' });
     },
   });
 

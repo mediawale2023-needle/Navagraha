@@ -191,9 +191,12 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
     }
   });
 
-  app.get('/api/kundli', isAuthenticated, async (req: any, res) => {
+  app.get('/api/kundli', async (req: any, res) => {
     try {
-      const kundlis = await storage.getUserKundlis((req.user as any).id);
+      // Unauthenticated users get an empty list
+      if (!req.user?.id && !req.session?.userId) return res.json([]);
+      const userId = req.user?.id || req.session?.userId;
+      const kundlis = await storage.getUserKundlis(userId);
       res.json(kundlis);
     } catch { res.status(500).json({ message: "Failed to fetch kundlis" }); }
   });
