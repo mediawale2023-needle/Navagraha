@@ -27,13 +27,15 @@ const NAV_ITEMS = [
   },
   {
     label: "",
-    path: "/ai-astrologer",
+    path: "/astrologers",
     isCenter: true,
     icon: (_active: boolean) => (
-      <div className="w-14 h-14 rounded-full bg-nava-magenta flex items-center justify-center -mt-7 shadow-lg ring-4 ring-background">
+      <div className="w-14 h-14 rounded-full bg-nava-teal flex items-center justify-center -mt-7 shadow-lg ring-4 ring-background">
         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z" />
-          <circle cx="12" cy="12" r="3" fill="#FFFFFF" stroke="none" />
+          <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+          <circle cx="9" cy="7" r="4" />
+          <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+          <path d="M16 3.13a4 4 0 0 1 0 7.75" />
         </svg>
       </div>
     ),

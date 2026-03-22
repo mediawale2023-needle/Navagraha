@@ -1,9 +1,12 @@
 /**
  * AI Astrologer Service
  *
- * Uses Anthropic Claude to:
- * 1. Generate personalised Kundli interpretations from chart data
- * 2. Power an AI astrologer chat that knows the user's birth chart
+ * Uses Anthropic Claude to power three focused utility functions:
+ * 1. Pre-consultation brief — talking points for an upcoming session
+ * 2. Post-consultation follow-up — personalised action plan after a session
+ * 3. Astrologer matching — rank astrologers by chart compatibility
+ *
+ * Also retains Kundli interpretation for the Kundli view page.
  *
  * Falls back gracefully when ANTHROPIC_API_KEY is not set.
  */
@@ -24,43 +27,21 @@ function getClient(): Anthropic {
   return _client;
 }
 
-// ─── System prompt ────────────────────────────────────────────────────────────
+// ─── Internal helpers ─────────────────────────────────────────────────────────
 
-function buildSystemPrompt(kundli?: Partial<Kundli> | null): string {
-  const chartSection = kundli
-    ? `
-The user's birth chart (Kundli) details:
-• Name: ${kundli.name || "Unknown"}
-• Date of Birth: ${kundli.dateOfBirth ? new Date(kundli.dateOfBirth).toDateString() : "Unknown"}
-• Time of Birth: ${kundli.timeOfBirth || "Unknown"}
-• Place of Birth: ${kundli.placeOfBirth || "Unknown"}
-• Sun Sign (Rashi): ${kundli.zodiacSign || "Unknown"}
-• Moon Sign: ${kundli.moonSign || "Unknown"}
-• Ascendant (Lagna): ${kundli.ascendant || "Unknown"}
-• Chart Data: ${kundli.chartData ? JSON.stringify(kundli.chartData, null, 2) : "Not available"}
-• Dasha Periods: ${kundli.dashas ? JSON.stringify(kundli.dashas, null, 2) : "Not available"}
-• Doshas: ${kundli.doshas ? JSON.stringify(kundli.doshas, null, 2) : "None detected"}
-• Remedies: ${kundli.remedies ? JSON.stringify(kundli.remedies, null, 2) : "None"}
-`
-    : "No birth chart provided — respond based on general Vedic astrology.";
-
-  return `You are Jyotish AI, a deeply knowledgeable Vedic astrologer on the Navagraha platform.
-You combine ancient Vedic wisdom (Jyotish shastra) with compassionate, actionable guidance.
-
-${chartSection}
-
-Guidelines:
-• Speak with warmth, authority, and cultural sensitivity appropriate for Indian users.
-• Ground every insight in actual Vedic principles (nakshatras, dashas, yogas, doshas).
-• When specific chart data is available, reference it explicitly (e.g. "your Moon in Rohini nakshatra…").
-• Offer practical remedies (gemstones, mantras, colours, fasting days) where relevant.
-• Never make absolute predictions about death, accidents, or incurable illness.
-• Keep responses focused and under 300 words unless a detailed analysis is requested.
-• Use a mix of English and Hindi transliterations (e.g. "shubh yoga", "mangal dosha") naturally.
-• Always be encouraging and solution-oriented.`;
+function chartSummary(kundli: Partial<Kundli>): string {
+  return `
+Name: ${kundli.name || "Unknown"}
+Date of Birth: ${kundli.dateOfBirth ? new Date(kundli.dateOfBirth).toDateString() : "Unknown"}
+Sun Sign (Rashi): ${kundli.zodiacSign || "Unknown"}
+Moon Sign: ${kundli.moonSign || "Unknown"}
+Ascendant (Lagna): ${kundli.ascendant || "Unknown"}
+Current Dasha: ${kundli.dashas ? JSON.stringify(kundli.dashas).slice(0, 300) : "Not available"}
+Doshas: ${kundli.doshas ? JSON.stringify(kundli.doshas).slice(0, 200) : "None detected"}
+`.trim();
 }
 
-// ─── Kundli Interpretation ────────────────────────────────────────────────────
+// ─── Kundli Interpretation (used in KundliView page) ──────────────────────────
 
 export interface KundliInterpretation {
   overview: string;
@@ -85,30 +66,31 @@ export async function interpretKundli(
 ): Promise<KundliInterpretation> {
   const client = getClient();
 
-  const prompt = `Please provide a comprehensive Vedic astrology interpretation for this birth chart.
-Return ONLY a valid JSON object (no markdown, no extra text) with exactly these keys:
+  const prompt = `You are a Vedic astrology expert. Analyse this birth chart and return ONLY a valid JSON object with exactly these keys:
 {
   "overview": "2-3 sentence overall life theme",
   "personality": "core personality traits based on Lagna and Moon sign",
   "career": "career path and professional strengths",
   "relationships": "relationships, marriage timing, partner traits",
   "health": "health tendencies and areas to watch",
-  "currentDasha": "current Mahadasha planet, its period dates, and key life effects",
-  "currentAntardasha": "current Antardasha (Pratidasha/Bhukti) planet within the Mahadasha, its period dates, and specific effects right now",
+  "currentDasha": "current Mahadasha planet, period dates, key life effects",
+  "currentAntardasha": "current Antardasha planet, period dates, specific effects now",
   "doshaAnalysis": "dosha analysis and severity",
   "remedies": "top 3-5 practical Vedic remedies",
   "luckyFactors": {
-    "number": <lucky number 1-9>,
-    "color": "<lucky color>",
-    "day": "<lucky day of week>",
-    "gemstone": "<recommended gemstone>"
+    "number": <1-9>,
+    "color": "<color>",
+    "day": "<day of week>",
+    "gemstone": "<gemstone>"
   }
-}`;
+}
+
+Birth chart:
+${chartSummary(kundli)}`;
 
   const response = await client.messages.create({
     model: "claude-sonnet-4-6",
     max_tokens: 1500,
-    system: buildSystemPrompt(kundli),
     messages: [{ role: "user", content: prompt }],
   });
 
@@ -116,11 +98,9 @@ Return ONLY a valid JSON object (no markdown, no extra text) with exactly these 
     response.content[0].type === "text" ? response.content[0].text : "";
 
   try {
-    // Strip any accidental markdown fences
     const cleaned = text.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
     return JSON.parse(cleaned) as KundliInterpretation;
   } catch {
-    // Fallback: wrap raw text in the expected shape
     return {
       overview: text,
       personality: "",
@@ -136,57 +116,136 @@ Return ONLY a valid JSON object (no markdown, no extra text) with exactly these 
   }
 }
 
-// ─── AI Chat ──────────────────────────────────────────────────────────────────
+// ─── Pre-Consultation Brief ───────────────────────────────────────────────────
+// Generated before user joins a call/chat. Tells user exactly what to raise
+// with this specific astrologer given their current chart.
 
-export interface ChatMessage {
-  role: "user" | "assistant";
-  content: string;
+export interface PreConsultBrief {
+  intro: string;              // 1-sentence opener
+  suggestedTopics: string[];  // 3-5 specific talking points
+  currentFocus: string;       // One key chart area to highlight (e.g. Saturn transit)
 }
 
-export async function aiAstrologerChat(
-  userMessage: string,
-  history: ChatMessage[],
-  kundli?: Partial<Kundli> | null
+export async function generatePreConsultBrief(
+  kundli: Partial<Kundli> | null,
+  astrologerName: string,
+  astrologerSpecializations: string[]
+): Promise<PreConsultBrief> {
+  const client = getClient();
+
+  const specs = astrologerSpecializations.join(", ") || "Vedic Astrology";
+  const chartCtx = kundli
+    ? `\nUser's birth chart:\n${chartSummary(kundli)}`
+    : "\nNo birth chart on file — give general preparation tips.";
+
+  const prompt = `You are a Vedic astrology assistant preparing a user for their consultation with ${astrologerName}, who specialises in: ${specs}.${chartCtx}
+
+Return ONLY a valid JSON object with these keys:
+{
+  "intro": "One personalised sentence telling the user what to expect from this astrologer given their chart",
+  "suggestedTopics": ["3 to 5 specific questions or topics to raise during the session, grounded in the chart"],
+  "currentFocus": "The single most important chart factor to mention first (e.g. 'You are in Shani Mahadasha — start there')"
+}`;
+
+  const response = await client.messages.create({
+    model: "claude-haiku-4-5-20251001",
+    max_tokens: 600,
+    messages: [{ role: "user", content: prompt }],
+  });
+
+  const text = response.content[0].type === "text" ? response.content[0].text : "";
+  try {
+    const cleaned = text.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
+    return JSON.parse(cleaned) as PreConsultBrief;
+  } catch {
+    return {
+      intro: `You're about to connect with ${astrologerName}.`,
+      suggestedTopics: ["Career direction", "Relationship timing", "Current planetary effects"],
+      currentFocus: "Share your key concern at the start of the session.",
+    };
+  }
+}
+
+// ─── Post-Consultation Follow-Up ──────────────────────────────────────────────
+// Generated after a session ends. Returns a personalised action plan.
+
+export async function generatePostConsultFollowUp(
+  kundli: Partial<Kundli> | null,
+  astrologerName: string,
+  consultationType: string,
+  durationMinutes: number
 ): Promise<string> {
   const client = getClient();
 
-  // Build conversation history (max last 20 turns to stay within token limits)
-  const recentHistory = history.slice(-20);
+  const chartCtx = kundli
+    ? `User's birth chart:\n${chartSummary(kundli)}`
+    : "No birth chart on file.";
+
+  const prompt = `The user just completed a ${durationMinutes}-minute ${consultationType} consultation with ${astrologerName} on the Navagraha platform.
+
+${chartCtx}
+
+Write a short, warm post-session message (3-5 sentences) with:
+1. Acknowledgement of the session
+2. One key action item grounded in their current chart (current dasha / dosha)
+3. A suggested follow-up timeframe based on their planetary periods
+Keep it under 120 words. No bullet points. Write naturally, like a message from the platform.`;
 
   const response = await client.messages.create({
-    model: "claude-sonnet-4-6",
-    max_tokens: 800,
-    system: buildSystemPrompt(kundli),
-    messages: [
-      ...recentHistory.map((m) => ({
-        role: m.role as "user" | "assistant",
-        content: m.content,
-      })),
-      { role: "user", content: userMessage },
-    ],
+    model: "claude-haiku-4-5-20251001",
+    max_tokens: 300,
+    messages: [{ role: "user", content: prompt }],
   });
 
-  return response.content[0].type === "text" ? response.content[0].text : "";
+  return response.content[0].type === "text"
+    ? response.content[0].text
+    : `Thank you for your session with ${astrologerName}. Reflect on the insights shared and revisit your chart in the coming weeks.`;
 }
 
-// ─── Daily Prediction for a zodiac sign ───────────────────────────────────────
+// ─── Astrologer Matching ──────────────────────────────────────────────────────
+// Ranks a list of astrologers by compatibility with the user's chart issues.
 
-export async function aiDailyPrediction(zodiacSign: string): Promise<string> {
+export interface AstrologerMatch {
+  astrologerId: string;
+  reason: string; // One sentence explaining why this astrologer fits this chart
+}
+
+export async function matchAstrologerToChart(
+  kundli: Partial<Kundli>,
+  astrologers: Array<{ id: string; name: string; specializations: string[] }>
+): Promise<AstrologerMatch[]> {
+  if (!astrologers.length) return [];
+
   const client = getClient();
 
-  const today = new Date().toDateString();
+  const astroList = astrologers
+    .map((a) => `ID: ${a.id} | Name: ${a.name} | Specialisations: ${a.specializations.join(", ")}`)
+    .join("\n");
+
+  const prompt = `You are a Vedic astrology routing engine. Given this user's birth chart, identify the top 3 most relevant astrologers from the list below. Prioritise chart issues (doshas, current dasha, weak houses) against specialisation match.
+
+User's birth chart:
+${chartSummary(kundli)}
+
+Available astrologers:
+${astroList}
+
+Return ONLY a valid JSON array of up to 3 objects:
+[
+  { "astrologerId": "<id>", "reason": "One sentence explaining why this astrologer fits this chart right now" }
+]`;
+
   const response = await client.messages.create({
     model: "claude-haiku-4-5-20251001",
     max_tokens: 400,
-    system: buildSystemPrompt(null),
-    messages: [
-      {
-        role: "user",
-        content: `Give a concise, insightful daily Vedic astrology prediction for ${zodiacSign} for ${today}.
-Cover: general energy, career, relationships, health. End with a mantra or affirmation. Keep it under 150 words.`,
-      },
-    ],
+    messages: [{ role: "user", content: prompt }],
   });
 
-  return response.content[0].type === "text" ? response.content[0].text : "";
+  const text = response.content[0].type === "text" ? response.content[0].text : "[]";
+  try {
+    const cleaned = text.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
+    return JSON.parse(cleaned) as AstrologerMatch[];
+  } catch {
+    return [];
+  }
 }

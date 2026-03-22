@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { type LucideIcon, Phone, MessageCircle, Sparkles, Flame, User, Wallet, LogOut } from 'lucide-react';
+import { type LucideIcon, Phone, MessageCircle, Calendar, Sparkles, User, Wallet, LogOut } from 'lucide-react';
 import { Link, useLocation } from 'wouter';
 import { AstrologerCard } from '@/components/astrologer-card';
 import { QuickActionCard } from '@/components/quick-action-card';
@@ -14,7 +14,7 @@ import {
 import type { User as UserType, Astrologer, HomepageContent } from '@shared/schema';
 
 // Icon name → component lookup for CMS-driven quick actions
-const ICON_MAP: Record<string, LucideIcon> = { Phone, MessageCircle, Sparkles, Flame };
+const ICON_MAP: Record<string, LucideIcon> = { Phone, MessageCircle, Sparkles, Calendar };
 const COLOR_CYCLE = ['teal', 'magenta', 'amber', 'navy'] as const;
 
 interface CmsHomepageContent {
@@ -160,16 +160,16 @@ export default function Home() {
                   onClick={() => setLocation('/astrologers')}
                 />
                 <QuickActionCard
-                  title="AI Astrologer"
+                  title="Daily Horoscope"
                   icon={Sparkles}
                   color="amber"
-                  onClick={() => setLocation('/ai-astrologer')}
+                  onClick={() => setLocation('/horoscope')}
                 />
                 <QuickActionCard
-                  title="Book A Pooja"
-                  icon={Flame}
+                  title="Book Appointment"
+                  icon={Calendar}
                   color="navy"
-                  onClick={() => setLocation('/store')}
+                  onClick={() => setLocation('/schedule')}
                 />
               </>
             )}
@@ -209,18 +209,6 @@ export default function Home() {
             showViewAll={false}
           />
           <ZodiacWheel />
-        </section>
-
-        {/* Remedies Marketplace — coming soon */}
-        <section className="mb-8">
-          <SectionHeader
-            title="Spiritual Remedies"
-            subtitle="Sacred items for your well-being"
-            showViewAll={false}
-          />
-          <div className="mx-4 md:mx-8 lg:mx-12 rounded-2xl border border-border/50 bg-card p-6 text-center">
-            <p className="text-sm text-muted-foreground">Remedies coming soon</p>
-          </div>
         </section>
 
       </div>
