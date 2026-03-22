@@ -21,7 +21,6 @@ import AstrologerLogin from "@/pages/AstrologerLogin";
 import AstrologerDashboard from "@/pages/AstrologerDashboard";
 import AdminDashboard from "@/pages/AdminDashboard";
 import Numerology from "@/pages/Numerology";
-import AIAstrologer from "@/pages/AIAstrologer";
 import Horoscope from "@/pages/Horoscope";
 import NotFound from "@/pages/not-found";
 import { useEffect, useState } from "react";
@@ -79,7 +78,6 @@ function Router() {
           <Route path="/call/:astrologerId" component={CallRoom} />
           <Route path="/schedule" component={Schedule} />
           <Route path="/profile" component={Profile} />
-          <Route path="/ai-astrologer" component={AIAstrologer} />
         </>
       )}
       <Route component={NotFound} />

@@ -9,9 +9,15 @@ import { useToast } from '@/hooks/use-toast';
 import { apiRequest } from '@/lib/queryClient';
 import {
   Mic, MicOff, Video, VideoOff, PhoneOff,
-  Phone, ArrowLeft, Wifi, WifiOff, Clock
+  ArrowLeft, Clock, Lightbulb
 } from 'lucide-react';
 import type { Astrologer } from '@shared/schema';
+
+interface PreConsultBrief {
+  intro: string;
+  suggestedTopics: string[];
+  currentFocus: string;
+}
 
 /**
  * Agora RTC Call Room
@@ -53,6 +59,8 @@ export default function CallRoom() {
   const [sessionTime, setSessionTime] = useState(0);
   const [consultationId, setConsultationId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [brief, setBrief] = useState<PreConsultBrief | null>(null);
+  const [briefDismissed, setBriefDismissed] = useState(false);
 
   const clientRef = useRef<any>(null);
   const localTracksRef = useRef<any[]>([]);
@@ -161,6 +169,15 @@ export default function CallRoom() {
     }
   }, [astrologerId, callType, config, isVideo, toast]);
 
+  // Fetch pre-consult brief while connecting
+  useEffect(() => {
+    if (!astrologerId) return;
+    apiRequest('GET', `/api/ai/pre-consult-brief?astrologerId=${astrologerId}`)
+      .then(r => r.json())
+      .then(data => { if (data.intro) setBrief(data); })
+      .catch(() => { /* non-critical, fail silently */ });
+  }, [astrologerId]);
+
   useEffect(() => {
     startCall();
     return () => {
@@ -264,15 +281,15 @@ export default function CallRoom() {
           </>
         ) : (
           // Voice call UI
-          <div className="flex-1 flex flex-col items-center justify-center py-20">
-            <Avatar className="w-32 h-32 mb-6">
+          <div className="flex-1 flex flex-col items-center justify-center py-10 px-4">
+            <Avatar className="w-24 h-24 mb-4">
               <AvatarImage src={astrologer?.profileImageUrl || undefined} />
-              <AvatarFallback className="text-4xl bg-amber-100 text-amber-800">
+              <AvatarFallback className="text-3xl bg-amber-100 text-amber-800">
                 {astrologer?.name?.charAt(0) || '?'}
               </AvatarFallback>
             </Avatar>
-            <h2 className="text-foreground text-3xl font-bold mb-2">{astrologer?.name}</h2>
-            <p className="text-muted-foreground mb-4">
+            <h2 className="text-foreground text-2xl font-bold mb-1">{astrologer?.name}</h2>
+            <p className="text-muted-foreground mb-3">
               {callState === 'connecting' ? 'Connecting...' : 'Voice Call Active'}
             </p>
             {callState === 'active' && (
@@ -282,6 +299,37 @@ export default function CallRoom() {
               </Badge>
             )}
             {callState === 'connecting' && <LoadingSpinner />}
+
+            {/* Pre-consult brief panel — visible while connecting */}
+            {callState === 'connecting' && brief && !briefDismissed && (
+              <div className="mt-6 w-full max-w-sm bg-card border border-border/60 rounded-2xl p-4 shadow-sm">
+                <div className="flex items-center gap-2 mb-2">
+                  <Lightbulb className="w-4 h-4 text-nava-amber shrink-0" />
+                  <span className="text-xs font-bold text-foreground uppercase tracking-wide">Before you start</span>
+                  <button
+                    className="ml-auto text-muted-foreground hover:text-foreground text-xs"
+                    onClick={() => setBriefDismissed(true)}
+                  >
+                    Dismiss
+                  </button>
+                </div>
+                <p className="text-sm text-muted-foreground mb-3">{brief.intro}</p>
+                {brief.currentFocus && (
+                  <div className="bg-nava-amber/10 rounded-lg px-3 py-2 mb-3">
+                    <p className="text-xs font-semibold text-nava-amber">{brief.currentFocus}</p>
+                  </div>
+                )}
+                <p className="text-xs font-semibold text-foreground mb-1.5">Suggested topics:</p>
+                <ul className="space-y-1">
+                  {brief.suggestedTopics.map((topic, i) => (
+                    <li key={i} className="flex items-start gap-2 text-xs text-muted-foreground">
+                      <span className="text-nava-teal font-bold shrink-0">{i + 1}.</span>
+                      {topic}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
           </div>
         )}
       </div>

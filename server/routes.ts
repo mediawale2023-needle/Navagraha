@@ -17,7 +17,6 @@ import {
   transactions as transactionsTable,
   consultations as consultationsTable,
   homepageContent as homepageContentTable,
-  aiChatMessages,
 } from "@shared/schema";
 import { z } from "zod";
 import {
@@ -39,7 +38,12 @@ import {
 } from "./paymentService";
 import { generateAgoraToken, getChannelName } from "./agoraService";
 import { notifyUser, notifyAstrologer } from "./websocketService";
-import { interpretKundli, aiAstrologerChat, aiDailyPrediction } from "./aiAstrologerService";
+import {
+  interpretKundli,
+  generatePreConsultBrief,
+  generatePostConsultFollowUp,
+  matchAstrologerToChart,
+} from "./aiAstrologerService";
 import { sendWelcomeEmail, sendPaymentReceipt, sendBookingConfirmation, sendConsultationSummary } from "./emailService";
 import crypto from "crypto";
 
@@ -880,7 +884,33 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
           type: consultation.type,
           durationMinutes: Math.floor((consultation.durationSeconds || 0) / 60),
           totalAmount: consultation.totalAmount || '0',
-        }).catch(() => {});
+        }).catch((err) => { console.error('[email] consultation summary failed:', err); });
+      }
+
+      // AI post-consult follow-up notification (fire-and-forget)
+      if (endAstrologer) {
+        (async () => {
+          try {
+            const userKundlis = await storage.getUserKundlis(userId);
+            const latestKundli = userKundlis?.[0] ?? null;
+            const durationMinutes = Math.floor((consultation.durationSeconds || 0) / 60);
+            const followUp = await generatePostConsultFollowUp(
+              latestKundli,
+              endAstrologer.name,
+              consultation.type || 'chat',
+              durationMinutes
+            );
+            await storage.createNotification({
+              userId,
+              type: 'system',
+              title: 'Your post-session insights',
+              body: followUp,
+            });
+            notifyUser(userId, { type: 'notification', title: 'Your post-session insights', body: followUp });
+          } catch (err) {
+            console.error('[ai] post-consult follow-up failed:', err);
+          }
+        })();
       }
 
       res.json(consultation);
@@ -1061,97 +1091,59 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
     }
   });
 
-  const FREE_AI_QUESTIONS = 3;
-
-  // Get how many free AI questions the user has used
-  app.get('/api/ai/question-count', isAuthenticated, async (req: any, res) => {
+  // Pre-consultation brief — talking points tailored to user's chart + astrologer
+  app.get('/api/ai/pre-consult-brief', isAuthenticated, async (req: any, res) => {
     try {
       const userId = (req.user as any).id;
-      const rows = await db
-        .select({ count: sql<number>`count(*)` })
-        .from(aiChatMessages as any)
-        .where(sql`user_id = ${userId} AND role = 'user'`);
-      const used = Number(rows[0]?.count ?? 0);
-      res.json({ used, free: FREE_AI_QUESTIONS, remaining: Math.max(0, FREE_AI_QUESTIONS - used) });
-    } catch {
-      res.json({ used: 0, free: FREE_AI_QUESTIONS, remaining: FREE_AI_QUESTIONS });
-    }
-  });
+      const { astrologerId } = req.query;
+      if (!astrologerId) return res.status(400).json({ message: "astrologerId required" });
 
-  // AI Astrologer chat — stateless request, history managed by client
-  app.post('/api/ai/chat', isAuthenticated, async (req: any, res) => {
-    try {
-      const userId = (req.user as any).id;
-      const { message, history = [], kundliId, sessionId } = req.body;
+      const [astrologer, userKundlis] = await Promise.all([
+        storage.getAstrologerById(astrologerId as string),
+        storage.getUserKundlis(userId),
+      ]);
+      if (!astrologer) return res.status(404).json({ message: "Astrologer not found" });
 
-      if (!message || typeof message !== 'string') {
-        return res.status(400).json({ message: "message is required" });
-      }
-
-      // Optionally attach birth chart context
-      let kundli = null;
-      if (kundliId) {
-        kundli = await storage.getKundliById(kundliId);
-        if (kundli && kundli.userId !== userId) kundli = null; // safety
-      }
-
-      const reply = await aiAstrologerChat(message, history, kundli);
-
-      // Persist to DB for chat history
-      const sid = sessionId || crypto.randomUUID();
-      await storage.saveAiChatMessage({ userId, sessionId: sid, role: 'user', content: message, kundliId: kundliId || null });
-      await storage.saveAiChatMessage({ userId, sessionId: sid, role: 'assistant', content: reply, kundliId: kundliId || null });
-
-      // Return question count so client can show free questions remaining
-      const countRows = await db
-        .select({ count: sql<number>`count(*)` })
-        .from(aiChatMessages as any)
-        .where(sql`user_id = ${userId} AND role = 'user'`);
-      const questionsUsed = Number(countRows[0]?.count ?? 0);
-
-      res.json({ reply, sessionId: sid, questionsUsed, freeQuestions: FREE_AI_QUESTIONS });
+      const latestKundli = userKundlis?.[0] ?? null;
+      const brief = await generatePreConsultBrief(
+        latestKundli,
+        astrologer.name,
+        astrologer.specializations || []
+      );
+      res.json(brief);
     } catch (error: any) {
       if (error.message?.includes("ANTHROPIC_API_KEY")) {
         return res.status(503).json({ message: "AI features not configured. Set ANTHROPIC_API_KEY." });
       }
-      console.error("AI chat error:", error);
-      res.status(500).json({ message: "AI chat failed" });
+      console.error("Pre-consult brief error:", error);
+      res.status(500).json({ message: "Failed to generate brief" });
     }
   });
 
-  // Get AI chat history for a session
-  app.get('/api/ai/chat/:sessionId', isAuthenticated, async (req: any, res) => {
+  // Astrologer matching — rank online astrologers by chart compatibility
+  app.get('/api/ai/match-astrologer', isAuthenticated, async (req: any, res) => {
     try {
       const userId = (req.user as any).id;
-      const messages = await storage.getAiChatHistory(userId, req.params.sessionId);
-      res.json(messages);
-    } catch { res.status(500).json({ message: "Failed to fetch AI chat history" }); }
-  });
+      const userKundlis = await storage.getUserKundlis(userId);
+      const latestKundli = userKundlis?.[0];
+      if (!latestKundli) return res.status(400).json({ message: "No Kundli found. Create a birth chart first." });
 
-  // List user's AI chat sessions
-  app.get('/api/ai/sessions', isAuthenticated, async (req: any, res) => {
-    try {
-      const userId = (req.user as any).id;
-      const sessions = await storage.getAiChatSessions(userId);
-      res.json(sessions);
-    } catch { res.status(500).json({ message: "Failed to fetch sessions" }); }
-  });
+      const allAstrologers = await storage.getAstrologers();
+      const candidates = (allAstrologers || [])
+        .filter((a: any) => a.isOnline && a.isVerified)
+        .slice(0, 10) // limit tokens
+        .map((a: any) => ({ id: a.id, name: a.name, specializations: a.specializations || [] }));
 
-  // AI-enhanced daily horoscope
-  app.get('/api/ai/horoscope/:sign', async (req, res) => {
-    const sign = req.params.sign.toLowerCase();
-    try {
-      const prediction = await aiDailyPrediction(sign);
-      res.json({ sign, prediction, generatedAt: new Date().toISOString() });
+      if (!candidates.length) return res.json([]);
+
+      const matches = await matchAstrologerToChart(latestKundli, candidates);
+      res.json(matches);
     } catch (error: any) {
       if (error.message?.includes("ANTHROPIC_API_KEY")) {
-        // Fall back to native engine
-        try {
-          const horoscope = await getNativeHoroscope(sign, 'today', 'general');
-          return res.json({ sign, prediction: horoscope.prediction, generatedAt: new Date().toISOString() });
-        } catch { /* noop */ }
+        return res.status(503).json({ message: "AI features not configured. Set ANTHROPIC_API_KEY." });
       }
-      res.status(500).json({ message: "Failed to generate horoscope" });
+      console.error("Match astrologer error:", error);
+      res.status(500).json({ message: "Failed to match astrologer" });
     }
   });
 

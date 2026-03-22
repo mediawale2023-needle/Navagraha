@@ -10,9 +10,14 @@ import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
 import {
   ArrowLeft, Search, Star, MessageCircle,
-  Phone, CheckCircle2, Sparkles
+  Phone, CheckCircle2, Sparkles, Zap
 } from 'lucide-react';
 import type { Astrologer } from '@shared/schema';
+
+interface AstrologerMatch {
+  astrologerId: string;
+  reason: string;
+}
 
 const CATEGORIES = ['All', 'Love', 'Career', 'Finance', 'Health', 'Marriage', 'Family', 'Vastu'];
 
@@ -30,6 +35,13 @@ export default function Astrologers() {
   const { data: astrologers, isLoading } = useQuery<Astrologer[]>({
     queryKey: ['/api/astrologers'],
     refetchInterval: 30_000,
+  });
+
+  const { data: matches } = useQuery<AstrologerMatch[]>({
+    queryKey: ['/api/ai/match-astrologer'],
+    enabled: isAuthenticated,
+    retry: false,
+    staleTime: 5 * 60_000, // cache 5 minutes — one API call per session
   });
 
   useEffect(() => {
@@ -102,6 +114,50 @@ export default function Astrologers() {
       </div>
 
       <div className="w-full max-w-7xl mx-auto px-4 md:px-8 lg:px-12">
+
+        {/* AI-matched recommendations */}
+        {matches && matches.length > 0 && astrologers && (
+          <div className="pt-4 pb-2">
+            <div className="flex items-center gap-2 mb-2">
+              <Zap className="w-4 h-4 text-nava-amber" />
+              <span className="text-sm font-bold text-foreground">Recommended for your chart</span>
+            </div>
+            <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide">
+              {matches.map((match) => {
+                const a = astrologers.find(x => x.id === match.astrologerId);
+                if (!a) return null;
+                return (
+                  <div
+                    key={match.astrologerId}
+                    className="shrink-0 w-64 bg-nava-amber/10 border border-nava-amber/30 rounded-2xl p-3 flex gap-3 items-start"
+                  >
+                    <Avatar className="w-10 h-10 shrink-0">
+                      <AvatarImage src={a.profileImageUrl || undefined} alt={a.name} className="object-cover" />
+                      <AvatarFallback className="bg-nava-navy text-white text-sm font-bold">{a.name.charAt(0)}</AvatarFallback>
+                    </Avatar>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-bold text-foreground truncate">{a.name}</p>
+                      <p className="text-[11px] text-muted-foreground leading-snug mt-0.5 line-clamp-2">{match.reason}</p>
+                      <div className="flex gap-1.5 mt-2">
+                        <Link href={`/call/${a.id}?type=voice`}>
+                          <button className="text-[10px] font-semibold bg-nava-teal text-white rounded-full px-2.5 py-1 flex items-center gap-1">
+                            <Phone className="w-3 h-3" /> Call
+                          </button>
+                        </Link>
+                        <Link href={`/chat/${a.id}`}>
+                          <button className="text-[10px] font-semibold bg-nava-navy text-white rounded-full px-2.5 py-1 flex items-center gap-1">
+                            <MessageCircle className="w-3 h-3" /> Chat
+                          </button>
+                        </Link>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
         {/* Search */}
         <div className="py-3">
           <div className="relative">
