@@ -8,9 +8,10 @@ import { LoadingSpinner } from '@/components/LoadingSpinner';
 import {
   Users, Star, BookOpen, IndianRupee, Activity, Wifi, WifiOff,
   ChevronUp, ChevronDown, Plus, Trash2, Eye, EyeOff, Pencil, X, Check,
-  LayoutDashboard, FileText,
+  LayoutDashboard, FileText, Building2,
 } from 'lucide-react';
 import { apiRequest } from '@/lib/queryClient';
+import Boardroom from './Boardroom';
 
 /* ═══════════════════════════════════════════════════════ */
 /*  Types                                                 */
@@ -369,7 +370,7 @@ function ContentEditor() {
 export default function AdminDashboard() {
   const queryClient = useQueryClient();
   const [search, setSearch] = useState('');
-  const [activeTab, setActiveTab] = useState<'overview' | 'content'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'content' | 'boardroom'>('overview');
 
   const { data: stats, isLoading: statsLoading } = useQuery<AdminStats>({
     queryKey: ['/api/admin/stats'],
@@ -432,6 +433,15 @@ export default function AdminDashboard() {
               }`}
           >
             <FileText className="w-4 h-4" /> Content
+          </button>
+          <button
+            onClick={() => setActiveTab('boardroom')}
+            className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 ${activeTab === 'boardroom'
+                ? 'border-primary text-primary'
+                : 'border-transparent text-muted-foreground hover:text-foreground'
+              }`}
+          >
+            <Building2 className="w-4 h-4" /> Boardroom
           </button>
         </div>
       </div>
@@ -520,6 +530,12 @@ export default function AdminDashboard() {
         )}
 
         {activeTab === 'content' && <ContentEditor />}
+
+        {activeTab === 'boardroom' && (
+          <div className="-mx-6 -my-8">
+            <Boardroom />
+          </div>
+        )}
 
       </div>
     </div>

@@ -8,7 +8,6 @@ import { useAuth } from "@/hooks/useAuth";
 import Splash from "@/pages/Splash";
 import Landing from "@/pages/Landing";
 import Home from "@/pages/Home";
-import Boardroom from "@/pages/Boardroom";
 import KundliNew from "@/pages/KundliNew";
 import KundliView from "@/pages/KundliView";
 import Matchmaking from "@/pages/Matchmaking";
@@ -79,7 +78,6 @@ function Router() {
         <>
           {/* Authenticated user routes */}
           <Route path="/" component={Home} />
-          <Route path="/boardroom" component={Boardroom} />
           <Route path="/wallet" component={Wallet} />
           <Route path="/chat/:astrologerId" component={Chat} />
           <Route path="/call/:astrologerId" component={CallRoom} />
