@@ -797,7 +797,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getAiCompanyByUserId(userId: string): Promise<AiCompany | undefined> {
-    const [row] = await db.select().from(aiCompanies).where(eq(aiCompanies.userId, parseInt(userId)));
+    const [row] = await db.select().from(aiCompanies).where(eq(aiCompanies.userId, userId));
     return row;
   }
 

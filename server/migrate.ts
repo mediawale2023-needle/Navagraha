@@ -224,7 +224,7 @@ CREATE TABLE IF NOT EXISTS prediction_feedbacks (
 
 CREATE TABLE IF NOT EXISTS ai_companies (
   id serial PRIMARY KEY,
-  user_id integer NOT NULL,
+  user_id varchar NOT NULL,   -- matches users.id which is varchar UUID
   name text NOT NULL,
   mission text NOT NULL,
   industry text NOT NULL,

@@ -18,13 +18,13 @@ export class CorporateOrchestrator {
   async hireDefaultCSuite(userId: string, companyName: string, mission: string): Promise<AiCompany> {
     // 1. Create the Company
     const company = await storage.createAiCompany({
-      userId: parseInt(userId),
+      userId: userId,   // varchar UUID — do NOT parseInt
       name: companyName,
       mission: mission,
       industry: "Technology / Personal Growth",
-      targetRevenue: "50000000", // 5 Crore
+      targetRevenue: "50000000", // 5 Crore in paise
       targetCurrency: "INR",
-      targetDeadline: new Date(Date.now() + 180 * 24 * 60 * 60 * 1000), // 6 months
+      targetDeadline: new Date(Date.now() + 180 * 24 * 60 * 60 * 1000),
     });
 
     // 2. Hire the Executive Team

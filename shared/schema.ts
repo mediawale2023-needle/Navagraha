@@ -441,7 +441,7 @@ export const predictionFeedbacks = pgTable("prediction_feedbacks", {
 // ── Navagraha Corporate (The C-Suite) ─────────────────
 export const aiCompanies = pgTable("ai_companies", {
   id: serial("id").primaryKey(),
-  userId: integer("user_id").notNull(),
+  userId: text("user_id").notNull(),   // varchar UUID from users.id
   name: text("name").notNull(),
   mission: text("mission").notNull(),
   industry: text("industry").notNull(),
