@@ -109,6 +109,7 @@ export interface IStorage {
   // Corporate operations
   createAiCompany(company: any): Promise<AiCompany>;
   getAiCompanyByUserId(userId: string): Promise<AiCompany | undefined>;
+  getAiCompanyById(id: number): Promise<AiCompany | undefined>;
   getAiEmployees(companyId: number): Promise<AiEmployee[]>;
   createAiEmployee(employee: any): Promise<AiEmployee>;
   updateAiEmployee(id: number, data: Partial<AiEmployee>): Promise<AiEmployee>;
@@ -798,6 +799,11 @@ export class DatabaseStorage implements IStorage {
 
   async getAiCompanyByUserId(userId: string): Promise<AiCompany | undefined> {
     const [row] = await db.select().from(aiCompanies).where(eq(aiCompanies.userId, userId));
+    return row;
+  }
+
+  async getAiCompanyById(id: number): Promise<AiCompany | undefined> {
+    const [row] = await db.select().from(aiCompanies).where(eq(aiCompanies.id, id));
     return row;
   }
 

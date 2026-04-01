@@ -52,21 +52,20 @@ export class CorporateOrchestrator {
    * The CEO analyzes the main Mission and creates high-priority Initiatives.
    */
   async generateStrategicInitiatives(companyId: number): Promise<AiInitiative[]> {
-    const company = await storage.getAiCompanyByUserId(companyId.toString()); // Note: using id as userid for demo if needed
-    if (!company) throw new Error("Company not found");
+    // Fetch by primary key, NOT by userId
+    const company = await storage.getAiCompanyById(companyId);
+    if (!company) throw new Error(`Company ${companyId} not found`);
 
     const employees = await storage.getAiEmployees(companyId);
-    const ceo = employees.find(e => e.role === "CEO");
-
+    const ceo = employees.find((e: AiEmployee) => e.role === "CEO");
     if (!ceo) throw new Error("CEO not found in the boardroom");
 
-    const prompt = `You are ${ceo.name}, the CEO of ${company.name}. 
-    MISSION: ${company.mission}
-    TARGET: ${company.targetRevenue} ${company.targetCurrency} in 6 months.
-    
-    As CEO, define 3-4 high-level strategic INITIATIVES to reach this goal. 
-    Each initiative must have a Title and a Description.
-    Format your response as a JSON array of objects: [{ "title": "...", "description": "..." }]`;
+    const prompt = `You are ${ceo.name}, the CEO of ${company.name}.
+MISSION: ${company.mission}
+TARGET: ₹5 Crore ARR in 6 months.
+
+Define 3-4 concrete strategic INITIATIVES to reach this goal. Return ONLY valid JSON:
+{ "initiatives": [{ "title": "...", "description": "..." }] }`;
 
     const response = await openai.chat.completions.create({
       model: "gpt-4o",
@@ -75,7 +74,9 @@ export class CorporateOrchestrator {
     });
 
     const content = JSON.parse(response.choices[0].message.content || "{}");
-    const initiativesData = content.initiatives || content;
+    // Handle both { initiatives: [...] } and bare array responses
+    const initiativesData: { title: string; description: string }[] =
+      Array.isArray(content) ? content : (content.initiatives || []);
 
     const createdInitiatives: AiInitiative[] = [];
     for (const init of initiativesData) {
