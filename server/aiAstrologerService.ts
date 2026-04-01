@@ -89,7 +89,7 @@ Birth chart:
 ${chartSummary(kundli)}`;
 
   const response = await client.messages.create({
-    model: "claude-3-5-sonnet-20241022",
+    model: "claude-3-5-sonnet-20240620",
     max_tokens: 1500,
     messages: [{ role: "user", content: prompt }],
   });
@@ -148,7 +148,7 @@ Return ONLY a valid JSON object with these keys:
 }`;
 
   const response = await client.messages.create({
-    model: "claude-3-5-haiku-20241022",
+    model: "claude-3-haiku-20240307",
     max_tokens: 600,
     messages: [{ role: "user", content: prompt }],
   });
@@ -192,7 +192,7 @@ Write a short, warm post-session message (3-5 sentences) with:
 Keep it under 120 words. No bullet points. Write naturally, like a message from the platform.`;
 
   const response = await client.messages.create({
-    model: "claude-3-5-haiku-20241022",
+    model: "claude-3-haiku-20240307",
     max_tokens: 300,
     messages: [{ role: "user", content: prompt }],
   });
@@ -236,7 +236,7 @@ Return ONLY a valid JSON array of up to 3 objects:
 ]`;
 
   const response = await client.messages.create({
-    model: "claude-3-5-haiku-20241022",
+    model: "claude-3-haiku-20240307",
     max_tokens: 400,
     messages: [{ role: "user", content: prompt }],
   });
