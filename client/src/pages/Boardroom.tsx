@@ -149,18 +149,22 @@ export default function Boardroom() {
   const { toast } = useToast();
   const qc = useQueryClient();
 
-  const { data: company, isLoading: companyLoading } = useQuery<any>({
+  const { data: company, isLoading: companyLoading, isError: companyError } = useQuery<any>({
     queryKey: ["/api/corporate/company"],
+    retry: false,        // don't hang on schema-not-found errors
+    staleTime: 30_000,
   });
 
   const { data: employees = [] } = useQuery<any[]>({
     queryKey: ["/api/corporate/employees"],
     enabled: !!company,
+    retry: false,
   });
 
   const { data: initiatives = [] } = useQuery<any[]>({
     queryKey: ["/api/corporate/initiatives"],
     enabled: !!company,
+    retry: false,
   });
 
   const planMut = useMutation({
@@ -172,6 +176,7 @@ export default function Boardroom() {
     onError: () => toast({ variant: "destructive", title: "Failed to generate plan" }),
   });
 
+  // Only show spinner while the very first fetch is in-flight
   if (companyLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -180,7 +185,8 @@ export default function Boardroom() {
     );
   }
 
-  if (!company && !onboarded) {
+  // If we got an error (e.g. DB tables not yet migrated) or no company — show onboarding
+  if ((companyError || !company) && !onboarded) {
     return <BoardroomOnboarding onCreated={() => setOnboarded(true)} />;
   }
 
