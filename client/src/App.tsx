@@ -11,6 +11,8 @@ import Home from "@/pages/Home";
 import KundliNew from "@/pages/KundliNew";
 import KundliView from "@/pages/KundliView";
 import Matchmaking from "@/pages/Matchmaking";
+import Prashna from "@/pages/Prashna";
+import PatternMatcher from "@/pages/PatternMatcher";
 import Astrologers from "@/pages/Astrologers";
 import Wallet from "@/pages/Wallet";
 import Chat from "@/pages/Chat";
@@ -61,6 +63,7 @@ function Router() {
       <Route path="/horoscope/:sign" component={Horoscope} />
       <Route path="/astrologers" component={Astrologers} />
       <Route path="/kundli/matchmaking" component={Matchmaking} />
+      <Route path="/prashna" component={Prashna} />
       <Route path="/kundli/new" component={KundliNew} />
       <Route path="/kundli/:id" component={KundliView} />
       <Route path="/numerology" component={Numerology} />

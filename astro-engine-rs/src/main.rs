@@ -6,6 +6,9 @@ mod varga;
 mod yoga;
 mod ashtakavarga;
 mod dasha;
+mod prashna;
+mod synastry;
+mod remediation;
 
 use actix_web::{get, post, web, App, HttpResponse, HttpServer, Responder};
 use serde::{Deserialize, Serialize};
@@ -39,7 +42,7 @@ struct FullEngineResponse {
 
 #[get("/health")]
 async fn health() -> impl Responder {
-    HttpResponse::Ok().body("astro-engine-rs v2 ok")
+    HttpResponse::Ok().body("astro-engine-rs v3 ok")
 }
 
 /// POST /calculate
@@ -54,10 +57,7 @@ async fn calculate(body: web::Json<serde_json::Value>) -> impl Responder {
     // Optional extended fields
     let moon_lon = body["moon_longitude"].as_f64();
     let birth_jd = body["birth_julian_day"].as_f64().unwrap_or(base_req.julian_day);
-    let query_jd = body["query_julian_day"].as_f64().unwrap_or(
-        // Default: today = current system time approximated as JD
-        2460767.0 // approximate JD for 2026-04-01
-    );
+    let query_jd = body["query_julian_day"].as_f64().unwrap_or(2460767.0);
     let asc_sign = body["ascendant_sign"].as_u64().unwrap_or(1) as u8;
 
     // ─── Tier 1: Sprint 1 Calculations ────────────────────────────────────────
@@ -97,18 +97,41 @@ async fn calculate(body: web::Json<serde_json::Value>) -> impl Responder {
     HttpResponse::Ok().json(response)
 }
 
+// ─── Sprint 3 Endpoints ────────────────────────────────────────────────────
+
+#[post("/prashna")]
+async fn calculate_prashna(req: web::Json<prashna::PrashnaRequest>) -> impl Responder {
+    let result = prashna::calculate_prashna(&req.into_inner());
+    HttpResponse::Ok().json(result)
+}
+
+#[post("/synastry")]
+async fn calculate_synastry(req: web::Json<synastry::SynastryRequest>) -> impl Responder {
+    let result = synastry::calculate_synastry(&req.into_inner());
+    HttpResponse::Ok().json(result)
+}
+
+#[post("/remediation")]
+async fn calculate_remediation(req: web::Json<remediation::FullRemediationRequest>) -> impl Responder {
+    let result = remediation::generate_full_remediation(&req.into_inner());
+    HttpResponse::Ok().json(result)
+}
+
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     let port = std::env::var("PORT").unwrap_or_else(|_| "3001".to_string());
     let addr = format!("0.0.0.0:{}", port);
 
-    println!("[astro-engine-rs v2] Starting on {}", addr);
-    println!("[astro-engine-rs v2] Modules: Shadbala + Yoga + Varga + Ashtakavarga + MultiDasha");
+    println!("[astro-engine-rs v3] Starting on {}", addr);
+    println!("[astro-engine-rs v3] Modules: Shadbala + Yoga + Varga + Ashtakavarga + MultiDasha + Prashna + Synastry + Remediation");
 
     HttpServer::new(|| {
         App::new()
             .service(health)
             .service(calculate)
+            .service(calculate_prashna)
+            .service(calculate_synastry)
+            .service(calculate_remediation)
     })
     .bind(&addr)?
     .run()

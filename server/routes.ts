@@ -28,6 +28,11 @@ import {
   getNumerology,
 } from "./astroEngine/index.js";
 import {
+  callPrashnaEngine,
+  callSynastryEngine,
+  callRemediationEngine,
+} from "./astroEngineClient";
+import {
   createRazorpayOrder,
   verifyRazorpaySignature,
   verifyRazorpayWebhookSignature,
@@ -261,6 +266,103 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
       const result = await getNumerology(dateOfBirth, firstName, lastName || '');
       res.json(result);
     } catch { res.status(500).json({ message: "Failed to calculate numerology" }); }
+  });
+
+  // ─── Sprint 3: Prashna, Synastry, Remediation ──────────────────────────────
+  app.post('/api/prashna', async (req, res) => {
+    try {
+      const { latitude, longitude, question_category } = req.body;
+      if (!latitude || !longitude || !question_category) {
+        return res.status(400).json({ message: "Missing required Prashna fields" });
+      }
+      // Calculate current Julian Day at the exact moment of the question
+      const julian_day = (Date.now() / 86400000) + 2440587.5;
+      const result = await callPrashnaEngine({ julian_day, latitude: parseFloat(latitude), longitude: parseFloat(longitude), question_category });
+      if (!result) return res.status(503).json({ message: "Prashna engine unavailable" });
+      res.json(result);
+    } catch { res.status(500).json({ message: "Failed to calculate Prashna" }); }
+  });
+
+  app.post('/api/synastry', async (req, res) => {
+    try {
+      const { 
+        person1Date, person1Time, person1Lat = 28.6139, person1Lon = 77.2090, 
+        person2Date, person2Time, person2Lat = 19.0760, person2Lon = 72.8777 
+      } = req.body;
+      
+      if (!person1Date || !person2Date) {
+        return res.status(400).json({ message: "Missing birth dates for synastry" });
+      }
+
+      // Generate base charts to extract Nakshatra and Moon values
+      const p1Chart = await getKundli(person1Date, person1Time || '12:00:00', person1Lat, person1Lon);
+      const p2Chart = await getKundli(person2Date, person2Time || '12:00:00', person2Lat, person2Lon);
+
+      const NAKSHATRAS = ["Ashwini","Bharani","Krittika","Rohini","Mrigashira","Ardra","Punarvasu","Pushya","Ashlesha","Magha","Purva Phalguni","Uttara Phalguni","Hasta","Chitra","Swati","Vishakha","Anuradha","Jyeshtha","Mula","Purva Ashadha","Uttara Ashadha","Shravana","Dhanishtha","Shatabhisha","Purva Bhadrapada","Uttara Bhadrapada","Revati"];
+      const SIGNS = ["Aries","Taurus","Gemini","Cancer","Leo","Virgo","Libra","Scorpio","Sagittarius","Capricorn","Aquarius","Pisces"];
+
+      const person_a_nakshatra = Math.max(1, NAKSHATRAS.indexOf(p1Chart.nakshatra) + 1);
+      const person_a_moon_sign = Math.max(1, SIGNS.indexOf(p1Chart.moonSign) + 1);
+      const person_b_nakshatra = Math.max(1, NAKSHATRAS.indexOf(p2Chart.nakshatra) + 1);
+      const person_b_moon_sign = Math.max(1, SIGNS.indexOf(p2Chart.moonSign) + 1);
+
+      const a_mars = p1Chart.chartData.planetaryPositions.find((p: any) => p.planet === 'Mars');
+      const b_mars = p2Chart.chartData.planetaryPositions.find((p: any) => p.planet === 'Mars');
+
+      const result = await callSynastryEngine({
+        person_a_nakshatra, person_a_moon_sign, person_a_mars_house: a_mars?.house,
+        person_b_nakshatra, person_b_moon_sign, person_b_mars_house: b_mars?.house
+      });
+      if (!result) return res.status(503).json({ message: "Synastry engine unavailable" });
+
+      res.json({
+         ...result, 
+         person1: req.body.person1Name,
+         person2: req.body.person2Name,
+      });
+    } catch (e: any) { 
+        console.error("Synastry error:", e);
+        res.status(500).json({ message: "Failed to calculate Synastry" }); 
+    }
+  });
+
+  app.post('/api/remediation', async (req, res) => {
+    try {
+      const { planets } = req.body;
+      if (!planets || !Array.isArray(planets)) {
+        return res.status(400).json({ message: "Requires an array of planets with Shadbala rupas" });
+      }
+      const result = await callRemediationEngine(planets);
+      if (!result) return res.status(503).json({ message: "Remediation engine unavailable" });
+      res.json(result);
+    } catch { res.status(500).json({ message: "Failed to fetch Remediations" }); }
+  });
+
+  // ─── Phase 3, Sprint 4: Pattern Matcher / Feedback ─────────────────
+
+  app.post('/api/feedback', isAuthenticated, async (req: any, res) => {
+    try {
+      const payload = {
+        userId: req.user.id,
+        ...req.body
+      };
+      const feedback = await storage.createPredictionFeedback(payload);
+      res.status(201).json(feedback);
+    } catch (e: any) {
+      console.error("Feedback error:", e);
+      res.status(500).json({ message: "Failed to submit prediction feedback" });
+    }
+  });
+
+  app.get('/api/patterns', isAuthenticated, async (req: any, res) => {
+    try {
+      // In a real app, you might restrict this to admins or astrologers.
+      const stats = await storage.getPatternStatistics();
+      res.json(stats);
+    } catch (e: any) {
+      console.error("Pattern Matcher stats error:", e);
+      res.status(500).json({ message: "Failed to fetch pattern statistics" });
+    }
   });
 
   // ─── Astrologers ──────────────────────────────────────────

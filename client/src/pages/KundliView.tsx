@@ -14,6 +14,8 @@ import type { Kundli } from '@shared/schema';
 import { useAuth } from '@/hooks/useAuth';
 import { apiRequest } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
+import { DeterministicRemedies } from '@/components/DeterministicRemedies';
+import { VerifyEventDialog } from '@/components/VerifyEventDialog';
 
 const PDF_PRICE = 10; // ₹10 per PDF download
 
@@ -690,9 +692,19 @@ export default function KundliView() {
                                 <span className="font-medium">{dasha.planet}/{ad.planet}</span>
                                 <span className="text-muted-foreground ml-2">{ad.period}</span>
                               </div>
-                              {ad.status === 'current' && (
-                                <Badge variant="outline" className="text-xs">Active</Badge>
-                              )}
+                              <div className="flex items-center gap-3">
+                                {ad.status === 'past' && (
+                                  <VerifyEventDialog 
+                                    kundliId={params?.id as string} 
+                                    dashaPlanet={dasha.planet} 
+                                    antardashaPlanet={ad.planet} 
+                                    period={ad.period} 
+                                  />
+                                )}
+                                {ad.status === 'current' && (
+                                  <Badge variant="outline" className="text-xs">Active</Badge>
+                                )}
+                              </div>
                             </div>
                           ))}
                         </div>
@@ -771,22 +783,10 @@ export default function KundliView() {
                 <CardTitle>Astrological Remedies</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="space-y-4">
-                  {remedies.length > 0 ? remedies.map((remedy: any, i: number) => (
-                    <div
-                      key={i}
-                      className="p-4 border rounded-lg bg-amber-500/10 border-amber-500/20"
-                    >
-                      <h4 className="font-semibold mb-1">{remedy.title}</h4>
-                      <p className="text-sm text-muted-foreground">{remedy.description}</p>
-                      {remedy.type && (
-                        <Badge variant="outline" className="mt-2 text-xs">{remedy.type}</Badge>
-                      )}
-                    </div>
-                  )) : (
-                    <p className="text-muted-foreground text-sm">No remedy data available.</p>
-                  )}
-                </div>
+                 <DeterministicRemedies 
+                   shadbala={(kundli as any)?.raw?.engineData?.shadbala} 
+                   fallbackRemedies={remedies} 
+                 />
               </CardContent>
             </Card>
           </TabsContent>

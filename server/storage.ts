@@ -34,6 +34,9 @@ import {
   type PayoutRequest,
   type AiChatMessage,
   type InsertAiChatMessage,
+  predictionFeedbacks,
+  type PredictionFeedback,
+  type InsertPredictionFeedback,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, and, sql } from "drizzle-orm";
@@ -58,6 +61,11 @@ export interface IStorage {
   createAstrologer(astrologer: InsertAstrologer): Promise<Astrologer>;
   getAllAstrologers(): Promise<Astrologer[]>;
   getAstrologerById(id: string): Promise<Astrologer | undefined>;
+
+  // Pattern Matcher / Feedback operations
+  createPredictionFeedback(feedback: InsertPredictionFeedback): Promise<PredictionFeedback>;
+  getPredictionFeedbacksByUser(userId: string): Promise<PredictionFeedback[]>;
+  getPatternStatistics(): Promise<any>;
   getAstrologerByEmail(email: string): Promise<Astrologer | undefined>;
   updateAstrologer(id: string, data: Partial<InsertAstrologer>): Promise<Astrologer>;
   updateAstrologerOnlineStatus(id: string, isOnline: boolean): Promise<void>;
@@ -716,6 +724,49 @@ export class DatabaseStorage implements IStorage {
       }
     }
     return sessions;
+  }
+
+  // ─── Pattern Matcher & Bayesian Feedback ───────────────────────────
+
+  async createPredictionFeedback(feedback: InsertPredictionFeedback): Promise<PredictionFeedback> {
+    const [row] = await db.insert(predictionFeedbacks).values(feedback).returning();
+    return row;
+  }
+
+  async getPredictionFeedbacksByUser(userId: string): Promise<PredictionFeedback[]> {
+    return await db.select().from(predictionFeedbacks).where(eq(predictionFeedbacks.userId, userId));
+  }
+
+  async getPatternStatistics(): Promise<any> {
+    // Collect aggregates directly to determine algorithm confidence intervals
+    const all = await db.select().from(predictionFeedbacks);
+    
+    let total = all.length;
+    if (total === 0) return { total: 0, accuracy: 0, dashaStats: {} };
+
+    let accurate = 0;
+    const dashaStats: Record<string, { total: number; accurate: number }> = {};
+
+    for (const p of all) {
+      if (p.wasAccurate) accurate++;
+      if (!dashaStats[p.dashaSystemUsed]) {
+        dashaStats[p.dashaSystemUsed] = { total: 0, accurate: 0 };
+      }
+      dashaStats[p.dashaSystemUsed].total++;
+      if (p.wasAccurate) dashaStats[p.dashaSystemUsed].accurate++;
+    }
+
+    // Format output
+    for (const sys in dashaStats) {
+      (dashaStats[sys] as any).percentage = 
+        Math.round((dashaStats[sys].accurate / dashaStats[sys].total) * 100);
+    }
+
+    return {
+      total,
+      accuracy: Math.round((accurate / total) * 100),
+      dashaStats
+    };
   }
 }
 

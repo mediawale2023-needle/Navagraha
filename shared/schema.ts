@@ -10,6 +10,7 @@ import {
   integer,
   boolean,
   decimal,
+  serial,
 } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
@@ -420,3 +421,34 @@ export const insertAiChatMessageSchema = createInsertSchema(aiChatMessages).omit
 
 export type InsertAiChatMessage = z.infer<typeof insertAiChatMessageSchema>;
 export type AiChatMessage = typeof aiChatMessages.$inferSelect;
+
+// ─── Phase 3, Sprint 4: Bayesian Feedback Loop ─────────────────────────────
+
+export const predictionFeedbacks = pgTable("prediction_feedbacks", {
+  id: serial("id").primaryKey(),
+  userId: varchar("user_id").references(() => users.id).notNull(),
+  kundliId: varchar("kundli_id").references(() => kundlis.id),
+  predictionCategory: text("prediction_category").notNull(), // 'career', 'marriage', 'health', 'finance'
+  predictedDate: timestamp("predicted_date"),
+  actualOccurrenceDate: timestamp("actual_occurrence_date"),
+  wasAccurate: boolean("was_accurate").notNull(),
+  dashaSystemUsed: text("dasha_system_used").notNull(), // 'Vimshottari', 'Yogini', 'Chara'
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const insertPredictionFeedbackSchema = createInsertSchema(predictionFeedbacks);
+
+export const predictionFeedbacksRelations = relations(predictionFeedbacks, ({ one }) => ({
+  user: one(users, {
+    fields: [predictionFeedbacks.userId],
+    references: [users.id],
+  }),
+  kundli: one(kundlis, {
+    fields: [predictionFeedbacks.kundliId],
+    references: [kundlis.id],
+  }),
+}));
+
+export type PredictionFeedback = typeof predictionFeedbacks.$inferSelect;
+export type InsertPredictionFeedback = z.infer<typeof insertPredictionFeedbackSchema>;
