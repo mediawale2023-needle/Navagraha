@@ -1,3 +1,4 @@
+import crypto from "crypto";
 import type { Express, Request, Response } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
@@ -1095,6 +1096,66 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
   });
 
   // ─── AI Astrologer ────────────────────────────────────────
+
+  // Get AI Chat session history
+  app.get('/api/ai/chat/:sessionId', isAuthenticated, async (req: any, res) => {
+    try {
+      const history = await storage.getAiChatHistory((req.user as any).id, req.params.sessionId);
+      res.json(history);
+    } catch {
+      res.status(500).json({ message: "Failed to fetch chat history" });
+    }
+  });
+
+  // Chat with AI Astrologer (Super-Council Orchestrator)
+  app.post('/api/ai/chat', isAuthenticated, async (req: any, res) => {
+    try {
+      const user = req.user as any;
+      const { message, sessionId, kundliId } = req.body;
+      if (!message) return res.status(400).json({ message: "Message is required" });
+
+      const activeSessionId = sessionId || crypto.randomUUID();
+
+      // Save user message to DB
+      await storage.saveAiChatMessage({
+        userId: user.id,
+        sessionId: activeSessionId,
+        role: 'user',
+        content: message
+      });
+
+      // Prepare context for Orchestrator
+      const context: UserContext = {
+        birthDetails: {
+          date: user.dateOfBirth ? new Date(user.dateOfBirth).toISOString().split('T')[0] : 'Unknown',
+          time: user.timeOfBirth || 'Unknown',
+          place: user.placeOfBirth || 'Unknown',
+        },
+        profession: 'User',
+        currentQuery: message
+      };
+
+      // Execute Council parallel logic
+      const aiResponseText = await runCouncil(context);
+
+      // Save AI response to DB
+      await storage.saveAiChatMessage({
+        userId: user.id,
+        sessionId: activeSessionId,
+        role: 'assistant',
+        content: aiResponseText
+      });
+
+      res.json({
+        sessionId: activeSessionId,
+        reply: aiResponseText,
+        questionsUsed: 0 // Optional: Could track rate limits here
+      });
+    } catch (error: any) {
+      console.error("AI Chat Error:", error);
+      res.status(500).json({ message: "AI Council is currently unavailable. Please try again later." });
+    }
+  });
 
   // Interpret a saved Kundli with AI
   app.post('/api/ai/interpret-kundli', isAuthenticated, async (req: any, res) => {
