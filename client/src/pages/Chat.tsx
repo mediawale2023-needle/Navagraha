@@ -20,6 +20,7 @@ export default function Chat() {
   const astrologerId = params?.astrologerId;
   const [, navigate] = useLocation();
   const [message, setMessage] = useState('');
+  const [aiSteps, setAiSteps] = useState<string[]>([]);
   const [sessionTime, setSessionTime] = useState(0);
   const [sessionActive, setSessionActive] = useState(false);
   const [currentBalance, setCurrentBalance] = useState<number | null>(null);
@@ -217,30 +218,51 @@ export default function Chat() {
         message: messageText,
         sender: 'user',
       });
-      return response.json();
+      return response; // We already get parsed JSON from apiRequest
     },
-    onSuccess: (saved, sentText) => {
-      // Add to live messages optimistically
-      setLiveMessages(prev => {
-        if (prev.some(m => m.id === saved.id)) return prev;
-        return [...prev, saved];
-      });
-      setMessage('');
-
-      // Also send via WebSocket for real-time delivery to astrologer
-      const userId = (window as any).__userId;
-      if (wsRef.current?.readyState === WebSocket.OPEN && userId) {
-        wsRef.current.send(JSON.stringify({
-          type: 'chat_message',
-          userId,
-          astrologerId,
-          message: sentText,
-          consultationId,
-        }));
+    onMutate: () => {
+      if (astrologerId === 'ai-astrologer') {
+        setAiSteps([]);
+        setTimeout(() => setAiSteps(s => [...s, 'Calculating 16 Vargas... [Done]']), 1000);
+        setTimeout(() => setAiSteps(s => [...s, 'Scanning Pratyantar Dashas... [Done]']), 2500);
+        setTimeout(() => setAiSteps(s => [...s, 'Building Ashtakavarga Matrix... [Done]']), 4000);
+        setTimeout(() => setAiSteps(s => [...s, 'Synthesizing with Jyotishi...']), 6000);
       }
+    },
+    onSuccess: (saved: any, sentText) => {
+      // Handle AI Astrologer payload format
+      if (astrologerId === 'ai-astrologer' && saved.userMessage && saved.aiMessage) {
+        setLiveMessages(prev => {
+          const newMsgs = [...prev];
+          if (!newMsgs.some(m => m.id === saved.userMessage.id)) newMsgs.push(saved.userMessage);
+          if (!newMsgs.some(m => m.id === saved.aiMessage.id)) newMsgs.push(saved.aiMessage);
+          return newMsgs;
+        });
+        setAiSteps([]);
+      } else {
+        // Add to live messages optimistically for normal astrologers
+        setLiveMessages(prev => {
+          if (prev.some(m => m.id === saved.id)) return prev;
+          return [...prev, saved];
+        });
+
+        // Send via WebSocket for real-time delivery to human astrologer
+        const userId = (window as any).__userId;
+        if (wsRef.current?.readyState === WebSocket.OPEN && userId) {
+          wsRef.current.send(JSON.stringify({
+            type: 'chat_message',
+            userId,
+            astrologerId,
+            message: sentText,
+            consultationId,
+          }));
+        }
+      }
+      setMessage('');
     },
     onError: (error: Error) => {
       toast({ title: 'Error', description: error.message || 'Failed to send message', variant: 'destructive' });
+      setAiSteps([]);
     },
   });
 
@@ -409,6 +431,26 @@ export default function Chat() {
               )}
             </div>
           )}
+
+          {/* AI Astrologer Council Thinking State */}
+          {sendMessageMutation.isPending && astrologerId === 'ai-astrologer' && (
+            <div className="flex justify-start my-4" data-testid="ai-thinking">
+              <div className="bg-amber-900/10 border border-amber-500/30 rounded-2xl px-5 py-4 max-w-md md:max-w-lg">
+                <div className="text-sm font-semibold text-amber-600 flex items-center gap-3 mb-3">
+                  <LoadingSpinner size="sm" /> 
+                  Super-Astrologer Council thinking...
+                </div>
+                <div className="space-y-2 mt-2">
+                  {aiSteps.map((step, i) => (
+                    <div key={i} className="text-xs text-amber-700 font-mono flex items-center gap-2">
+                      <span className="text-emerald-500 font-bold">✓</span> {step}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
           <div ref={messagesEndRef} />
         </div>
       </div>

@@ -1,0 +1,16 @@
+[package]
+name = "navagraha-engine"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+wasm-bindgen = "0.2"
+serde = { version = "1.0", features = ["derive"] }
+serde_wasm_bindgen = "0.6"
+chrono = "0.4"
+
+# We would use a swiss ephemeris crate here like 'swisseph' in a full implementation.
+# For demo/WASM ease without external C libraries, we simulate the core math.

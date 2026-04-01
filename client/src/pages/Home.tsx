@@ -160,10 +160,10 @@ export default function Home() {
                   onClick={() => setLocation('/astrologers')}
                 />
                 <QuickActionCard
-                  title="Daily Horoscope"
+                  title="AI Astrologer"
                   icon={Sparkles}
                   color="amber"
-                  onClick={() => setLocation('/horoscope')}
+                  onClick={() => setLocation('/chat/ai-astrologer')}
                 />
                 <QuickActionCard
                   title="Book Appointment"

@@ -4,6 +4,8 @@ import { storage } from "./storage";
 import { db } from "./db";
 import { sql, eq, asc } from "drizzle-orm";
 import { setupAuth, isAuthenticated } from "./auth";
+import { runCouncil, UserContext } from "./agents/orchestrator";
+import rateLimit from "express-rate-limit";
 import {
   insertKundliSchema,
   insertTransactionSchema,
@@ -770,12 +772,40 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
 
   app.post('/api/chat/:astrologerId', isAuthenticated, async (req: any, res) => {
     try {
-      const userId = (req.user as any).id;
+      const user = req.user as any;
+      const userId = user.id;
       const { astrologerId } = req.params;
       const { message, sender } = req.body;
       if (!message || !sender) return res.status(400).json({ message: "Message and sender required" });
 
       const chatMessage = await storage.createChatMessage({ userId, astrologerId, message, sender });
+      
+      // AI Astrologer Integration
+      if (astrologerId === 'ai-astrologer' && sender === 'user') {
+        const context: UserContext = {
+          birthDetails: {
+            date: user.dateOfBirth ? new Date(user.dateOfBirth).toISOString().split('T')[0] : 'Unknown',
+            time: user.timeOfBirth || 'Unknown',
+            place: user.placeOfBirth || 'Unknown',
+          },
+          profession: 'User', // Could be pulled from profile if available
+          currentQuery: message
+        };
+        
+        // Let the client know the message was saved, AI response will be fetched on next poll/WS
+        // Actually, we can just run it asynchronously or wait for it.
+        // Waiting for it returns the AI response immediately to the client:
+        const aiResponseText = await runCouncil(context);
+        const aiMessage = await storage.createChatMessage({
+          userId,
+          astrologerId,
+          message: aiResponseText,
+          sender: 'astrologer'
+        });
+        
+        return res.json({ userMessage: chatMessage, aiMessage: aiMessage });
+      }
+
       res.json(chatMessage);
     } catch { res.status(500).json({ message: "Failed to send message" }); }
   });
@@ -1128,7 +1158,7 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
       const latestKundli = userKundlis?.[0];
       if (!latestKundli) return res.status(400).json({ message: "No Kundli found. Create a birth chart first." });
 
-      const allAstrologers = await storage.getAstrologers();
+      const allAstrologers = await storage.getAllAstrologers();
       const candidates = (allAstrologers || [])
         .filter((a: any) => a.isOnline && a.isVerified)
         .slice(0, 10) // limit tokens
