@@ -6,6 +6,7 @@ import { runMigrations } from "./migrate";
 import { waitForDatabase } from "./db";
 import { setupWebSocket } from "./websocketService";
 import { startHeartbeatEngine } from "./corporate/heartbeat";
+import client from "prom-client";
 
 // Prevent unhandled errors from killing the process before the port binds
 process.on("uncaughtException", (err) =>
@@ -63,6 +64,15 @@ app.use((req, res, next) => {
 
 const httpServer = createServer(app);
 
+// ── Prometheus Metrics ─────────────────────────────────────────────────────
+const collectDefaultMetrics = client.collectDefaultMetrics;
+collectDefaultMetrics({ register: client.register });
+
+app.get('/metrics', async (_req, res) => {
+  res.set('Content-Type', client.register.contentType);
+  res.end(await client.register.metrics());
+});
+
 // Register /api/config immediately so Railway's healthcheck gets a 200
 // before the async init (auth, DB) completes.
 app.get("/api/config", (_req, res) => {
@@ -70,6 +80,7 @@ app.get("/api/config", (_req, res) => {
     googleMapsApiKey: process.env.GOOGLE_MAPS_API_KEY || "",
     razorpayKeyId: process.env.RAZORPAY_KEY_ID || "",
     agoraAppId: process.env.AGORA_APP_ID || "",
+    posthogKey: process.env.POSTHOG_API_KEY || "",
   });
 });
 

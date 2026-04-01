@@ -1,5 +1,5 @@
 import { Switch, Route } from "wouter";
-import { queryClient } from "./lib/queryClient";
+import { queryClient, apiRequest } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -27,10 +27,32 @@ import Horoscope from "@/pages/Horoscope";
 import AIAstrologer from "@/pages/AIAstrologer";
 import NotFound from "@/pages/not-found";
 import { useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { initAnalytics, trackEvent, identifyUser } from "@/lib/analytics";
 
 function Router() {
-  const { isAuthenticated, isLoading } = useAuth();
+  const { isAuthenticated, isLoading, user } = useAuth();
   const [showSplash, setShowSplash] = useState(true);
+
+  // Initialize PostHog from server config
+  const { data: config } = useQuery<{ posthogKey?: string }>({
+    queryKey: ["/api/config"],
+    refetchOnWindowFocus: false,
+  });
+
+  useEffect(() => {
+    if (config?.posthogKey) {
+      initAnalytics(config.posthogKey);
+      if (user) {
+        identifyUser((user as any).id?.toString(), { name: (user as any).name, email: (user as any).email, role: (user as any).role });
+      }
+    }
+  }, [config?.posthogKey, user]);
+
+  // Track page views
+  useEffect(() => {
+    trackEvent('$pageview');
+  }, [window.location.pathname]);
 
   useEffect(() => {
     const hasSeenSplash = sessionStorage.getItem('hasSeenSplash');

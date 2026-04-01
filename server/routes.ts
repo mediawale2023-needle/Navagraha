@@ -7,6 +7,7 @@ import { setupAuth, isAuthenticated } from "./auth";
 import { runCouncil, UserContext } from "./agents/orchestrator";
 import { corporateOrchestrator } from "./corporate/orchestrator";
 import { triggerHeartbeat } from "./corporate/heartbeat";
+import { setupSwagger } from "./swagger";
 import rateLimit from "express-rate-limit";
 import {
   insertKundliSchema,
@@ -67,6 +68,10 @@ function isAstrologerAuthenticated(req: any, res: Response, next: Function) {
 }
 
 export async function registerRoutes(app: Express, existingServer?: Server): Promise<Server> {
+
+  // Mount Swagger UI
+  setupSwagger(app);
+
   try {
     await setupAuth(app);
   } catch (err) {
