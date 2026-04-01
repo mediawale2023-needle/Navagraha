@@ -274,6 +274,30 @@
     box-shadow: 0 0 16px rgba(230, 28, 110, 0.1);
   }
 
+  /* ── UI/UX Pro Max Glass Elements ───────────────── */
+  .glass-card {
+    @apply bg-card/70 backdrop-blur-xl border border-border/50 transition-all duration-[400ms] hover:shadow-lg hover:scale-[1.02];
+    box-shadow: 0 8px 32px rgba(30, 58, 95, 0.05);
+  }
+  .dark .glass-card {
+    @apply bg-card/40 border-border/20;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  }
+
+  .glass-panel {
+    @apply bg-background/80 backdrop-blur-xl border border-border/50 transition-all duration-[400ms];
+  }
+  .dark .glass-panel {
+    @apply bg-background/60 border-border/20;
+  }
+  
+  .glass-nav {
+    @apply bg-background/70 backdrop-blur-2xl border-border/50 transition-all duration-[400ms] shadow-sm;
+  }
+  .dark .glass-nav {
+    @apply bg-background/50 border-border/20 shadow-[0_4px_30px_rgba(0,0,0,0.3)];
+  }
+
   /* ── Background Effects ──────────────────────────────── */
   .celestial-bg {
     background:

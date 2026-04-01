@@ -91,7 +91,7 @@ export default function Prashna() {
         {!result ? (
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-              <Card className="border-foreground/10 border-2 overflow-hidden shadow-sm">
+              <Card className="glass-card overflow-hidden shadow-sm">
                 <CardHeader className="bg-[var(--magenta)]/5 border-b border-foreground/5">
                   <CardTitle className="text-foreground">Determine the Moment</CardTitle>
                   <CardDescription>We will use the current time automatically. Where are you right now?</CardDescription>
@@ -177,7 +177,7 @@ export default function Prashna() {
         ) : (
           <div className="space-y-6 animate-in slide-in-from-bottom-4 duration-500">
             {/* Verdict Card */}
-            <Card className="overflow-hidden border-0 shadow-lg">
+            <Card className="glass-card overflow-hidden border-0 shadow-lg">
               <CardContent className="p-0">
                 <div className={`p-8 text-center text-white ${
                   result.answer_indicator.startsWith('YES') ? 'bg-gradient-to-br from-green-600 to-emerald-500' :
@@ -199,7 +199,7 @@ export default function Prashna() {
             </Card>
 
             {/* Timing Window */}
-            <Card className="border-l-4 border-l-[var(--magenta)] shadow-sm">
+            <Card className="glass-card border-l-4 border-l-[var(--magenta)] shadow-sm">
               <CardContent className="p-5 flex gap-4 items-center">
                 <div className="p-3 bg-[var(--magenta)]/10 rounded-full text-[var(--magenta)]">
                   <Clock className="w-6 h-6" />
@@ -213,7 +213,7 @@ export default function Prashna() {
 
             {/* Panchang & Analysis Details */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <Card>
+              <Card className="glass-card">
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2"><Moon className="w-5 h-5 text-indigo-500"/> Panchang Moment</CardTitle>
                 </CardHeader>
@@ -228,7 +228,7 @@ export default function Prashna() {
                 </CardContent>
               </Card>
 
-              <Card>
+              <Card className="glass-card">
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2"><Compass className="w-5 h-5 text-orange-500"/> Astrological Analysis</CardTitle>
                 </CardHeader>

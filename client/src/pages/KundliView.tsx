@@ -514,7 +514,7 @@ export default function KundliView() {
         </div>
 
         {/* Header Card */}
-        <Card className="mb-6">
+        <Card className="glass-card mb-6">
           <CardHeader>
             <div className="flex items-start justify-between">
               <div>
@@ -558,7 +558,7 @@ export default function KundliView() {
 
           {/* Overview */}
           <TabsContent value="overview">
-            <Card>
+            <Card className="glass-card">
               <CardHeader>
                 <CardTitle>Astrological Overview</CardTitle>
               </CardHeader>
@@ -608,7 +608,7 @@ export default function KundliView() {
 
           {/* Birth Chart */}
           <TabsContent value="chart">
-            <Card>
+            <Card className="glass-card">
               <CardHeader>
                 <div className="flex items-center justify-between flex-wrap gap-3">
                   <CardTitle>Birth Chart</CardTitle>
@@ -653,7 +653,7 @@ export default function KundliView() {
 
           {/* Dashas */}
           <TabsContent value="dashas">
-            <Card>
+            <Card className="glass-card">
               <CardHeader>
                 <CardTitle>Vimshottari Dashas</CardTitle>
               </CardHeader>
@@ -720,7 +720,7 @@ export default function KundliView() {
 
           {/* Doshas */}
           <TabsContent value="doshas">
-            <Card>
+            <Card className="glass-card">
               <CardHeader>
                 <CardTitle>Dosha Analysis</CardTitle>
               </CardHeader>
@@ -778,7 +778,7 @@ export default function KundliView() {
 
           {/* Remedies */}
           <TabsContent value="remedies">
-            <Card>
+            <Card className="glass-card">
               <CardHeader>
                 <CardTitle>Astrological Remedies</CardTitle>
               </CardHeader>

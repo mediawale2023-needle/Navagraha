@@ -17,7 +17,7 @@ export function AstrologerCard({
     id = 1, name, image, rating, experience, price, specialization, isOnline
 }: AstrologerCardProps) {
     return (
-        <div className="w-[280px] shrink-0 bg-card rounded-3xl p-4 pt-12 flex flex-col items-center text-center relative shadow-sm border border-border/50">
+        <div className="w-[280px] shrink-0 glass-card rounded-3xl p-4 pt-12 flex flex-col items-center text-center relative">
             {/* Decorative corner accents */}
             <div className="absolute top-3 left-3 w-6 h-6 border-t-2 border-l-2 border-nava-teal/20 rounded-tl-lg" />
             <div className="absolute top-3 right-3 w-6 h-6 border-t-2 border-r-2 border-nava-teal/20 rounded-tr-lg" />

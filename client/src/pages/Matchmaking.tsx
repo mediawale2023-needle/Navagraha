@@ -110,7 +110,7 @@ export default function Matchmaking() {
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {/* Person 1 */}
-                <Card className="border-foreground/10 border-2 overflow-hidden">
+                <Card className="glass-card overflow-hidden">
                   <CardHeader className="bg-[var(--magenta)]/5 border-b border-foreground/5">
                     <CardTitle className="text-foreground">Person 1 Details</CardTitle>
                     <CardDescription>Enter first person's birth information</CardDescription>
@@ -203,7 +203,7 @@ export default function Matchmaking() {
                 </Card>
 
                 {/* Person 2 */}
-                <Card className="border-indigo-200 border-2 overflow-hidden">
+                <Card className="glass-card overflow-hidden">
                   <CardHeader className="bg-indigo-50 border-b border-indigo-100">
                     <CardTitle className="text-foreground">Person 2 Details</CardTitle>
                     <CardDescription>Enter second person's birth information</CardDescription>
@@ -320,7 +320,7 @@ export default function Matchmaking() {
         ) : (
           <div className="space-y-6">
             {/* Overall Score */}
-            <Card className="overflow-hidden border-0 ">
+            <Card className="glass-card overflow-hidden border-0">
               <CardContent className="p-0">
                 <div className="bg-gradient-to-br from-orange-600 to-orange-500 p-8 text-center">
                   <h2 className="font-serif text-2xl font-semibold mb-2 text-white">Compatibility Score</h2>
@@ -341,7 +341,7 @@ export default function Matchmaking() {
             </Card>
 
             {/* Detailed Breakdown */}
-            <Card>
+            <Card className="glass-card">
               <CardHeader>
                 <CardTitle className="text-foreground">Compatibility Breakdown</CardTitle>
                 <CardDescription>Detailed analysis across different aspects</CardDescription>
@@ -370,7 +370,7 @@ export default function Matchmaking() {
             </Card>
 
             {/* Recommendations */}
-            <Card>
+            <Card className="glass-card">
               <CardHeader>
                 <CardTitle className="text-foreground">Astrological Insights</CardTitle>
               </CardHeader>
