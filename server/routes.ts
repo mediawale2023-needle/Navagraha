@@ -1453,6 +1453,49 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
     }
   });
 
+  // Chat: Get thread messages
+  app.get('/api/corporate/chat/:thread', async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).send("Unauthorized");
+    const company = await storage.getAiCompanyByUserId((req.user as any).id.toString());
+    if (!company) return res.status(404).json({ message: "No company found" });
+    const msgs = await storage.getBoardroomThread(company.id, req.params.thread);
+    res.json(msgs);
+  });
+
+  // Chat: User DMs one executive
+  app.post('/api/corporate/chat/dm/:employeeId', async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).send("Unauthorized");
+    const company = await storage.getAiCompanyByUserId((req.user as any).id.toString());
+    if (!company) return res.status(404).json({ message: "No company found" });
+    const { message } = req.body;
+    if (!message) return res.status(400).json({ message: "Message required" });
+    try {
+      const result = await corporateOrchestrator.chatWithEmployee(
+        company.id, parseInt(req.params.employeeId), message, (req.user as any).id.toString()
+      );
+      res.json(result);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message || "Failed to send message" });
+    }
+  });
+
+  // Chat: Trigger exec-room debate
+  app.post('/api/corporate/chat/exec-room', async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).send("Unauthorized");
+    const company = await storage.getAiCompanyByUserId((req.user as any).id.toString());
+    if (!company) return res.status(404).json({ message: "No company found" });
+    const { topic } = req.body;
+    if (!topic) return res.status(400).json({ message: "Topic required" });
+    try {
+      const msgs = await corporateOrchestrator.runExecRoomDebate(
+        company.id, topic, (req.user as any).id.toString()
+      );
+      res.json(msgs);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message || "Failed to run debate" });
+    }
+  });
+
   // ─── Homepage CMS ──────────────────────────────────────────
 
   // Public: Get all enabled homepage content grouped by section

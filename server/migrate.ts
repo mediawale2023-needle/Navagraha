@@ -270,7 +270,23 @@ CREATE TABLE IF NOT EXISTS ai_directives (
   status text DEFAULT 'pending',
   created_at timestamp DEFAULT now()
 );
+
+CREATE TABLE IF NOT EXISTS boardroom_messages (
+  id serial PRIMARY KEY,
+  company_id integer NOT NULL REFERENCES ai_companies(id),
+  sender_type varchar NOT NULL,
+  sender_id varchar NOT NULL,
+  sender_name varchar NOT NULL,
+  sender_role varchar,
+  receiver_type varchar,
+  receiver_id varchar,
+  content text NOT NULL,
+  thread varchar NOT NULL,
+  created_at timestamp DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_boardroom_msgs ON boardroom_messages (company_id, thread);
 `;
+
 
 const SEED_HOMEPAGE_SQL = `
 INSERT INTO homepage_content (section, title, subtitle, icon, href, gradient, cta, sort_order, enabled)

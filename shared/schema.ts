@@ -496,6 +496,23 @@ export type AiEmployee = typeof aiEmployees.$inferSelect;
 export type AiInitiative = typeof aiInitiatives.$inferSelect;
 export type AiDirective = typeof aiDirectives.$inferSelect;
 
+export const boardroomMessages = pgTable("boardroom_messages", {
+  id: serial("id").primaryKey(),
+  companyId: integer("company_id").references(() => aiCompanies.id).notNull(),
+  senderType: text("sender_type").notNull(), // 'user' | 'employee'
+  senderId: text("sender_id").notNull(),     // user UUID or employee id as string
+  senderName: text("sender_name").notNull(),
+  senderRole: text("sender_role"),           // CEO, CFO etc.
+  receiverType: text("receiver_type"),        // 'user' | 'employee' | 'all'
+  receiverId: text("receiver_id"),            // employee id or null
+  content: text("content").notNull(),
+  thread: text("thread").notNull(),           // 'exec-room' or 'dm-<employeeId>'
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const insertBoardroomMessageSchema = createInsertSchema(boardroomMessages);
+export type BoardroomMessage = typeof boardroomMessages.$inferSelect;
+
 
 export const insertPredictionFeedbackSchema = createInsertSchema(predictionFeedbacks);
 

@@ -97,9 +97,124 @@ Define 3-4 concrete strategic INITIATIVES to reach this goal. Return ONLY valid 
    * Specialized agents (CTO, CFO, etc.) take an Initiative and create Directives (Action Tasks).
    */
   async delegateDirective(initiativeId: number): Promise<AiDirective[]> {
-    // Implementation for departmental delegation logic
-    // ... logic to query relevant agent based on initiative context ...
     return [];
+  }
+
+  /**
+   * User sends a direct message to one specific executive.
+   * The executive responds in character.
+   */
+  async chatWithEmployee(companyId: number, employeeId: number, userMessage: string, userId: string): Promise<{ userMsg: AiDirective | any; replyMsg: any }> {
+    const company = await storage.getAiCompanyById(companyId);
+    if (!company) throw new Error("Company not found");
+
+    const employees = await storage.getAiEmployees(companyId);
+    const exec = employees.find((e: AiEmployee) => e.id === employeeId);
+    if (!exec) throw new Error("Executive not found");
+
+    const thread = `dm-${employeeId}`;
+
+    // Save user message
+    const userMsg = await storage.saveBoardroomMessage({
+      companyId,
+      senderType: "user",
+      senderId: userId,
+      senderName: "You",
+      senderRole: "Founder",
+      receiverType: "employee",
+      receiverId: String(employeeId),
+      content: userMessage,
+      thread,
+    });
+
+    // Load recent thread for context (last 10 messages)
+    const history = await storage.getBoardroomThread(companyId, thread);
+    const recent = history.slice(-10);
+
+    const systemPrompt = `You are ${exec.name}, the ${exec.role} of ${company.name}.
+PERSONALITY: ${exec.personality}
+COMPANY MISSION: ${company.mission}
+TARGET: ₹5 Crore ARR in 6 months.
+
+You are in a direct conversation with the Founder. Stay in character at all times. Be concise, sharp, and actionable. Max 3 sentences.`;
+
+    const messages: any[] = [
+      { role: "system", content: systemPrompt },
+      ...recent.map(m => ({
+        role: m.senderType === "user" ? "user" : "assistant" as const,
+        content: m.content,
+      })),
+      { role: "user", content: userMessage },
+    ];
+
+    const response = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages,
+    });
+
+    const replyText = response.choices[0].message.content || "...";
+
+    const replyMsg = await storage.saveBoardroomMessage({
+      companyId,
+      senderType: "employee",
+      senderId: String(exec.id),
+      senderName: exec.name,
+      senderRole: exec.role,
+      receiverType: "user",
+      receiverId: userId,
+      content: replyText,
+      thread,
+    });
+
+    return { userMsg, replyMsg };
+  }
+
+  /**
+   * Runs an Executive Room debate — all execs respond to a topic in sequence.
+   * Useful for strategic discussions the user can observe.
+   */
+  async runExecRoomDebate(companyId: number, topic: string, userId: string): Promise<any[]> {
+    const company = await storage.getAiCompanyById(companyId);
+    if (!company) throw new Error("Company not found");
+
+    const employees = await storage.getAiEmployees(companyId);
+    const thread = "exec-room";
+    const results: any[] = [];
+
+    // Each exec gives their perspective on the topic, sequentially
+    for (const exec of employees) {
+      const priorMsgs = results.map(r => `${r.senderRole}: ${r.content}`).join("\n");
+      const systemPrompt = `You are ${exec.name}, the ${exec.role} of ${company.name}.
+PERSONALITY: ${exec.personality}
+MISSION: ${company.mission}
+
+The Founder has asked the executive team to discuss: "${topic}"
+${priorMsgs ? `\nWhat colleagues said so far:\n${priorMsgs}` : ""}
+
+Give your perspective as ${exec.role}. Be direct, specific, in-character. Max 2 sentences.`;
+
+      const response = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: [{ role: "system", content: systemPrompt }],
+      });
+
+      const content = response.choices[0].message.content || "...";
+
+      const msg = await storage.saveBoardroomMessage({
+        companyId,
+        senderType: "employee",
+        senderId: String(exec.id),
+        senderName: exec.name,
+        senderRole: exec.role,
+        receiverType: "all",
+        receiverId: null,
+        content,
+        thread,
+      });
+      results.push(msg);
+    }
+
+    return results;
   }
 }
 

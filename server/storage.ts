@@ -45,6 +45,8 @@ import {
   type AiEmployee,
   type AiInitiative,
   type AiDirective,
+  boardroomMessages,
+  type BoardroomMessage,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, and, sql } from "drizzle-orm";
@@ -118,6 +120,11 @@ export interface IStorage {
   createAiDirective(directive: any): Promise<AiDirective>;
   getAiDirectivesByInitiative(initiativeId: number): Promise<AiDirective[]>;
   getAiDirectivesByEmployee(employeeId: number): Promise<AiDirective[]>;
+
+  // Boardroom Chat
+  saveBoardroomMessage(msg: any): Promise<BoardroomMessage>;
+  getBoardroomThread(companyId: number, thread: string): Promise<BoardroomMessage[]>;
+
 
 
   // Schedule operations
@@ -841,6 +848,20 @@ export class DatabaseStorage implements IStorage {
 
   async getAiDirectivesByEmployee(employeeId: number): Promise<AiDirective[]> {
     return await db.select().from(aiDirectives).where(eq(aiDirectives.assigneeId, employeeId));
+  }
+
+  // ── Boardroom Chat ─────────────────────────────────────
+  async saveBoardroomMessage(msg: any): Promise<BoardroomMessage> {
+    const [row] = await db.insert(boardroomMessages).values(msg).returning();
+    return row;
+  }
+
+  async getBoardroomThread(companyId: number, thread: string): Promise<BoardroomMessage[]> {
+    return await db
+      .select()
+      .from(boardroomMessages)
+      .where(and(eq(boardroomMessages.companyId, companyId), eq(boardroomMessages.thread, thread)))
+      .orderBy(boardroomMessages.createdAt);
   }
 }
 
