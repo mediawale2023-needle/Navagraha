@@ -1,0 +1,18 @@
+version: "3.9"
+
+services:
+  astro-engine:
+    build:
+      context: ./astro-engine-rs
+      dockerfile: Dockerfile
+    container_name: astro-engine-rs
+    ports:
+      - "3001:3001"
+    environment:
+      PORT: "3001"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "sh", "-c", "curl -f http://localhost:3001/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
