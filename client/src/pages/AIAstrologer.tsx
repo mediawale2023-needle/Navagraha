@@ -98,6 +98,13 @@ export default function AIAstrologer() {
     queryKey: ["/api/kundli"],
   });
 
+  // Auto-select the first available Kundli so users don't accidentally chat with an empty chart context
+  useEffect(() => {
+    if (kundlis.length > 0 && selectedKundliId === "none") {
+      setSelectedKundliId(kundlis[0].id);
+    }
+  }, [kundlis, selectedKundliId]);
+
   const { data: fullKundli } = useQuery<FullKundli>({
     queryKey: [`/api/kundli/${selectedKundliId}`],
     enabled: selectedKundliId !== "none",
