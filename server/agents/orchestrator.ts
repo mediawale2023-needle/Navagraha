@@ -1,9 +1,9 @@
-import Anthropic from '@anthropic-ai/sdk';
+import OpenAI from 'openai';
 import { AGENT_PROMPTS } from './prompts';
 
-// Ensure ANTHROPIC_API_KEY is available in the environment
-const anthropic = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY || 'dummy_key_for_build', 
+// Ensure OPENAI_API_KEY is available in the environment
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY || 'dummy_key_for_build', 
 });
 
 export interface UserContext {
@@ -18,7 +18,7 @@ export interface UserContext {
 }
 
 /**
- * Super-Astrologer Council: Parallel `$team` Orchestrator
+ * Super-Astrologer Council: Parallel \`$team\` Orchestrator
  * Harnesses 5 specialized agents concurrently before passing to the Jyotishi synthesizer.
  */
 export async function runCouncil(context: UserContext): Promise<string> {
@@ -63,28 +63,23 @@ Synthesize these findings into the final "Lethal" reading.
 }
 
 /**
- * Helper to call the Anthropic API for a specific agent role
+ * Helper to call the OpenAI API for a specific agent role
  */
 async function callAgent(role: string, systemPrompt: string, userMessage: string): Promise<string> {
   try {
-    const response = await anthropic.messages.create({
-      model: "claude-3-haiku-20240307",
-      max_tokens: 1000,
-      system: systemPrompt,
+    const response = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
       messages: [
+        { role: "system", content: systemPrompt },
         { role: "user", content: userMessage }
       ],
       temperature: 0.2, // Low temperature for high deterministic accuracy
     });
     
-    // We assume the first content block is text
-    const textBlock = response.content[0];
-    if (textBlock.type === 'text') {
-        return textBlock.text;
-    }
-    return "Error: Unexpected response type from Sonnet.";
+    return response.choices[0]?.message?.content || "Error: Unexpected empty response from OpenAI.";
   } catch (error) {
     console.error(`[Orchestrator] Agent ${role} failed:`, error);
     return `[Agent ${role} computationally unavailable]`;
   }
 }
+

@@ -1173,8 +1173,8 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
       const interpretation = await interpretKundli(kundli);
       res.json(interpretation);
     } catch (error: any) {
-      if (error.message?.includes("ANTHROPIC_API_KEY")) {
-        return res.status(503).json({ message: "AI features not configured. Set ANTHROPIC_API_KEY." });
+      if (error.message?.includes("OPENAI_API_KEY")) {
+        return res.status(503).json({ message: "AI features not configured. Set OPENAI_API_KEY." });
       }
       console.error("AI interpret error:", error);
       res.status(500).json({ message: "Failed to generate AI interpretation" });
@@ -1202,8 +1202,8 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
       );
       res.json(brief);
     } catch (error: any) {
-      if (error.message?.includes("ANTHROPIC_API_KEY")) {
-        return res.status(503).json({ message: "AI features not configured. Set ANTHROPIC_API_KEY." });
+      if (error.message?.includes("OPENAI_API_KEY")) {
+        return res.status(503).json({ message: "AI features not configured. Set OPENAI_API_KEY." });
       }
       console.error("Pre-consult brief error:", error);
       res.status(500).json({ message: "Failed to generate brief" });
@@ -1229,8 +1229,8 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
       const matches = await matchAstrologerToChart(latestKundli, candidates);
       res.json(matches);
     } catch (error: any) {
-      if (error.message?.includes("ANTHROPIC_API_KEY")) {
-        return res.status(503).json({ message: "AI features not configured. Set ANTHROPIC_API_KEY." });
+      if (error.message?.includes("OPENAI_API_KEY")) {
+        return res.status(503).json({ message: "AI features not configured. Set OPENAI_API_KEY." });
       }
       console.error("Match astrologer error:", error);
       res.status(500).json({ message: "Failed to match astrologer" });

@@ -1,28 +1,28 @@
 /**
  * AI Astrologer Service
  *
- * Uses Anthropic Claude to power three focused utility functions:
+ * Uses OpenAI (ChatGPT) to power three focused utility functions:
  * 1. Pre-consultation brief — talking points for an upcoming session
  * 2. Post-consultation follow-up — personalised action plan after a session
  * 3. Astrologer matching — rank astrologers by chart compatibility
  *
  * Also retains Kundli interpretation for the Kundli view page.
  *
- * Falls back gracefully when ANTHROPIC_API_KEY is not set.
+ * Falls back gracefully when OPENAI_API_KEY is not set.
  */
 
-import Anthropic from "@anthropic-ai/sdk";
+import OpenAI from "openai";
 import type { Kundli } from "@shared/schema";
 
 // Lazy-init so the server starts without the key (degraded mode)
-let _client: Anthropic | null = null;
+let _client: OpenAI | null = null;
 
-function getClient(): Anthropic {
+function getClient(): OpenAI {
   if (!_client) {
-    if (!process.env.ANTHROPIC_API_KEY) {
-      throw new Error("ANTHROPIC_API_KEY must be set for AI features");
+    if (!process.env.OPENAI_API_KEY) {
+      throw new Error("OPENAI_API_KEY must be set for AI features");
     }
-    _client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+    _client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
   }
   return _client;
 }
@@ -88,18 +88,16 @@ export async function interpretKundli(
 Birth chart:
 ${chartSummary(kundli)}`;
 
-  const response = await client.messages.create({
-    model: "claude-3-haiku-20240307",
-    max_tokens: 1500,
+  const response = await client.chat.completions.create({
+    model: "gpt-4o-mini",
     messages: [{ role: "user", content: prompt }],
+    response_format: { type: "json_object" },
   });
 
-  const text =
-    response.content[0].type === "text" ? response.content[0].text : "";
+  const text = response.choices[0]?.message?.content || "";
 
   try {
-    const cleaned = text.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
-    return JSON.parse(cleaned) as KundliInterpretation;
+    return JSON.parse(text) as KundliInterpretation;
   } catch {
     return {
       overview: text,
@@ -117,13 +115,11 @@ ${chartSummary(kundli)}`;
 }
 
 // ─── Pre-Consultation Brief ───────────────────────────────────────────────────
-// Generated before user joins a call/chat. Tells user exactly what to raise
-// with this specific astrologer given their current chart.
 
 export interface PreConsultBrief {
-  intro: string;              // 1-sentence opener
-  suggestedTopics: string[];  // 3-5 specific talking points
-  currentFocus: string;       // One key chart area to highlight (e.g. Saturn transit)
+  intro: string;              
+  suggestedTopics: string[];  
+  currentFocus: string;       
 }
 
 export async function generatePreConsultBrief(
@@ -147,16 +143,15 @@ Return ONLY a valid JSON object with these keys:
   "currentFocus": "The single most important chart factor to mention first (e.g. 'You are in Shani Mahadasha — start there')"
 }`;
 
-  const response = await client.messages.create({
-    model: "claude-3-haiku-20240307",
-    max_tokens: 600,
+  const response = await client.chat.completions.create({
+    model: "gpt-4o-mini",
     messages: [{ role: "user", content: prompt }],
+    response_format: { type: "json_object" },
   });
 
-  const text = response.content[0].type === "text" ? response.content[0].text : "";
+  const text = response.choices[0]?.message?.content || "";
   try {
-    const cleaned = text.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
-    return JSON.parse(cleaned) as PreConsultBrief;
+    return JSON.parse(text) as PreConsultBrief;
   } catch {
     return {
       intro: `You're about to connect with ${astrologerName}.`,
@@ -167,7 +162,6 @@ Return ONLY a valid JSON object with these keys:
 }
 
 // ─── Post-Consultation Follow-Up ──────────────────────────────────────────────
-// Generated after a session ends. Returns a personalised action plan.
 
 export async function generatePostConsultFollowUp(
   kundli: Partial<Kundli> | null,
@@ -191,23 +185,19 @@ Write a short, warm post-session message (3-5 sentences) with:
 3. A suggested follow-up timeframe based on their planetary periods
 Keep it under 120 words. No bullet points. Write naturally, like a message from the platform.`;
 
-  const response = await client.messages.create({
-    model: "claude-3-haiku-20240307",
-    max_tokens: 300,
+  const response = await client.chat.completions.create({
+    model: "gpt-4o-mini",
     messages: [{ role: "user", content: prompt }],
   });
 
-  return response.content[0].type === "text"
-    ? response.content[0].text
-    : `Thank you for your session with ${astrologerName}. Reflect on the insights shared and revisit your chart in the coming weeks.`;
+  return response.choices[0]?.message?.content || `Thank you for your session with ${astrologerName}. Reflect on the insights shared and revisit your chart in the coming weeks.`;
 }
 
 // ─── Astrologer Matching ──────────────────────────────────────────────────────
-// Ranks a list of astrologers by compatibility with the user's chart issues.
 
 export interface AstrologerMatch {
   astrologerId: string;
-  reason: string; // One sentence explaining why this astrologer fits this chart
+  reason: string;
 }
 
 export async function matchAstrologerToChart(
@@ -230,22 +220,25 @@ ${chartSummary(kundli)}
 Available astrologers:
 ${astroList}
 
-Return ONLY a valid JSON array of up to 3 objects:
-[
-  { "astrologerId": "<id>", "reason": "One sentence explaining why this astrologer fits this chart right now" }
-]`;
+Return ONLY a valid JSON object with the array under the key "matches":
+{
+  "matches": [
+    { "astrologerId": "<id>", "reason": "One sentence explaining why this astrologer fits this chart right now" }
+  ]
+}`;
 
-  const response = await client.messages.create({
-    model: "claude-3-haiku-20240307",
-    max_tokens: 400,
+  const response = await client.chat.completions.create({
+    model: "gpt-4o-mini",
     messages: [{ role: "user", content: prompt }],
+    response_format: { type: "json_object" },
   });
 
-  const text = response.content[0].type === "text" ? response.content[0].text : "[]";
+  const text = response.choices[0]?.message?.content || "{\"matches\":[]}";
   try {
-    const cleaned = text.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
-    return JSON.parse(cleaned) as AstrologerMatch[];
+    const data = JSON.parse(text);
+    return data.matches as AstrologerMatch[];
   } catch {
     return [];
   }
 }
+
