@@ -29,6 +29,10 @@ export async function runCouncil(context: UserContext): Promise<string> {
   console.log('[Orchestrator] Spinning up the $team council...');
   
   // Step 2: Massive Parallelism - Run all analytical agents simultaneously
+  // Inject the absolute current date to prevent GPT-4o-mini from using 2023 as current timeline
+  const today = new Date().toISOString().split('T')[0];
+  const temporalInjector = (prompt: string) => `GLOBAL DIRECTIVE: The exact current date is ${today}. All 'current' Dasha and Transit analysis MUST be relative to today. Do not hallucinate historical dates as the present.\n\n${prompt}`;
+
   const [
     chronosResult,
     vargaResult,
@@ -36,11 +40,11 @@ export async function runCouncil(context: UserContext): Promise<string> {
     backtesterResult,
     contextResult
   ] = await Promise.all([
-    callAgent("chronos", AGENT_PROMPTS.chronos, contextPayload),
-    callAgent("vargaValidator", AGENT_PROMPTS.vargaValidator, contextPayload),
-    callAgent("ashtakavarga", AGENT_PROMPTS.ashtakavarga, contextPayload),
-    callAgent("eventBacktester", AGENT_PROMPTS.eventBacktester, contextPayload),
-    callAgent("deshaKaalaPatra", AGENT_PROMPTS.deshaKaalaPatra, contextPayload),
+    callAgent("chronos", temporalInjector(AGENT_PROMPTS.chronos), contextPayload),
+    callAgent("vargaValidator", temporalInjector(AGENT_PROMPTS.vargaValidator), contextPayload),
+    callAgent("ashtakavarga", temporalInjector(AGENT_PROMPTS.ashtakavarga), contextPayload),
+    callAgent("eventBacktester", temporalInjector(AGENT_PROMPTS.eventBacktester), contextPayload),
+    callAgent("deshaKaalaPatra", temporalInjector(AGENT_PROMPTS.deshaKaalaPatra), contextPayload),
   ]);
 
   // Step 3: Synthesis - The Jyotishi compiles the absolute truth
