@@ -9,7 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import {
   Building2, Users, Zap, TrendingUp, DollarSign, Code2,
   Megaphone, Palette, HandshakeIcon, Target, Crown, ArrowRight,
-  Sparkles, Send, MessageSquare, MessageCircle,
+  Sparkles, Send, MessageSquare, MessageCircle, Moon, Sun,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -255,6 +255,87 @@ function ExecRoomPanel({ company }: { company: any }) {
   );
 }
 
+// ── Reports Panel ─────────────────────────────────────────────────────────
+function ReportsPanel() {
+  const { toast } = useToast();
+  const qc = useQueryClient();
+  const [reportTab, setReportTab] = useState<"morning" | "evening">("morning");
+
+  const { data: morningMsgs = [] } = useQuery<any[]>({
+    queryKey: ["/api/corporate/chat", "heartbeat-morning"],
+    queryFn: () => apiRequest("GET", "/api/corporate/chat/heartbeat-morning"),
+    refetchInterval: 30_000,
+  });
+  const { data: eveningMsgs = [] } = useQuery<any[]>({
+    queryKey: ["/api/corporate/chat", "heartbeat-evening"],
+    queryFn: () => apiRequest("GET", "/api/corporate/chat/heartbeat-evening"),
+    refetchInterval: 30_000,
+  });
+
+  const triggerMut = useMutation({
+    mutationFn: (session: "morning" | "evening") =>
+      apiRequest("POST", "/api/corporate/heartbeat", { session }),
+    onSuccess: (_, session) => {
+      toast({ title: `${session === "morning" ? "☀️" : "🌙"} ${session} briefing triggered!`, description: "Reports will appear here in ~30 seconds." });
+      setTimeout(() => {
+        qc.invalidateQueries({ queryKey: ["/api/corporate/chat", `heartbeat-${session}`] });
+      }, 35_000);
+    },
+    onError: () => toast({ variant: "destructive", title: "Failed to trigger" }),
+  });
+
+  const msgs = reportTab === "morning" ? morningMsgs : eveningMsgs;
+
+  return (
+    <div className="space-y-4">
+      {/* Schedule info */}
+      <div className="flex items-center justify-between gap-3 p-3 rounded-xl bg-nava-navy/30 border border-nava-teal/20">
+        <div>
+          <p className="text-xs font-semibold text-nava-teal">🤖 Autonomous Schedule</p>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            <Sun className="w-3 h-3 inline mr-1 text-nava-amber" />Morning briefing @ 8:00 AM IST &nbsp;·&nbsp;
+            <Moon className="w-3 h-3 inline mr-1 text-nava-teal" />Evening standup @ 9:00 PM IST
+          </p>
+        </div>
+        <div className="flex gap-2 shrink-0">
+          <Button size="sm" variant="outline" className="text-[11px] h-7 border-nava-amber/30 text-nava-amber hover:bg-nava-amber/10"
+            onClick={() => triggerMut.mutate("morning")} disabled={triggerMut.isPending}>
+            ☀️ Now
+          </Button>
+          <Button size="sm" variant="outline" className="text-[11px] h-7 border-nava-teal/30 text-nava-teal hover:bg-nava-teal/10"
+            onClick={() => triggerMut.mutate("evening")} disabled={triggerMut.isPending}>
+            🌙 Now
+          </Button>
+        </div>
+      </div>
+
+      {/* Sub-tabs */}
+      <div className="flex gap-1 p-1 rounded-xl bg-card/30 border border-border/30">
+        {(["morning", "evening"] as const).map(s => (
+          <button key={s} onClick={() => setReportTab(s)}
+            className={`flex-1 py-1.5 rounded-lg text-xs font-semibold transition-all
+              ${reportTab === s ? "bg-card text-foreground shadow-sm border border-border/40" : "text-muted-foreground"}`}>
+            {s === "morning" ? "☀️ Morning" : "🌙 Evening"}
+          </button>
+        ))}
+      </div>
+
+      {/* Messages */}
+      <div className="flex flex-col gap-2 max-h-[420px] overflow-y-auto">
+        {msgs.length === 0 ? (
+          <div className="text-center py-10 text-muted-foreground">
+            <Moon className="w-10 h-10 mx-auto mb-3 opacity-20" />
+            <p className="text-sm font-medium">No reports yet.</p>
+            <p className="text-xs mt-1">Click "Now" above to trigger a {reportTab} session instantly.</p>
+          </div>
+        ) : (
+          msgs.map((m: any) => <MessageBubble key={m.id} msg={m} isUser={false} />)
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ── Onboarding form ────────────────────────────────────────────────────────
 function BoardroomOnboarding({ onCreated }: { onCreated: () => void }) {
   const [name, setName] = useState("Navagraha");
@@ -311,7 +392,7 @@ function BoardroomOnboarding({ onCreated }: { onCreated: () => void }) {
 }
 
 // ── Main Dashboard ─────────────────────────────────────────────────────────
-type Tab = "team" | "dm" | "exec-room" | "initiatives";
+type Tab = "team" | "dm" | "exec-room" | "initiatives" | "reports";
 
 export default function Boardroom() {
   const [onboarded, setOnboarded] = useState(false);
@@ -355,10 +436,11 @@ export default function Boardroom() {
   if ((companyError || !company) && !onboarded) return <BoardroomOnboarding onCreated={() => setOnboarded(true)} />;
 
   const tabs: { id: Tab; label: string; icon: React.ElementType }[] = [
-    { id: "team",       label: "Team",         icon: Users        },
-    { id: "dm",         label: "Talk to Exec", icon: MessageSquare },
-    { id: "exec-room",  label: "Exec Room",    icon: MessageCircle },
-    { id: "initiatives",label: "Initiatives",  icon: Target       },
+    { id: "team",        label: "Team",         icon: Users          },
+    { id: "dm",          label: "Chat",          icon: MessageSquare  },
+    { id: "exec-room",   label: "Exec Room",     icon: MessageCircle  },
+    { id: "initiatives", label: "Goals",         icon: Target         },
+    { id: "reports",     label: "Reports",       icon: Moon           },
   ];
 
   return (
@@ -509,6 +591,22 @@ export default function Boardroom() {
             )}
           </div>
         )}
+        {activeTab === "reports" && (
+          <Card className="glass-card">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base flex items-center gap-2">
+                <Moon className="w-4 h-4 text-nava-teal" /> Daily Reports
+              </CardTitle>
+              <p className="text-xs text-muted-foreground">
+                Your team works while you sleep — morning briefings at 8 AM, evening standups at 9 PM.
+              </p>
+            </CardHeader>
+            <CardContent>
+              <ReportsPanel />
+            </CardContent>
+          </Card>
+        )}
+
       </div>
     </div>
   );

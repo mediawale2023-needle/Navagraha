@@ -5,6 +5,7 @@ import { setupVite, serveStatic, log } from "./vite";
 import { runMigrations } from "./migrate";
 import { waitForDatabase } from "./db";
 import { setupWebSocket } from "./websocketService";
+import { startHeartbeatEngine } from "./corporate/heartbeat";
 
 // Prevent unhandled errors from killing the process before the port binds
 process.on("uncaughtException", (err) =>
@@ -107,8 +108,10 @@ waitForDatabase()
       serveStatic(app);
     }
 
-    // Run DB migrations
-    return runMigrations();
+    // Run DB migrations, then start the heartbeat engine
+    return runMigrations().then(() => {
+      startHeartbeatEngine();
+    });
   })
   .catch((err) => {
     console.error("[startup/migrate] Critical startup failure:", err);

@@ -6,6 +6,7 @@ import { sql, eq, asc } from "drizzle-orm";
 import { setupAuth, isAuthenticated } from "./auth";
 import { runCouncil, UserContext } from "./agents/orchestrator";
 import { corporateOrchestrator } from "./corporate/orchestrator";
+import { triggerHeartbeat } from "./corporate/heartbeat";
 import rateLimit from "express-rate-limit";
 import {
   insertKundliSchema,
@@ -1494,6 +1495,18 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
     } catch (err: any) {
       res.status(500).json({ message: err.message || "Failed to run debate" });
     }
+  });
+
+  // Heartbeat: manual trigger
+  app.post('/api/corporate/heartbeat', async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).send("Unauthorized");
+    const { session } = req.body as { session: "morning" | "evening" };
+    if (!session || !['morning','evening'].includes(session)) {
+      return res.status(400).json({ message: 'session must be morning or evening' });
+    }
+    // Run in background, respond immediately
+    triggerHeartbeat(session).catch(err => console.error('[heartbeat] manual trigger error:', err));
+    res.json({ message: `${session} heartbeat triggered for all companies` });
   });
 
   // ─── Homepage CMS ──────────────────────────────────────────
