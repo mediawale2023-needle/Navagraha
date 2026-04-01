@@ -68,17 +68,17 @@ export async function interpretKundli(
 ): Promise<KundliInterpretation> {
   const client = getClient();
 
-  const prompt = `You are a Vedic astrology expert. Analyse this birth chart and return ONLY a valid JSON object with exactly these keys:
+  const prompt = `You are a Vedic astrology expert. Analyse this birth chart and return ONLY a valid JSON object with exactly these keys. EVERY VALUE MUST BE A SINGLE, WELL-WRITTEN PARAGRAPH STRING (except luckyFactors). DO NOT USE NESTED JSON OR ARRAYS FOR ANY TEXT FIELD:
 {
   "overview": "2-3 sentence overall life theme",
   "personality": "core personality traits based on Lagna and Moon sign",
   "career": "career path and professional strengths",
   "relationships": "relationships, marriage timing, partner traits",
   "health": "health tendencies and areas to watch",
-  "currentDasha": "current Mahadasha planet, period dates, key life effects",
-  "currentAntardasha": "current Antardasha planet, period dates, specific effects now",
-  "doshaAnalysis": "dosha analysis and severity",
-  "remedies": "top 3-5 practical Vedic remedies",
+  "currentDasha": "Write a flowing paragraph describing the current Mahadasha planet, dates, and its key life effects.",
+  "currentAntardasha": "Write a flowing paragraph describing the current Antardasha, dates, and specific effects now.",
+  "doshaAnalysis": "Write a paragraph describing the dosha analysis and severity.",
+  "remedies": "Write a single paragraph listing top 3-5 practical Vedic remedies, separated by commas.",
   "luckyFactors": {
     "number": <1-9>,
     "color": "<color>",
