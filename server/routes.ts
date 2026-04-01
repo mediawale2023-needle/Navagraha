@@ -1123,12 +1123,25 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
         content: message
       });
 
+      let birthDate = user.dateOfBirth ? new Date(user.dateOfBirth).toISOString().split('T')[0] : 'Unknown';
+      let birthTime = user.timeOfBirth || 'Unknown';
+      let birthPlace = user.placeOfBirth || 'Unknown';
+
+      if (kundliId) {
+        const kundli = await storage.getKundliById(kundliId);
+        if (kundli && kundli.userId === user.id) {
+          birthDate = kundli.dateOfBirth ? new Date(kundli.dateOfBirth).toISOString().split('T')[0] : 'Unknown';
+          birthTime = kundli.timeOfBirth || 'Unknown';
+          birthPlace = kundli.placeOfBirth || 'Unknown';
+        }
+      }
+
       // Prepare context for Orchestrator
       const context: UserContext = {
         birthDetails: {
-          date: user.dateOfBirth ? new Date(user.dateOfBirth).toISOString().split('T')[0] : 'Unknown',
-          time: user.timeOfBirth || 'Unknown',
-          place: user.placeOfBirth || 'Unknown',
+          date: birthDate,
+          time: birthTime,
+          place: birthPlace,
         },
         profession: 'User',
         currentQuery: message

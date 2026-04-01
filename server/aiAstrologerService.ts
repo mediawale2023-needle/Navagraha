@@ -33,6 +33,8 @@ function chartSummary(kundli: Partial<Kundli>): string {
   return `
 Name: ${kundli.name || "Unknown"}
 Date of Birth: ${kundli.dateOfBirth ? new Date(kundli.dateOfBirth).toDateString() : "Unknown"}
+Time of Birth: ${kundli.timeOfBirth || "Unknown"}
+Place of Birth: ${kundli.placeOfBirth || "Unknown"}
 Sun Sign (Rashi): ${kundli.zodiacSign || "Unknown"}
 Moon Sign: ${kundli.moonSign || "Unknown"}
 Ascendant (Lagna): ${kundli.ascendant || "Unknown"}
