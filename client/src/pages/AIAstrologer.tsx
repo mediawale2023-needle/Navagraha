@@ -375,7 +375,13 @@ export default function AIAstrologer() {
                       <h3 className="text-xs font-semibold text-nava-teal uppercase tracking-wider mb-1">
                         {label}
                       </h3>
-                      <p className="text-foreground text-sm leading-relaxed">{value}</p>
+                      <p className="text-foreground text-sm leading-relaxed">
+                        {typeof value === 'string' 
+                          ? value 
+                          : Array.isArray(value) 
+                            ? (value as any).join(', ') 
+                            : JSON.stringify(value)}
+                      </p>
                     </div>
                   ) : null
                 )}
