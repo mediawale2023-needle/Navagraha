@@ -12,6 +12,7 @@ export interface UserContext {
     time: string;
     place: string;
   };
+  chartData?: any;
   profession?: string;
   pastEvents?: string[];
   currentQuery: string;

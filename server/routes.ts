@@ -1126,6 +1126,7 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
       let birthDate = user.dateOfBirth ? new Date(user.dateOfBirth).toISOString().split('T')[0] : 'Unknown';
       let birthTime = user.timeOfBirth || 'Unknown';
       let birthPlace = user.placeOfBirth || 'Unknown';
+      let chartData: any = null;
 
       if (kundliId) {
         const kundli = await storage.getKundliById(kundliId);
@@ -1133,6 +1134,14 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
           birthDate = kundli.dateOfBirth ? new Date(kundli.dateOfBirth).toISOString().split('T')[0] : 'Unknown';
           birthTime = kundli.timeOfBirth || 'Unknown';
           birthPlace = kundli.placeOfBirth || 'Unknown';
+          chartData = {
+            ascendant: kundli.ascendant,
+            sunSign: kundli.zodiacSign,
+            moonSign: kundli.moonSign,
+            planets: kundli.chartData,
+            dashas: kundli.dashas,
+            doshas: kundli.doshas
+          };
         }
       }
 
@@ -1143,6 +1152,7 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
           time: birthTime,
           place: birthPlace,
         },
+        chartData,
         profession: 'User',
         currentQuery: message
       };
