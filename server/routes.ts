@@ -5,6 +5,7 @@ import { db } from "./db";
 import { sql, eq, asc } from "drizzle-orm";
 import { setupAuth, isAuthenticated } from "./auth";
 import { runCouncil, UserContext } from "./agents/orchestrator";
+import { corporateOrchestrator } from "./corporate/orchestrator";
 import rateLimit from "express-rate-limit";
 import {
   insertKundliSchema,
@@ -1406,6 +1407,52 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
     } catch { res.status(500).json({ message: 'Failed to update astrologer' }); }
   });
 
+  // ─── Navagraha Corporate (The Boardroom) ────────────────────
+  app.get('/api/corporate/company', async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).send("Unauthorized");
+    const company = await storage.getAiCompanyByUserId((req.user as any).id.toString());
+    res.json(company || null);
+  });
+
+  app.post('/api/corporate/initialize', async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).send("Unauthorized");
+    const { name, mission } = req.body;
+    try {
+      const company = await corporateOrchestrator.hireDefaultCSuite((req.user as any).id.toString(), name, mission);
+      res.status(201).json(company);
+    } catch (err) {
+      res.status(500).json({ message: "Failed to initialize boardroom" });
+    }
+  });
+
+  app.get('/api/corporate/employees', async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).send("Unauthorized");
+    const company = await storage.getAiCompanyByUserId((req.user as any).id.toString());
+    if (!company) return res.status(404).json({ message: "No company found" });
+    const employees = await storage.getAiEmployees(company.id);
+    res.json(employees);
+  });
+
+  app.get('/api/corporate/initiatives', async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).send("Unauthorized");
+    const company = await storage.getAiCompanyByUserId((req.user as any).id.toString());
+    if (!company) return res.status(404).json({ message: "No company found" });
+    const initiatives = await storage.getAiInitiativesByCompany(company.id);
+    res.json(initiatives);
+  });
+
+  app.post('/api/corporate/plan', async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).send("Unauthorized");
+    const company = await storage.getAiCompanyByUserId((req.user as any).id.toString());
+    if (!company) return res.status(404).json({ message: "No company found" });
+    try {
+      const initiatives = await corporateOrchestrator.generateStrategicInitiatives(company.id);
+      res.json(initiatives);
+    } catch (err) {
+      res.status(500).json({ message: "Failed to generate plan" });
+    }
+  });
+
   // ─── Homepage CMS ──────────────────────────────────────────
 
   // Public: Get all enabled homepage content grouped by section
@@ -1487,6 +1534,54 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
       res.json({ success: true });
     } catch { res.status(500).json({ message: 'Failed to reorder' }); }
   });
+
+  // ─── Navagraha Corporate (The Boardroom) ────────────────────
+  app.get('/api/corporate/company', async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).send("Unauthorized");
+    const company = await storage.getAiCompanyByUserId((req.user as any).id.toString());
+    res.json(company || null);
+  });
+
+  app.post('/api/corporate/initialize', async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).send("Unauthorized");
+    const { name, mission } = req.body;
+    try {
+      const company = await corporateOrchestrator.hireDefaultCSuite((req.user as any).id.toString(), name, mission);
+      res.status(201).json(company);
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ message: "Failed to initialize boardroom" });
+    }
+  });
+
+  app.get('/api/corporate/employees', async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).send("Unauthorized");
+    const company = await storage.getAiCompanyByUserId((req.user as any).id.toString());
+    if (!company) return res.status(404).json({ message: "No company found" });
+    const employees = await storage.getAiEmployees(company.id);
+    res.json(employees);
+  });
+
+  app.get('/api/corporate/initiatives', async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).send("Unauthorized");
+    const company = await storage.getAiCompanyByUserId((req.user as any).id.toString());
+    if (!company) return res.status(404).json({ message: "No company found" });
+    const initiatives = await storage.getAiInitiativesByCompany(company.id);
+    res.json(initiatives);
+  });
+
+  app.post('/api/corporate/plan', async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).send("Unauthorized");
+    const company = await storage.getAiCompanyByUserId((req.user as any).id.toString());
+    if (!company) return res.status(404).json({ message: "No company found" });
+    try {
+      const initiatives = await corporateOrchestrator.generateStrategicInitiatives(company.id);
+      res.json(initiatives);
+    } catch (err) {
+      res.status(500).json({ message: "Failed to generate plan" });
+    }
+  });
+
 
   return existingServer ?? createServer(app);
 }

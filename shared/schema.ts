@@ -11,6 +11,7 @@ import {
   boolean,
   decimal,
   serial,
+  numeric,
 } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
@@ -433,9 +434,68 @@ export const predictionFeedbacks = pgTable("prediction_feedbacks", {
   actualOccurrenceDate: timestamp("actual_occurrence_date"),
   wasAccurate: boolean("was_accurate").notNull(),
   dashaSystemUsed: text("dasha_system_used").notNull(), // 'Vimshottari', 'Yogini', 'Chara'
-  notes: text("notes"),
+  processedAt: timestamp("processed_at"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
+
+// ── Navagraha Corporate (The C-Suite) ─────────────────
+export const aiCompanies = pgTable("ai_companies", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull(),
+  name: text("name").notNull(),
+  mission: text("mission").notNull(),
+  industry: text("industry").notNull(),
+  targetRevenue: numeric("target_revenue", { precision: 12, scale: 2 }),
+  targetCurrency: text("target_currency").default("INR"),
+  targetDeadline: timestamp("target_deadline"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const aiEmployees = pgTable("ai_employees", {
+  id: serial("id").primaryKey(),
+  companyId: integer("company_id").references(() => aiCompanies.id).notNull(),
+  role: text("role").notNull(), // CEO, CTO, CFO, CMO, BRAND, SALES
+  name: text("name").notNull(),
+  personality: text("personality").notNull(),
+  status: text("status").default("active"), // active, paused, thinking
+  lastOutput: text("last_output"),
+  tokenSpend: integer("token_spend").default(0),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const aiInitiatives = pgTable("ai_initiatives", {
+  id: serial("id").primaryKey(),
+  companyId: integer("company_id").references(() => aiCompanies.id).notNull(),
+  title: text("title").notNull(),
+  description: text("description").notNull(),
+  priority: text("priority").default("medium"), // high, medium, low
+  status: text("status").default("pending"), // pending, active, completed, failed
+  deadline: timestamp("deadline"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const aiDirectives = pgTable("ai_directives", {
+  id: serial("id").primaryKey(),
+  initiativeId: integer("initiative_id").references(() => aiInitiatives.id).notNull(),
+  issuerId: integer("issuer_id").references(() => aiEmployees.id).notNull(),
+  assigneeId: integer("assignee_id").references(() => aiEmployees.id), // Can be null if global
+  content: text("content").notNull(),
+  type: text("type").notNull(), // STRATEGY, TASK, REPORT
+  status: text("status").default("pending"), // pending, approved, completed, rejected
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// ── Zod Schemas for Corporate ─────────────────────────
+export const insertAiCompanySchema = createInsertSchema(aiCompanies);
+export const insertAiEmployeeSchema = createInsertSchema(aiEmployees);
+export const insertAiInitiativeSchema = createInsertSchema(aiInitiatives);
+export const insertAiDirectiveSchema = createInsertSchema(aiDirectives);
+
+export type AiCompany = typeof aiCompanies.$inferSelect;
+export type AiEmployee = typeof aiEmployees.$inferSelect;
+export type AiInitiative = typeof aiInitiatives.$inferSelect;
+export type AiDirective = typeof aiDirectives.$inferSelect;
+
 
 export const insertPredictionFeedbackSchema = createInsertSchema(predictionFeedbacks);
 

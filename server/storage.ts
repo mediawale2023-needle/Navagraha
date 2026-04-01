@@ -37,6 +37,14 @@ import {
   predictionFeedbacks,
   type PredictionFeedback,
   type InsertPredictionFeedback,
+  aiCompanies,
+  aiEmployees,
+  aiInitiatives,
+  aiDirectives,
+  type AiCompany,
+  type AiEmployee,
+  type AiInitiative,
+  type AiDirective,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, and, sql } from "drizzle-orm";
@@ -97,6 +105,19 @@ export interface IStorage {
   createReview(review: InsertReview): Promise<Review>;
   getAstrologerReviews(astrologerId: string): Promise<(Review & { userName?: string })[]>;
   getUserReviewForConsultation(userId: string, consultationId: string): Promise<Review | undefined>;
+
+  // Corporate operations
+  createAiCompany(company: any): Promise<AiCompany>;
+  getAiCompanyByUserId(userId: string): Promise<AiCompany | undefined>;
+  getAiEmployees(companyId: number): Promise<AiEmployee[]>;
+  createAiEmployee(employee: any): Promise<AiEmployee>;
+  updateAiEmployee(id: number, data: Partial<AiEmployee>): Promise<AiEmployee>;
+  createAiInitiative(initiative: any): Promise<AiInitiative>;
+  getAiInitiativesByCompany(companyId: number): Promise<AiInitiative[]>;
+  createAiDirective(directive: any): Promise<AiDirective>;
+  getAiDirectivesByInitiative(initiativeId: number): Promise<AiDirective[]>;
+  getAiDirectivesByEmployee(employeeId: number): Promise<AiDirective[]>;
+
 
   // Schedule operations
   createScheduledCall(data: InsertScheduledCall): Promise<ScheduledCall>;
@@ -768,6 +789,54 @@ export class DatabaseStorage implements IStorage {
       dashaStats
     };
   }
+
+  // ── Navagraha Corporate Implementation ────────────────
+  async createAiCompany(company: any): Promise<AiCompany> {
+    const [row] = await db.insert(aiCompanies).values(company).returning();
+    return row;
+  }
+
+  async getAiCompanyByUserId(userId: string): Promise<AiCompany | undefined> {
+    const [row] = await db.select().from(aiCompanies).where(eq(aiCompanies.userId, parseInt(userId)));
+    return row;
+  }
+
+  async getAiEmployees(companyId: number): Promise<AiEmployee[]> {
+    return await db.select().from(aiEmployees).where(eq(aiEmployees.companyId, companyId));
+  }
+
+  async createAiEmployee(employee: any): Promise<AiEmployee> {
+    const [row] = await db.insert(aiEmployees).values(employee).returning();
+    return row;
+  }
+
+  async updateAiEmployee(id: number, data: Partial<AiEmployee>): Promise<AiEmployee> {
+    const [row] = await db.update(aiEmployees).set(data).where(eq(aiEmployees.id, id)).returning();
+    return row;
+  }
+
+  async createAiInitiative(initiative: any): Promise<AiInitiative> {
+    const [row] = await db.insert(aiInitiatives).values(initiative).returning();
+    return row;
+  }
+
+  async getAiInitiativesByCompany(companyId: number): Promise<AiInitiative[]> {
+    return await db.select().from(aiInitiatives).where(eq(aiInitiatives.companyId, companyId));
+  }
+
+  async createAiDirective(directive: any): Promise<AiDirective> {
+    const [row] = await db.insert(aiDirectives).values(directive).returning();
+    return row;
+  }
+
+  async getAiDirectivesByInitiative(initiativeId: number): Promise<AiDirective[]> {
+    return await db.select().from(aiDirectives).where(eq(aiDirectives.initiativeId, initiativeId));
+  }
+
+  async getAiDirectivesByEmployee(employeeId: number): Promise<AiDirective[]> {
+    return await db.select().from(aiDirectives).where(eq(aiDirectives.assigneeId, employeeId));
+  }
 }
+
 
 export const storage = new DatabaseStorage();
