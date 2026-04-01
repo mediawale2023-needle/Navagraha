@@ -98,11 +98,11 @@ Synthesize these findings into the final precise, deterministic, confident Vedic
 Speak directly to the person — no "ifs", no "coulds". The math is already computed above.
 `;
 
-  const jyotishiOutput = await callAgent("jyotishi", AGENT_PROMPTS.jyotishi, synthesisPayload);
+  const jyotishiOutput = await callAgent("jyotishi", temporalInjector(AGENT_PROMPTS.jyotishi), synthesisPayload);
 
   // ─── Step 4: Ethicist Gate (Safety Filter) ────────────────────────────────
   console.log('[Orchestrator] Running Ethicist Gate...');
-  const finalReading = await callAgent("ethicist", AGENT_PROMPTS.ethicist, jyotishiOutput);
+  const finalReading = await callAgent("ethicist", temporalInjector(AGENT_PROMPTS.ethicist), jyotishiOutput);
 
   return finalReading;
 
