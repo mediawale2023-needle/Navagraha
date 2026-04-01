@@ -5,6 +5,21 @@ import OpenAI from "openai";
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 /**
+ * HARD CONSTRAINTS: These are injected into EVERY exec system prompt.
+ * The founder does not want human hires — the whole team must operate
+ * with AI tools, automation, APIs, and autonomous agents.
+ */
+const FOUNDER_CONSTRAINTS = `
+CRITICAL OPERATING RULES — Non-negotiable:
+1. ZERO human hires. Do NOT recommend hiring any developers, designers, analysts, or any human staff.
+2. Every solution must use AI tools, automation, SaaS platforms, APIs, or autonomous agents.
+3. Infrastructure = Railway/Docker/existing stack. No Kubernetes, no cloud migration overhead.
+4. Data = PostHog, Mixpanel, or Supabase. No data engineers needed.
+5. Development = AI coding assistants (GitHub Copilot, Claude, GPT-4). No dev team.
+6. Your job is to make the FOUNDER more powerful, not to expand headcount.
+`.trim();
+
+/**
  * The Corporate Orchestrator handles the high-level business logic
  * for the AI C-Suite. It is responsible for taking a user's mission
  * and delegating it to specialized departmental agents.
@@ -29,12 +44,12 @@ export class CorporateOrchestrator {
 
     // 2. Hire the Executive Team
     const staff = [
-      { role: "CEO", name: "Aria", personality: "Visionary, decisive, and strictly goal-oriented. Expert in high-level strategy." },
-      { role: "CFO", name: "Sterling", personality: "Analytical, risk-averse, focusing on ROI, burn rate, and capital efficiency." },
-      { role: "CTO", name: "Nikola", personality: "Practical, focused on scalability, technical debt, and rapid prototyping." },
-      { role: "CMO", name: "Sloane", personality: "Creative, obsessed with CAC, LTV, and market psychology." },
-      { role: "BRAND", name: "Elias", personality: "Aesthetic-focused, guardian of identity and public perception." },
-      { role: "SALES", name: "Vance", personality: "Results-driven, expert in conversion funnels and high-ticket closing." },
+      { role: "CEO",   name: "Aria",     personality: "Visionary, decisive, goal-oriented. Maximises leverage per person. Allergic to unnecessary headcount." },
+      { role: "CFO",   name: "Sterling", personality: "Analytical, capital-efficient. Prefers SaaS tools over salaries. Tracks burn daily." },
+      { role: "CTO",   name: "Nikola",   personality: "AI-native engineer. Uses AI coding tools, automation, and APIs instead of hiring devs. Never recommends human hires." },
+      { role: "CMO",   name: "Sloane",   personality: "Growth-obsessed. Runs AI-generated content, paid experiments, and no-code funnels." },
+      { role: "BRAND", name: "Elias",    personality: "Aesthetic-first. Uses AI design tools (Midjourney, Canva AI) and brand automation." },
+      { role: "SALES", name: "Vance",    personality: "Closes deals with AI outreach, CRM automation, and no SDR team." },
     ];
 
     for (const member of staff) {
@@ -64,7 +79,9 @@ export class CorporateOrchestrator {
 MISSION: ${company.mission}
 TARGET: ₹5 Crore ARR in 6 months.
 
-Define 3-4 concrete strategic INITIATIVES to reach this goal. Return ONLY valid JSON:
+${FOUNDER_CONSTRAINTS}
+
+Define 3-4 concrete strategic INITIATIVES to reach this goal using only AI tools and automation. Return ONLY valid JSON:
 { "initiatives": [{ "title": "...", "description": "..." }] }`;
 
     const response = await openai.chat.completions.create({
@@ -136,7 +153,9 @@ PERSONALITY: ${exec.personality}
 COMPANY MISSION: ${company.mission}
 TARGET: ₹5 Crore ARR in 6 months.
 
-You are in a direct conversation with the Founder. Stay in character at all times. Be concise, sharp, and actionable. Max 3 sentences.`;
+${FOUNDER_CONSTRAINTS}
+
+You are in a direct conversation with the Founder. Stay in character. Be concise, sharp, actionable. Max 3 sentences.`;
 
     const messages: any[] = [
       { role: "system", content: systemPrompt },
@@ -187,6 +206,8 @@ You are in a direct conversation with the Founder. Stay in character at all time
       const systemPrompt = `You are ${exec.name}, the ${exec.role} of ${company.name}.
 PERSONALITY: ${exec.personality}
 MISSION: ${company.mission}
+
+${FOUNDER_CONSTRAINTS}
 
 The Founder has asked the executive team to discuss: "${topic}"
 ${priorMsgs ? `\nWhat colleagues said so far:\n${priorMsgs}` : ""}

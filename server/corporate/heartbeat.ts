@@ -15,6 +15,8 @@ import OpenAI from "openai";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
+const FOUNDER_CONSTRAINTS = `CRITICAL: ZERO human hires. Every recommendation must use AI tools, automation, APIs, or SaaS. Do NOT suggest hiring any staff.`.trim();
+
 // ── Schedule Config ─────────────────────────────────────────────────────────
 // Morning briefing: 8:00 AM IST = 2:30 AM UTC
 // Evening standup:  9:00 PM IST = 3:30 PM UTC
@@ -54,9 +56,9 @@ async function runExecHeartbeat(
 PERSONALITY: ${exec.personality}
 COMPANY MISSION: ${company.mission}
 TARGET: ₹5 Crore ARR in 6 months.
+${FOUNDER_CONSTRAINTS}
 
 It is your scheduled ${session} heartbeat. Your task: ${task}
-
 Be specific, actionable, and concise. Max 4 sentences. No pleasantries. Just the insight.`;
 
   try {
