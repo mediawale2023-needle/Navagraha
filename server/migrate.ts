@@ -233,6 +233,9 @@ CREATE TABLE IF NOT EXISTS ai_companies (
   target_deadline timestamp,
   created_at timestamp DEFAULT now()
 );
+-- Idempotent fix: ensure user_id is varchar for existing deployments
+ALTER TABLE ai_companies ALTER COLUMN user_id TYPE varchar USING user_id::varchar;
+
 
 CREATE TABLE IF NOT EXISTS ai_employees (
   id serial PRIMARY KEY,
