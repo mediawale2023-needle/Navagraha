@@ -163,7 +163,7 @@ export default function AIAstrologer() {
   const interpretMutation = useMutation({
     mutationFn: async (kundliId: string) => {
       const res = await apiRequest("POST", "/api/ai/interpret-kundli", { kundliId });
-      return res.json();
+      return res;
     },
     onSuccess: (data) => {
       setInterpretation(data);

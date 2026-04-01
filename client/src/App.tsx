@@ -22,6 +22,7 @@ import AstrologerDashboard from "@/pages/AstrologerDashboard";
 import AdminDashboard from "@/pages/AdminDashboard";
 import Numerology from "@/pages/Numerology";
 import Horoscope from "@/pages/Horoscope";
+import AIAstrologer from "@/pages/AIAstrologer";
 import NotFound from "@/pages/not-found";
 import { useEffect, useState } from "react";
 
@@ -63,6 +64,7 @@ function Router() {
       <Route path="/kundli/new" component={KundliNew} />
       <Route path="/kundli/:id" component={KundliView} />
       <Route path="/numerology" component={Numerology} />
+      <Route path="/ai-astrologer" component={AIAstrologer} />
 
       {isLoading || !isAuthenticated ? (
         <>
