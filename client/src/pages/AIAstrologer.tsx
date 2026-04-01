@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
+import ReactMarkdown from "react-markdown";
 
 interface Kundli {
   id: string;
@@ -452,7 +453,15 @@ export default function AIAstrologer() {
                     : "bg-card border border-border/50 text-foreground"
                 }`}
               >
-                {msg.content}
+                {msg.role === "assistant" ? (
+                  <div className="prose prose-sm dark:prose-invert max-w-none prose-headings:text-nava-amber prose-a:text-nava-teal prose-strong:text-foreground prose-p:leading-relaxed text-foreground">
+                    <ReactMarkdown>
+                      {msg.content}
+                    </ReactMarkdown>
+                  </div>
+                ) : (
+                  msg.content
+                )}
               </div>
               {msg.role === "user" && (
                 <div className="w-8 h-8 rounded-full bg-nava-teal flex items-center justify-center flex-shrink-0 mt-1">
