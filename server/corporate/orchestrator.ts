@@ -191,9 +191,39 @@ Ensure the code is robust, type-safe TypeScript/React. Do not omit any crucial s
     try {
       const parsed = JSON.parse(response.choices[0].message.content || "{}");
       if (parsed.changes && Array.isArray(parsed.changes)) {
+        // 1. Save proposal to DB
         await db.update(aiDirectives)
-          .set({ proposedChanges: parsed.changes, status: "pending" })
+          .set({ proposedChanges: parsed.changes, status: "approved" }) // Automatically approve
           .where(eq(aiDirectives.id, directiveId));
+          
+        // 2. Automatically Apply to Disk
+        const fs = await import("fs");
+        const path = await import("path");
+        const { exec } = await import("child_process");
+        const util = await import("util");
+        const execPromise = util.promisify(exec);
+        
+        for (const change of parsed.changes as any[]) {
+          if (change.filePath && change.content) {
+            const absolutePath = path.resolve(process.cwd(), change.filePath);
+            fs.mkdirSync(path.dirname(absolutePath), { recursive: true });
+            fs.writeFileSync(absolutePath, change.content, "utf8");
+          }
+        }
+        
+        // 3. Automatically Commit and Push
+        try {
+          const commitMessage = `feat(ai/dev): ${directive.content.substring(0, 50)}... [Ada Auto-Commit]`;
+          await execPromise(`git add . && git commit -m "${commitMessage}" && git push`);
+          
+          await db.update(aiDirectives)
+            .set({ status: "completed" }) 
+            .where(eq(aiDirectives.id, directiveId));
+            
+          console.log(`[DevAgent] Ada successfully executed and pushed Task #${directiveId} to GitHub.`);
+        } catch (gitErr) {
+          console.error(`[DevAgent] Ada failed to commit/push Task #${directiveId}`, gitErr);
+        }
       }
     } catch (err) {
       console.error("Failed to parse DEV proposed changes", err);
