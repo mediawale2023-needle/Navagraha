@@ -1,7 +1,7 @@
 import { storage } from "../storage";
 import { type AiCompany, type AiEmployee, type AiInitiative, type AiDirective, aiInitiatives, aiEmployees, aiDirectives } from "@shared/schema";
 import { db } from "../db";
-import { eq } from "drizzle-orm";
+import { eq, asc, and } from "drizzle-orm";
 import OpenAI from "openai";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
@@ -130,8 +130,9 @@ Define 3-4 concrete strategic INITIATIVES to reach this goal using only AI tools
     const prompt = `You are ${cto.name}, CTO. 
 INITIATIVE: ${initiative.title} (${initiative.description})
 
-Your DEV is ${dev.name}. Break the initiative down into 1 concrete technical directive (CODE_CHANGE).
-Output strictly JSON: { "content": "..." }`;
+Your DEV is ${dev.name}. Break the initiative down into a SEQUENCE of atomic, concrete technical directives (CODE_CHANGE tasks). 
+Each task must be a single, logical step (e.g. 1. Add schema, 2. Add API routes, 3. Build UI).
+Output strictly JSON: { "tasks": ["Direct instruction for task 1", "Direct instruction for task 2", ...] }`;
 
     const response = await openai.chat.completions.create({
       model: "gpt-4o",
@@ -140,18 +141,28 @@ Output strictly JSON: { "content": "..." }`;
     });
 
     const parsed = JSON.parse(response.choices[0].message.content || "{}");
-    if (!parsed.content) return [];
+    const taskContents = parsed.tasks || [];
+    if (taskContents.length === 0) return [];
 
-    const created = await storage.createAiDirective({
-      initiativeId,
-      issuerId: cto.id,
-      assigneeId: dev.id,
-      content: parsed.content,
-      type: "CODE_CHANGE",
-      status: "pending",
+    const createdDirectives: AiDirective[] = [];
+    for (const content of taskContents) {
+      const created = await storage.createAiDirective({
+        initiativeId,
+        issuerId: cto.id,
+        assigneeId: dev.id,
+        content: content,
+        type: "CODE_CHANGE",
+        status: "pending",
+      });
+      createdDirectives.push(created);
+    }
+
+    // Self-trigger the first task in the background
+    this.processCodeDirective(createdDirectives[0].id).catch(err => {
+       console.error(`[CTO] Failed to trigger first task for initiative ${initiativeId}`, err);
     });
 
-    return [created];
+    return createdDirectives;
   }
 
   /**
@@ -246,6 +257,32 @@ Ensure the code is robust, type-safe TypeScript/React. Do not omit any crucial s
             .where(eq(aiDirectives.id, directiveId));
             
           console.log(`[DevAgent] Ada successfully executed and pushed Task #${directiveId} to GitHub.`);
+
+          // 4. Report back to Nikola & get next task in the sequence
+          const nextTasks = await db.select()
+            .from(aiDirectives)
+            .where(and(
+              eq(aiDirectives.initiativeId, directive.initiativeId),
+              eq(aiDirectives.status, "pending")
+            ))
+            .orderBy(asc(aiDirectives.id)) // Sequential processing
+            .limit(1);
+
+          const nextTask = nextTasks[0] as AiDirective | undefined;
+
+          if (nextTask) {
+            console.log(`[DevAgent] Task #${directiveId} done. Picking up next task #${nextTask.id} for initiative #${directive.initiativeId}...`);
+            // Run in background with small cooldown to avoid rate limits
+            setTimeout(() => {
+              this.processCodeDirective(nextTask.id).catch(console.error);
+            }, 5000);
+          } else {
+            // Update initiative status if all tasks are done
+            await db.update(aiInitiatives)
+              .set({ status: "completed" })
+              .where(eq(aiInitiatives.id, directive.initiativeId));
+            console.log(`[DevAgent] Initiative #${directive.initiativeId} fully implemented.`);
+          }
         } catch (gitErr) {
           console.error(`[DevAgent] Ada failed to commit/push Task #${directiveId}`, gitErr);
         }
@@ -293,6 +330,11 @@ TARGET: ₹5 Crore ARR in 6 months.
 
 ${FOUNDER_CONSTRAINTS}
 
+${exec.role === "CTO" ? `As CTO, you can direct Ada (the DEV) to write code. 
+If the Founder asks for a technical feature or code change, respond with your normal message AND then add a special tag like this at the end:
+<DELEGATE>A concise, specific technical instruction for Ada to implement this feature.</DELEGATE>
+Ada will then automatically build and deploy it.` : ""}
+
 You are in a direct conversation with the Founder. Stay in character. Be concise, sharp, actionable. Max 3 sentences.`;
 
     const messages: any[] = [
@@ -311,6 +353,53 @@ You are in a direct conversation with the Founder. Stay in character. Be concise
 
     const replyText = response.choices[0].message.content || "...";
 
+    // Detect Delegation Intent (for CTO)
+    if (exec.role === "CTO" && replyText.includes("<DELEGATE>")) {
+      const match = replyText.match(/<DELEGATE>([\s\S]*?)<\/DELEGATE>/);
+      if (match && match[1]) {
+        const taskContent = match[1].trim();
+        // Trigger delegation loop!
+        // We'll create a dummy high-level initiative for this manual directive
+        const inits = await db.select().from(aiInitiatives).where(eq(aiInitiatives.companyId, companyId)).limit(1);
+        const initId = inits[0]?.id || 1; 
+
+        // Important: We call our existing atomic task list generator
+        const dummyInit = { title: "Technical Request", description: taskContent };
+        const prompt = `You are Nikola, CTO. 
+TECHNICAL REQUEST: ${taskContent}
+
+Your DEV is Ada. Break this request down into a SEQUENCE of atomic, concrete technical directives (CODE_CHANGE tasks). 
+Output strictly JSON: { "tasks": ["Direct instruction for task 1", "Direct instruction for task 2", ...] }`;
+
+        const delegationResponse = await openai.chat.completions.create({
+          model: "gpt-4o",
+          messages: [{ role: "system", content: prompt }],
+          response_format: { type: "json_object" },
+        });
+
+        const parsed = JSON.parse(delegationResponse.choices[0].message.content || "{}");
+        const tasks = parsed.tasks || [taskContent];
+
+        for (const content of tasks) {
+           const dev = employees.find(e => e.role === "DEV");
+           if (dev) {
+             const created = await storage.createAiDirective({
+               initiativeId: initId,
+               issuerId: exec.id,
+               assigneeId: dev.id,
+               content: content,
+               type: "CODE_CHANGE",
+               status: "pending",
+             });
+             // Trigger the first one if we're at the start
+             if (content === tasks[0]) {
+               this.processCodeDirective(created.id).catch(console.error);
+             }
+           }
+        }
+      }
+    }
+
     const replyMsg = await storage.saveBoardroomMessage({
       companyId,
       senderType: "employee",
@@ -319,7 +408,7 @@ You are in a direct conversation with the Founder. Stay in character. Be concise
       senderRole: exec.role,
       receiverType: "user",
       receiverId: userId,
-      content: replyText,
+      content: replyText.replace(/<DELEGATE>[\s\S]*?<\/DELEGATE>/g, "").trim() || replyText, // Strip tag for cleaner UI
       thread,
     });
 
