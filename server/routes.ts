@@ -11,9 +11,13 @@ import { setupSwagger } from "./swagger";
 import rateLimit from "express-rate-limit";
 import {
   insertKundliSchema,
+  insertConsultationSchema,
+  insertAstrologerSchema,
+  boardroomMessages,
+  aiCompanies,
+  aiEmployees,
   insertTransactionSchema,
   insertChatMessageSchema,
-  insertConsultationSchema,
   insertReviewSchema,
   insertScheduledCallSchema,
   users as usersTable,
@@ -68,6 +72,33 @@ function isAstrologerAuthenticated(req: any, res: Response, next: Function) {
 }
 
 export async function registerRoutes(app: Express, existingServer?: Server): Promise<Server> {
+
+  // ── Admin Utilities ────────────────────────────────────────────────────────
+  app.post('/api/admin/corporate/sync-roster', async (req, res) => {
+    try {
+      const allCompanies = await db.select().from(aiCompanies);
+      let added = 0;
+
+      for (const company of allCompanies) {
+        const employees = await db.select().from(aiEmployees).where(eq(aiEmployees.companyId, company.id));
+        const hasDev = employees.some((e) => e.role === "DEV");
+
+        if (!hasDev) {
+          await db.insert(aiEmployees).values({
+            companyId: company.id,
+            role: "DEV",
+            name: "Ada",
+            personality: "Full Stack AI Developer. Speaks in Markdown. Turns CTO architecture into pull requests. Obsessed with clean, type-safe code.",
+            status: "active",
+          });
+          added++;
+        }
+      }
+      res.json({ success: true, message: `Synced roster. Added ${added} missing agents.` });
+    } catch (e) {
+      res.status(500).json({ error: String(e) });
+    }
+  });
 
   // Mount Swagger UI
   setupSwagger(app);

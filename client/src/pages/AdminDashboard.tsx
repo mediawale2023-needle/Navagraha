@@ -8,9 +8,10 @@ import { LoadingSpinner } from '@/components/LoadingSpinner';
 import {
   Users, Star, BookOpen, IndianRupee, Activity, Wifi, WifiOff,
   ChevronUp, ChevronDown, Plus, Trash2, Eye, EyeOff, Pencil, X, Check,
-  LayoutDashboard, FileText, Building2,
+  LayoutDashboard, FileText, Building2, RefreshCw,
 } from 'lucide-react';
 import { apiRequest } from '@/lib/queryClient';
+import { useToast } from "@/hooks/use-toast";
 import Boardroom from './Boardroom';
 
 /* ═══════════════════════════════════════════════════════ */
@@ -369,6 +370,7 @@ function ContentEditor() {
 
 export default function AdminDashboard() {
   const queryClient = useQueryClient();
+  const { toast } = useToast();
   const [search, setSearch] = useState('');
   const [activeTab, setActiveTab] = useState<'overview' | 'content' | 'boardroom'>('overview');
 
@@ -390,6 +392,19 @@ export default function AdminDashboard() {
     },
   });
 
+  const syncRosterMutation = useMutation({
+    mutationFn: async () => {
+      return apiRequest('POST', '/api/admin/corporate/sync-roster');
+    },
+    onSuccess: (data: any) => {
+      queryClient.invalidateQueries({ queryKey: ['/api/corporate/employees'] });
+      toast({ title: "Roster Synced", description: data.message });
+    },
+    onError: (err) => {
+      toast({ variant: "destructive", title: "Sync failed", description: String(err) });
+    }
+  });
+
   const filtered = astrologers.filter(
     (a) =>
       a.name?.toLowerCase().includes(search.toLowerCase()) ||
@@ -407,9 +422,21 @@ export default function AdminDashboard() {
             <h1 className="text-2xl font-bold">Admin Dashboard</h1>
             <p className="text-sm text-muted-foreground">Platform overview &amp; management</p>
           </div>
-          <Badge variant="outline" className="text-green-600 border-green-600">
-            Developer Access
-          </Badge>
+          <div className="flex items-center gap-3">
+            <Button 
+              variant="secondary" 
+              size="sm" 
+              className="gap-1.5"
+              disabled={syncRosterMutation.isPending}
+              onClick={() => syncRosterMutation.mutate()}
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${syncRosterMutation.isPending ? 'animate-spin' : ''}`} />
+              Sync C-Suite
+            </Button>
+            <Badge variant="outline" className="text-green-600 border-green-600">
+              Developer Access
+            </Badge>
+          </div>
         </div>
       </div>
 
