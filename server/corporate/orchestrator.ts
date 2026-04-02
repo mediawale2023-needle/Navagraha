@@ -50,6 +50,7 @@ export class CorporateOrchestrator {
       { role: "CMO",   name: "Sloane",   personality: "Growth-obsessed. Runs AI-generated content, paid experiments, and no-code funnels." },
       { role: "BRAND", name: "Elias",    personality: "Aesthetic-first. Uses AI design tools (Midjourney, Canva AI) and brand automation." },
       { role: "SALES", name: "Vance",    personality: "Closes deals with AI outreach, CRM automation, and no SDR team." },
+      { role: "DEV",   name: "Ada",      personality: "Full Stack AI Developer. Speaks in Markdown. Turns CTO architecture into pull requests. Obsessed with clean, type-safe code." },
     ];
 
     for (const member of staff) {
