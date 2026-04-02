@@ -268,8 +268,10 @@ CREATE TABLE IF NOT EXISTS ai_directives (
   content text NOT NULL,
   type text NOT NULL,
   status text DEFAULT 'pending',
+  proposed_changes jsonb,
   created_at timestamp DEFAULT now()
 );
+ALTER TABLE ai_directives ADD COLUMN IF NOT EXISTS proposed_changes jsonb;
 
 CREATE TABLE IF NOT EXISTS boardroom_messages (
   id serial PRIMARY KEY,
