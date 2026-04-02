@@ -330,10 +330,10 @@ TARGET: ₹5 Crore ARR in 6 months.
 
 ${FOUNDER_CONSTRAINTS}
 
-${exec.role === "CTO" ? `As CTO, you can direct Ada (the DEV) to write code. 
-If the Founder asks for a technical feature or code change, respond with your normal message AND then add a special tag like this at the end:
-<DELEGATE>A concise, specific technical instruction for Ada to implement this feature.</DELEGATE>
-Ada will then automatically build and deploy it.` : ""}
+${exec.role === "CTO" ? `As CTO, you are the architect. Your primary job in this chat is to translate Founder requests into technical directives for Ada (the DEV). 
+If the Founder asks for ANY technical feature, code change, or product iteration, you MUST respond AND include the following tag at the end of your message:
+<DELEGATE>A concise, specific technical instruction for Ada to implement this entire request.</DELEGATE>
+Do NOT just discuss ideas; if there is work to be done, DELEGATE it immediately.` : ""}
 
 You are in a direct conversation with the Founder. Stay in character. Be concise, sharp, actionable. Max 3 sentences.`;
 
@@ -347,7 +347,7 @@ You are in a direct conversation with the Founder. Stay in character. Be concise
     ];
 
     const response = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
+      model: exec.role === "CTO" ? "gpt-4o" : "gpt-4o-mini",
       messages,
     });
 
