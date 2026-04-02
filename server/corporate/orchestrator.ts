@@ -165,11 +165,36 @@ Output strictly JSON: { "content": "..." }`;
     const dev = await db.select().from(aiEmployees).where(eq(aiEmployees.id, directive.assigneeId)).then((r: any[]) => r[0]);
     if (!dev) return;
 
+    // Load repository context
+    const fs = await import("fs/promises");
+    const path = await import("path");
+    
+    const contextFiles = [
+      "package.json",
+      "shared/schema.ts",
+      "server/routes.ts",
+      "server/auth.ts"
+    ];
+    
+    let repoContext = "PROJECT ARCHITECTURE:\\n";
+    for (const file of contextFiles) {
+      try {
+        const fullPath = path.join(process.cwd(), file);
+        const content = await fs.readFile(fullPath, "utf8");
+        // truncate to avoid massive token limits if routes goes huge, though gpt-4o has 128k context
+        repoContext += `\\n--- ${file} ---\\n${content}\\n`;
+      } catch (e) {
+        repoContext += `\\n--- ${file} ---\\n(File not found or unreadable)\\n`;
+      }
+    }
+
     // Use gpt-4o for coding tasks
     const prompt = `You are ${dev.name}, the Lead Full Stack AI Developer.
 TASK: ${directive.content}
 
-You must write the actual code changes required. 
+${repoContext}
+
+You must write the actual code changes required based STRICTLY on the existing architecture above. Do NOT suggest new microservices, Node 14 architectures, or unrelated stacks. You are building in a React/Vite/Express/Drizzle/Postgres monorepo.
 Provide your response strictly as a JSON object containing an array of proposed changes:
 {
   "changes": [
