@@ -100,6 +100,30 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
     }
   });
 
+  app.post('/api/admin/corporate/hire', async (req, res) => {
+    try {
+      const { role, name, personality } = req.body;
+      if (!role || !name || !personality) {
+        return res.status(400).json({ message: "Role, Name, and Personality are required." });
+      }
+
+      const allCompanies = await db.select().from(aiCompanies);
+      for (const company of allCompanies) {
+        await db.insert(aiEmployees).values({
+          companyId: company.id,
+          role: role.toUpperCase(),
+          name,
+          personality,
+          status: "active",
+        });
+      }
+
+      res.json({ success: true, message: `Hired ${name} as ${role} for all boardrooms.` });
+    } catch (e) {
+      res.status(500).json({ error: String(e) });
+    }
+  });
+
   // Mount Swagger UI
   setupSwagger(app);
 

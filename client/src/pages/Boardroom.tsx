@@ -9,9 +9,17 @@ import { Textarea } from "@/components/ui/textarea";
 import {
   Building2, Users, Zap, TrendingUp, DollarSign, Code2,
   Megaphone, Palette, HandshakeIcon, Target, Crown, ArrowRight,
-  Sparkles, Send, MessageSquare, MessageCircle, Moon, Sun,
+  Sparkles, Send, MessageSquare, MessageCircle, Moon, Sun, Plus,
+  Briefcase,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 
 // ── Role metadata ──────────────────────────────────────────────────────────
 const ROLE_META: Record<string, { icon: React.ElementType; color: string; bg: string; label: string; description: string }> = {
@@ -21,7 +29,10 @@ const ROLE_META: Record<string, { icon: React.ElementType; color: string; bg: st
   CMO:   { icon: Megaphone,     color: "text-nava-amber",   bg: "bg-nava-amber/20",   label: "CMO",              description: "Marketing & Growth"   },
   BRAND: { icon: Palette,       color: "text-nava-coral",   bg: "bg-nava-coral/20",   label: "Brand Consultant", description: "Identity & Vision"   },
   SALES: { icon: HandshakeIcon, color: "text-nava-aqua",    bg: "bg-nava-aqua/20",    label: "Sales Head",       description: "Revenue & Deals"     },
+  DEV:   { icon: Code2,         color: "text-emerald-400",  bg: "bg-emerald-500/20",  label: "Developer",        description: "Full Stack Engineer" },
 };
+
+const DEFAULT_META = { icon: Briefcase, color: "text-blue-400", bg: "bg-blue-500/20", label: "Specialist", description: "Expert Consultant" };
 
 const STATUS_COLORS: Record<string, string> = {
   active:   "bg-emerald-500/20 text-emerald-400 border-emerald-500/30",
@@ -35,8 +46,8 @@ const STATUS_COLORS: Record<string, string> = {
 
 // ── Message bubble ─────────────────────────────────────────────────────────
 function MessageBubble({ msg, isUser }: { msg: any; isUser: boolean }) {
-  const meta = msg.senderRole ? ROLE_META[msg.senderRole] : null;
-  const Icon = meta?.icon;
+  const meta = (msg.senderRole ? ROLE_META[msg.senderRole] : null) || DEFAULT_META;
+  const Icon = meta.icon;
   return (
     <div className={`flex gap-2.5 ${isUser ? "flex-row-reverse" : "flex-row"} items-end mb-3`}>
       {/* Avatar */}
@@ -391,6 +402,68 @@ function BoardroomOnboarding({ onCreated }: { onCreated: () => void }) {
   );
 }
 
+// ── Hire Agent Dialog ──────────────────────────────────────────────────────
+function HireAgentDialog({ company, onSuccess }: { company: any; onSuccess: () => void }) {
+  const [role, setRole] = useState("");
+  const [name, setName] = useState("");
+  const [personality, setPersonality] = useState("");
+  const { toast } = useToast();
+
+  const hireMut = useMutation({
+    mutationFn: () => apiRequest("POST", "/api/admin/corporate/hire", { role, name, personality }),
+    onSuccess: () => {
+      toast({ title: `Hired ${name} as ${role}!` });
+      onSuccess();
+      setRole("");
+      setName("");
+      setPersonality("");
+    },
+    onError: (err) => toast({ variant: "destructive", title: "Hiring failed", description: String(err) }),
+  });
+
+  return (
+    <Dialog>
+      <DialogTrigger asChild>
+        <Button variant="outline" className="h-full border-dashed border-nava-teal/40 bg-nava-teal/5 hover:bg-nava-teal/10 flex flex-col items-center justify-center gap-2 p-4 text-nava-teal">
+          <Plus className="w-8 h-8" />
+          <span className="text-xs font-bold uppercase tracking-tight">Hire New Agent</span>
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="glass-card border-nava-teal/20">
+        <DialogHeader>
+          <DialogTitle>Expand your AI C-Suite</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4 py-4">
+          <div className="space-y-2">
+            <label className="text-xs font-bold text-nava-teal uppercase">Role (e.g. LEGAL, DATA, OPS)</label>
+            <Input placeholder="LEGAL" value={role} onChange={e => setRole(e.target.value)} />
+          </div>
+          <div className="space-y-2">
+            <label className="text-xs font-bold text-nava-teal uppercase">Agent Name</label>
+            <Input placeholder="Lex / data-bot" value={name} onChange={e => setName(e.target.value)} />
+          </div>
+          <div className="space-y-2">
+            <label className="text-xs font-bold text-nava-teal uppercase">Personality & Mandate</label>
+            <Textarea 
+              placeholder="Sharp legal mind, focus on risk mitigation and contracts..." 
+              value={personality} 
+              onChange={e => setPersonality(e.target.value)}
+              className="h-24"
+            />
+          </div>
+          <Button 
+            className="w-full bg-nava-teal hover:bg-nava-teal/90 text-white font-bold"
+            disabled={!role || !name || !personality || hireMut.isPending}
+            onClick={() => hireMut.mutate()}
+          >
+            {hireMut.isPending ? "Hiring..." : "Confirm Hire"}
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 // ── Main Dashboard ─────────────────────────────────────────────────────────
 type Tab = "team" | "dm" | "exec-room" | "initiatives" | "reports";
 
@@ -507,22 +580,23 @@ export default function Boardroom() {
         {activeTab === "team" && (
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
             {employees.map((emp: any) => {
-              const meta = ROLE_META[emp.role];
-              const Icon = meta?.icon || Crown;
+              const meta = ROLE_META[emp.role] || DEFAULT_META;
+              const Icon = meta.icon;
               return (
                 <Card key={emp.id} className="glass-card p-4 flex flex-col items-center text-center gap-2 group cursor-pointer hover:scale-[1.02] transition-transform"
                   onClick={() => { setActiveTab("dm"); }}>
-                  <div className={`w-12 h-12 rounded-2xl flex items-center justify-center ${meta?.bg} ${meta?.color} ring-2 ring-border/30 group-hover:ring-nava-teal/40 transition-all`}>
+                  <div className={`w-12 h-12 rounded-2xl flex items-center justify-center ${meta.bg} ${meta.color} ring-2 ring-border/30 group-hover:ring-nava-teal/40 transition-all`}>
                     <Icon className="w-6 h-6" />
                   </div>
                   <div>
                     <p className="font-bold text-sm">{emp.name}</p>
-                    <p className={`text-[11px] font-semibold ${meta?.color}`}>{meta?.label}</p>
+                    <p className={`text-[11px] font-semibold ${meta.color}`}>{meta.label}</p>
                   </div>
                   <Badge className={`text-[10px] border ${STATUS_COLORS["active"]}`}>● Active</Badge>
                 </Card>
               );
             })}
+            <HireAgentDialog company={company} onSuccess={() => qc.invalidateQueries({ queryKey: ["/api/corporate/employees"] })} />
           </div>
         )}
 
