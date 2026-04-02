@@ -480,8 +480,9 @@ export const aiDirectives = pgTable("ai_directives", {
   issuerId: integer("issuer_id").references(() => aiEmployees.id).notNull(),
   assigneeId: integer("assignee_id").references(() => aiEmployees.id), // Can be null if global
   content: text("content").notNull(),
-  type: text("type").notNull(), // STRATEGY, TASK, REPORT
+  type: text("type").notNull(), // STRATEGY, TASK, REPORT, CODE_CHANGE
   status: text("status").default("pending"), // pending, approved, completed, rejected
+  proposedChanges: jsonb("proposed_changes"), // { filePath: string, content: string }[]
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

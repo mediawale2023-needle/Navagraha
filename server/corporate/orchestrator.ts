@@ -1,5 +1,7 @@
 import { storage } from "../storage";
-import { type AiCompany, type AiEmployee, type AiInitiative, type AiDirective } from "@shared/schema";
+import { type AiCompany, type AiEmployee, type AiInitiative, type AiDirective, aiInitiatives, aiEmployees, aiDirectives } from "@shared/schema";
+import { db } from "../db";
+import { eq } from "drizzle-orm";
 import OpenAI from "openai";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
@@ -113,9 +115,89 @@ Define 3-4 concrete strategic INITIATIVES to reach this goal using only AI tools
 
   /**
    * Specialized agents (CTO, CFO, etc.) take an Initiative and create Directives (Action Tasks).
+   * For the DevAgent Loop, the CTO evaluates technical initiatives and creates CODE_CHANGE tasks for the DEV.
    */
   async delegateDirective(initiativeId: number): Promise<AiDirective[]> {
-    return [];
+    const initiative = await db.select().from(aiInitiatives).where(eq(aiInitiatives.id, initiativeId)).then((r: any[]) => r[0]);
+    if (!initiative) throw new Error("Initiative not found");
+
+    const employees = await storage.getAiEmployees(initiative.companyId);
+    const cto = employees.find(e => e.role === "CTO");
+    const dev = employees.find(e => e.role === "DEV");
+
+    if (!cto || !dev) return []; // Need both for tech directives
+
+    const prompt = `You are ${cto.name}, CTO. 
+INITIATIVE: ${initiative.title} (${initiative.description})
+
+Your DEV is ${dev.name}. Break the initiative down into 1 concrete technical directive (CODE_CHANGE).
+Output strictly JSON: { "content": "..." }`;
+
+    const response = await openai.chat.completions.create({
+      model: "gpt-4o",
+      messages: [{ role: "system", content: prompt }],
+      response_format: { type: "json_object" },
+    });
+
+    const parsed = JSON.parse(response.choices[0].message.content || "{}");
+    if (!parsed.content) return [];
+
+    const created = await storage.createAiDirective({
+      initiativeId,
+      issuerId: cto.id,
+      assigneeId: dev.id,
+      content: parsed.content,
+      type: "CODE_CHANGE",
+      status: "pending",
+    });
+
+    return [created];
+  }
+
+  /**
+   * Instructs the DEV agent to read a CODE_CHANGE directive and actually write the code.
+   * Returns the array of proposed file changes.
+   */
+  async processCodeDirective(directiveId: number): Promise<void> {
+    const directive = await db.select().from(aiDirectives).where(eq(aiDirectives.id, directiveId)).then((r: any[]) => r[0]);
+    if (!directive || directive.type !== "CODE_CHANGE" || !directive.assigneeId) return;
+
+    const dev = await db.select().from(aiEmployees).where(eq(aiEmployees.id, directive.assigneeId)).then((r: any[]) => r[0]);
+    if (!dev) return;
+
+    // Use gpt-4o for coding tasks
+    const prompt = `You are ${dev.name}, the Lead Full Stack AI Developer.
+TASK: ${directive.content}
+
+You must write the actual code changes required. 
+Provide your response strictly as a JSON object containing an array of proposed changes:
+{
+  "changes": [
+    {
+      "filePath": "relative/path/to/file.ts",
+      "content": "// The full newly modified or created file content goes here\\n..."
+    }
+  ]
+}
+
+Ensure the code is robust, type-safe TypeScript/React. Do not omit any crucial surrounding code if editing an existing file structure, provide the full file or sufficient context if possible.`;
+
+    const response = await openai.chat.completions.create({
+      model: "gpt-4o",
+      messages: [{ role: "system", content: prompt }],
+      response_format: { type: "json_object" },
+    });
+
+    try {
+      const parsed = JSON.parse(response.choices[0].message.content || "{}");
+      if (parsed.changes && Array.isArray(parsed.changes)) {
+        await db.update(aiDirectives)
+          .set({ proposedChanges: parsed.changes, status: "pending" })
+          .where(eq(aiDirectives.id, directiveId));
+      }
+    } catch (err) {
+      console.error("Failed to parse DEV proposed changes", err);
+    }
   }
 
   /**

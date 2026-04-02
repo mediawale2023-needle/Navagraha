@@ -10,7 +10,7 @@ import {
   Building2, Users, Zap, TrendingUp, DollarSign, Code2,
   Megaphone, Palette, HandshakeIcon, Target, Crown, ArrowRight,
   Sparkles, Send, MessageSquare, MessageCircle, Moon, Sun, Plus,
-  Briefcase,
+  Briefcase, Code, CheckCircle,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -465,7 +465,7 @@ function HireAgentDialog({ company, onSuccess }: { company: any; onSuccess: () =
 }
 
 // ── Main Dashboard ─────────────────────────────────────────────────────────
-type Tab = "team" | "dm" | "exec-room" | "initiatives" | "reports";
+type Tab = "team" | "dm" | "exec-room" | "initiatives" | "directives" | "reports";
 
 export default function Boardroom() {
   const [onboarded, setOnboarded] = useState(false);
@@ -491,13 +491,31 @@ export default function Boardroom() {
     retry: false,
   });
 
+  const { data: directives = [] } = useQuery<any[]>({
+    queryKey: ["/api/corporate/directives"],
+    enabled: !!company,
+    retry: false,
+    refetchInterval: 5000,
+  });
+
   const planMut = useMutation({
     mutationFn: () => apiRequest("POST", "/api/corporate/plan", {}),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["/api/corporate/initiatives"] });
+      // Invalidate directives too, as they get generated after initiatives
+      qc.invalidateQueries({ queryKey: ["/api/corporate/directives"] });
       toast({ title: "🎯 CEO generated a strategic roadmap!" });
     },
     onError: () => toast({ variant: "destructive", title: "Failed to generate plan" }),
+  });
+
+  const approveDirectiveMut = useMutation({
+    mutationFn: (id: number) => apiRequest("POST", `/api/corporate/directives/${id}/approve`, {}),
+    onSuccess: (res, id) => {
+      qc.invalidateQueries({ queryKey: ["/api/corporate/directives"] });
+      toast({ title: "✅ Code approved and deployed!" });
+    },
+    onError: (err) => toast({ variant: "destructive", title: "Deployment failed", description: String(err) }),
   });
 
   if (companyLoading) return (
@@ -513,6 +531,7 @@ export default function Boardroom() {
     { id: "dm",          label: "Chat",          icon: MessageSquare  },
     { id: "exec-room",   label: "Exec Room",     icon: MessageCircle  },
     { id: "initiatives", label: "Goals",         icon: Target         },
+    { id: "directives",  label: "Tasks",         icon: Code           },
     { id: "reports",     label: "Reports",       icon: Moon           },
   ];
 
@@ -665,6 +684,69 @@ export default function Boardroom() {
             )}
           </div>
         )}
+        
+        {activeTab === "directives" && (
+          <div className="space-y-3">
+             <div className="flex justify-between items-center">
+              <p className="font-semibold text-sm flex items-center gap-2"><Code className="w-4 h-4 text-emerald-400" /> Technical Directives</p>
+            </div>
+            {directives.length === 0 ? (
+               <Card className="glass-card">
+                 <CardContent className="p-8 text-center text-muted-foreground">
+                   <Code className="w-10 h-10 mx-auto mb-3 opacity-30" />
+                   <p className="text-sm">No tasks assigned to the AI Dev Team yet.</p>
+                 </CardContent>
+               </Card>
+            ) : (
+              directives.map((dir: any) => (
+                <Card key={dir.id} className="glass-card mb-4 border-emerald-500/20">
+                  <CardHeader className="pb-2 flex flex-row items-center justify-between">
+                    <div>
+                      <CardTitle className="text-sm">Task #{dir.id}</CardTitle>
+                      <p className="text-xs text-muted-foreground mt-1">{dir.content}</p>
+                    </div>
+                    <Badge className={`text-[10px] border ${STATUS_COLORS[dir.status === 'completed' || dir.status === 'approved' ? 'active' : 'pending']}`}>
+                       {dir.status.toUpperCase()}
+                    </Badge>
+                  </CardHeader>
+                  <CardContent>
+                    {dir.type === "CODE_CHANGE" && dir.proposedChanges ? (
+                      <div className="mt-3 space-y-3">
+                        <div className="bg-background/50 rounded-md border border-border/40 p-3 max-h-60 overflow-y-auto custom-scrollbar">
+                           <p className="text-xs font-bold text-emerald-400 mb-2">Proposed Code Changes:</p>
+                           {dir.proposedChanges.map((change: any, idx: number) => (
+                             <div key={idx} className="mb-4 last:mb-0">
+                               <p className="text-[11px] text-muted-foreground bg-card px-2 py-1 inline-block rounded-t-md font-mono">{change.filePath}</p>
+                               <pre className="text-[10px] font-mono text-foreground/80 bg-nava-navy/50 p-2 rounded-b-md rounded-tr-md overflow-x-auto whitespace-pre-wrap leading-tight border border-border/30">
+                                 {change.content.length > 300 ? change.content.substring(0, 300) + "... (truncated for review)" : change.content}
+                               </pre>
+                             </div>
+                           ))}
+                        </div>
+                        {dir.status === "pending" && (
+                          <Button 
+                            className="w-full bg-emerald-500 hover:bg-emerald-600 text-white shadow-lg shadow-emerald-500/20" 
+                            size="sm"
+                            disabled={approveDirectiveMut.isPending}
+                            onClick={() => approveDirectiveMut.mutate(dir.id)}
+                          >
+                            <CheckCircle className="w-4 h-4 mr-2" />
+                            {approveDirectiveMut.isPending ? "Deploying..." : "Approve & Apply to Disk"}
+                          </Button>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="mt-2 text-xs text-muted-foreground">
+                        {dir.status === "pending" ? "Ada is writing code..." : "No code changes available."}
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              ))
+            )}
+          </div>
+        )}
+
         {activeTab === "reports" && (
           <Card className="glass-card">
             <CardHeader className="pb-3">

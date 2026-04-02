@@ -16,6 +16,8 @@ import {
   boardroomMessages,
   aiCompanies,
   aiEmployees,
+  aiInitiatives,
+  aiDirectives,
   insertTransactionSchema,
   insertChatMessageSchema,
   insertReviewSchema,
@@ -1692,9 +1694,74 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
     if (!company) return res.status(404).json({ message: "No company found" });
     try {
       const initiatives = await corporateOrchestrator.generateStrategicInitiatives(company.id);
+      
+      // Auto-delegate the first one to CTO as a proof of concept
+      if (initiatives.length > 0) {
+        const directives = await corporateOrchestrator.delegateDirective(initiatives[0].id);
+        if (directives.length > 0) {
+           await corporateOrchestrator.processCodeDirective(directives[0].id);
+        }
+      }
+
       res.json(initiatives);
     } catch (err) {
       res.status(500).json({ message: "Failed to generate plan" });
+    }
+  });
+
+  app.get('/api/corporate/directives', async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).send("Unauthorized");
+    const company = await storage.getAiCompanyByUserId((req.user as any).id.toString());
+    if (!company) return res.status(404).json({ message: "No company found" });
+    
+    try {
+      // Find all initiatives for the company, then their directives
+      const initiatives = await db.select().from(aiInitiatives).where(eq(aiInitiatives.companyId, company.id));
+      const initIds = initiatives.map(i => i.id);
+
+      if (initIds.length === 0) return res.json([]);
+
+      // we shouldn't use inArray if it's empty, but we handled it.
+      const sqlQuery = sql`${aiDirectives.initiativeId} IN (${sql.join(initIds.map(id => sql`${id}`), sql`, `)})`;
+      const directives = await db.select().from(aiDirectives).where(sqlQuery);
+
+      res.json(directives);
+    } catch (err) {
+      res.status(500).json({ message: "Failed to fetch directives" });
+    }
+  });
+
+  app.post('/api/corporate/directives/:id/approve', async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).send("Unauthorized");
+    
+    try {
+      const directiveId = parseInt(req.params.id);
+      const directive = await db.select().from(aiDirectives).where(eq(aiDirectives.id, directiveId)).then(r => r[0]);
+      
+      if (!directive || directive.type !== "CODE_CHANGE") return res.status(404).json({ message: "Directive not found" });
+
+      if (directive.proposedChanges && Array.isArray(directive.proposedChanges)) {
+        const fs = await import("fs");
+        const path = await import("path");
+        
+        for (const change of directive.proposedChanges as any[]) {
+          // VERY dangerous in prod, but fits the DevAgent local sandbox loop
+          if (change.filePath && change.content) {
+            const absolutePath = path.resolve(process.cwd(), change.filePath);
+            // Ensure directory exists
+            fs.mkdirSync(path.dirname(absolutePath), { recursive: true });
+            fs.writeFileSync(absolutePath, change.content, "utf8");
+          }
+        }
+        
+        await db.update(aiDirectives).set({ status: "approved" }).where(eq(aiDirectives.id, directiveId));
+        res.json({ success: true, message: "Code changes applied successfully." });
+      } else {
+        res.status(400).json({ message: "No proposed changes to apply." });
+      }
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ message: "Failed to apply changes" });
     }
   });
 
