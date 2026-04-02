@@ -1731,6 +1731,58 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
     }
   });
 
+  app.post('/api/corporate/directives/manual', async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).send("Unauthorized");
+    
+    try {
+      const company = await storage.getAiCompanyByUserId((req.user as any).id.toString());
+      if (!company) return res.status(404).json({ message: "No company found" });
+
+      const employees = await storage.getAiEmployees(company.id);
+      const dev = employees.find(e => e.role === "DEV");
+      const cto = employees.find(e => e.role === "CTO");
+
+      if (!dev || !cto) return res.status(400).json({ message: "AI Team not fully hired." });
+
+      const { content } = req.body;
+      
+      // Create a dummy initiative if none exists to link the directive to
+      let initiativeId = 1; 
+      const existingInits = await db.select().from(aiInitiatives).where(eq(aiInitiatives.companyId, company.id)).limit(1);
+      if (existingInits.length > 0) {
+        initiativeId = existingInits[0].id;
+      } else {
+         const newInit = await storage.createAiInitiative({
+            companyId: company.id,
+            title: "Manual Founder Directives",
+            description: "Tasks manually issued by the Founder.",
+            priority: "high",
+            status: "active"
+         });
+         initiativeId = newInit.id;
+      }
+
+      const created = await storage.createAiDirective({
+        initiativeId: initiativeId,
+        issuerId: cto.id,
+        assigneeId: dev.id,
+        content: content,
+        type: "CODE_CHANGE",
+        status: "pending",
+      });
+
+      // Trigger the autonomous loop in the background!
+      corporateOrchestrator.processCodeDirective(created.id).catch(err => {
+        console.error("Background code directive failed", err);
+      });
+
+      res.status(201).json(created);
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ message: "Failed to issue task" });
+    }
+  });
+
   app.post('/api/corporate/directives/:id/approve', async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).send("Unauthorized");
     

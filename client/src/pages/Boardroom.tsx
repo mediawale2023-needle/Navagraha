@@ -470,6 +470,7 @@ type Tab = "team" | "dm" | "exec-room" | "initiatives" | "directives" | "reports
 export default function Boardroom() {
   const [onboarded, setOnboarded] = useState(false);
   const [activeTab, setActiveTab] = useState<Tab>("team");
+  const [manualTask, setManualTask] = useState("");
   const { toast } = useToast();
   const qc = useQueryClient();
 
@@ -516,6 +517,16 @@ export default function Boardroom() {
       toast({ title: "✅ Code approved and deployed!" });
     },
     onError: (err) => toast({ variant: "destructive", title: "Deployment failed", description: String(err) }),
+  });
+
+  const manualDirectiveMut = useMutation({
+    mutationFn: (content: string) => apiRequest("POST", "/api/corporate/directives/manual", { content }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["/api/corporate/directives"] });
+      setManualTask("");
+      toast({ title: "Task assigned to Ada! She is writing code now..." });
+    },
+    onError: (err) => toast({ variant: "destructive", title: "Failed to assign task", description: String(err) }),
   });
 
   if (companyLoading) return (
@@ -687,9 +698,30 @@ export default function Boardroom() {
         
         {activeTab === "directives" && (
           <div className="space-y-3">
-             <div className="flex justify-between items-center">
+            <div className="flex justify-between items-center">
               <p className="font-semibold text-sm flex items-center gap-2"><Code className="w-4 h-4 text-emerald-400" /> Technical Directives</p>
             </div>
+            
+            <Card className="glass-card bg-emerald-500/5 border-emerald-500/20">
+              <CardContent className="p-4 space-y-3">
+                <p className="text-xs font-bold text-emerald-400 uppercase tracking-tight">Direct Assignment</p>
+                <Textarea 
+                  placeholder="e.g. 'Ada, build a dark mode toggle component and add it to TopNav.tsx'" 
+                  value={manualTask}
+                  onChange={e => setManualTask(e.target.value)}
+                  className="bg-background/50 border-emerald-500/30 text-sm"
+                />
+                <Button 
+                  className="w-full bg-emerald-500 hover:bg-emerald-600 text-white font-bold"
+                  size="sm"
+                  disabled={!manualTask || manualDirectiveMut.isPending}
+                  onClick={() => manualDirectiveMut.mutate(manualTask)}
+                >
+                  <Send className="w-4 h-4 mr-2" />
+                  {manualDirectiveMut.isPending ? "Assigning..." : "Assign Task to Ada"}
+                </Button>
+              </CardContent>
+            </Card>
             {directives.length === 0 ? (
                <Card className="glass-card">
                  <CardContent className="p-8 text-center text-muted-foreground">
