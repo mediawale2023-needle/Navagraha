@@ -41,8 +41,8 @@ const NAV_ITEMS = [
     ),
   },
   {
-    label: "Boardroom",
-    path: "/boardroom",
+    label: "Admin",
+    path: "/admin/dashboard",
     icon: (active: boolean) => (
       <svg width="22" height="22" viewBox="0 0 24 24" fill={active ? "currentColor" : "none"} stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
         <rect x="2" y="7" width="20" height="14" rx="2" ry="2" />

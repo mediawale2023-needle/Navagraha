@@ -6,7 +6,7 @@ const NAV_LINKS = [
   { label: "Home", path: "/" },
   { label: "Charts", path: "/kundli/new" },
   { label: "AI Astrologer", path: "/ai-astrologer" },
-  { label: "Boardroom", path: "/boardroom" },
+  { label: "Admin / Boardroom", path: "/admin/dashboard" },
   { label: "Horoscope", path: "/horoscope" },
   { label: "Astrologers", path: "/astrologers" },
 ];
