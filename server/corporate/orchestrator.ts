@@ -482,6 +482,28 @@ Give your perspective as ${exec.role}. Be direct, specific, in-character. Max 2 
 
     return results;
   }
+
+  /**
+   * Scans for any CODE_CHANGE directives stuck in 'pending' and resumes them.
+   * This is critical for recovering from server restarts or crashes.
+   */
+  async resumePendingTasks(): Promise<void> {
+    const pendingDirectives = await db.select()
+      .from(aiDirectives)
+      .where(and(
+        eq(aiDirectives.type, "CODE_CHANGE"),
+        eq(aiDirectives.status, "pending")
+      ))
+      .orderBy(asc(aiDirectives.id));
+
+    if (pendingDirectives.length > 0) {
+      console.log(`[Watchdog] Found ${pendingDirectives.length} pending tasks. Resuming Task #${pendingDirectives[0].id}...`);
+      // Start with the oldest pending task; the chain will continue from there
+      this.processCodeDirective(pendingDirectives[0].id).catch(err => {
+        console.error(`[Watchdog] Failed to resume Task #${pendingDirectives[0].id}`, err);
+      });
+    }
+  }
 }
 
 export const corporateOrchestrator = new CorporateOrchestrator();

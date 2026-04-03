@@ -6,6 +6,7 @@ import { runMigrations } from "./migrate";
 import { waitForDatabase } from "./db";
 import { setupWebSocket } from "./websocketService";
 import { startHeartbeatEngine } from "./corporate/heartbeat";
+import { corporateOrchestrator } from "./corporate/orchestrator";
 import client from "prom-client";
 
 // Prevent unhandled errors from killing the process before the port binds
@@ -119,9 +120,10 @@ waitForDatabase()
       serveStatic(app);
     }
 
-    // Run DB migrations, then start the heartbeat engine
-    return runMigrations().then(() => {
+    // Run DB migrations, then start the heartbeat engine and watchdog
+    return runMigrations().then(async () => {
       startHeartbeatEngine();
+      await corporateOrchestrator.resumePendingTasks();
     });
   })
   .catch((err) => {
