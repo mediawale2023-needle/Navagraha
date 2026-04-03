@@ -115,10 +115,10 @@ Define 3-4 concrete strategic INITIATIVES to reach this goal using only AI tools
   }
 
   /**
-   * Specialized agents (CTO, CFO, etc.) take an Initiative and create Directives (Action Tasks).
-   * For the DevAgent Loop, the CTO evaluates technical initiatives and creates CODE_CHANGE tasks for the DEV.
+   * For the DevAgent Loop, the CTO evaluates technical initiatives and creates CODE_CHANGE tasks.
+   * Now accepts optional debateContext to inform the architectural decisions.
    */
-  async delegateDirective(initiativeId: number): Promise<AiDirective[]> {
+  async delegateDirective(initiativeId: number, debateContext?: string): Promise<AiDirective[]> {
     const initiative = await db.select().from(aiInitiatives).where(eq(aiInitiatives.id, initiativeId)).then((r: any[]) => r[0]);
     if (!initiative) throw new Error("Initiative not found");
 
@@ -131,14 +131,14 @@ Define 3-4 concrete strategic INITIATIVES to reach this goal using only AI tools
 
     const prompt = `You are ${cto.name}, CTO. 
 INITIATIVE: ${initiative.title} (${initiative.description})
+${debateContext ? `\nCONTEXT FROM EXEC DEBATE:\n${debateContext}` : ""}
 
 Your engineering team:
 - DEV: ${dev?.name || "None"} (Logic, Backend, Core)
 - UIUX: ${uiux?.name || "None"} (Frontend, Design, UX/UI)
 
 Break the initiative down into a SEQUENCE of atomic, concrete technical directives (CODE_CHANGE tasks). 
-For each task, decide who is the best 'assignee': the 'DEV' or the 'UIUX'. 
-Each task must be a single, logical step.
+For each task, decide who is the best 'assignee'.
 Output strictly JSON: { "tasks": [{ "content": "Instruction...", "assignee": "DEV" | "UIUX" }] }`;
 
     const response = await openai.chat.completions.create({
@@ -524,6 +524,27 @@ Give your perspective as ${exec.role}. Be direct, specific, in-character. Max 2 
       this.processCodeDirective(pendingDirectives[0].id).catch(err => {
         console.error(`[Watchdog] Failed to resume Task #${pendingDirectives[0].id}`, err);
       });
+    }
+  }
+
+  /**
+   * The "Big Red Button": Chains Debate -> Plan -> Delegate -> Code
+   */
+  async runAutonomousStrategicChain(companyId: number, goal: string, userId: string): Promise<void> {
+    console.log(`[StrategicChain] Starting autonomous chain for company #${companyId}...`);
+    
+    // 1. Run Executive Debate
+    const messages = await this.runExecRoomDebate(companyId, goal, userId);
+    const debateSummary = messages.map(m => `${m.senderRole}: ${m.content}`).join("\n");
+
+    // 2. Generate Initiatives (Strategic Plan)
+    // We update generateStrategicInitiatives implicitly by giving it the debate summary in the future
+    const initiatives = await this.generateStrategicInitiatives(companyId, `Based on this debate: ${debateSummary}`);
+
+    // 3. Delegate the first high-priority initiative
+    if (initiatives.length > 0) {
+      const topInit = initiatives[0];
+      await (this as any).delegateDirective(topInit.id, debateSummary);
     }
   }
 }

@@ -2,7 +2,7 @@ import type { Express, Request, Response } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { db } from "./db";
-import { sql, eq, asc } from "drizzle-orm";
+import { sql, eq, asc, desc, and } from "drizzle-orm";
 import { setupAuth, isAuthenticated } from "./auth";
 import { runCouncil, UserContext } from "./agents/orchestrator";
 import { corporateOrchestrator } from "./corporate/orchestrator";
@@ -1832,6 +1832,50 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
     } catch (err) {
       console.error(err);
       res.status(500).json({ message: "Failed to reset task" });
+    }
+  });
+
+  app.post('/api/corporate/system/nuke', async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).send("Unauthorized");
+    try {
+      const userId = String((req.user as any).id);
+      const companies = await db.select().from(aiCompanies).where(eq(aiCompanies.userId, userId)).limit(1);
+      if (companies.length === 0) return res.status(404).json({ message: "No company found" });
+      const company = companies[0];
+
+      // Clean up in order of dependencies
+      await db.delete(boardroomMessages).where(eq(boardroomMessages.companyId, company.id));
+      const initiatives = await db.select().from(aiInitiatives).where(eq(aiInitiatives.companyId, company.id));
+      for (const init of initiatives) {
+        await db.delete(aiDirectives).where(eq(aiDirectives.initiativeId, init.id));
+      }
+      await db.delete(aiInitiatives).where(eq(aiInitiatives.companyId, company.id));
+      await db.delete(aiEmployees).where(eq(aiEmployees.companyId, company.id));
+      
+      // Re-hire the team with existing company metadata
+      await corporateOrchestrator.hireDefaultCSuite(userId, company.name, company.mission);
+      
+      res.json({ message: "Boardroom wiped and rebooted successfully." });
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ message: "Failed to wipe boardroom" });
+    }
+  });
+
+  app.post('/api/corporate/plan/autonomous', async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).send("Unauthorized");
+    const { goal } = req.body;
+    try {
+      // Find company for user
+      const userId = String((req.user as any).id);
+      const companies = await db.select().from(aiCompanies).where(eq(aiCompanies.userId, userId)).limit(1);
+      if (companies.length === 0) return res.status(404).json({ message: "No company found" });
+      
+      corporateOrchestrator.runAutonomousStrategicChain(companies[0].id, goal, userId).catch(console.error);
+      res.json({ message: "Autonomous Strategic Chain triggered. Watch the Boardroom Chat for the live debate." });
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ message: "Failed to trigger strategic chain" });
     }
   });
 

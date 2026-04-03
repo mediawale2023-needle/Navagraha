@@ -10,7 +10,7 @@ import {
   Building2, Users, Zap, TrendingUp, DollarSign, Code2,
   Megaphone, Palette, HandshakeIcon, Target, Crown, ArrowRight,
   Sparkles, Send, MessageSquare, MessageCircle, Moon, Sun, Plus,
-  Briefcase, Code, CheckCircle, RefreshCw, AlertCircle
+  Briefcase, Code, CheckCircle, RefreshCw, AlertCircle, Trash2, Rocket
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -472,6 +472,7 @@ export default function Boardroom() {
   const [onboarded, setOnboarded] = useState(false);
   const [activeTab, setActiveTab] = useState<Tab>("team");
   const [manualTask, setManualTask] = useState("");
+  const [boardroomGoal, setBoardroomGoal] = useState("");
   const { toast } = useToast();
   const qc = useQueryClient();
 
@@ -540,6 +541,29 @@ export default function Boardroom() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["/api/corporate/directives"] });
       toast({ title: "Task Reset", description: "Ada is re-evaluating the task with new safety rules." });
+    },
+  });
+
+  const nukeMut = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", "/api/corporate/system/nuke");
+      return res.json();
+    },
+    onSuccess: () => {
+      qc.invalidateQueries();
+      toast({ title: "Boardroom Wiped", description: "All conversations and tasks have been cleared. Starting fresh!" });
+    },
+  });
+
+  const autonomousPlanMut = useMutation({
+    mutationFn: async (goal: string) => {
+      const res = await apiRequest("POST", "/api/corporate/plan/autonomous", { goal });
+      return res.json();
+    },
+    onSuccess: () => {
+      qc.invalidateQueries();
+      toast({ title: "Strategic Chain Triggered", description: "The C-Suite is now debating and planning autonomously." });
+      setBoardroomGoal("");
     },
   });
 
@@ -675,13 +699,58 @@ export default function Boardroom() {
         )}
 
         {activeTab === "initiatives" && (
-          <div className="space-y-3">
+          <div className="space-y-4">
+            <Card className="glass-card mb-6 border-nava-yellow/20">
+              <CardContent className="p-4 space-y-3">
+                <p className="text-xs font-bold text-nava-yellow uppercase tracking-tight">Set Corporate Vision</p>
+                <Textarea 
+                  placeholder="e.g. 'Aria, design a plan to scale the Navagraha platform to 1M users by adding a subscription model and social matchmaking.'" 
+                  value={boardroomGoal}
+                  onChange={e => setBoardroomGoal(e.target.value)}
+                  className="bg-background/50 border-nava-yellow/30 text-sm"
+                />
+                <div className="flex gap-2">
+                  <Button 
+                    className="flex-1 bg-nava-yellow hover:bg-nava-yellow/80 text-background font-bold h-10"
+                    size="sm"
+                    disabled={!boardroomGoal || autonomousPlanMut.isPending}
+                    onClick={() => autonomousPlanMut.mutate(boardroomGoal)}
+                  >
+                    <Rocket className="w-4 h-4 mr-2" />
+                    {autonomousPlanMut.isPending ? "Orchestrating..." : "Start Strategic Chain"}
+                  </Button>
+                  
+                  <Button 
+                    variant="outline"
+                    className="bg-red-500/10 border-red-500/30 text-red-400 hover:bg-red-500/20 px-3 h-10"
+                    onClick={() => {
+                      if (confirm("Are you sure? This will wipe all conversations, initiatives and tasks!")) {
+                        nukeMut.mutate();
+                      }
+                    }}
+                    disabled={nukeMut.isPending}
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
+                </div>
+                <p className="text-[10px] text-muted-foreground text-center font-medium">⛓️ This triggers an autonomous Debate → Plan → Delegate → Code sequence.</p>
+              </CardContent>
+            </Card>
+
             <div className="flex justify-between items-center">
-              <p className="font-semibold text-sm flex items-center gap-2"><Zap className="w-4 h-4 text-nava-amber" /> Strategic Initiatives</p>
-              <Button size="sm" variant="outline" className="text-xs border-nava-teal/30 text-nava-teal hover:bg-nava-teal/10"
-                onClick={() => planMut.mutate()} disabled={planMut.isPending}>
-                {planMut.isPending ? "Thinking…" : "🎯 Ask CEO to Plan"}
-              </Button>
+              <p className="font-semibold text-sm flex items-center gap-2"><Target className="w-4 h-4 text-nava-yellow" /> Strategic Initiatives</p>
+              {initiatives.length > 0 && (
+                <Button 
+                  size="sm" 
+                  variant="outline" 
+                  className="h-8 text-xs border-nava-yellow/30 text-nava-yellow hover:bg-nava-yellow/10"
+                  onClick={() => planMut.mutate()}
+                  disabled={planMut.isPending}
+                >
+                  <Sparkles className="w-3 h-3 mr-1" />
+                  Update Plan
+                </Button>
+              )}
             </div>
             {initiatives.length === 0 ? (
               <Card className="glass-card">
