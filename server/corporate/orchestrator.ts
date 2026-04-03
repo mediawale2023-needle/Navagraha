@@ -250,13 +250,22 @@ Ensure the code is robust, type-safe TypeScript/React. Do not omit any crucial s
         // 3. Automatically Commit and Push
         try {
           const commitMessage = `feat(ai/dev): ${directive.content.substring(0, 50)}... [Ada Auto-Commit]`;
-          await execPromise(`git add . && git commit -m "${commitMessage}" && git push`);
+          // Use timeout and non-interactive env to prevent hanging on prompts
+          await execPromise(`git add . && git commit -m "${commitMessage}" && git push`, {
+            timeout: 30000,
+            env: { ...process.env, GIT_TERMINAL_PROMPT: "0" }
+          });
           
           await db.update(aiDirectives)
             .set({ status: "completed" }) 
             .where(eq(aiDirectives.id, directiveId));
             
           console.log(`[DevAgent] Ada successfully executed and pushed Task #${directiveId} to GitHub.`);
+          
+          await storage.updateAiEmployee(dev.id, { 
+            lastOutput: `Successfully completed and pushed Task #${directiveId}`,
+            updatedAt: new Date() 
+          });
 
           // 4. Report back to Nikola & get next task in the sequence
           const nextTasks = await db.select()
@@ -283,8 +292,17 @@ Ensure the code is robust, type-safe TypeScript/React. Do not omit any crucial s
               .where(eq(aiInitiatives.id, directive.initiativeId));
             console.log(`[DevAgent] Initiative #${directive.initiativeId} fully implemented.`);
           }
-        } catch (gitErr) {
+        } catch (gitErr: any) {
           console.error(`[DevAgent] Ada failed to commit/push Task #${directiveId}`, gitErr);
+          // Mark as failed so it doesn't show as "pending/writing" forever
+          await db.update(aiDirectives)
+            .set({ status: "failed" }) 
+            .where(eq(aiDirectives.id, directiveId));
+          
+          await storage.updateAiEmployee(dev.id, { 
+            lastOutput: `Git Failure on Task #${directiveId}: ${gitErr.message.substring(0, 80)}`,
+            updatedAt: new Date() 
+          });
         }
       }
     } catch (err) {
