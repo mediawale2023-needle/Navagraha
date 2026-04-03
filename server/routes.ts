@@ -1839,11 +1839,16 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
     if (!req.isAuthenticated()) return res.status(401).send("Unauthorized");
     try {
       const userId = String((req.user as any).id);
+      console.log(`[System:Nuke] Requested by user: ${userId}`);
+      
       const companies = await db.select().from(aiCompanies).where(eq(aiCompanies.userId, userId)).limit(1);
-      if (companies.length === 0) return res.status(404).json({ message: "No company found" });
+      if (companies.length === 0) {
+        console.warn(`[System:Nuke] FAILED: No company found for user ${userId}`);
+        return res.status(404).json({ message: "No company found for your user account" });
+      }
       const company = companies[0];
 
-      console.log(`[System] NUKING Boardroom for company ${company.id}...`);
+      console.log(`[System:Nuke] STARTING purge for company ${company.id} (${company.name})...`);
 
       // 1. Delete Directives (linked to initiatives)
       const initiativeIds = await db.select({ id: aiInitiatives.id })
@@ -1851,22 +1856,31 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
         .where(eq(aiInitiatives.companyId, company.id))
         .then(rows => rows.map(r => r.id));
       
+      console.log(`[System:Nuke] PURGING ${initiativeIds.length} initiatives...`);
+      
       if (initiativeIds.length > 0) {
         await db.delete(aiDirectives).where(inArray(aiDirectives.initiativeId, initiativeIds));
+        console.log(`[System:Nuke] DELETED aiDirectives.`);
       }
 
       // 2. Delete the rest by companyId
       await db.delete(boardroomMessages).where(eq(boardroomMessages.companyId, company.id));
+      console.log(`[System:Nuke] DELETED boardroomMessages.`);
+      
       await db.delete(aiInitiatives).where(eq(aiInitiatives.companyId, company.id));
+      console.log(`[System:Nuke] DELETED aiInitiatives.`);
+      
       await db.delete(aiEmployees).where(eq(aiEmployees.companyId, company.id));
+      console.log(`[System:Nuke] DELETED aiEmployees.`);
       
       // 3. Re-hire the team with existing company metadata
+      console.log(`[System:Nuke] RE-HIRING default Team...`);
       await corporateOrchestrator.hireDefaultCSuite(userId, company.name, company.mission);
+      console.log(`[System:Nuke] SUCCESS: Boardroom wiped and rebooted.`);
       
-      console.log(`[System] Boardroom wiped and rebooted for user ${userId}`);
       res.json({ message: "Boardroom wiped and rebooted successfully. Conversation is fresh." });
     } catch (err) {
-      console.error("[Nuke Failure]", err);
+      console.error("[System:Nuke] FATAL ERROR", err);
       res.status(500).json({ message: "Failed to wipe boardroom: " + (err as Error).message });
     }
   });
@@ -1875,15 +1889,18 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
     if (!req.isAuthenticated()) return res.status(401).send("Unauthorized");
     const { goal } = req.body;
     try {
-      // Find company for user
       const userId = String((req.user as any).id);
       const companies = await db.select().from(aiCompanies).where(eq(aiCompanies.userId, userId)).limit(1);
       if (companies.length === 0) return res.status(404).json({ message: "No company found" });
+      const companyId = companies[0].id;
       
-      corporateOrchestrator.runAutonomousStrategicChain(companies[0].id, goal, userId).catch(console.error);
+      console.log(`[System:Chain] Triggered by ${userId} for company ${companyId}: ${goal}`);
+      corporateOrchestrator.runAutonomousStrategicChain(companyId, goal, userId).catch(err => {
+        console.error("[System:Chain] FATAL ERROR", err);
+      });
       res.json({ message: "Autonomous Strategic Chain triggered. Watch the Boardroom Chat for the live debate." });
     } catch (err) {
-      console.error(err);
+      console.error("[System:Chain] Route error", err);
       res.status(500).json({ message: "Failed to trigger strategic chain" });
     }
   });
