@@ -2,7 +2,7 @@ import type { Express, Request, Response } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { db } from "./db";
-import { sql, eq, asc, desc, and } from "drizzle-orm";
+import { sql, eq, asc, desc, and, inArray } from "drizzle-orm";
 import { setupAuth, isAuthenticated } from "./auth";
 import { runCouncil, UserContext } from "./agents/orchestrator";
 import { corporateOrchestrator } from "./corporate/orchestrator";
@@ -1843,22 +1843,31 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
       if (companies.length === 0) return res.status(404).json({ message: "No company found" });
       const company = companies[0];
 
-      // Clean up in order of dependencies
-      await db.delete(boardroomMessages).where(eq(boardroomMessages.companyId, company.id));
-      const initiatives = await db.select().from(aiInitiatives).where(eq(aiInitiatives.companyId, company.id));
-      for (const init of initiatives) {
-        await db.delete(aiDirectives).where(eq(aiDirectives.initiativeId, init.id));
+      console.log(`[System] NUKING Boardroom for company ${company.id}...`);
+
+      // 1. Delete Directives (linked to initiatives)
+      const initiativeIds = await db.select({ id: aiInitiatives.id })
+        .from(aiInitiatives)
+        .where(eq(aiInitiatives.companyId, company.id))
+        .then(rows => rows.map(r => r.id));
+      
+      if (initiativeIds.length > 0) {
+        await db.delete(aiDirectives).where(inArray(aiDirectives.initiativeId, initiativeIds));
       }
+
+      // 2. Delete the rest by companyId
+      await db.delete(boardroomMessages).where(eq(boardroomMessages.companyId, company.id));
       await db.delete(aiInitiatives).where(eq(aiInitiatives.companyId, company.id));
       await db.delete(aiEmployees).where(eq(aiEmployees.companyId, company.id));
       
-      // Re-hire the team with existing company metadata
+      // 3. Re-hire the team with existing company metadata
       await corporateOrchestrator.hireDefaultCSuite(userId, company.name, company.mission);
       
-      res.json({ message: "Boardroom wiped and rebooted successfully." });
+      console.log(`[System] Boardroom wiped and rebooted for user ${userId}`);
+      res.json({ message: "Boardroom wiped and rebooted successfully. Conversation is fresh." });
     } catch (err) {
-      console.error(err);
-      res.status(500).json({ message: "Failed to wipe boardroom" });
+      console.error("[Nuke Failure]", err);
+      res.status(500).json({ message: "Failed to wipe boardroom: " + (err as Error).message });
     }
   });
 
