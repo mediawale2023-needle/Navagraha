@@ -46,13 +46,13 @@ export class CorporateOrchestrator {
 
     // 2. Hire the Executive Team
     const staff = [
-      { role: "CEO",   name: "Aria",     personality: "Visionary, decisive, goal-oriented. Maximises leverage per person. Allergic to unnecessary headcount." },
-      { role: "CFO",   name: "Sterling", personality: "Analytical, capital-efficient. Prefers SaaS tools over salaries. Tracks burn daily." },
-      { role: "CTO",   name: "Nikola",   personality: "AI-native engineer. Uses AI coding tools, automation, and APIs instead of hiring devs. Never recommends human hires." },
-      { role: "CMO",   name: "Sloane",   personality: "Growth-obsessed. Runs AI-generated content, paid experiments, and no-code funnels." },
-      { role: "BRAND", name: "Elias",    personality: "Aesthetic-first. Uses AI design tools (Midjourney, Canva AI) and brand automation." },
-      { role: "SALES", name: "Vance",    personality: "Closes deals with AI outreach, CRM automation, and no SDR team." },
-      { role: "DEV",   name: "Ada",      personality: "Full Stack AI Developer. Speaks in Markdown. Turns CTO architecture into pull requests. Obsessed with clean, type-safe code." },
+      { role: "CEO",      name: "Aria",     personality: "Visionary, decisive, goal-oriented. Maximises leverage per person. Allergic to unnecessary headcount." },
+      { role: "CFO",      name: "Sterling", personality: "Analytical, capital-efficient. Prefers SaaS tools over salaries. Tracks burn daily." },
+      { role: "CTO",      name: "Nikola",   personality: "AI-native engineer. Uses AI coding tools, automation, and APIs instead of hiring devs. Never recommends human hires." },
+      { role: "CMO",      name: "Sloane",   personality: "Growth-obsessed. Runs AI-generated content, paid experiments, and no-code funnels." },
+      { role: "UIUX_DEV", name: "Elias",    personality: "Design-first Frontend Engineer. Bridges Figma to React. Obsessed with high-fidelity animations, micro-interactions, and premium UI. Codes everything he designs." },
+      { role: "SALES",    name: "Vance",    personality: "Closes deals with AI outreach, CRM automation, and no SDR team." },
+      { role: "DEV",      name: "Ada",      personality: "Full Stack AI Developer. Speaks in Markdown. Turns CTO architecture into pull requests. Obsessed with clean, type-safe code." },
     ];
 
     for (const member of staff) {
@@ -124,15 +124,21 @@ Define 3-4 concrete strategic INITIATIVES to reach this goal using only AI tools
     const employees = await storage.getAiEmployees(initiative.companyId);
     const cto = employees.find(e => e.role === "CTO");
     const dev = employees.find(e => e.role === "DEV");
+    const uiux = employees.find(e => e.role === "UIUX_DEV" || e.role === "BRAND");
 
-    if (!cto || !dev) return []; // Need both for tech directives
+    if (!cto || (!dev && !uiux)) return []; 
 
     const prompt = `You are ${cto.name}, CTO. 
 INITIATIVE: ${initiative.title} (${initiative.description})
 
-Your DEV is ${dev.name}. Break the initiative down into a SEQUENCE of atomic, concrete technical directives (CODE_CHANGE tasks). 
-Each task must be a single, logical step (e.g. 1. Add schema, 2. Add API routes, 3. Build UI).
-Output strictly JSON: { "tasks": ["Direct instruction for task 1", "Direct instruction for task 2", ...] }`;
+Your engineering team:
+- DEV: ${dev?.name || "None"} (Logic, Backend, Core)
+- UIUX: ${uiux?.name || "None"} (Frontend, Design, UX/UI)
+
+Break the initiative down into a SEQUENCE of atomic, concrete technical directives (CODE_CHANGE tasks). 
+For each task, decide who is the best 'assignee': the 'DEV' or the 'UIUX'. 
+Each task must be a single, logical step.
+Output strictly JSON: { "tasks": [{ "content": "Instruction...", "assignee": "DEV" | "UIUX" }] }`;
 
     const response = await openai.chat.completions.create({
       model: "gpt-4o",
@@ -141,16 +147,19 @@ Output strictly JSON: { "tasks": ["Direct instruction for task 1", "Direct instr
     });
 
     const parsed = JSON.parse(response.choices[0].message.content || "{}");
-    const taskContents = parsed.tasks || [];
-    if (taskContents.length === 0) return [];
+    const taskDefs = parsed.tasks || [];
+    if (taskDefs.length === 0) return [];
 
     const createdDirectives: AiDirective[] = [];
-    for (const content of taskContents) {
+    for (const def of taskDefs) {
+      const assignee = def.assignee === "UIUX" ? uiux : dev;
+      if (!assignee) continue;
+
       const created = await storage.createAiDirective({
         initiativeId,
         issuerId: cto.id,
-        assigneeId: dev.id,
-        content: content,
+        assigneeId: assignee.id,
+        content: def.content,
         type: "CODE_CHANGE",
         status: "pending",
       });
@@ -356,10 +365,14 @@ TARGET: ₹5 Crore ARR in 6 months.
 
 ${FOUNDER_CONSTRAINTS}
 
-${exec.role === "CTO" ? `As CTO, you are the architect. Your primary job in this chat is to translate Founder requests into technical directives for Ada (the DEV). 
+${exec.role === "CTO" ? `As CTO, you are the architect. Your primary job in this chat is to translate Founder requests into technical directives for Ada (the DEV) or Elias (the UIUX_DEV). 
 If the Founder asks for ANY technical feature, code change, or product iteration, you MUST respond AND include the following tag at the end of your message:
-<DELEGATE>A concise, specific technical instruction for Ada to implement this entire request.</DELEGATE>
+<DELEGATE>A concise, specific technical instruction for the appropriate engineer to implement this entire request.</DELEGATE>
 Do NOT just discuss ideas; if there is work to be done, DELEGATE it immediately.` : ""}
+
+${exec.role === "UIUX_DEV" || exec.role === "BRAND" ? `As the Design Engineer, you can also write code for UI components.
+If the Founder asks for a UI change, aesthetic tweak, or frontend feature, you MUST respond AND then add the following tag at the end of your message to assign the coding task to yourself:
+<DELEGATE>A specific instruction for yourself to implement the UI change.</DELEGATE>` : ""}
 
 You are in a direct conversation with the Founder. Stay in character. Be concise, sharp, actionable. Max 3 sentences.`;
 
