@@ -50,7 +50,8 @@ export class CorporateOrchestrator {
       { role: "CFO",      name: "Sterling", personality: "Analytical, capital-efficient. Prefers SaaS tools over salaries. Tracks burn daily." },
       { role: "CTO",      name: "Nikola",   personality: "AI-native engineer. Uses AI coding tools, automation, and APIs instead of hiring devs. Never recommends human hires." },
       { role: "CMO",      name: "Sloane",   personality: "Growth-obsessed. Runs AI-generated content, paid experiments, and no-code funnels." },
-      { role: "UIUX_DEV", name: "Elias",    personality: "Design-first Frontend Engineer. Bridges Figma to React. Obsessed with high-fidelity animations, micro-interactions, and premium UI. Codes everything he designs." },
+      { role: "BRAND",    name: "Elias",    personality: "Aesthetic-first. Uses AI design tools (Midjourney, Canva AI) and brand automation." },
+      { role: "UIUX_DEV", name: "Katya",    personality: "Design-first Frontend Engineer. Bridges Figma to React. Obsessed with high-fidelity animations, micro-interactions, and premium UI. Codes everything he designs." },
       { role: "SALES",    name: "Vance",    personality: "Closes deals with AI outreach, CRM automation, and no SDR team." },
       { role: "DEV",      name: "Ada",      personality: "Full Stack AI Developer. Speaks in Markdown. Turns CTO architecture into pull requests. Obsessed with clean, type-safe code." },
     ];
@@ -124,7 +125,7 @@ Define 3-4 concrete strategic INITIATIVES to reach this goal using only AI tools
     const employees = await storage.getAiEmployees(initiative.companyId);
     const cto = employees.find(e => e.role === "CTO");
     const dev = employees.find(e => e.role === "DEV");
-    const uiux = employees.find(e => e.role === "UIUX_DEV" || e.role === "BRAND");
+    const uiux = employees.find(e => e.role === "UIUX_DEV");
 
     if (!cto || (!dev && !uiux)) return []; 
 
@@ -365,12 +366,12 @@ TARGET: ₹5 Crore ARR in 6 months.
 
 ${FOUNDER_CONSTRAINTS}
 
-${exec.role === "CTO" ? `As CTO, you are the architect. Your primary job in this chat is to translate Founder requests into technical directives for Ada (the DEV) or Elias (the UIUX_DEV). 
+${exec.role === "CTO" ? `As CTO, you are the architect. Your primary job in this chat is to translate Founder requests into technical directives for Ada (the DEV) or Katya (the UIUX_DEV). 
 If the Founder asks for ANY technical feature, code change, or product iteration, you MUST respond AND include the following tag at the end of your message:
 <DELEGATE>A concise, specific technical instruction for the appropriate engineer to implement this entire request.</DELEGATE>
 Do NOT just discuss ideas; if there is work to be done, DELEGATE it immediately.` : ""}
 
-${exec.role === "UIUX_DEV" || exec.role === "BRAND" ? `As the Design Engineer, you can also write code for UI components.
+${exec.role === "UIUX_DEV" ? `As the Design Engineer, you can also write code for UI components.
 If the Founder asks for a UI change, aesthetic tweak, or frontend feature, you MUST respond AND then add the following tag at the end of your message to assign the coding task to yourself:
 <DELEGATE>A specific instruction for yourself to implement the UI change.</DELEGATE>` : ""}
 
