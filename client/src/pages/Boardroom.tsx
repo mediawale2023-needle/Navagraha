@@ -10,7 +10,7 @@ import {
   Building2, Users, Zap, TrendingUp, DollarSign, Code2,
   Megaphone, Palette, HandshakeIcon, Target, Crown, ArrowRight,
   Sparkles, Send, MessageSquare, MessageCircle, Moon, Sun, Plus,
-  Briefcase, Code, CheckCircle,
+  Briefcase, Code, CheckCircle, RefreshCw, AlertCircle
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -42,6 +42,7 @@ const STATUS_COLORS: Record<string, string> = {
   high:     "bg-nava-magenta/20 text-nava-magenta border-nava-magenta/30",
   medium:   "bg-nava-amber/20 text-nava-amber border-nava-amber/30",
   low:      "bg-nava-teal/10 text-nava-teal border-nava-teal/30",
+  failed:   "bg-red-500/20 text-red-400 border-red-500/30",
 };
 
 // ── Message bubble ─────────────────────────────────────────────────────────
@@ -520,13 +521,26 @@ export default function Boardroom() {
   });
 
   const manualDirectiveMut = useMutation({
-    mutationFn: (content: string) => apiRequest("POST", "/api/corporate/directives/manual", { content }),
+    mutationFn: async (content: string) => {
+      const res = await apiRequest("POST", "/api/corporate/directives/manual", { content });
+      return res.json();
+    },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["/api/corporate/directives"] });
       setManualTask("");
-      toast({ title: "Task assigned to Ada! She is writing code now..." });
+      toast({ title: "Task Assigned", description: "Ada has received your manual directive." });
     },
-    onError: (err) => toast({ variant: "destructive", title: "Failed to assign task", description: String(err) }),
+  });
+
+  const resetDirectiveMut = useMutation({
+    mutationFn: async (id: number) => {
+      const res = await apiRequest("POST", `/api/corporate/directives/${id}/reset`);
+      return res.json();
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["/api/corporate/directives"] });
+      toast({ title: "Task Reset", description: "Ada is re-evaluating the task with new safety rules." });
+    },
   });
 
   if (companyLoading) return (
@@ -737,9 +751,21 @@ export default function Boardroom() {
                       <CardTitle className="text-sm">Task #{dir.id}</CardTitle>
                       <p className="text-xs text-muted-foreground mt-1">{dir.content}</p>
                     </div>
-                    <Badge className={`text-[10px] border ${STATUS_COLORS[dir.status === 'completed' || dir.status === 'approved' ? 'active' : 'pending']}`}>
-                       {dir.status.toUpperCase()}
+                    <Badge className={`text-[10px] border ${STATUS_COLORS[dir.status] || STATUS_COLORS.pending}`}>
+                      {dir.status}
                     </Badge>
+                    {dir.status === 'failed' && (
+                      <Button 
+                        size="sm" 
+                        variant="outline" 
+                        className="h-6 text-[10px] border-red-500/50 text-red-400 hover:bg-red-500/10 px-2"
+                        onClick={() => resetDirectiveMut.mutate(dir.id)}
+                        disabled={resetDirectiveMut.isPending}
+                      >
+                        <RefreshCw className={`w-3 h-3 mr-1 ${resetDirectiveMut.isPending ? 'animate-spin' : ''}`} />
+                        Retry
+                      </Button>
+                    )}
                   </CardHeader>
                   <CardContent>
                     {dir.type === "CODE_CHANGE" && dir.proposedChanges ? (

@@ -1818,5 +1818,22 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
   });
 
 
+  app.post('/api/corporate/directives/:id/reset', async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).send("Unauthorized");
+    const { id } = req.params;
+    try {
+      await db.update(aiDirectives)
+        .set({ status: "pending", proposedChanges: null })
+        .where(eq(aiDirectives.id, parseInt(id)));
+      
+      // Trigger the loop again
+      corporateOrchestrator.processCodeDirective(parseInt(id)).catch(console.error);
+      res.json({ message: "Task reset and triggered successfully" });
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ message: "Failed to reset task" });
+    }
+  });
+
   return existingServer ?? createServer(app);
 }

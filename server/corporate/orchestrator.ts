@@ -205,18 +205,21 @@ TASK: ${directive.content}
 
 ${repoContext}
 
-You must write the actual code changes required based STRICTLY on the existing architecture above. Do NOT suggest new microservices, Node 14 architectures, or unrelated stacks. You are building in a React/Vite/Express/Drizzle/Postgres monorepo.
 Provide your response strictly as a JSON object containing an array of proposed changes:
 {
   "changes": [
     {
       "filePath": "relative/path/to/file.ts",
-      "content": "// The full newly modified or created file content goes here\\n..."
+      "content": "Full content of the file..."
     }
   ]
 }
 
-Ensure the code is robust, type-safe TypeScript/React. Do not omit any crucial surrounding code if editing an existing file structure, provide the full file or sufficient context if possible.`;
+SAFETY RULES:
+1. If the task is STRATEGIC (mapping, identifying, defining boundaries, documenting), do NOT modify existing .ts, .tsx, or server files. Instead, create a new .md file in a 'docs/architecture/' folder.
+2. NEVER overwrite a large existing file with a small placeholder or truncated version.
+3. If you are adding a new microservice route, you must include the existing routes in 'server/routes.ts' as well—do not delete them.
+4. Ensure all code is robust and type-safe.`;
 
     const response = await openai.chat.completions.create({
       model: "gpt-4o",
@@ -250,8 +253,13 @@ Ensure the code is robust, type-safe TypeScript/React. Do not omit any crucial s
         // 3. Automatically Commit and Push
         try {
           const commitMessage = `feat(ai/dev): ${directive.content.substring(0, 50)}... [Ada Auto-Commit]`;
-          // Use timeout and non-interactive env to prevent hanging on prompts
-          await execPromise(`git add . && git commit -m "${commitMessage}" && git push`, {
+          
+          // Use GITHUB_TOKEN if available to bypass SSH key issues on Railway
+          const pushCmd = process.env.GITHUB_TOKEN 
+             ? `git push https://x-access-token:${process.env.GITHUB_TOKEN}@github.com/mediawale2023-needle/Navagraha.git main`
+             : `git push origin main`;
+
+          await execPromise(`git add . && git commit -m "${commitMessage}" && ${pushCmd}`, {
             timeout: 30000,
             env: { ...process.env, GIT_TERMINAL_PROMPT: "0" }
           });
