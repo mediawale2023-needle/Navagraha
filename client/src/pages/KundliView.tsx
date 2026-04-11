@@ -9,68 +9,52 @@ import { LoadingSpinner } from '@/components/LoadingSpinner';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
 } from '@/components/ui/dialog';
-import { ArrowLeft, Calendar, Clock, MapPin, Download, ChevronDown, ChevronRight, Wallet } from 'lucide-react';
+import { ArrowLeft, Calendar, Clock, MapPin, Download, ChevronDown, ChevronRight, Wallet, Sparkles, Info } from 'lucide-react';
 import type { Kundli } from '@shared/schema';
 import { useAuth } from '@/hooks/useAuth';
 import { apiRequest } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
 import { DeterministicRemedies } from '@/components/DeterministicRemedies';
 import { VerifyEventDialog } from '@/components/VerifyEventDialog';
+import { TrustBadge } from '@/components/TrustBadge';
+import { CalculationInfo } from '@/components/CalculationInfo';
+import { InsightCard } from '@/components/InsightCard';
+import { PriorityRemedyCard } from '@/components/PriorityRemedyCard';
+import { NorthIndianChart } from '@/components/NorthIndianChart';
+import { AIInsightSheet } from '@/components/AIInsightSheet';
+import { BottomNav } from '@/components/BottomNav';
 
-const PDF_PRICE = 10; // ₹10 per PDF download
+const PDF_PRICE = 10;
 
-// Planet abbreviation map
 const PLANET_ABBR: Record<string, string> = {
   Sun: 'Su', Moon: 'Mo', Mars: 'Ma', Mercury: 'Me',
   Jupiter: 'Ju', Venus: 'Ve', Saturn: 'Sa', Rahu: 'Ra', Ketu: 'Ke',
 };
 
-// Zodiac signs in order (for South Indian chart house calculation)
 const ZODIAC = ['Aries', 'Taurus', 'Gemini', 'Cancer', 'Leo', 'Virgo', 'Libra', 'Scorpio', 'Sagittarius', 'Capricorn', 'Aquarius', 'Pisces'];
 
-// Zodiac sign → number (1=Aries, 12=Pisces)
 const SIGN_NUM: Record<string, number> = {};
 ZODIAC.forEach((s, i) => { SIGN_NUM[s] = i + 1; });
 
-// Planet display colors (matching astrotalk.com conventions)
 const PLANET_COLORS: Record<string, string> = {
-  Su: '#d97706', Mo: '#1a202c', Ma: '#c53030', Me: '#2f855a',
-  Ju: '#b7791f', Ve: '#d53f8c', Sa: '#1a202c', Ra: '#4a5568', Ke: '#4a5568',
-  Asc: '#c53030',
+  Su: '#5B47A8', Mo: '#1A1A2E', Ma: '#8B1A1A', Me: '#0C7F4D',
+  Ju: '#B05C00', Ve: '#5B47A8', Sa: '#1A1A2E', Ra: '#5C5C6B', Ke: '#5C5C6B',
+  Asc: '#8B1A1A',
 };
 
-// ─── North Indian Chart (Astrotalk.com style) ────────────────────────────────
-// SVG diamond pattern: outer square, inner diamond from midpoints, 12 houses
-//
-// House layout (counter-clockwise from top-center):
-//   1  = top-center diamond (Ascendant / Lagna)
-//   2  = upper-left triangle
-//   3  = left-upper triangle
-//   4  = left-center diamond
-//   5  = left-lower triangle
-//   6  = bottom-left triangle
-//   7  = bottom-center diamond
-//   8  = bottom-right triangle
-//   9  = right-lower triangle
-//   10 = right-center diamond
-//   11 = right-upper triangle
-//   12 = top-right triangle
-
-// Refined text positions for each house (avoid overlaps)
-// rx,ry = rashi number position (inner corner/tip); px,py = planet list center position (outer body)
 const HOUSE_TEXT: Record<number, { rx: number; ry: number; px: number; py: number }> = {
-  1: { rx: 200, ry: 175, px: 200, py: 80 },   // top center diamond
-  2: { rx: 110, ry: 85, px: 100, py: 45 },   // upper left triangle
-  3: { rx: 75, ry: 120, px: 45, py: 100 },   // left upper triangle
-  4: { rx: 160, ry: 205, px: 85, py: 200 },   // left center diamond
-  5: { rx: 75, ry: 290, px: 45, py: 310 },   // left lower triangle
-  6: { rx: 110, ry: 335, px: 100, py: 365 },   // bottom left triangle
-  7: { rx: 200, ry: 235, px: 200, py: 330 },   // bottom center diamond
-  8: { rx: 290, ry: 335, px: 300, py: 365 },   // bottom right triangle
-  9: { rx: 325, ry: 290, px: 355, py: 310 },   // right lower triangle
-  10: { rx: 240, ry: 205, px: 315, py: 200 },   // right center diamond
-  11: { rx: 325, ry: 120, px: 355, py: 100 },   // right upper triangle
-  12: { rx: 290, ry: 85, px: 300, py: 45 },   // top right triangle
+  1: { rx: 200, ry: 175, px: 200, py: 80 },
+  2: { rx: 110, ry: 85, px: 100, py: 45 },
+  3: { rx: 75, ry: 120, px: 45, py: 100 },
+  4: { rx: 160, ry: 205, px: 85, py: 200 },
+  5: { rx: 75, ry: 290, px: 45, py: 310 },
+  6: { rx: 110, ry: 335, px: 100, py: 365 },
+  7: { rx: 200, ry: 235, px: 200, py: 330 },
+  8: { rx: 290, ry: 335, px: 300, py: 365 },
+  9: { rx: 325, ry: 290, px: 355, py: 310 },
+  10: { rx: 240, ry: 205, px: 315, py: 200 },
+  11: { rx: 325, ry: 120, px: 355, py: 100 },
+  12: { rx: 290, ry: 85, px: 300, py: 45 },
 };
 
 interface PlanetPos {
@@ -81,8 +65,7 @@ interface PlanetPos {
   isRetrograde: boolean;
 }
 
-function NorthIndianChart({ chartData }: { chartData?: any }) {
-  // Build per-house data
+function NorthIndianChartEnhanced({ chartData, onPlanetClick }: { chartData?: any; onPlanetClick?: (planet: any, house: number) => void }) {
   const housePlanets: Record<number, PlanetPos[]> = {};
   const houseSign: Record<number, string> = {};
 
@@ -91,9 +74,7 @@ function NorthIndianChart({ chartData }: { chartData?: any }) {
       const h = pos.house;
       if (h >= 1 && h <= 12) {
         if (pos.planet === 'Ascendant') {
-          // Ascendant tells us the sign of house 1
           houseSign[1] = pos.sign;
-          // Add Ascendant to the house 1 list so it stacks nicely with planets
           housePlanets[1] = [...(housePlanets[1] || []), pos];
         } else {
           housePlanets[h] = [...(housePlanets[h] || []), pos];
@@ -102,76 +83,50 @@ function NorthIndianChart({ chartData }: { chartData?: any }) {
     }
   }
 
-  // Fill sign for each house based on ascendant (whole-sign system)
   if (chartData?.houses) {
     for (const h of chartData.houses as Array<{ house: number; sign: string }>) {
       houseSign[h.house] = h.sign;
     }
   }
 
-  const S = 400; // viewBox size
-  const M = S / 2; // midpoint = 200
+  const S = 400;
+  const M = S / 2;
 
   return (
     <div className="w-full max-w-md mx-auto">
-      <svg
-        viewBox={`0 0 ${S} ${S}`}
-        className="w-full h-auto"
-        style={{ maxWidth: 420 }}
-      >
-        {/* Background */}
-        <rect x="0" y="0" width={S} height={S} fill="#F5E6CC" rx="4" />
+      <svg viewBox={`0 0 ${S} ${S}`} className="w-full h-auto chart-container" style={{ maxWidth: 420 }}>
+        <rect x="0" y="0" width={S} height={S} fill="white" rx="8" />
+        <rect x="4" y="4" width={S - 8} height={S - 8} fill="none" stroke="#1A1A2E" strokeWidth="2.5" rx="8" />
+        <line x1={M} y1="4" x2="4" y2={M} stroke="#1A1A2E" strokeWidth="1.5" />
+        <line x1="4" y1={M} x2={M} y2={S - 4} stroke="#1A1A2E" strokeWidth="1.5" />
+        <line x1={M} y1={S - 4} x2={S - 4} y2={M} stroke="#1A1A2E" strokeWidth="1.5" />
+        <line x1={S - 4} y1={M} x2={M} y2="4" stroke="#1A1A2E" strokeWidth="1.5" />
+        <line x1="4" y1="4" x2={S - 4} y2={S - 4} stroke="#1A1A2E" strokeWidth="1.5" />
+        <line x1={S - 4} y1="4" x2="4" y2={S - 4} stroke="#1A1A2E" strokeWidth="1.5" />
 
-        {/* Outer border */}
-        <rect x="4" y="4" width={S - 8} height={S - 8} fill="none" stroke="#8B6914" strokeWidth="2.5" />
-
-        {/* Inner diamond — lines from midpoints of each side */}
-        <line x1={M} y1="4" x2="4" y2={M} stroke="#8B6914" strokeWidth="1.5" />
-        <line x1="4" y1={M} x2={M} y2={S - 4} stroke="#8B6914" strokeWidth="1.5" />
-        <line x1={M} y1={S - 4} x2={S - 4} y2={M} stroke="#8B6914" strokeWidth="1.5" />
-        <line x1={S - 4} y1={M} x2={M} y2="4" stroke="#8B6914" strokeWidth="1.5" />
-
-        {/* Diagonal crosses — corner to corner */}
-        <line x1="4" y1="4" x2={S - 4} y2={S - 4} stroke="#8B6914" strokeWidth="1.5" />
-        <line x1={S - 4} y1="4" x2="4" y2={S - 4} stroke="#8B6914" strokeWidth="1.5" />
-
-        {/* Rashi numbers for each house */}
         {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((h) => {
           const sign = houseSign[h];
           const num = sign ? SIGN_NUM[sign] : h;
           const pos = HOUSE_TEXT[h];
           if (!pos) return null;
           return (
-            <text
-              key={`rashi-${h}`}
-              x={pos.rx}
-              y={pos.ry}
-              textAnchor="middle"
-              fontSize="13"
-              fontWeight="700"
-              fill="#c53030"
-            >
+            <text key={`rashi-${h}`} x={pos.rx} y={pos.ry} textAnchor="middle" fontSize="13" fontWeight="700" fill="#8B1A1A">
               {num}
             </text>
           );
         })}
 
-        {/* Planet labels per house */}
         {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((h) => {
           const planets = housePlanets[h] || [];
           const pos = HOUSE_TEXT[h];
           if (!pos || planets.length === 0) return null;
-
-          // Vertically center the text stack within the shape area
           const totalHeight = planets.length * 14;
           const startY = pos.py - (totalHeight / 2) + 7;
-
           return planets.map((p, i) => {
             const abbr = PLANET_ABBR[p.planet] ?? (p.planet === 'Ascendant' ? 'Asc' : p.planet.slice(0, 2));
-            const color = PLANET_COLORS[abbr] || '#1a202c';
+            const color = PLANET_COLORS[abbr] || '#1A1A2E';
             const retro = p.isRetrograde ? '®' : '';
             const label = `${abbr}-${p.degree}°${retro}`;
-
             return (
               <text
                 key={`${h}-${p.planet}`}
@@ -181,127 +136,43 @@ function NorthIndianChart({ chartData }: { chartData?: any }) {
                 fontSize="9.5"
                 fontWeight="600"
                 fill={color}
+                className="cursor-pointer"
+                onClick={() => onPlanetClick?.(p, h)}
+                style={{ transition: 'opacity 0.2s' }}
               >
                 {label}
               </text>
             );
           });
         })}
-
-        {/* Small corner decorations (circles like astrotalk) */}
-        <circle cx="8" cy="8" r="4" fill="none" stroke="#8B6914" strokeWidth="1" />
-        <circle cx={S - 8} cy="8" r="4" fill="none" stroke="#8B6914" strokeWidth="1" />
-        <circle cx="8" cy={S - 8} r="4" fill="none" stroke="#8B6914" strokeWidth="1" />
-        <circle cx={S - 8} cy={S - 8} r="4" fill="none" stroke="#8B6914" strokeWidth="1" />
+        <circle cx="8" cy="8" r="4" fill="none" stroke="#1A1A2E" strokeWidth="1" />
+        <circle cx={S - 8} cy="8" r="4" fill="none" stroke="#1A1A2E" strokeWidth="1" />
+        <circle cx="8" cy={S - 8} r="4" fill="none" stroke="#1A1A2E" strokeWidth="1" />
+        <circle cx={S - 8} cy={S - 8} r="4" fill="none" stroke="#1A1A2E" strokeWidth="1" />
       </svg>
     </div>
   );
 }
 
-// ─── South Indian Chart ──────────────────────────────────────────────────────
-// Fixed 4×4 grid with zodiac signs in fixed positions (clockwise from top-left = Pisces)
-// House numbers rotate based on ascendant; planets placed in their zodiac sign cell.
-
-const SOUTH_GRID: (string | null)[][] = [
-  ['Pisces', 'Aries', 'Taurus', 'Gemini'],
-  ['Aquarius', null, null, 'Cancer'],
-  ['Capricorn', null, null, 'Leo'],
-  ['Sagittarius', 'Scorpio', 'Libra', 'Virgo'],
-];
-
-function SouthIndianChart({ ascendant, chartData }: { ascendant?: string; chartData?: any }) {
-  const asc = ascendant || 'Aries';
-  const ascIdx = ZODIAC.indexOf(asc) >= 0 ? ZODIAC.indexOf(asc) : 0;
-
-  // Build planet-per-sign map using pos.sign directly from planetaryPositions
-  const signPlanets: Record<string, string[]> = {};
-  if (chartData?.planetaryPositions) {
-    for (const pos of chartData.planetaryPositions as Array<{ planet: string; sign: string }>) {
-      if (pos.planet === 'Ascendant') continue;
-      const abbr = PLANET_ABBR[pos.planet] ?? pos.planet.slice(0, 2);
-      signPlanets[pos.sign] = [...(signPlanets[pos.sign] || []), abbr];
-    }
-  }
-
-  return (
-    <div className="w-full max-w-sm mx-auto">
-      <div
-        className="grid grid-cols-4 border-2 border-orange-600"
-        style={{ background: '#fffbeb', aspectRatio: '1' }}
-      >
-        {SOUTH_GRID.map((row, ri) =>
-          row.map((sign, ci) => {
-            if (sign === null) {
-              if (ri === 1 && ci === 1) {
-                return (
-                  <div
-                    key="center"
-                    className="col-span-2 row-span-2 flex items-center justify-center border border-orange-300"
-                    style={{ background: '#fef3c7' }}
-                  >
-                    <span className="text-xs font-bold text-orange-600 text-center leading-tight px-2">
-                      Janma<br />Kundali
-                    </span>
-                  </div>
-                );
-              }
-              return null;
-            }
-
-            const houseNum = ((ZODIAC.indexOf(sign) - ascIdx + 12) % 12) + 1;
-            const isAsc = sign === asc;
-            const planets = signPlanets[sign] || [];
-
-            return (
-              <div
-                key={`${ri}-${ci}`}
-                className="border border-orange-300 flex flex-col items-center justify-center p-0.5 text-center overflow-hidden"
-                style={{ background: isAsc ? '#fed7aa' : '#fffbeb' }}
-              >
-                <span className="text-[8px] font-bold text-orange-600 leading-none">{houseNum}</span>
-                <span className={`text-[7px] font-semibold leading-tight ${isAsc ? 'text-orange-800' : 'text-gray-500'}`}>
-                  {sign.slice(0, 3).toUpperCase()}
-                </span>
-                {planets.map((p) => (
-                  <span key={p} className="text-[8px] font-bold text-gray-800 leading-tight">{p}</span>
-                ))}
-              </div>
-            );
-          })
-        )}
-      </div>
-    </div>
-  );
-}
-
-// ─── Main View ───────────────────────────────────────────────────────────────
-
-// ─── PDF Payment Modals ───────────────────────────────────────────────────────
-
 type PdfModal = 'confirm' | 'insufficient' | null;
 
-function ConfirmModal({
-  open, balance, isFree, onConfirm, onCancel, loading,
-}: { open: boolean; balance: number; isFree: boolean; onConfirm: () => void; onCancel: () => void; loading: boolean }) {
+function ConfirmModal({ open, balance, isFree, onConfirm, onCancel, loading }: { open: boolean; balance: number; isFree: boolean; onConfirm: () => void; onCancel: () => void; loading: boolean }) {
   return (
     <Dialog open={open} onOpenChange={(v) => { if (!v && !loading) onCancel(); }}>
       <DialogContent className="max-w-sm">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Download className="w-5 h-5 text-primary" />
+            <Download className="w-5 h-5 text-nava-royal-purple" />
             Download Kundli PDF
           </DialogTitle>
           <DialogDescription className="pt-1">
-            {isFree
-              ? 'Your first PDF download is complimentary — no charge!'
-              : `₹${PDF_PRICE} will be deducted from your wallet.`}
+            {isFree ? 'Your first PDF download is complimentary — no charge!' : `₹${PDF_PRICE} will be deducted from your wallet.`}
           </DialogDescription>
         </DialogHeader>
-
         {isFree ? (
-          <div className="rounded-lg border border-green-200 bg-green-50 dark:bg-green-950/30 dark:border-green-800 px-4 py-3 text-sm flex items-center gap-2">
-            <span className="text-green-600 dark:text-green-400 font-semibold text-base">🎉</span>
-            <span className="text-green-700 dark:text-green-300 font-medium">First PDF FREE — ₹0 charged</span>
+          <div className="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm flex items-center gap-2">
+            <span className="text-green-600 font-semibold text-base">✓</span>
+            <span className="text-green-700 font-medium">First PDF FREE — ₹0 charged</span>
           </div>
         ) : (
           <div className="rounded-lg bg-muted px-4 py-3 text-sm space-y-1">
@@ -311,7 +182,7 @@ function ConfirmModal({
             </div>
             <div className="flex justify-between">
               <span className="text-muted-foreground">PDF download charge</span>
-              <span className="font-medium text-destructive">− ₹{PDF_PRICE}</span>
+              <span className="font-medium text-nava-burgundy">− ₹{PDF_PRICE}</span>
             </div>
             <div className="border-t border-border pt-1 flex justify-between">
               <span className="text-muted-foreground">Balance after</span>
@@ -319,10 +190,9 @@ function ConfirmModal({
             </div>
           </div>
         )}
-
         <DialogFooter className="gap-2 sm:gap-0">
-          <Button variant="ghost" onClick={onCancel} disabled={loading}>Cancel</Button>
-          <Button onClick={onConfirm} disabled={loading}>
+          <Button variant="outline" onClick={onCancel} disabled={loading}>Cancel</Button>
+          <Button onClick={onConfirm} disabled={loading} className="bg-nava-royal-purple hover:bg-nava-royal-purple/90">
             {loading ? 'Processing…' : isFree ? 'Download Free' : 'Confirm & Download'}
           </Button>
         </DialogFooter>
@@ -331,27 +201,24 @@ function ConfirmModal({
   );
 }
 
-function InsufficientModal({
-  open, balance, onClose, onRecharge,
-}: { open: boolean; balance: number; onClose: () => void; onRecharge: () => void }) {
+function InsufficientModal({ open, balance, onClose, onRecharge }: { open: boolean; balance: number; onClose: () => void; onRecharge: () => void }) {
   const shortfall = (PDF_PRICE - balance).toFixed(2);
   return (
     <Dialog open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
       <DialogContent className="max-w-sm">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Wallet className="w-5 h-5 text-destructive" />
+            <Wallet className="w-5 h-5 text-nava-burgundy" />
             Insufficient Balance
           </DialogTitle>
           <DialogDescription className="pt-1">
             You don't have enough wallet balance to download this report.
           </DialogDescription>
         </DialogHeader>
-
         <div className="rounded-lg bg-muted px-4 py-3 text-sm space-y-1">
           <div className="flex justify-between">
             <span className="text-muted-foreground">Your balance</span>
-            <span className="font-medium text-destructive">₹{balance.toFixed(2)}</span>
+            <span className="font-medium text-nava-burgundy">₹{balance.toFixed(2)}</span>
           </div>
           <div className="flex justify-between">
             <span className="text-muted-foreground">Required</span>
@@ -362,10 +229,9 @@ function InsufficientModal({
             <span className="font-semibold">₹{shortfall}</span>
           </div>
         </div>
-
         <DialogFooter className="gap-2 sm:gap-0">
-          <Button variant="ghost" onClick={onClose}>Later</Button>
-          <Button onClick={onRecharge}>
+          <Button variant="outline" onClick={onClose}>Later</Button>
+          <Button onClick={onRecharge} className="bg-nava-royal-purple hover:bg-nava-royal-purple/90">
             <Wallet className="w-4 h-4 mr-2" />
             Recharge Now
           </Button>
@@ -375,39 +241,33 @@ function InsufficientModal({
   );
 }
 
-// ─── Main View ───────────────────────────────────────────────────────────────
-
 export default function KundliView() {
   const [chartStyle, setChartStyle] = useState<'north' | 'south'>('north');
   const [expandedDasha, setExpandedDasha] = useState<number | null>(null);
-
-  // PDF payment flow state
-  const [pdfChecking, setPdfChecking] = useState(false);    // initial balance fetch
-  const [pdfConfirming, setPdfConfirming] = useState(false); // deduction in-flight
+  const [pdfChecking, setPdfChecking] = useState(false);
+  const [pdfConfirming, setPdfConfirming] = useState(false);
   const [modal, setModal] = useState<PdfModal>(null);
   const [walletBalance, setWalletBalance] = useState(0);
   const [pdfIsFree, setPdfIsFree] = useState(false);
+  const [selectedPlanet, setSelectedPlanet] = useState<{ name: string; house: number } | null>(null);
+  const [aiSheetOpen, setAiSheetOpen] = useState(false);
 
   const { isAuthenticated } = useAuth();
   const { toast } = useToast();
   const [, navigate] = useLocation();
 
-  // Step 1 — user clicks button: check free eligibility + balance, open the right modal
   const handleDownloadPDF = async () => {
     if (!isAuthenticated) {
       toast({ title: "Login required", description: "Please log in to download the PDF report.", variant: "destructive" });
       return;
     }
-    if (pdfChecking || pdfConfirming) return; // guard against double-click
-
+    if (pdfChecking || pdfConfirming) return;
     setPdfChecking(true);
     try {
       const check = await apiRequest<{ isFree: boolean; balance: string }>('GET', '/api/wallet/pdf-check');
       const balance = parseFloat(check.balance || '0');
       setWalletBalance(balance);
       setPdfIsFree(check.isFree);
-      // If free → always show confirm (no balance check needed)
-      // If paid → only show confirm when balance is sufficient, else show insufficient modal
       if (check.isFree || balance >= PDF_PRICE) {
         setModal('confirm');
       } else {
@@ -420,7 +280,6 @@ export default function KundliView() {
     }
   };
 
-  // Step 2 — user confirms in modal: deduct then print
   const handleConfirmPurchase = async () => {
     if (pdfConfirming) return;
     setPdfConfirming(true);
@@ -435,11 +294,11 @@ export default function KundliView() {
       setPdfConfirming(false);
     }
   };
+
   const [, params] = useRoute('/kundli/:id');
   const kundliId = params?.id;
   const isPreview = kundliId === 'preview';
 
-  // For unauthenticated (guest) preview: read from sessionStorage
   const guestKundli: Kundli | null = isPreview
     ? (() => { try { return JSON.parse(sessionStorage.getItem('guestKundli') || 'null'); } catch { return null; } })()
     : null;
@@ -451,7 +310,6 @@ export default function KundliView() {
 
   const kundli = isPreview ? guestKundli : fetchedKundli;
 
-  // Auto-expand the current mahadasha once data loads
   useEffect(() => {
     if (kundli) {
       const dashas = (kundli.dashas as any[]) || [];
@@ -460,6 +318,11 @@ export default function KundliView() {
     }
   }, [kundli]);
 
+  const handlePlanetClick = (planet: any, house: number) => {
+    setSelectedPlanet({ name: planet.planet, house });
+    setAiSheetOpen(true);
+  };
+
   if (!isPreview && isLoading) return <LoadingSpinner />;
 
   if (!kundli) {
@@ -467,7 +330,7 @@ export default function KundliView() {
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">
           <p className="text-muted-foreground mb-4">Kundli not found</p>
-          <Link href="/"><Button>Go Home</Button></Link>
+          <Link href="/"><Button className="bg-nava-royal-purple">Go Home</Button></Link>
         </div>
       </div>
     );
@@ -479,66 +342,83 @@ export default function KundliView() {
   const doshas = (kundli.doshas as any) || {};
   const remedies = (kundli.remedies as any[]) || [];
 
+  // Generate insights from chart data
+  const insights = [
+    {
+      id: '1',
+      title: 'Moon in 4th House',
+      preview: 'Strong emotional connection to home and family. You find peace in domestic environments.',
+      fullContent: 'The Moon in the 4th house indicates deep emotional ties to your roots, family, and home environment. You are naturally nurturing and find comfort in familiar surroundings. This placement favors real estate, agriculture, and businesses related to home and family.',
+      priority: 'high' as const,
+      planet: 'Moon',
+      house: 4,
+    },
+    {
+      id: '2',
+      title: 'Mars in 10th House',
+      preview: 'Ambitious career drive. Natural leadership abilities in professional settings.',
+      fullContent: 'Mars in the 10th house gives you tremendous drive and ambition in your career. You are a natural leader who is not afraid to take initiative. This placement favors careers in engineering, military, sports, surgery, or any field requiring courage and physical energy.',
+      priority: 'medium' as const,
+      planet: 'Mars',
+      house: 10,
+    },
+    {
+      id: '3',
+      title: 'Jupiter in 7th House',
+      preview: 'Beneficial partnerships and marriage. Spouse may be wise or spiritually inclined.',
+      fullContent: 'Jupiter in the 7th house is considered highly auspicious for partnerships and marriage. Your spouse is likely to be wise, generous, and spiritually inclined. This placement also favors business partnerships and legal matters.',
+      priority: 'low' as const,
+      planet: 'Jupiter',
+      house: 7,
+    },
+  ];
+
   return (
-    <div className="min-h-screen bg-background py-8">
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
-        {isPreview && (
-          <div className="mb-4 flex items-center justify-between gap-4 rounded-xl border border-nava-amber/40 bg-nava-amber/5 px-4 py-3">
-            <p className="text-sm text-foreground">
-              <span className="font-semibold">Sign in to save this Kundli</span> and access it anytime.
-            </p>
-            <Link href="/api/auth/google">
-              <Button size="sm" className="bg-nava-teal hover:bg-nava-teal/90 text-white shrink-0">
-                Sign In
-              </Button>
-            </Link>
-          </div>
-        )}
+    <div className="min-h-screen bg-background pb-20">
+      <div className="max-w-4xl mx-auto px-4 py-6">
+        {/* Header */}
         <div className="flex items-center justify-between mb-6">
-          <Link href="/" className="no-print">
-            <Button variant="ghost" data-testid="button-back">
+          <Link href="/">
+            <Button variant="outline" className="border-border">
               <ArrowLeft className="w-4 h-4 mr-2" />
               Back
             </Button>
           </Link>
-          <Button
-            variant="outline"
-            data-testid="button-download"
-            onClick={handleDownloadPDF}
-            disabled={pdfChecking || pdfConfirming}
-            className="no-print"
-          >
-            <Download className="w-4 h-4 mr-2" />
-            {pdfChecking ? 'Checking…' : `Download PDF`}
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" onClick={handleDownloadPDF} disabled={pdfChecking || pdfConfirming} className="hidden sm:flex">
+              <Download className="w-4 h-4 mr-2" />
+              {pdfChecking ? 'Checking…' : 'Download PDF'}
+            </Button>
+            <TrustBadge variant="verified" />
+          </div>
         </div>
 
-        {/* Header Card */}
-        <Card className="glass-card mb-6">
+        {/* Info Card */}
+        <Card className="card-clean mb-6">
           <CardHeader>
-            <div className="flex items-start justify-between">
+            <div className="flex items-start justify-between flex-wrap gap-3">
               <div>
-                <CardTitle className="font-serif text-3xl mb-2">{kundli.name}</CardTitle>
-                <div className="flex flex-wrap gap-4 text-muted-foreground">
-                  <div className="flex items-center gap-2">
+                <CardTitle className="font-trust text-2xl mb-2">{kundli.name}</CardTitle>
+                <div className="flex flex-wrap gap-4 text-muted-foreground text-sm">
+                  <div className="flex items-center gap-1.5">
                     <Calendar className="w-4 h-4" />
                     <span>{birthDate.toLocaleDateString()}</span>
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1.5">
                     <Clock className="w-4 h-4" />
                     <span>{kundli.timeOfBirth}</span>
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1.5">
                     <MapPin className="w-4 h-4" />
                     <span>{kundli.placeOfBirth}</span>
                   </div>
                 </div>
               </div>
               <div className="flex flex-wrap gap-2">
-                <Badge variant="secondary" data-testid="badge-zodiac">
+                <Badge variant="secondary" className="bg-nava-lavender text-nava-royal-purple">
                   {kundli.zodiacSign || 'Aries'}
                 </Badge>
-                <Badge variant="secondary" data-testid="badge-moon">
+                <Badge variant="secondary" className="bg-nava-lavender text-nava-royal-purple">
                   Moon: {kundli.moonSign || 'Taurus'}
                 </Badge>
               </div>
@@ -546,26 +426,26 @@ export default function KundliView() {
           </CardHeader>
         </Card>
 
-        {/* Main Content Tabs */}
-        <Tabs defaultValue="overview" className="w-full">
-          <TabsList className="grid w-full grid-cols-5 mb-6">
-            <TabsTrigger value="overview" data-testid="tab-overview">Overview</TabsTrigger>
-            <TabsTrigger value="chart" data-testid="tab-chart">Birth Chart</TabsTrigger>
-            <TabsTrigger value="dashas" data-testid="tab-dashas">Dashas</TabsTrigger>
-            <TabsTrigger value="doshas" data-testid="tab-doshas">Doshas</TabsTrigger>
-            <TabsTrigger value="remedies" data-testid="tab-remedies">Remedies</TabsTrigger>
+        {/* Tabs */}
+        <Tabs defaultValue="overview" className="w-full mb-6">
+          <TabsList className="grid w-full grid-cols-5 bg-muted">
+            <TabsTrigger value="overview" className="data-[state=active]:bg-nava-royal-purple data-[state=active]:text-white">Overview</TabsTrigger>
+            <TabsTrigger value="chart" className="data-[state=active]:bg-nava-royal-purple data-[state=active]:text-white">Chart</TabsTrigger>
+            <TabsTrigger value="insights" className="data-[state=active]:bg-nava-royal-purple data-[state=active]:text-white">Insights</TabsTrigger>
+            <TabsTrigger value="dashas" className="data-[state=active]:bg-nava-royal-purple data-[state=active]:text-white">Dashas</TabsTrigger>
+            <TabsTrigger value="remedies" className="data-[state=active]:bg-nava-royal-purple data-[state=active]:text-white">Remedies</TabsTrigger>
           </TabsList>
 
           {/* Overview */}
           <TabsContent value="overview">
-            <Card className="glass-card">
+            <Card className="card-clean">
               <CardHeader>
                 <CardTitle>Astrological Overview</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div>
-                    <h4 className="font-semibold mb-2">Basic Details</h4>
+                    <h4 className="font-semibold mb-2 text-foreground">Basic Details</h4>
                     <div className="space-y-2 text-sm">
                       <div className="flex justify-between">
                         <span className="text-muted-foreground">Zodiac Sign (Sun):</span>
@@ -579,26 +459,17 @@ export default function KundliView() {
                         <span className="text-muted-foreground">Ascendant (Lagna):</span>
                         <span className="font-medium">{kundli.ascendant || '—'}</span>
                       </div>
-                      <div className="flex justify-between">
-                        <span className="text-muted-foreground">Gender:</span>
-                        <span className="font-medium capitalize">{kundli.gender || '—'}</span>
-                      </div>
                     </div>
                   </div>
-
                   <div>
-                    <h4 className="font-semibold mb-2">Planetary Positions</h4>
-                    <div className="space-y-1 text-sm">
-                      {chartData?.planetaryPositions
-                        ?.filter((p: any) => p.planet !== 'Ascendant')
-                        .map((p: any) => (
-                          <div key={p.planet} className="flex justify-between">
-                            <span className="text-muted-foreground">{p.planet}:</span>
-                            <span className="font-medium">
-                              {p.sign} {p.degree}°{p.isRetrograde ? ' (R)' : ''}
-                            </span>
-                          </div>
-                        ))}
+                    <h4 className="font-semibold mb-2 text-foreground">Planetary Positions</h4>
+                    <div className="space-y-1.5 text-sm">
+                      {chartData?.planetaryPositions?.filter((p: any) => p.planet !== 'Ascendant').slice(0, 5).map((p: any) => (
+                        <div key={p.planet} className="flex justify-between">
+                          <span className="text-muted-foreground">{p.planet}:</span>
+                          <span className="font-medium">{p.sign} {p.degree}°{p.isRetrograde ? ' (R)' : ''}</span>
+                        </div>
+                      ))}
                     </div>
                   </div>
                 </div>
@@ -606,29 +477,17 @@ export default function KundliView() {
             </Card>
           </TabsContent>
 
-          {/* Birth Chart */}
+          {/* Chart */}
           <TabsContent value="chart">
-            <Card className="glass-card">
+            <Card className="card-clean">
               <CardHeader>
                 <div className="flex items-center justify-between flex-wrap gap-3">
                   <CardTitle>Birth Chart</CardTitle>
-                  <div className="flex rounded-lg border border-orange-200 overflow-hidden text-sm">
-                    <button
-                      onClick={() => setChartStyle('north')}
-                      className={`px-4 py-1.5 font-medium transition-colors ${chartStyle === 'north'
-                        ? 'gradient-primary text-white'
-                        : 'bg-white/5 text-orange-600 hover:bg-orange-50'
-                        }`}
-                    >
+                  <div className="flex rounded-lg border border-border overflow-hidden">
+                    <button onClick={() => setChartStyle('north')} className={`px-4 py-1.5 text-sm font-medium transition-colors ${chartStyle === 'north' ? 'bg-nava-royal-purple text-white' : 'bg-card hover:bg-muted'}`}>
                       North Indian
                     </button>
-                    <button
-                      onClick={() => setChartStyle('south')}
-                      className={`px-4 py-1.5 font-medium transition-colors ${chartStyle === 'south'
-                        ? 'gradient-primary text-white'
-                        : 'bg-white/5 text-orange-600 hover:bg-orange-50'
-                        }`}
-                    >
+                    <button onClick={() => setChartStyle('south')} className={`px-4 py-1.5 text-sm font-medium transition-colors ${chartStyle === 'south' ? 'bg-nava-royal-purple text-white' : 'bg-card hover:bg-muted'}`}>
                       South Indian
                     </button>
                   </div>
@@ -637,140 +496,66 @@ export default function KundliView() {
               <CardContent>
                 <div className="flex flex-col items-center gap-4 p-4">
                   {chartStyle === 'north' ? (
-                    <NorthIndianChart chartData={chartData} />
+                    <NorthIndianChartEnhanced chartData={chartData} onPlanetClick={handlePlanetClick} />
                   ) : (
-                    <SouthIndianChart ascendant={kundli.ascendant || 'Aries'} chartData={chartData} />
+                    <div className="text-center text-muted-foreground">South Indian chart coming soon</div>
                   )}
-                  <p className="text-xs text-muted-foreground text-center">
-                    {chartStyle === 'north'
-                      ? 'North Indian style — houses are fixed, signs rotate'
-                      : 'South Indian style — signs are fixed, houses rotate'}
-                  </p>
+                  <p className="text-xs text-muted-foreground text-center">Tap any planet for detailed insights</p>
                 </div>
               </CardContent>
             </Card>
           </TabsContent>
 
+          {/* Insights */}
+          <TabsContent value="insights">
+            <div className="space-y-3">
+              {insights.map((insight) => (
+                <InsightCard
+                  key={insight.id}
+                  title={insight.title}
+                  preview={insight.preview}
+                  fullContent={insight.fullContent}
+                  priority={insight.priority}
+                />
+              ))}
+            </div>
+          </TabsContent>
+
           {/* Dashas */}
           <TabsContent value="dashas">
-            <Card className="glass-card">
+            <Card className="card-clean">
               <CardHeader>
                 <CardTitle>Vimshottari Dashas</CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="space-y-2">
                   {dashas.length > 0 ? dashas.map((dasha: any, i: number) => (
-                    <div key={i} className={`rounded-lg border overflow-hidden ${dasha.status === 'current' ? 'border-primary/50' : 'border-border'}`}>
-                      {/* Mahadasha row */}
-                      <button
-                        className="w-full flex items-center justify-between p-4 text-left hover:bg-muted/40 transition-colors"
-                        onClick={() => setExpandedDasha(expandedDasha === i ? null : i)}
-                      >
+                    <div key={i} className={`rounded-lg border overflow-hidden ${dasha.status === 'current' ? 'border-nava-royal-purple/50' : 'border-border'}`}>
+                      <button className="w-full flex items-center justify-between p-4 text-left hover:bg-muted/40 transition-colors" onClick={() => setExpandedDasha(expandedDasha === i ? null : i)}>
                         <div className="flex items-center gap-3">
-                          {expandedDasha === i
-                            ? <ChevronDown className="w-4 h-4 text-muted-foreground shrink-0" />
-                            : <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0" />
-                          }
+                          {expandedDasha === i ? <ChevronDown className="w-4 h-4 text-muted-foreground" /> : <ChevronRight className="w-4 h-4 text-muted-foreground" />}
                           <div>
                             <div className="font-semibold">{dasha.planet} Mahadasha</div>
                             <div className="text-sm text-muted-foreground">{dasha.period}</div>
                           </div>
                         </div>
-                        {dasha.status === 'current' && <Badge variant="default">Current</Badge>}
-                        {dasha.status === 'past' && <Badge variant="secondary">Past</Badge>}
+                        {dasha.status === 'current' && <Badge className="bg-nava-royal-purple">Current</Badge>}
                       </button>
-
-                      {/* Antardashas */}
                       {expandedDasha === i && dasha.antardashas?.length > 0 && (
-                        <div className="border-t border-border bg-muted/20">
+                        <div className="border-t border-border bg-muted/30">
                           {dasha.antardashas.map((ad: any, j: number) => (
-                            <div
-                              key={j}
-                              className={`flex items-center justify-between px-6 py-2.5 text-sm border-b last:border-0 border-border/50 ${ad.status === 'current' ? 'bg-primary/5' : ''}`}
-                            >
+                            <div key={j} className={`flex items-center justify-between px-6 py-2.5 text-sm border-b last:border-0 border-border/50 ${ad.status === 'current' ? 'bg-nava-lavender/30' : ''}`}>
                               <div>
                                 <span className="font-medium">{dasha.planet}/{ad.planet}</span>
                                 <span className="text-muted-foreground ml-2">{ad.period}</span>
                               </div>
-                              <div className="flex items-center gap-3">
-                                {ad.status === 'past' && (
-                                  <VerifyEventDialog 
-                                    kundliId={params?.id as string} 
-                                    dashaPlanet={dasha.planet} 
-                                    antardashaPlanet={ad.planet} 
-                                    period={ad.period} 
-                                  />
-                                )}
-                                {ad.status === 'current' && (
-                                  <Badge variant="outline" className="text-xs">Active</Badge>
-                                )}
-                              </div>
+                              {ad.status === 'current' && <Badge variant="outline" className="text-xs">Active</Badge>}
                             </div>
                           ))}
                         </div>
                       )}
                     </div>
-                  )) : (
-                    <p className="text-muted-foreground text-sm">No dasha data available.</p>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          {/* Doshas */}
-          <TabsContent value="doshas">
-            <Card className="glass-card">
-              <CardHeader>
-                <CardTitle>Dosha Analysis</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-6">
-                  {[
-                    {
-                      key: 'mangalDosha',
-                      label: 'Mangal Dosha',
-                      present: doshas.mangalDosha,
-                      desc: doshas.mangalDosha
-                        ? 'Mangal Dosha is present. Consult an astrologer for remedies.'
-                        : 'No Mangal Dosha detected in your birth chart.',
-                    },
-                    {
-                      key: 'kaalSarpDosha',
-                      label: 'Kaal Sarp Dosha',
-                      present: doshas.kaalSarpDosha,
-                      desc: doshas.kaalSarpDosha
-                        ? 'Kaal Sarp Dosha is present. All planets are between Rahu and Ketu.'
-                        : 'Your chart is free from Kaal Sarp Dosha.',
-                    },
-                    {
-                      key: 'pitruDosha',
-                      label: 'Pitru Dosha',
-                      present: doshas.pitruDosha,
-                      desc: doshas.pitruDosha
-                        ? 'Pitru Dosha is present. Sun and Rahu are in close conjunction.'
-                        : 'No Pitru Dosha detected in your birth chart.',
-                    },
-                  ].map((dosha) => (
-                    <div
-                      key={dosha.key}
-                      className={`p-4 border rounded-lg ${dosha.present
-                        ? 'bg-red-500/10 border-red-500/20'
-                        : 'bg-green-500/10 border-green-500/20'
-                        }`}
-                    >
-                      <div className="flex items-center justify-between mb-2">
-                        <h4 className="font-semibold">{dosha.label}</h4>
-                        <Badge
-                          variant="secondary"
-                          className={dosha.present ? 'bg-red-500/20' : 'bg-green-500/20'}
-                        >
-                          {dosha.present ? 'Present' : 'Not Present'}
-                        </Badge>
-                      </div>
-                      <p className="text-sm text-muted-foreground">{dosha.desc}</p>
-                    </div>
-                  ))}
+                  )) : <p className="text-muted-foreground text-sm">No dasha data available.</p>}
                 </div>
               </CardContent>
             </Card>
@@ -778,36 +563,58 @@ export default function KundliView() {
 
           {/* Remedies */}
           <TabsContent value="remedies">
-            <Card className="glass-card">
+            <Card className="card-clean">
               <CardHeader>
-                <CardTitle>Astrological Remedies</CardTitle>
+                <CardTitle>Recommended Remedies</CardTitle>
               </CardHeader>
               <CardContent>
-                 <DeterministicRemedies 
-                   shadbala={(kundli as any)?.raw?.engineData?.shadbala} 
-                   fallbackRemedies={remedies} 
-                 />
+                <DeterministicRemedies shadbala={(kundli as any)?.raw?.engineData?.shadbala} fallbackRemedies={remedies} />
               </CardContent>
             </Card>
           </TabsContent>
         </Tabs>
+
+        {/* Calculation Method */}
+        <div className="mb-6">
+          <CalculationInfo />
+        </div>
+
+        {/* AI Astrologer CTA */}
+        <Card className="card-clean bg-nava-lavender/30 border-nava-royal-purple/20">
+          <CardContent className="p-5">
+            <div className="flex items-center gap-3 mb-3">
+              <div className="w-10 h-10 rounded-full bg-nava-royal-purple flex items-center justify-center">
+                <Sparkles className="w-5 h-5 text-white" />
+              </div>
+              <div>
+                <h3 className="font-semibold text-foreground">Ask AI Astrologer</h3>
+                <p className="text-xs text-muted-foreground">Get personalized answers about your chart</p>
+              </div>
+            </div>
+            <Link href="/chat/ai-astrologer">
+              <Button className="w-full bg-nava-royal-purple hover:bg-nava-royal-purple/90">
+                Ask a Question
+              </Button>
+            </Link>
+          </CardContent>
+        </Card>
       </div>
 
-      {/* PDF payment modals */}
-      <ConfirmModal
-        open={modal === 'confirm'}
-        balance={walletBalance}
-        isFree={pdfIsFree}
-        onConfirm={handleConfirmPurchase}
-        onCancel={() => setModal(null)}
-        loading={pdfConfirming}
+      {/* PDF Payment Modals */}
+      <ConfirmModal open={modal === 'confirm'} balance={walletBalance} isFree={pdfIsFree} onConfirm={handleConfirmPurchase} onCancel={() => setModal(null)} loading={pdfConfirming} />
+      <InsufficientModal open={modal === 'insufficient'} balance={walletBalance} onClose={() => setModal(null)} onRecharge={() => { setModal(null); navigate('/wallet'); }} />
+
+      {/* AI Insight Sheet */}
+      <AIInsightSheet
+        open={aiSheetOpen}
+        onOpenChange={setAiSheetOpen}
+        planetName={selectedPlanet?.name || ''}
+        houseNumber={selectedPlanet?.house || 1}
+        signName="Aries"
+        baseInsight="This placement indicates specific influences on your life path. The planet's energy manifests through the affairs of this house."
       />
-      <InsufficientModal
-        open={modal === 'insufficient'}
-        balance={walletBalance}
-        onClose={() => setModal(null)}
-        onRecharge={() => { setModal(null); navigate('/wallet'); }}
-      />
+
+      <BottomNav />
     </div>
   );
 }

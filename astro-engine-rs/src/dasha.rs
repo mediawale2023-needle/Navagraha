@@ -5,7 +5,7 @@
 //   2. Yogini Dasha — 36-year system, Moon-based, highly accurate for events
 //   3. Chara Dasha — Jaimini-based cardinal sign system for life events
 //
-// The engine calculates the active Mahadasha + Antardasha for each system
+// The engine calculates the active Mahadasha + Antardasha + Pratyantardasha for each system
 // at any given Julian Day, enabling the Event-Backtester to compare which
 // system correctly predicted a user's confirmed past events.
 

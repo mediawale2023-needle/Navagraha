@@ -30,7 +30,7 @@ const NAV_ITEMS = [
     path: "/astrologers",
     isCenter: true,
     icon: (_active: boolean) => (
-      <div className="w-14 h-14 rounded-full bg-nava-teal flex items-center justify-center -mt-7 shadow-lg ring-4 ring-background">
+      <div className="w-14 h-14 rounded-full bg-nava-royal-purple flex items-center justify-center -mt-7 shadow-lg ring-4 ring-background">
         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
           <circle cx="9" cy="7" r="4" />
@@ -41,12 +41,13 @@ const NAV_ITEMS = [
     ),
   },
   {
-    label: "Admin",
-    path: "/admin/dashboard",
+    label: "Remedies",
+    path: "/remedies",
     icon: (active: boolean) => (
       <svg width="22" height="22" viewBox="0 0 24 24" fill={active ? "currentColor" : "none"} stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-        <rect x="2" y="7" width="20" height="14" rx="2" ry="2" />
-        <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16" />
+        <path d="M12 2L2 7l10 5 10-5-10-5z" />
+        <path d="M2 17l10 5 10-5" />
+        <path d="M2 12l10 5 10-5" />
       </svg>
     ),
   },
@@ -66,7 +67,7 @@ export default function BottomNav() {
   const [location, setLocation] = useLocation();
 
   return (
-    <nav className="md:hidden fixed bottom-6 left-4 right-4 rounded-2xl glass-nav z-50 overflow-hidden ring-1 ring-white/20 dark:ring-white/10 pb-safe">
+    <nav className="md:hidden fixed bottom-6 left-4 right-4 rounded-2xl bg-white/95 backdrop-blur-xl z-50 overflow-hidden shadow-lg border border-border pb-safe">
       <div className="flex items-center justify-around h-16 px-2 relative">
         {NAV_ITEMS.map((item, i) => {
           const isActive = location === item.path;
@@ -77,21 +78,21 @@ export default function BottomNav() {
               className={`flex flex-col items-center justify-center gap-0.5 transition-all duration-200 ${
                 item.isCenter
                   ? "relative"
-                  : `min-w-[56px] py-1 ${isActive ? "text-nava-teal" : "text-muted-foreground hover:text-foreground"}`
+                  : `min-w-[56px] py-1 ${isActive ? "text-nava-royal-purple" : "text-muted-foreground hover:text-foreground"}`
               }`}
             >
               {item.icon(isActive)}
               {item.label && (
                 <span
                   className={`text-[10px] font-semibold transition-colors ${
-                    isActive ? "text-nava-teal" : "text-muted-foreground"
+                    isActive ? "text-nava-royal-purple" : "text-muted-foreground"
                   }`}
                 >
                   {item.label}
                 </span>
               )}
               {isActive && !item.isCenter && (
-                <div className="absolute -top-0.5 w-5 h-0.5 rounded-full bg-nava-teal" />
+                <div className="absolute -top-0.5 w-5 h-0.5 rounded-full bg-nava-royal-purple" />
               )}
             </button>
           );

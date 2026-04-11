@@ -1,11 +1,11 @@
 import { useQuery } from '@tanstack/react-query';
 import { type LucideIcon, Phone, MessageCircle, Calendar, Sparkles, User, Wallet, LogOut } from 'lucide-react';
 import { Link, useLocation } from 'wouter';
-import { AstrologerCard } from '@/components/astrologer-card';
-import { QuickActionCard } from '@/components/quick-action-card';
-import { ZodiacWheel } from '@/components/zodiac-wheel';
-import { HeroBanner } from '@/components/hero-banner';
-import { SectionHeader } from '@/components/section-header';
+import { QuickActionCard } from '@/components/QuickActionCard';
+import { HeroBanner } from '@/components/HeroBanner';
+import { SectionHeader } from '@/components/SectionHeader';
+import { GreetingCard } from '@/components/GreetingCard';
+import { ActiveInfluenceCard } from '@/components/ActiveInfluenceCard';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import {
@@ -15,7 +15,7 @@ import type { User as UserType, Astrologer, HomepageContent } from '@shared/sche
 
 // Icon name → component lookup for CMS-driven quick actions
 const ICON_MAP: Record<string, LucideIcon> = { Phone, MessageCircle, Sparkles, Calendar };
-const COLOR_CYCLE = ['teal', 'magenta', 'amber', 'navy'] as const;
+const COLOR_CYCLE = ['purple', 'green', 'orange', 'navy'] as const;
 
 interface CmsHomepageContent {
   banners: HomepageContent[];
@@ -23,10 +23,9 @@ interface CmsHomepageContent {
   freeServices: HomepageContent[];
 }
 
-
 export default function Home() {
   const [, setLocation] = useLocation();
-  
+
   const { data: user, isLoading: userLoading } = useQuery<UserType>({
     queryKey: ['/api/auth/user'],
   });
@@ -62,30 +61,26 @@ export default function Home() {
         <header className="pt-6 pb-4 px-4 md:px-8 lg:px-12">
           <div className="flex items-center justify-between mb-5">
             <div className="md:hidden">
-              <h1 className="font-bold text-2xl text-foreground tracking-tight">
+              <h1 className="font-semibold text-2xl text-foreground tracking-tight">
                 Navagraha
               </h1>
-              <div className="flex items-center gap-1.5 text-nava-teal font-medium text-xs">
-                <Sparkles className="w-3 h-3 fill-nava-amber text-nava-amber" />
-                <span>Nine Celestial Powers</span>
+              <div className="flex items-center gap-1.5 text-nava-royal-purple font-medium text-xs">
+                <Sparkles className="w-3 h-3" />
+                <span>Ancient Wisdom, Clear Guidance</span>
               </div>
             </div>
 
-            {/* Profile Saturn Icon */}
+            {/* Profile Dropdown */}
             <div className="flex items-center gap-3">
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <button className="w-10 h-10 rounded-full bg-nava-amber/20 flex items-center justify-center hover:bg-nava-amber/30 transition-colors">
-                    <img 
-                      src="https://em-content.zobj.net/source/apple/391/ringed-planet_1fa90.png" 
-                      alt="Saturn" 
-                      className="w-6 h-6"
-                    />
+                  <button className="w-10 h-10 rounded-full bg-nava-lavender flex items-center justify-center hover:bg-nava-lavender/80 transition-colors">
+                    <User className="w-5 h-5 text-nava-royal-purple" />
                   </button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-48 bg-card border-border">
-                  <div className="px-3 py-2">
-                    <p className="text-sm font-bold text-foreground">{user?.firstName || 'Seeker'}</p>
+                  <div className="px-3 py-2 border-b border-border">
+                    <p className="text-sm font-semibold text-foreground">{user?.firstName || 'Seeker'}</p>
                     <p className="text-xs text-muted-foreground">{user?.email || ''}</p>
                   </div>
                   <DropdownMenuSeparator className="bg-border" />
@@ -101,7 +96,7 @@ export default function Home() {
                   </Link>
                   <DropdownMenuSeparator className="bg-border" />
                   <DropdownMenuItem
-                    className="text-destructive cursor-pointer"
+                    className="text-nava-burgundy cursor-pointer"
                     onClick={() => window.location.href = '/api/logout'}
                   >
                     <LogOut className="w-4 h-4 mr-2" /> Log Out
@@ -112,14 +107,10 @@ export default function Home() {
           </div>
 
           {/* Greeting Card */}
-          <div className="bg-card rounded-2xl p-4 shadow-sm border border-border/50">
-            <h2 className="font-bold text-xl text-foreground mb-1">
-              Namaste, {user?.firstName ? user.firstName.split(' ')[0] : 'Seeker'} 🙏
-            </h2>
-            <p className="text-muted-foreground text-sm">
-              How can the stars guide you today?
-            </p>
-          </div>
+          <GreetingCard
+            userName={user?.firstName ? user.firstName.split(' ')[0] : 'Seeker'}
+            subtitle="How can the stars guide you today?"
+          />
         </header>
 
         <div className="px-4 md:px-8 lg:px-12">
@@ -150,19 +141,19 @@ export default function Home() {
                 <QuickActionCard
                   title="Talk to Astrologer"
                   icon={Phone}
-                  color="teal"
+                  color="purple"
                   onClick={() => setLocation('/astrologers')}
                 />
                 <QuickActionCard
                   title="Chat with Astrologer"
                   icon={MessageCircle}
-                  color="magenta"
+                  color="green"
                   onClick={() => setLocation('/astrologers')}
                 />
                 <QuickActionCard
                   title="AI Astrologer"
                   icon={Sparkles}
-                  color="amber"
+                  color="orange"
                   onClick={() => setLocation('/chat/ai-astrologer')}
                 />
                 <QuickActionCard
@@ -176,6 +167,33 @@ export default function Home() {
           </div>
         </section>
 
+        {/* Active Influences */}
+        <section className="mb-8 px-4 md:px-8 lg:px-12">
+          <SectionHeader
+            title="Active Influences"
+            subtitle="Current planetary periods affecting you"
+            viewAllLink="/dashas"
+          />
+          <div className="space-y-3">
+            <ActiveInfluenceCard
+              title="Mars Mahadasha"
+              description="High energy period. Focus on career and ambition. Watch for impulsiveness."
+              type="dasha"
+              severity="medium"
+              endDate="Mar 2027"
+              linkTo="/dashas"
+            />
+            <ActiveInfluenceCard
+              title="Saturn Transit 12th House"
+              description="Time for rest and spiritual growth. Avoid major decisions."
+              type="transit"
+              severity="low"
+              endDate="Jan 2026"
+              linkTo="/transits"
+            />
+          </div>
+        </section>
+
         {/* Online Astrologers */}
         <section className="mb-8 relative">
           <SectionHeader
@@ -183,7 +201,7 @@ export default function Home() {
             subtitle="Connect instantly with experts"
             viewAllLink="/astrologers"
           />
-          <div className="flex md:grid md:grid-cols-3 lg:grid-cols-5 gap-4 overflow-x-auto md:overflow-visible px-4 md:px-8 lg:px-12 pb-4 pt-10 scrollbar-hide snap-x snap-mandatory md:snap-none">
+          <div className="flex md:grid md:grid-cols-3 lg:grid-cols-5 gap-4 overflow-x-auto md:overflow-visible px-4 md:px-8 lg:px-12 pb-4 pt-2 scrollbar-hide snap-x snap-mandatory md:snap-none">
             {astrologersLoading && <LoadingSpinner />}
             {(astrologers || []).slice(0, 5).map((astrologer) => (
               <AstrologerCard
@@ -201,17 +219,30 @@ export default function Home() {
           </div>
         </section>
 
-        {/* Daily Horoscope */}
-        <section className="mb-8">
+        {/* Daily Guidance Placeholder */}
+        <section className="mb-8 px-4 md:px-8 lg:px-12">
           <SectionHeader
-            title="Daily Horoscope"
-            subtitle="Know your Rashi predictions"
+            title="Today's Guidance"
+            subtitle="Cosmic weather for your chart"
             showViewAll={false}
           />
-          <ZodiacWheel />
+          <div className="bg-nava-lavender/30 border border-nava-royal-purple/20 rounded-xl p-8 text-center">
+            <p className="text-muted-foreground text-sm">
+              Generate your Kundli to see personalized daily guidance
+            </p>
+            <button
+              onClick={() => setLocation('/kundli/new')}
+              className="mt-3 text-nava-royal-purple text-sm font-medium hover:underline"
+            >
+              Create Your Chart →
+            </button>
+          </div>
         </section>
 
       </div>
     </div>
   );
 }
+
+// Keep existing AstrologerCard import
+export { AstrologerCard } from '@/components/astrologer-card';

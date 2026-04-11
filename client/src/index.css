@@ -1,100 +1,157 @@
-@import url('https://fonts.googleapis.com/css2?family=Baloo+2:wght@400;500;600;700;800&family=Inter:wght@300;400;500;600;700&family=DM+Sans:ital,opsz,wght@0,9..40,100..1000;1,9..40,100..1000&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Baloo+2:wght@400;500;600;700;800&family=Inter:wght@300;400;500;600;700&family=Noto+Sans:wght@300;400;500;600;700&family=Noto+Serif:wght@400;500;600;700&display=swap');
 
 @import "tailwindcss";
 
 @custom-variant dark (&:is(.dark *));
 
-:root {
-  /* Navagraha Color Palette - Warm Theme */
-  --nava-navy: #1E3A5F;
-  --nava-yellow: #E9A84D;
-  --nava-magenta: #E84B8A;
-  --nava-teal: #3AABA8;
-  --nava-sand: #F5EFE6;
-  --nava-coral: #E84B8A;
-  --nava-aqua: #7ED6D5;
-  --nava-amber: #E9A84D;
-  --nava-cream: #FAF7F2;
+/*
+ * NAVAGRAHA LIGHT-MODE FIRST THEME
+ * Designed for clarity, trust, and readability (30+ target audience)
+ * Based on UX research: light mode = authority, dark mode = entertainment
+ */
 
-  /* Tailwind theme colors */
+:root {
+  /* ── Primary Brand Colors (Trust Anchors) ── */
+  --nava-royal-purple: #5B47A8;    /* Primary brand - spiritual but authoritative */
+  --nava-deep-green: #0C7F4D;       /* Auspicious/growth/prosperity */
+  --nava-burnt-orange: #B05C00;     /* Warning/attention (traditional) */
+  --nava-burgundy: #8B1A1A;         /* Dosha/negative (not bright red) */
+  --nava-lavender: #F4E6FF;         /* Subtle spiritual highlight */
+
+  /* ── Neutral Palette (Light Mode Optimized) ── */
+  --nava-navy: #1A1A2E;             /* Primary text (softer than black) */
+  --nava-yellow: #E9A84D;           /* Accent - traditional */
+  --nava-magenta: #E84B8A;          /* Accent - secondary */
+  --nava-teal: #3AABA8;             /* Accent - tertiary */
+  --nava-sand: #F5EFE6;             /* Warm neutral */
+  --nava-cream: #FAF7F2;            /* Secondary background */
+
+  /* ── Tailwind Theme Colors (Light Mode Default) ── */
   --font-size: 16px;
-  --background: #FFFBF4;
-  --foreground: #0D1533;
+
+  /* Backgrounds - Warm off-white, not clinical pure white */
+  --background: #F8F9FA;
+  --foreground: #1A1A2E;
+
+  /* Cards - Pure white for elevated surfaces */
   --card: #FFFFFF;
-  --card-foreground: #1E3A5F;
+  --card-foreground: #1A1A2E;
+
+  /* Popovers */
   --popover: #FFFFFF;
-  --popover-foreground: #1E3A5F;
-  --primary: #3AABA8;
+  --popover-foreground: #1A1A2E;
+
+  /* Primary - Royal Purple */
+  --primary: #5B47A8;
   --primary-foreground: #FFFFFF;
-  --secondary: #E9A84D;
-  --secondary-foreground: #1E3A5F;
-  --muted: #F5EFE6;
-  --muted-foreground: #6B7280;
-  --accent: #E84B8A;
-  --accent-foreground: #FFFFFF;
-  --destructive: #EF4444;
+  --primary-border: #4A3A8A;
+
+  /* Secondary - Deep Green */
+  --secondary: #0C7F4D;
+  --secondary-foreground: #FFFFFF;
+  --secondary-border: #0A6640;
+
+  /* Muted - Subtle backgrounds */
+  --muted: #F1F3F4;
+  --muted-foreground: #5C5C6B;
+
+  /* Accent - Lavender for spiritual touch */
+  --accent: #F4E6FF;
+  --accent-foreground: #5B47A8;
+
+  /* Destructive - Burgundy for dosha */
+  --destructive: #8B1A1A;
   --destructive-foreground: #FFFFFF;
-  --border: rgba(30, 58, 95, 0.1);
-  --input: transparent;
-  --input-background: #FAF7F2;
+  --destructive-border: #6B1414;
+
+  /* Borders - Subtle, not harsh */
+  --border: #E5E7EB;
+  --input: #E5E7EB;
+  --input-background: #F8F9FA;
   --switch-background: #D1D5DB;
-  --font-weight-medium: 500;
+
+  /* Typography */
   --font-weight-normal: 400;
-  --ring: #3AABA8;
-  --chart-1: #3AABA8;
-  --chart-2: #E9A84D;
-  --chart-3: #E84B8A;
-  --chart-4: #1E3A5F;
-  --chart-5: #7ED6D5;
-  --radius: 1rem;
-  --sidebar: #FAF7F2;
-  --sidebar-foreground: #1E3A5F;
-  --sidebar-primary: #1E3A5F;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+
+  /* Focus ring */
+  --ring: #5B47A8;
+
+  /* Chart colors */
+  --chart-1: #5B47A8;    /* Primary purple */
+  --chart-2: #0C7F4D;    /* Benefic green */
+  --chart-3: #8B1A1A;    /* Malefic burgundy */
+  --chart-4: #1A1A2E;    /* House borders */
+  --chart-5: #B05C00;    /* Attention orange */
+
+  /* Border radius */
+  --radius: 12px;
+
+  /* Sidebar */
+  --sidebar: #F8F9FA;
+  --sidebar-foreground: #1A1A2E;
+  --sidebar-primary: #5B47A8;
   --sidebar-primary-foreground: #FFFFFF;
-  --sidebar-accent: #F5EFE6;
-  --sidebar-accent-foreground: #1E3A5F;
-  --sidebar-border: rgba(30, 58, 95, 0.1);
-  --sidebar-ring: #3AABA8;
+  --sidebar-accent: #F1F3F4;
+  --sidebar-accent-foreground: #1A1A2E;
+  --sidebar-border: #E5E7EB;
+  --sidebar-ring: #5B47A8;
 }
 
 .dark {
-  /* Navagraha Dark Theme — uses brand palette, not generic grays */
-  --background: #0D1533;
-  --foreground: #F5EFE6;
-  --card: #1A2744;
-  --card-foreground: #F5EFE6;
-  --popover: #1A2744;
-  --popover-foreground: #F5EFE6;
-  --primary: #3AABA8;
+  /*
+   * DARK MODE - Still readable and trustworthy
+   * Not cosmic/gaming/casino - just a darker neutral palette
+   */
+  --background: #0F1115;
+  --foreground: #E8E8E8;
+
+  --card: #1A1D24;
+  --card-foreground: #E8E8E8;
+
+  --popover: #1A1D24;
+  --popover-foreground: #E8E8E8;
+
+  --primary: #6B5AB8;
   --primary-foreground: #FFFFFF;
-  --secondary: #E9A84D;
-  --secondary-foreground: #0D1533;
-  --muted: #243156;
-  --muted-foreground: #A0AABB;
-  --accent: #E84B8A;
-  --accent-foreground: #FFFFFF;
-  --destructive: #EF4444;
+  --primary-border: #5B47A8;
+
+  --secondary: #1A9B66;
+  --secondary-foreground: #FFFFFF;
+  --secondary-border: #0C7F4D;
+
+  --muted: #242830;
+  --muted-foreground: #9CA3AF;
+
+  --accent: #2D2440;
+  --accent-foreground: #C7B8E8;
+
+  --destructive: #A82828;
   --destructive-foreground: #FFFFFF;
-  --border: rgba(245, 239, 230, 0.1);
-  --input: transparent;
-  --input-background: #243156;
-  --switch-background: #3D5080;
-  --ring: #3AABA8;
-  --font-weight-medium: 500;
-  --font-weight-normal: 400;
-  --chart-1: #3AABA8;
-  --chart-2: #E9A84D;
-  --chart-3: #E84B8A;
-  --chart-4: #7ED6D5;
-  --chart-5: #1E3A5F;
-  --sidebar: #0D1533;
-  --sidebar-foreground: #F5EFE6;
-  --sidebar-primary: #3AABA8;
+  --destructive-border: #8B1A1A;
+
+  --border: #2D3139;
+  --input: #2D3139;
+  --input-background: #1A1D24;
+  --switch-background: #3D424D;
+
+  --ring: #6B5AB8;
+
+  --chart-1: #6B5AB8;
+  --chart-2: #1A9B66;
+  --chart-3: #A82828;
+  --chart-4: #E8E8E8;
+  --chart-5: #D47800;
+
+  --sidebar: #0F1115;
+  --sidebar-foreground: #E8E8E8;
+  --sidebar-primary: #6B5AB8;
   --sidebar-primary-foreground: #FFFFFF;
-  --sidebar-accent: #1A2744;
-  --sidebar-accent-foreground: #F5EFE6;
-  --sidebar-border: rgba(245, 239, 230, 0.1);
-  --sidebar-ring: #3AABA8;
+  --sidebar-accent: #1A1D24;
+  --sidebar-accent-foreground: #E8E8E8;
+  --sidebar-border: #2D3139;
+  --sidebar-ring: #6B5AB8;
 }
 
 @theme inline {
@@ -107,6 +164,11 @@
   --color-nava-aqua: var(--nava-aqua);
   --color-nava-amber: var(--nava-amber);
   --color-nava-cream: var(--nava-cream);
+  --color-nava-royal-purple: var(--nava-royal-purple);
+  --color-nava-deep-green: var(--nava-deep-green);
+  --color-nava-burnt-orange: var(--nava-burnt-orange);
+  --color-nava-burgundy: var(--nava-burgundy);
+  --color-nava-lavender: var(--nava-lavender);
 
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -155,12 +217,12 @@
 
   body {
     @apply bg-background text-foreground;
-    font-family: 'Inter', 'DM Sans', sans-serif;
+    font-family: 'Inter', 'Noto Sans', sans-serif;
   }
 
   /**
-  * Default typography styles for HTML elements (h1-h4, p, label, button, input).
-  * These are in @layer base, so Tailwind utility classes (like text-sm, text-lg) automatically override them.
+  * Typography - Optimized for 30+ readers
+  * Generous line heights, clear hierarchy
   */
 
   html {
@@ -168,275 +230,263 @@
   }
 
   h1, h2, h3, h4 {
-    font-family: 'Baloo 2', 'DM Sans', sans-serif;
+    font-family: 'Baloo 2', 'Noto Serif', sans-serif;
+    font-weight: var(--font-weight-semibold);
+    letter-spacing: -0.02em;
   }
 
   h1 {
-    font-size: var(--text-2xl);
-    font-weight: var(--font-weight-medium);
-    line-height: 1.5;
+    font-size: 1.75rem;
+    line-height: 1.3;
   }
 
   h2 {
-    font-size: var(--text-xl);
-    font-weight: var(--font-weight-medium);
-    line-height: 1.5;
+    font-size: 1.5rem;
+    line-height: 1.35;
   }
 
   h3 {
-    font-size: var(--text-lg);
-    font-weight: var(--font-weight-medium);
-    line-height: 1.5;
+    font-size: 1.25rem;
+    line-height: 1.4;
   }
 
   h4 {
-    font-size: var(--text-base);
-    font-weight: var(--font-weight-medium);
-    line-height: 1.5;
+    font-size: 1.125rem;
+    line-height: 1.4;
+  }
+
+  p {
+    font-size: 1rem;
+    line-height: 1.6;
   }
 
   label {
-    font-size: var(--text-base);
+    font-size: 0.9375rem;
     font-weight: var(--font-weight-medium);
     line-height: 1.5;
   }
 
   button {
-    font-size: var(--text-base);
+    font-size: 0.9375rem;
     font-weight: var(--font-weight-medium);
     line-height: 1.5;
   }
 
   input {
-    font-size: var(--text-base);
+    font-size: 1rem;
     font-weight: var(--font-weight-normal);
+    line-height: 1.5;
+  }
+
+  /* Small text for captions, metadata */
+  .text-xs {
+    font-size: 0.75rem;
+    line-height: 1.4;
+  }
+
+  .text-sm {
+    font-size: 0.875rem;
     line-height: 1.5;
   }
 }
 
 @layer utilities {
+  /* ── Trust-Building Typography ── */
+  .font-trust {
+    font-family: 'Noto Serif', serif;
+  }
 
-  /* ── Desi Gradients ─────────────────────────────── */
+  .font-clarity {
+    font-family: 'Inter', 'Noto Sans', sans-serif;
+  }
+
+  /* ── Subtle Gradients (NOT cosmic/neon) ── */
   .gradient-primary {
-    background: linear-gradient(135deg, #E61C6E 0%, #F4A51C 100%);
+    background: linear-gradient(135deg, #5B47A8 0%, #6B5AB8 100%);
+  }
+
+  .gradient-subtle {
+    background: linear-gradient(180deg, #F8F9FA 0%, #F1F3F4 100%);
+  }
+
+  .gradient-spiritual {
+    background: linear-gradient(180deg, #FFFFFF 0%, #F4E6FF 100%);
   }
 
   .gradient-text {
-    background: linear-gradient(135deg, #0D1533 0%, #1AA6A5 100%);
+    background: linear-gradient(135deg, #1A1A2E 0%, #5B47A8 100%);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
   }
 
   .gradient-text-accent {
-    background: linear-gradient(135deg, #E61C6E 0%, #F4A51C 100%);
+    background: linear-gradient(135deg, #5B47A8 0%, #0C7F4D 100%);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
   }
 
-  /* ── Desi Glass Cards ───────────────────────────── */
-  .astronex-card {
-    background: linear-gradient(145deg,
-        rgba(255, 255, 255, 0.6) 0%,
-        rgba(255, 255, 255, 0.3) 100%);
-    backdrop-filter: blur(40px);
-    -webkit-backdrop-filter: blur(40px);
-    border: 1px solid rgba(255, 255, 255, 0.8);
-    box-shadow:
-      0 10px 30px rgba(13, 21, 51, 0.05),
-      inset 0 1px 0 rgba(255, 255, 255, 1);
-    border-radius: 1.5rem;
+  /* ── Clean Cards (No Heavy Glassmorphism) ── */
+  .card-clean {
+    @apply bg-card border border-border shadow-sm transition-all duration-200;
   }
 
-  /* Glass sub-elements (buttons, pills, tabs) */
-  .glass {
-    background: rgba(255, 255, 255, 0.6);
-    backdrop-filter: blur(20px);
-    -webkit-backdrop-filter: blur(20px);
-    border: 1px solid rgba(255, 255, 255, 0.7);
+  .card-clean:hover {
+    @apply shadow-md;
   }
 
-  .glass-pill {
-    background: rgba(255, 255, 255, 0.5);
-    backdrop-filter: blur(20px);
-    -webkit-backdrop-filter: blur(20px);
-    border: 1px solid rgba(255, 255, 255, 0.6);
-    border-radius: 3rem;
+  .card-elevated {
+    @apply bg-card border border-border shadow-md transition-all duration-200;
   }
 
-  .glass-pill-active {
-    background: linear-gradient(135deg,
-        rgba(230, 28, 110, 0.15) 0%,
-        rgba(244, 165, 28, 0.15) 100%);
-    backdrop-filter: blur(20px);
-    -webkit-backdrop-filter: blur(20px);
-    border: 1px solid rgba(230, 28, 110, 0.3);
-    border-radius: 3rem;
-    box-shadow: 0 0 16px rgba(230, 28, 110, 0.1);
+  .card-elevated:hover {
+    @apply shadow-lg;
   }
 
-  /* ── UI/UX Pro Max Glass Elements ───────────────── */
-  .glass-card {
-    @apply bg-card/70 backdrop-blur-xl border border-border/50 transition-all duration-[400ms] hover:shadow-lg hover:scale-[1.02];
-    box-shadow: 0 8px 32px rgba(30, 58, 95, 0.05);
-  }
-  .dark .glass-card {
-    @apply bg-card/40 border-border/20;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  /* ── Trust Badge ── */
+  .trust-badge {
+    @apply inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium;
   }
 
-  .glass-panel {
-    @apply bg-background/80 backdrop-blur-xl border border-border/50 transition-all duration-[400ms];
-  }
-  .dark .glass-panel {
-    @apply bg-background/60 border-border/20;
-  }
-  
-  .glass-nav {
-    @apply bg-background/70 backdrop-blur-2xl border-border/50 transition-all duration-[400ms] shadow-sm;
-  }
-  .dark .glass-nav {
-    @apply bg-background/50 border-border/20 shadow-[0_4px_30px_rgba(0,0,0,0.3)];
+  .trust-badge-verified {
+    @apply bg-green-50 text-green-700 border border-green-200;
   }
 
-  /* ── Background Effects ──────────────────────────────── */
-  .celestial-bg {
-    background:
-      radial-gradient(circle at 15% 50%, rgba(230, 28, 110, 0.05) 0%, transparent 50%),
-      radial-gradient(circle at 85% 30%, rgba(26, 166, 165, 0.05) 0%, transparent 50%),
-      radial-gradient(circle at 50% 80%, rgba(244, 165, 28, 0.05) 0%, transparent 50%);
+  .trust-badge-calculated {
+    @apply bg-nava-lavender text-nava-royal-purple border border-nava-royal-purple/20;
   }
 
-  .celestial-mesh {
-    background-image: url("data:image/svg+xml,%3Csvg width='100' height='100' viewBox='0 0 100 100' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M0 0h100v100H0z' fill='none'/><path d='M0 50h100M50 0v100' stroke='rgba(13,21,51,0.03)' stroke-width='0.5'/%3E%3Ccircle cx='50' cy='50' r='0.8' fill='rgba(13,21,51,0.08)'/%3E%3C/svg%3E");
-    background-size: 40px 40px;
+  /* ── Priority Indicators ── */
+  .priority-high {
+    @apply bg-red-50 text-red-700 border border-red-200;
   }
 
-  /* ── Glow Effects ────────────────────────────────────── */
-  .glow-image {
-    box-shadow: 0 0 30px rgba(230, 28, 110, 0.15);
+  .priority-medium {
+    @apply bg-orange-50 text-orange-700 border border-orange-200;
   }
 
-  .glow-pink {
-    box-shadow: 0 0 25px rgba(230, 28, 110, 0.2);
+  .priority-low {
+    @apply bg-blue-50 text-blue-700 border border-blue-200;
   }
 
-  .avatar-glow {
-    box-shadow: 0 0 12px rgba(244, 165, 28, 0.2);
-    border: 1px solid rgba(255, 255, 255, 0.6);
+  /* ── Chart Container ── */
+  .chart-container {
+    @apply bg-white border-2 border-nava-navy rounded-xl shadow-sm;
   }
 
-  /* ── Bottom Navigation ───────────────────────────────── */
-  .bottom-nav {
-    background: rgba(231, 227, 206, 0.85);
-    /* Sand Beige tinted */
-    backdrop-filter: blur(40px) saturate(180%);
-    -webkit-backdrop-filter: blur(40px) saturate(180%);
-    border-top: 1px solid rgba(255, 255, 255, 0.4);
+  /* ── Section Spacing ── */
+  .section-spacing {
+    @apply mb-8;
   }
 
-  /* ── Sticky Header ───────────────────────────────────── */
-  .header-glass {
-    background: rgba(231, 227, 206, 0.75);
-    backdrop-filter: blur(30px) saturate(150%);
-    -webkit-backdrop-filter: blur(30px) saturate(150%);
-    border-bottom: 1px solid rgba(255, 255, 255, 0.3);
+  .section-spacing:last-child {
+    @apply mb-0;
   }
 
-}
-
-/* ── Animations ──────────────────────────────────────── */
-@keyframes float {
-  0% {
-    transform: translateY(0px);
+  /* ── Safe Areas ── */
+  .pb-safe {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
   }
 
-  50% {
-    transform: translateY(-10px);
+  .pt-safe {
+    padding-top: env(safe-area-inset-top, 0px);
   }
 
-  100% {
-    transform: translateY(0px);
+  /* ── Hide Scrollbar ── */
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  /* ── Print Styles ── */
+  @media print {
+    .no-print {
+      display: none !important;
+    }
+
+    nav,
+    [data-testid="bottom-nav"] {
+      display: none !important;
+    }
+
+    body {
+      background: white !important;
+      color: black !important;
+    }
+
+    .card,
+    [class*="Card"] {
+      box-shadow: none !important;
+      border: 1px solid #ccc !important;
+    }
+
+    svg {
+      max-width: 100% !important;
+      page-break-inside: avoid;
+    }
   }
 }
 
-@keyframes shimmer {
-  0% {
-    background-position: -200% 0;
+/* ── Animations (Subtle, Professional) ── */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
   }
-
-  100% {
-    background-position: 200% 0;
+  to {
+    opacity: 1;
   }
 }
 
-@keyframes fade-in-up {
+@keyframes slideUp {
   from {
     opacity: 0;
     transform: translateY(12px);
   }
-
   to {
     opacity: 1;
     transform: translateY(0);
   }
 }
 
-.animate-float {
-  animation: float 6s ease-in-out infinite;
-}
-
-.animate-shimmer {
-  animation: shimmer 3s ease-in-out infinite;
-  background-size: 200% 100%;
-}
-
-.animate-fade-in-up {
-  animation: fade-in-up 0.5s ease-out forwards;
-}
-
-/* Hide scrollbar for horizontally-scrolling areas */
-.scrollbar-hide::-webkit-scrollbar {
-  display: none;
-}
-
-.scrollbar-hide {
-  -ms-overflow-style: none;
-  scrollbar-width: none;
-}
-
-/* Safe-area padding for bottom nav on iPhones */
-.pb-safe {
-  padding-bottom: env(safe-area-inset-bottom, 0px);
-}
-
-/* ── Print styles for Kundli PDF download ── */
-@media print {
-  .no-print {
-    display: none !important;
+@keyframes chartDraw {
+  from {
+    stroke-dasharray: 1000;
+    stroke-dashoffset: 1000;
   }
-
-  /* Hide global nav/bottom bars */
-  nav,
-  [data-testid="bottom-nav"] {
-    display: none !important;
+  to {
+    stroke-dasharray: 1000;
+    stroke-dashoffset: 0;
   }
+}
 
-  /* Remove background chrome, let content breathe */
-  body {
-    background: white !important;
-    color: black !important;
-  }
+.animate-fade-in {
+  animation: fadeIn 0.3s ease-out;
+}
 
-  /* Ensure cards render with borders instead of shadows */
-  .card,
-  [class*="Card"] {
-    box-shadow: none !important;
-    border: 1px solid #ccc !important;
-  }
+.animate-slide-up {
+  animation: slideUp 0.4s ease-out;
+}
 
-  /* Keep the SVG chart visible and full width on one page */
-  svg {
-    max-width: 100% !important;
-    page-break-inside: avoid;
-  }
+.animate-chart-draw {
+  animation: chartDraw 1.5s ease-out forwards;
+}
+
+/* ── Hover States (Subtle) ── */
+.hover-elevate {
+  @apply transition-all duration-200;
+}
+
+.hover-elevate:hover {
+  @apply transform scale-[1.02];
+}
+
+.active-elevate-2 {
+  @apply transition-all duration-100;
+}
+
+.active-elevate-2:active {
+  @apply transform scale-[0.98];
 }
