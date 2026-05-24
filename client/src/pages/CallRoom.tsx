@@ -173,7 +173,7 @@ export default function CallRoom() {
   useEffect(() => {
     if (!astrologerId) return;
     apiRequest('GET', `/api/ai/pre-consult-brief?astrologerId=${astrologerId}`)
-      .then(r => r.json())
+      .then((data) => data)
       .then(data => { if (data.intro) setBrief(data); })
       .catch(() => { /* non-critical, fail silently */ });
   }, [astrologerId]);

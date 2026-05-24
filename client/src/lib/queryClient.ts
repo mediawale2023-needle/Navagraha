@@ -7,6 +7,27 @@ async function throwIfResNotOk(res: Response) {
   }
 }
 
+function attachResponseMetadata<T>(payload: T, res: Response): T {
+  if (payload && (typeof payload === "object" || Array.isArray(payload))) {
+    Object.defineProperties(payload as object, {
+      json: {
+        value: async () => payload,
+        enumerable: false,
+      },
+      ok: {
+        value: res.ok,
+        enumerable: false,
+      },
+      status: {
+        value: res.status,
+        enumerable: false,
+      },
+    });
+  }
+
+  return payload;
+}
+
 export async function apiRequest<T = any>(
   method: string,
   url: string,
@@ -20,7 +41,9 @@ export async function apiRequest<T = any>(
   });
 
   await throwIfResNotOk(res);
-  return await res.json();
+  const text = await res.text();
+  const payload = text ? JSON.parse(text) : null;
+  return attachResponseMetadata(payload, res);
 }
 
 type UnauthorizedBehavior = "returnNull" | "throw";

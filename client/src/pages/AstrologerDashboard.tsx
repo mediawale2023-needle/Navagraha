@@ -69,11 +69,7 @@ export default function AstrologerDashboard() {
     queryKey: ['/api/astrologer/dashboard'],
     queryFn: async () => {
       const r = await apiRequest('GET', '/api/astrologer/dashboard');
-      if (r.status === 401) {
-        navigate('/astrologer/login');
-        throw new Error('Unauthorized');
-      }
-      return r.json();
+      return r;
     },
     refetchInterval: 30_000,
   });
@@ -82,7 +78,7 @@ export default function AstrologerDashboard() {
     queryKey: ['/api/astrologer/schedule'],
     queryFn: async () => {
       const r = await apiRequest('GET', '/api/astrologer/schedule');
-      return r.json();
+      return r;
     },
   });
 
@@ -112,10 +108,7 @@ export default function AstrologerDashboard() {
 
     ws.onopen = () => {
       setWsConnected(true);
-      const astrologerId = dashboard?.astrologer?.id;
-      if (astrologerId) {
-        ws.send(JSON.stringify({ type: 'auth', astrologerId, role: 'astrologer' }));
-      }
+      ws.send(JSON.stringify({ type: 'auth', role: 'astrologer' }));
     };
 
     ws.onmessage = (event) => {
@@ -186,7 +179,7 @@ export default function AstrologerDashboard() {
   const toggleOnlineMutation = useMutation({
     mutationFn: async (online: boolean) => {
       const r = await apiRequest('POST', '/api/astrologer/status', { isOnline: online });
-      return r.json();
+      return r;
     },
     onSuccess: (_, online) => {
       setIsOnline(online);
@@ -202,7 +195,6 @@ export default function AstrologerDashboard() {
       ws.send(JSON.stringify({
         type: 'call_accepted',
         userId: incomingSession.userId,
-        astrologerId: dashboard?.astrologer?.id,
         consultationId: incomingSession.consultationId,
       }));
     }
@@ -210,7 +202,7 @@ export default function AstrologerDashboard() {
     setIncomingSession(null);
     // Load existing chat messages
     apiRequest('GET', `/api/chat/${incomingSession.userId}`)
-      .then(r => r.json())
+      .then((msgs) => msgs)
       .then(msgs => setChatMessages(msgs))
       .catch(() => {});
   };
@@ -232,22 +224,20 @@ export default function AstrologerDashboard() {
   const sendReply = async () => {
     if (!replyMessage.trim() || !activeSession) return;
     const ws = wsRef.current;
-    if (ws?.readyState === WebSocket.OPEN) {
-      ws.send(JSON.stringify({
-        type: 'astrologer_reply',
-        astrologerId: dashboard?.astrologer?.id,
-        userId: activeSession.userId,
-        message: replyMessage,
-        consultationId: activeSession.consultationId,
-      }));
-    }
-    // Also save via API
+
     try {
-      const r = await apiRequest('POST', `/api/chat/${activeSession.userId}`, {
+      const saved = await apiRequest('POST', `/api/chat/${activeSession.userId}`, {
         message: replyMessage,
         sender: 'astrologer',
       });
-      const saved = await r.json();
+      if (ws?.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({
+          type: 'astrologer_reply',
+          userId: activeSession.userId,
+          message: saved,
+          consultationId: activeSession.consultationId,
+        }));
+      }
       setChatMessages(prev => {
         if (prev.some(m => m.id === saved.id)) return prev;
         return [...prev, saved];
@@ -259,7 +249,7 @@ export default function AstrologerDashboard() {
   const updateProfileMutation = useMutation({
     mutationFn: async (data: any) => {
       const r = await apiRequest('PUT', '/api/astrologer/profile', data);
-      return r.json();
+      return r;
     },
     onSuccess: () => {
       setEditMode(false);
@@ -271,7 +261,7 @@ export default function AstrologerDashboard() {
   const payoutMutation = useMutation({
     mutationFn: async () => {
       const r = await apiRequest('POST', '/api/astrologer/payout', { amount: payoutAmount, method: payoutMethod });
-      return r.json();
+      return r;
     },
     onSuccess: () => {
       setPayoutAmount('');

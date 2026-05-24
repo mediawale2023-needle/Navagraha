@@ -64,11 +64,7 @@ export default function Chat() {
 
     ws.onopen = () => {
       setWsConnected(true);
-      // Authenticate
-      const userId = (window as any).__userId;
-      if (userId) {
-        ws.send(JSON.stringify({ type: 'auth', userId, role: 'user' }));
-      }
+      ws.send(JSON.stringify({ type: 'auth', role: 'user' }));
     };
 
     ws.onmessage = (event) => {
@@ -157,7 +153,7 @@ export default function Chat() {
         astrologerId,
         type: 'chat',
       });
-      return response.json();
+      return response;
     },
     onSuccess: (consultation) => {
       setConsultationId(consultation.id);
@@ -165,14 +161,11 @@ export default function Chat() {
       setLowBalance(false);
 
       // Start billing via WebSocket
-      const userId = (window as any).__userId;
-      if (wsRef.current?.readyState === WebSocket.OPEN && userId) {
+      if (wsRef.current?.readyState === WebSocket.OPEN) {
         wsRef.current.send(JSON.stringify({
           type: 'start_billing',
           consultationId: consultation.id,
-          userId,
           astrologerId,
-          pricePerMinute: parseFloat(astrologer?.pricePerMinute || '25'),
         }));
       }
 
@@ -191,7 +184,7 @@ export default function Chat() {
         wsRef.current.send(JSON.stringify({ type: 'stop_billing', consultationId }));
       }
       const response = await apiRequest('POST', `/api/consultations/${consultationId}/end`, {});
-      return response.json();
+      return response;
     },
     onSuccess: (consultation) => {
       setSessionActive(false);
@@ -251,9 +244,8 @@ export default function Chat() {
         if (wsRef.current?.readyState === WebSocket.OPEN && userId) {
           wsRef.current.send(JSON.stringify({
             type: 'chat_message',
-            userId,
             astrologerId,
-            message: sentText,
+            message: saved,
             consultationId,
           }));
         }

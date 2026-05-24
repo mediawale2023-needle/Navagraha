@@ -591,7 +591,7 @@ export default function KundliView() {
                 <p className="text-xs text-muted-foreground">Get personalized answers about your chart</p>
               </div>
             </div>
-            <Link href="/chat/ai-astrologer">
+            <Link href="/ai-astrologer">
               <Button className="w-full bg-nava-royal-purple hover:bg-nava-royal-purple/90">
                 Ask a Question
               </Button>

@@ -35,17 +35,12 @@ export default function AstrologerLogin() {
     }
     setIsLoading(true);
     try {
-      const response = await apiRequest('POST', '/api/astrologer/auth/login', {
+      const data = await apiRequest('POST', '/api/astrologer/auth/login', {
         email: loginEmail,
         password: loginPassword,
       });
-      const data = await response.json();
-      if (response.ok) {
-        toast({ title: 'Welcome back!', description: `Logged in as ${data.name}` });
-        navigate('/astrologer/dashboard');
-      } else {
-        toast({ title: 'Login Failed', description: data.message || 'Invalid credentials', variant: 'destructive' });
-      }
+      toast({ title: 'Welcome back!', description: `Logged in as ${data.name}` });
+      navigate('/astrologer/dashboard');
     } catch {
       toast({ title: 'Error', description: 'Login failed. Please try again.', variant: 'destructive' });
     } finally {
@@ -69,19 +64,14 @@ export default function AstrologerLogin() {
     }
     setIsLoading(true);
     try {
-      const response = await apiRequest('POST', '/api/astrologer/auth/register', {
+      await apiRequest('POST', '/api/astrologer/auth/register', {
         name: regName,
         email: regEmail,
         phoneNumber: regPhone,
         password: regPassword,
       });
-      const data = await response.json();
-      if (response.ok) {
-        toast({ title: 'Account Created!', description: 'Your application has been submitted. Admin will review and approve your account within 24 hours.' });
-        navigate('/astrologer/dashboard');
-      } else {
-        toast({ title: 'Registration Failed', description: data.message || 'Please try again', variant: 'destructive' });
-      }
+      toast({ title: 'Account Created!', description: 'Your application has been submitted. Admin will review and approve your account within 24 hours.' });
+      navigate('/astrologer/dashboard');
     } catch {
       toast({ title: 'Error', description: 'Registration failed. Please try again.', variant: 'destructive' });
     } finally {

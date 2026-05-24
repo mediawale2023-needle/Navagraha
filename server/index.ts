@@ -18,6 +18,8 @@ process.on("unhandledRejection", (err) =>
 );
 
 const app = express();
+let startupReady = false;
+let startupError: string | null = null;
 
 declare module "http" {
   interface IncomingMessage {
@@ -74,6 +76,18 @@ app.get('/metrics', async (_req, res) => {
   res.end(await client.register.metrics());
 });
 
+app.get('/api/health', (_req, res) => {
+  if (startupError) {
+    return res.status(500).json({ ok: false, ready: false, error: startupError });
+  }
+
+  if (!startupReady) {
+    return res.status(503).json({ ok: false, ready: false });
+  }
+
+  res.json({ ok: true, ready: true });
+});
+
 // Register /api/config immediately so Railway's healthcheck gets a 200
 // before the async init (auth, DB) completes.
 app.get("/api/config", (_req, res) => {
@@ -98,13 +112,17 @@ waitForDatabase()
     try {
       await registerRoutes(app, httpServer);
     } catch (err) {
+      startupError = "route registration failed";
       console.error("[startup] registerRoutes failed:", err);
+      process.exit(1);
     }
 
     try {
       setupWebSocket(httpServer);
     } catch (err) {
+      startupError = "websocket setup failed";
       console.error("[startup] WebSocket setup failed:", err);
+      process.exit(1);
     }
 
     app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
@@ -124,8 +142,11 @@ waitForDatabase()
     return runMigrations().then(async () => {
       startHeartbeatEngine();
       await corporateOrchestrator.resumePendingTasks();
+      startupReady = true;
     });
   })
   .catch((err) => {
+    startupError = err instanceof Error ? err.message : "critical startup failure";
     console.error("[startup/migrate] Critical startup failure:", err);
+    process.exit(1);
   });

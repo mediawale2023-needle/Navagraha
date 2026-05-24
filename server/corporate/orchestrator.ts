@@ -539,7 +539,7 @@ Give your perspective as ${exec.role}. Be direct, specific, in-character. Max 2 
 
     // 2. Generate Initiatives (Strategic Plan)
     // We update generateStrategicInitiatives implicitly by giving it the debate summary in the future
-    const initiatives = await this.generateStrategicInitiatives(companyId, `Based on this debate: ${debateSummary}`);
+    const initiatives = await this.generateStrategicInitiatives(companyId);
 
     // 3. Delegate the first high-priority initiative
     if (initiatives.length > 0) {

@@ -10,8 +10,9 @@
  */
 
 import { WebSocketServer, WebSocket } from "ws";
-import type { Server } from "http";
+import type { IncomingMessage, Server } from "http";
 import { storage } from "./storage";
+import { getSession, getSessionIdentity } from "./auth";
 
 interface WSClient {
   ws: WebSocket;
@@ -32,6 +33,7 @@ const billingTimers = new Map<string, NodeJS.Timeout>();
 
 export function setupWebSocket(server: Server) {
   const wss = new WebSocketServer({ server, path: "/ws" });
+  const sessionMiddleware = getSession();
 
   wss.on("connection", (ws, req) => {
     const client: WSClient = { ws, role: "user" };
@@ -46,14 +48,12 @@ export function setupWebSocket(server: Server) {
 
       switch (msg.type) {
         case "auth": {
-          // Register the connection
-          const { userId, astrologerId, role } = msg as unknown as {
-            userId?: string;
-            astrologerId?: string;
-            role: "user" | "astrologer";
-          };
-          client.role = role;
-          if (role === "astrologer" && astrologerId) {
+          await hydrateSession(req, sessionMiddleware);
+          const { userId, astrologerId } = getSessionIdentity(req as any);
+          const requestedRole = (msg as { role?: "user" | "astrologer" }).role;
+
+          if (requestedRole === "astrologer" && astrologerId) {
+            client.role = "astrologer";
             client.astrologerId = astrologerId;
             astrologerClients.set(astrologerId, client);
             // Update DB presence
@@ -62,31 +62,35 @@ export function setupWebSocket(server: Server) {
             broadcastAstrologerStatus(astrologerId, "online");
             send(ws, { type: "auth_ok", astrologerId });
           } else if (userId) {
+            client.role = "user";
             client.userId = userId;
             userClients.set(userId, client);
             send(ws, { type: "auth_ok", userId });
+          } else {
+            send(ws, { type: "auth_error", message: "No authenticated session found" });
           }
           break;
         }
 
         case "chat_message": {
           // User sends a chat message
-          const { userId, astrologerId, message, consultationId } = msg as unknown as {
-            userId: string;
+          const { astrologerId, message, consultationId } = msg as unknown as {
             astrologerId: string;
-            message: string;
+            message: string | Record<string, unknown>;
             consultationId?: string;
           };
+          const userId = client.userId;
 
           if (!userId || !astrologerId || !message) break;
 
-          // Save to DB
-          const saved = await storage.createChatMessage({
-            userId,
-            astrologerId,
-            message,
-            sender: "user",
-          });
+          const saved = typeof message === "string"
+            ? await storage.createChatMessage({
+                userId,
+                astrologerId,
+                message,
+                sender: "user",
+              })
+            : message;
 
           // Echo to sender
           send(ws, { type: "message_saved", message: saved });
@@ -105,21 +109,23 @@ export function setupWebSocket(server: Server) {
 
         case "astrologer_reply": {
           // Astrologer sends reply
-          const { astrologerId, userId, message, consultationId } = msg as unknown as {
-            astrologerId: string;
+          const { userId, message, consultationId } = msg as unknown as {
             userId: string;
-            message: string;
+            message: string | Record<string, unknown>;
             consultationId?: string;
           };
+          const astrologerId = client.astrologerId;
 
           if (!astrologerId || !userId || !message) break;
 
-          const saved = await storage.createChatMessage({
-            userId,
-            astrologerId,
-            message,
-            sender: "astrologer",
-          });
+          const saved = typeof message === "string"
+            ? await storage.createChatMessage({
+                userId,
+                astrologerId,
+                message,
+                sender: "astrologer",
+              })
+            : message;
 
           // Forward to user
           const userClient = userClients.get(userId);
@@ -137,21 +143,27 @@ export function setupWebSocket(server: Server) {
 
         case "start_billing": {
           // Begin per-minute billing for a consultation
-          const { consultationId, userId, astrologerId, pricePerMinute } = msg as unknown as {
+          const { consultationId, astrologerId } = msg as unknown as {
             consultationId: string;
-            userId: string;
             astrologerId: string;
-            pricePerMinute: number;
           };
+          const userId = client.userId;
 
           if (billingTimers.has(consultationId)) break; // already running
+          if (!userId || !astrologerId) break;
+
+          const consultation = await storage.getConsultationById(consultationId);
+          if (!consultation || consultation.userId !== userId || consultation.astrologerId !== astrologerId) {
+            send(ws, { type: "billing_error", message: "Invalid consultation" });
+            break;
+          }
 
           // Deduct every 60 seconds
           const timer = setInterval(async () => {
             try {
               const wallet = await storage.getWallet(userId);
               const balance = parseFloat(wallet?.balance || "0");
-              const cost = pricePerMinute;
+              const cost = parseFloat(consultation.pricePerMinute || "0");
 
               if (balance < cost) {
                 // Insufficient balance — end session
@@ -209,6 +221,11 @@ export function setupWebSocket(server: Server) {
         case "stop_billing": {
           const { consultationId } = msg as unknown as { consultationId: string };
           const timer = billingTimers.get(consultationId);
+          const consultation = await storage.getConsultationById(consultationId);
+          const isParticipant = consultation && (
+            consultation.userId === client.userId || consultation.astrologerId === client.astrologerId
+          );
+          if (!isParticipant) break;
           if (timer) {
             clearInterval(timer);
             billingTimers.delete(consultationId);
@@ -220,12 +237,16 @@ export function setupWebSocket(server: Server) {
 
         case "call_request": {
           // User requests a call
-          const { userId, astrologerId, callType, consultationId } = msg as unknown as {
-            userId: string;
+          const { astrologerId, callType, consultationId } = msg as unknown as {
             astrologerId: string;
             callType: "voice" | "video";
             consultationId: string;
           };
+          const userId = client.userId;
+
+          if (!userId) {
+            break;
+          }
 
           const astrClient = astrologerClients.get(astrologerId);
           if (astrClient) {
@@ -243,11 +264,12 @@ export function setupWebSocket(server: Server) {
         }
 
         case "call_accepted": {
-          const { userId, astrologerId, consultationId } = msg as unknown as {
+          const { userId, consultationId } = msg as unknown as {
             userId: string;
-            astrologerId: string;
             consultationId: string;
           };
+          const astrologerId = client.astrologerId;
+          if (!astrologerId) break;
           const userClient = userClients.get(userId);
           if (userClient) {
             send(userClient.ws, { type: "call_accepted", consultationId });
@@ -296,6 +318,24 @@ function send(ws: WebSocket, data: object) {
   if (ws.readyState === WebSocket.OPEN) {
     ws.send(JSON.stringify(data));
   }
+}
+
+async function hydrateSession(req: IncomingMessage, sessionMiddleware: ReturnType<typeof getSession>) {
+  if ((req as any).session) {
+    return;
+  }
+
+  await new Promise<void>((resolve) => {
+    sessionMiddleware(
+      req as any,
+      {
+        getHeader: () => undefined,
+        setHeader: () => undefined,
+        end: () => undefined,
+      } as any,
+      () => resolve(),
+    );
+  });
 }
 
 function broadcastAstrologerStatus(astrologerId: string, status: "online" | "offline" | "busy") {

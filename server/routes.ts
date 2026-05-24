@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { db } from "./db";
 import { sql, eq, asc, desc, and, inArray } from "drizzle-orm";
-import { setupAuth, isAuthenticated } from "./auth";
+import { setupAuth, isAuthenticated, isAdmin } from "./auth";
 import { runCouncil, UserContext } from "./agents/orchestrator";
 import { corporateOrchestrator } from "./corporate/orchestrator";
 import { triggerHeartbeat } from "./corporate/heartbeat";
@@ -73,10 +73,36 @@ function isAstrologerAuthenticated(req: any, res: Response, next: Function) {
   next();
 }
 
+const adminLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 100,
+});
+
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 20,
+});
+
+const paymentLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 30,
+});
+
+function isCorporateAutomationEnabled() {
+  return process.env.ENABLE_CORPORATE_AUTOMATION === "true";
+}
+
+function requireCorporateAutomation(_req: Request, res: Response, next: Function) {
+  if (!isCorporateAutomationEnabled()) {
+    return res.status(403).json({ message: "Corporate automation is disabled" });
+  }
+  next();
+}
+
 export async function registerRoutes(app: Express, existingServer?: Server): Promise<Server> {
 
   // ── Admin Utilities ────────────────────────────────────────────────────────
-  app.post('/api/admin/corporate/sync-roster', async (req, res) => {
+  app.post('/api/admin/corporate/sync-roster', isAdmin, adminLimiter, async (req, res) => {
     try {
       const allCompanies = await db.select().from(aiCompanies);
       let added = 0;
@@ -102,7 +128,7 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
     }
   });
 
-  app.post('/api/admin/corporate/hire', async (req, res) => {
+  app.post('/api/admin/corporate/hire', isAdmin, adminLimiter, async (req, res) => {
     try {
       const { role, name, personality } = req.body;
       if (!role || !name || !personality) {
@@ -140,7 +166,7 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
 
   // ─── User Email Auth ──────────────────────────────────────
 
-  app.post('/api/auth/register', async (req: any, res) => {
+  app.post('/api/auth/register', authLimiter, async (req: any, res) => {
     try {
       const { email, password, firstName, lastName } = req.body;
       if (!email || !password) {
@@ -174,7 +200,7 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
     }
   });
 
-  app.post('/api/auth/login', async (req: any, res) => {
+  app.post('/api/auth/login', authLimiter, async (req: any, res) => {
     try {
       const { email, password } = req.body;
       if (!email || !password) {
@@ -450,7 +476,7 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
 
   // ─── Astrologer Auth ──────────────────────────────────────
 
-  app.post('/api/astrologer/auth/register', async (req: any, res) => {
+  app.post('/api/astrologer/auth/register', authLimiter, async (req: any, res) => {
     try {
       const { name, email, password, phoneNumber } = req.body;
       if (!name || !email || !password) {
@@ -470,7 +496,7 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
     }
   });
 
-  app.post('/api/astrologer/auth/login', async (req: any, res) => {
+  app.post('/api/astrologer/auth/login', authLimiter, async (req: any, res) => {
     try {
       const { email, password } = req.body;
       if (!email || !password) {
@@ -688,7 +714,7 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
 
   // ─── Razorpay Payment ────────────────────────────────────
 
-  app.post('/api/payment/razorpay/order', isAuthenticated, async (req: any, res) => {
+  app.post('/api/payment/razorpay/order', isAuthenticated, paymentLimiter, async (req: any, res) => {
     try {
       const userId = (req.user as any).id;
       const { amount, packId } = req.body;
@@ -697,6 +723,12 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
 
       // Find bonus if pack
       const pack = RECHARGE_PACKS.find(p => p.id === packId);
+      if (packId && !pack) {
+        return res.status(400).json({ message: "Invalid recharge pack" });
+      }
+      if (pack && pack.amount !== amount) {
+        return res.status(400).json({ message: "Recharge amount does not match selected pack" });
+      }
       const bonus = pack?.bonus || 0;
 
       const order = await createRazorpayOrder({
@@ -731,28 +763,30 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
     }
   });
 
-  app.post('/api/payment/razorpay/verify', isAuthenticated, async (req: any, res) => {
+  app.post('/api/payment/razorpay/verify', isAuthenticated, paymentLimiter, async (req: any, res) => {
     try {
       const userId = (req.user as any).id;
-      const { orderId, paymentId, signature, amount, bonus } = req.body;
+      const { orderId, paymentId, signature } = req.body;
 
       const valid = verifyRazorpaySignature(orderId, paymentId, signature);
       if (!valid) return res.status(400).json({ message: "Payment verification failed" });
+
+      const txns = await storage.getUserTransactions(userId);
+      const pendingTxn = txns.find((txn) => txn.gatewayOrderId === orderId && txn.status === 'pending');
+      if (!pendingTxn) {
+        return res.status(404).json({ message: "Pending transaction not found" });
+      }
 
       // Add to wallet
       let wallet = await storage.getWallet(userId);
       if (!wallet) wallet = await storage.createWallet(userId);
 
-      const totalCredit = parseFloat(amount) + parseFloat(bonus || "0");
+      const totalCredit = parseFloat(pendingTxn.amount || "0");
       const newBalance = (parseFloat(wallet.balance || "0") + totalCredit).toFixed(2);
       await storage.updateWalletBalance(userId, newBalance);
 
       // Update transaction status
-      const txns = await storage.getUserTransactions(userId);
-      const pendingTxn = txns.find(t => t.gatewayOrderId === orderId && t.status === 'pending');
-      if (pendingTxn) {
-        await storage.updateTransactionStatus(pendingTxn.id, 'completed', paymentId, signature);
-      }
+      await storage.updateTransactionStatus(pendingTxn.id, 'completed', paymentId, signature);
 
       await storage.createNotification({
         userId,
@@ -766,8 +800,8 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
       if (user?.email) {
         sendPaymentReceipt(user.email, {
           userName: user.firstName || 'User',
-          amount: parseFloat(amount),
-          bonus: parseFloat(bonus || "0"),
+          amount: parseFloat(pendingTxn.amount || "0"),
+          bonus: 0,
           newBalance: parseFloat(newBalance),
           paymentId,
         }).catch(() => {});
@@ -804,7 +838,7 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
 
   // ─── Snapmint Payment ─────────────────────────────────────
 
-  app.post('/api/payment/snapmint/order', isAuthenticated, async (req: any, res) => {
+  app.post('/api/payment/snapmint/order', isAuthenticated, paymentLimiter, async (req: any, res) => {
     try {
       const userId = (req.user as any).id;
       const { amount } = req.body;
@@ -861,7 +895,7 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
 
   // ─── LazyPay / PayU ───────────────────────────────────────
 
-  app.post('/api/payment/lazypay/order', isAuthenticated, async (req: any, res) => {
+  app.post('/api/payment/lazypay/order', isAuthenticated, paymentLimiter, async (req: any, res) => {
     try {
       const userId = (req.user as any).id;
       const { amount } = req.body;
@@ -1427,7 +1461,7 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
   });
 
   // ─── Admin / Developer Dashboard ──────────────────────────
-  app.get('/api/admin/stats', async (_req, res) => {
+  app.get('/api/admin/stats', isAdmin, adminLimiter, async (_req, res) => {
     try {
       const [
         [{ count: userCount }],
@@ -1456,14 +1490,14 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
     }
   });
 
-  app.get('/api/admin/astrologers', async (_req, res) => {
+  app.get('/api/admin/astrologers', isAdmin, adminLimiter, async (_req, res) => {
     try {
       const list = await storage.getAllAstrologers();
       res.json(list);
     } catch { res.status(500).json({ message: 'Failed to fetch astrologers' }); }
   });
 
-  app.put('/api/admin/astrologers/:id', async (req, res) => {
+  app.put('/api/admin/astrologers/:id', isAdmin, adminLimiter, async (req, res) => {
     try {
       const updated = await storage.updateAstrologer(req.params.id, req.body);
       res.json(updated);
@@ -1471,13 +1505,13 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
   });
 
   // ─── Navagraha Corporate (The Boardroom) ────────────────────
-  app.get('/api/corporate/company', async (req, res) => {
+  app.get('/api/corporate/company', isAdmin, requireCorporateAutomation, async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).send("Unauthorized");
     const company = await storage.getAiCompanyByUserId((req.user as any).id.toString());
     res.json(company || null);
   });
 
-  app.post('/api/corporate/initialize', async (req, res) => {
+  app.post('/api/corporate/initialize', isAdmin, requireCorporateAutomation, async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).send("Unauthorized");
     const { name, mission } = req.body;
     try {
@@ -1488,7 +1522,7 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
     }
   });
 
-  app.get('/api/corporate/employees', async (req, res) => {
+  app.get('/api/corporate/employees', isAdmin, requireCorporateAutomation, async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).send("Unauthorized");
     const company = await storage.getAiCompanyByUserId((req.user as any).id.toString());
     if (!company) return res.status(404).json({ message: "No company found" });
@@ -1496,7 +1530,7 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
     res.json(employees);
   });
 
-  app.get('/api/corporate/initiatives', async (req, res) => {
+  app.get('/api/corporate/initiatives', isAdmin, requireCorporateAutomation, async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).send("Unauthorized");
     const company = await storage.getAiCompanyByUserId((req.user as any).id.toString());
     if (!company) return res.status(404).json({ message: "No company found" });
@@ -1504,7 +1538,7 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
     res.json(initiatives);
   });
 
-  app.post('/api/corporate/plan', async (req, res) => {
+  app.post('/api/corporate/plan', isAdmin, requireCorporateAutomation, async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).send("Unauthorized");
     const company = await storage.getAiCompanyByUserId((req.user as any).id.toString());
     if (!company) return res.status(404).json({ message: "No company found" });
@@ -1517,7 +1551,7 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
   });
 
   // Chat: Get thread messages
-  app.get('/api/corporate/chat/:thread', async (req, res) => {
+  app.get('/api/corporate/chat/:thread', isAdmin, requireCorporateAutomation, async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).send("Unauthorized");
     const company = await storage.getAiCompanyByUserId((req.user as any).id.toString());
     if (!company) return res.status(404).json({ message: "No company found" });
@@ -1526,7 +1560,7 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
   });
 
   // Chat: User DMs one executive
-  app.post('/api/corporate/chat/dm/:employeeId', async (req, res) => {
+  app.post('/api/corporate/chat/dm/:employeeId', isAdmin, requireCorporateAutomation, async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).send("Unauthorized");
     const company = await storage.getAiCompanyByUserId((req.user as any).id.toString());
     if (!company) return res.status(404).json({ message: "No company found" });
@@ -1543,7 +1577,7 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
   });
 
   // Chat: Trigger exec-room debate
-  app.post('/api/corporate/chat/exec-room', async (req, res) => {
+  app.post('/api/corporate/chat/exec-room', isAdmin, requireCorporateAutomation, async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).send("Unauthorized");
     const company = await storage.getAiCompanyByUserId((req.user as any).id.toString());
     if (!company) return res.status(404).json({ message: "No company found" });
@@ -1560,7 +1594,7 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
   });
 
   // Heartbeat: manual trigger
-  app.post('/api/corporate/heartbeat', async (req, res) => {
+  app.post('/api/corporate/heartbeat', isAdmin, requireCorporateAutomation, async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).send("Unauthorized");
     const { session } = req.body as { session: "morning" | "evening" };
     if (!session || !['morning','evening'].includes(session)) {
@@ -1592,7 +1626,7 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
   });
 
   // Admin: Get ALL homepage content (including disabled)
-  app.get('/api/admin/homepage-content', async (_req, res) => {
+  app.get('/api/admin/homepage-content', isAdmin, adminLimiter, async (_req, res) => {
     try {
       const rows = await db.select().from(homepageContentTable)
         .orderBy(asc(homepageContentTable.section), asc(homepageContentTable.sortOrder));
@@ -1601,7 +1635,7 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
   });
 
   // Admin: Create new item
-  app.post('/api/admin/homepage-content', async (req, res) => {
+  app.post('/api/admin/homepage-content', isAdmin, adminLimiter, async (req, res) => {
     try {
       const { section, title, subtitle, icon, href, gradient, cta, sortOrder, enabled } = req.body;
       if (!section || !title) return res.status(400).json({ message: 'section and title required' });
@@ -1618,7 +1652,7 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
   });
 
   // Admin: Update item
-  app.put('/api/admin/homepage-content/:id', async (req, res) => {
+  app.put('/api/admin/homepage-content/:id', isAdmin, adminLimiter, async (req, res) => {
     try {
       const { title, subtitle, icon, href, gradient, cta, sortOrder, enabled } = req.body;
       const [row] = await db.update(homepageContentTable)
@@ -1631,7 +1665,7 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
   });
 
   // Admin: Delete item
-  app.delete('/api/admin/homepage-content/:id', async (req, res) => {
+  app.delete('/api/admin/homepage-content/:id', isAdmin, adminLimiter, async (req, res) => {
     try {
       await db.delete(homepageContentTable)
         .where(eq(homepageContentTable.id, req.params.id));
@@ -1640,7 +1674,7 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
   });
 
   // Admin: Batch reorder
-  app.put('/api/admin/homepage-content-reorder', async (req, res) => {
+  app.put('/api/admin/homepage-content-reorder', isAdmin, adminLimiter, async (req, res) => {
     try {
       const { items } = req.body; // [{ id, sortOrder }]
       if (!Array.isArray(items)) return res.status(400).json({ message: 'items array required' });
@@ -1654,13 +1688,13 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
   });
 
   // ─── Navagraha Corporate (The Boardroom) ────────────────────
-  app.get('/api/corporate/company', async (req, res) => {
+  app.get('/api/corporate/company', isAdmin, requireCorporateAutomation, async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).send("Unauthorized");
     const company = await storage.getAiCompanyByUserId((req.user as any).id.toString());
     res.json(company || null);
   });
 
-  app.post('/api/corporate/initialize', async (req, res) => {
+  app.post('/api/corporate/initialize', isAdmin, requireCorporateAutomation, async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).send("Unauthorized");
     const { name, mission } = req.body;
     try {
@@ -1672,7 +1706,7 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
     }
   });
 
-  app.get('/api/corporate/employees', async (req, res) => {
+  app.get('/api/corporate/employees', isAdmin, requireCorporateAutomation, async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).send("Unauthorized");
     const company = await storage.getAiCompanyByUserId((req.user as any).id.toString());
     if (!company) return res.status(404).json({ message: "No company found" });
@@ -1680,7 +1714,7 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
     res.json(employees);
   });
 
-  app.get('/api/corporate/initiatives', async (req, res) => {
+  app.get('/api/corporate/initiatives', isAdmin, requireCorporateAutomation, async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).send("Unauthorized");
     const company = await storage.getAiCompanyByUserId((req.user as any).id.toString());
     if (!company) return res.status(404).json({ message: "No company found" });
@@ -1688,7 +1722,7 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
     res.json(initiatives);
   });
 
-  app.post('/api/corporate/plan', async (req, res) => {
+  app.post('/api/corporate/plan', isAdmin, requireCorporateAutomation, async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).send("Unauthorized");
     const company = await storage.getAiCompanyByUserId((req.user as any).id.toString());
     if (!company) return res.status(404).json({ message: "No company found" });
@@ -1709,7 +1743,7 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
     }
   });
 
-  app.get('/api/corporate/directives', async (req, res) => {
+  app.get('/api/corporate/directives', isAdmin, requireCorporateAutomation, async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).send("Unauthorized");
     const company = await storage.getAiCompanyByUserId((req.user as any).id.toString());
     if (!company) return res.status(404).json({ message: "No company found" });
@@ -1731,7 +1765,7 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
     }
   });
 
-  app.post('/api/corporate/directives/manual', async (req, res) => {
+  app.post('/api/corporate/directives/manual', isAdmin, requireCorporateAutomation, async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).send("Unauthorized");
     
     try {
@@ -1783,7 +1817,7 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
     }
   });
 
-  app.post('/api/corporate/directives/:id/approve', async (req, res) => {
+  app.post('/api/corporate/directives/:id/approve', isAdmin, requireCorporateAutomation, async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).send("Unauthorized");
     
     try {
@@ -1797,9 +1831,12 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
         const path = await import("path");
         
         for (const change of directive.proposedChanges as any[]) {
-          // VERY dangerous in prod, but fits the DevAgent local sandbox loop
           if (change.filePath && change.content) {
             const absolutePath = path.resolve(process.cwd(), change.filePath);
+            const workspaceRoot = process.cwd();
+            if (!absolutePath.startsWith(workspaceRoot + path.sep)) {
+              return res.status(400).json({ message: "Refusing to write outside workspace root" });
+            }
             // Ensure directory exists
             fs.mkdirSync(path.dirname(absolutePath), { recursive: true });
             fs.writeFileSync(absolutePath, change.content, "utf8");
@@ -1818,7 +1855,7 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
   });
 
 
-  app.post('/api/corporate/directives/:id/reset', async (req, res) => {
+  app.post('/api/corporate/directives/:id/reset', isAdmin, requireCorporateAutomation, async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).send("Unauthorized");
     const { id } = req.params;
     try {
@@ -1835,7 +1872,7 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
     }
   });
 
-  app.post('/api/corporate/system/nuke', async (req, res) => {
+  app.post('/api/corporate/system/nuke', isAdmin, requireCorporateAutomation, async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).send("Unauthorized");
     try {
       const userId = String((req.user as any).id);
@@ -1885,7 +1922,7 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
     }
   });
 
-  app.post('/api/corporate/plan/autonomous', async (req, res) => {
+  app.post('/api/corporate/plan/autonomous', isAdmin, requireCorporateAutomation, async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).send("Unauthorized");
     const { goal } = req.body;
     try {

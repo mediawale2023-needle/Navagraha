@@ -19,17 +19,34 @@ import { storage } from './storage';
 
 // ─── Session setup ────────────────────────────────────────────
 
+let sessionMiddleware: ReturnType<typeof session> | null = null;
+
+export interface SessionIdentity {
+  userId?: string;
+  astrologerId?: string;
+}
+
 export function getSession() {
+  if (sessionMiddleware) {
+    return sessionMiddleware;
+  }
+
   const sessionTtl = 7 * 24 * 60 * 60 * 1000; // 1 week
 
   if (!process.env.DATABASE_URL) {
     console.warn('[auth] DATABASE_URL not set — using MemoryStore for sessions. Sessions will be lost on restart.');
-    return session({
+    sessionMiddleware = session({
       secret: process.env.SESSION_SECRET || 'fallback-secret',
       resave: false,
       saveUninitialized: false,
-      cookie: { httpOnly: true, secure: process.env.NODE_ENV === 'production', maxAge: sessionTtl },
+      cookie: {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        maxAge: sessionTtl,
+      },
     });
+    return sessionMiddleware;
   }
 
   const pgStore = connectPg(session);
@@ -41,7 +58,7 @@ export function getSession() {
     errorLog: (err) => console.error('[session-store] Error:', err),
   });
 
-  return session({
+  sessionMiddleware = session({
     secret: process.env.SESSION_SECRET!,
     store: sessionStore,
     resave: false,
@@ -49,9 +66,31 @@ export function getSession() {
     cookie: {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
       maxAge: sessionTtl,
     },
   });
+  return sessionMiddleware;
+}
+
+export function getSessionIdentity(req: any): SessionIdentity {
+  const passportUser = req.session?.passport && typeof req.session.passport === 'object'
+    ? (req.session.passport as { user?: unknown }).user
+    : undefined;
+
+  return {
+    userId: req.session?.userId || (typeof passportUser === 'string' ? passportUser : undefined),
+    astrologerId: req.session?.astrologerId,
+  };
+}
+
+function getAdminEmails(): Set<string> {
+  return new Set(
+    (process.env.ADMIN_EMAILS || '')
+      .split(',')
+      .map((email) => email.trim().toLowerCase())
+      .filter(Boolean),
+  );
 }
 
 // ─── Passport + routes setup ──────────────────────────────────
@@ -156,4 +195,22 @@ export const isAuthenticated: RequestHandler = async (req: any, res, next) => {
   }
 
   res.status(401).json({ message: 'Unauthorized' });
+};
+
+export const isAdmin: RequestHandler = async (req: any, res, next) => {
+  const adminEmails = getAdminEmails();
+
+  if (!req.isAuthenticated?.() && !req.session?.userId) {
+    return res.status(401).json({ message: 'Unauthorized' });
+  }
+
+  const user = req.user || (req.session?.userId ? await storage.getUser(req.session.userId) : undefined);
+  const email = user?.email?.toLowerCase?.();
+
+  if (!email || !adminEmails.has(email)) {
+    return res.status(403).json({ message: 'Admin access required' });
+  }
+
+  req.user = user;
+  next();
 };

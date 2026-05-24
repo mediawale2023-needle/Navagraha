@@ -77,9 +77,6 @@ function Router() {
       <Route path="/astrologer/login" component={AstrologerLogin} />
       <Route path="/astrologer/dashboard" component={AstrologerDashboard} />
 
-      {/* Admin / Developer dashboard — always accessible */}
-      <Route path="/admin/dashboard" component={AdminDashboard} />
-
       {/* Public routes — accessible without login */}
       <Route path="/horoscope" component={Horoscope} />
       <Route path="/horoscope/:sign" component={Horoscope} />
@@ -105,6 +102,7 @@ function Router() {
           <Route path="/call/:astrologerId" component={CallRoom} />
           <Route path="/schedule" component={Schedule} />
           <Route path="/profile" component={Profile} />
+          <Route path="/admin/dashboard" component={AdminDashboard} />
           <Route path="/admin/patterns" component={PatternMatcher} />
         </>
       )}

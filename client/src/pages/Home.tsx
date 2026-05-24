@@ -6,6 +6,7 @@ import { HeroBanner } from '@/components/HeroBanner';
 import { SectionHeader } from '@/components/SectionHeader';
 import { GreetingCard } from '@/components/GreetingCard';
 import { ActiveInfluenceCard } from '@/components/ActiveInfluenceCard';
+import { AstrologerCard } from '@/components/astrologer-card';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import {
@@ -154,7 +155,7 @@ export default function Home() {
                   title="AI Astrologer"
                   icon={Sparkles}
                   color="orange"
-                  onClick={() => setLocation('/chat/ai-astrologer')}
+                  onClick={() => setLocation('/ai-astrologer')}
                 />
                 <QuickActionCard
                   title="Book Appointment"
@@ -172,7 +173,7 @@ export default function Home() {
           <SectionHeader
             title="Active Influences"
             subtitle="Current planetary periods affecting you"
-            viewAllLink="/dashas"
+            viewAllLink="/kundli/new"
           />
           <div className="space-y-3">
             <ActiveInfluenceCard
@@ -181,7 +182,7 @@ export default function Home() {
               type="dasha"
               severity="medium"
               endDate="Mar 2027"
-              linkTo="/dashas"
+              linkTo="/kundli/new"
             />
             <ActiveInfluenceCard
               title="Saturn Transit 12th House"
@@ -189,7 +190,7 @@ export default function Home() {
               type="transit"
               severity="low"
               endDate="Jan 2026"
-              linkTo="/transits"
+              linkTo="/kundli/new"
             />
           </div>
         </section>
@@ -243,6 +244,3 @@ export default function Home() {
     </div>
   );
 }
-
-// Keep existing AstrologerCard import
-export { AstrologerCard } from '@/components/astrologer-card';

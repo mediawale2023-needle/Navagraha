@@ -6,6 +6,8 @@ export default defineConfig({
     globals: true,
     environment: 'node',
     setupFiles: ['./tests/setup.ts'],
+    include: ['tests/unit/**/*.test.ts'],
+    exclude: ['.agents/**', 'dist/**', 'node_modules/**'],
     testTimeout: 30_000, // 30s — live API calls can be slow
     reporters: ['verbose'],
   },
