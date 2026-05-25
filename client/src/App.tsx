@@ -25,6 +25,9 @@ import AdminDashboard from "@/pages/AdminDashboard";
 import Numerology from "@/pages/Numerology";
 import Horoscope from "@/pages/Horoscope";
 import AIAstrologer from "@/pages/AIAstrologer";
+import Store from "@/pages/Store";
+import Reports from "@/pages/Reports";
+import Pooja from "@/pages/Pooja";
 import NotFound from "@/pages/not-found";
 import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
@@ -96,6 +99,9 @@ function Router() {
       <Route path="/kundli/:id" component={KundliView} />
       <Route path="/numerology" component={Numerology} />
       <Route path="/ai-astrologer" component={AIAstrologer} />
+      <Route path="/store" component={Store} />
+      <Route path="/reports" component={Reports} />
+      <Route path="/pooja" component={Pooja} />
 
       {isLoading || !isAuthenticated ? (
         <>

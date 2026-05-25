@@ -12,9 +12,11 @@ import {
 const NAV_LINKS = [
   { label: "Home", path: "/" },
   { label: "Charts", path: "/kundli/new" },
-  { label: "AI Astrologer", path: "/ai-astrologer" },
-  { label: "Horoscope", path: "/horoscope" },
   { label: "Astrologers", path: "/astrologers" },
+  { label: "Astromall", path: "/store" },
+  { label: "Reports", path: "/reports" },
+  { label: "Pooja", path: "/pooja" },
+  { label: "Horoscope", path: "/horoscope" },
 ];
 
 export default function TopNav() {

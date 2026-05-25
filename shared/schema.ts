@@ -481,6 +481,119 @@ export const referrals = pgTable("referrals", {
 
 export type Referral = typeof referrals.$inferSelect;
 
+// ─── Astromall (e-commerce store) ──────────────────────────
+export const products = pgTable("products", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: varchar("name").notNull(),
+  slug: varchar("slug").notNull().unique(),
+  description: text("description"),
+  category: varchar("category").notNull(), // gemstone | rudraksha | yantra | bracelet | mala | other
+  price: decimal("price", { precision: 10, scale: 2 }).notNull(),
+  mrp: decimal("mrp", { precision: 10, scale: 2 }),
+  imageUrl: varchar("image_url"),
+  images: text("images").array(),
+  stock: integer("stock").default(100),
+  rating: decimal("rating", { precision: 3, scale: 2 }).default("4.5"),
+  isActive: boolean("is_active").default(true),
+  sortOrder: integer("sort_order").default(0),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertProductSchema = createInsertSchema(products).omit({ id: true, createdAt: true });
+export type InsertProduct = z.infer<typeof insertProductSchema>;
+export type Product = typeof products.$inferSelect;
+
+export const orders = pgTable("orders", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").references(() => users.id).notNull(),
+  status: varchar("status").default("placed"), // placed | confirmed | shipped | delivered | cancelled
+  totalAmount: decimal("total_amount", { precision: 10, scale: 2 }).notNull(),
+  paymentMethod: varchar("payment_method").default("wallet"),
+  shippingName: varchar("shipping_name"),
+  shippingPhone: varchar("shipping_phone"),
+  shippingAddress: text("shipping_address"),
+  shippingCity: varchar("shipping_city"),
+  shippingState: varchar("shipping_state"),
+  shippingPincode: varchar("shipping_pincode"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export type Order = typeof orders.$inferSelect;
+
+export const orderItems = pgTable("order_items", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  orderId: varchar("order_id").references(() => orders.id).notNull(),
+  productId: varchar("product_id").references(() => products.id).notNull(),
+  productName: varchar("product_name").notNull(),
+  quantity: integer("quantity").notNull().default(1),
+  price: decimal("price", { precision: 10, scale: 2 }).notNull(),
+});
+
+export type OrderItem = typeof orderItems.$inferSelect;
+
+// ─── Paid Reports ──────────────────────────────────────────
+export const reportTypes = pgTable("report_types", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  slug: varchar("slug").notNull().unique(),
+  name: varchar("name").notNull(),
+  description: text("description"),
+  category: varchar("category").default("life"), // career | marriage | finance | health | year_ahead | life
+  price: decimal("price", { precision: 10, scale: 2 }).notNull(),
+  icon: varchar("icon"),
+  isActive: boolean("is_active").default(true),
+  sortOrder: integer("sort_order").default(0),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export type ReportType = typeof reportTypes.$inferSelect;
+
+export const reportOrders = pgTable("report_orders", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").references(() => users.id).notNull(),
+  reportTypeId: varchar("report_type_id").references(() => reportTypes.id).notNull(),
+  kundliId: varchar("kundli_id").references(() => kundlis.id),
+  status: varchar("status").default("processing"), // processing | ready | failed
+  amount: decimal("amount", { precision: 10, scale: 2 }).notNull(),
+  content: jsonb("content"), // generated report payload
+  createdAt: timestamp("created_at").defaultNow(),
+  readyAt: timestamp("ready_at"),
+});
+
+export type ReportOrder = typeof reportOrders.$inferSelect;
+
+// ─── Book a Pooja ──────────────────────────────────────────
+export const poojas = pgTable("poojas", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  slug: varchar("slug").notNull().unique(),
+  name: varchar("name").notNull(),
+  description: text("description"),
+  benefits: text("benefits").array(),
+  price: decimal("price", { precision: 10, scale: 2 }).notNull(),
+  durationText: varchar("duration_text"), // e.g. "Performed within 7 days"
+  imageUrl: varchar("image_url"),
+  isActive: boolean("is_active").default(true),
+  sortOrder: integer("sort_order").default(0),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export type Pooja = typeof poojas.$inferSelect;
+
+export const poojaBookings = pgTable("pooja_bookings", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").references(() => users.id).notNull(),
+  poojaId: varchar("pooja_id").references(() => poojas.id).notNull(),
+  poojaName: varchar("pooja_name").notNull(),
+  status: varchar("status").default("booked"), // booked | scheduled | performed | cancelled
+  amount: decimal("amount", { precision: 10, scale: 2 }).notNull(),
+  devoteeName: varchar("devotee_name").notNull(),
+  gotra: varchar("gotra"),
+  preferredDate: timestamp("preferred_date"),
+  sankalpNotes: text("sankalp_notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export type PoojaBooking = typeof poojaBookings.$inferSelect;
+
 // AI Chat Messages table — conversations with the AI astrologer
 export const aiChatMessages = pgTable("ai_chat_messages", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),

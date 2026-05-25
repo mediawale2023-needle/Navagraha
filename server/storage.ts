@@ -16,11 +16,26 @@ import {
   couponRedemptions,
   referrals,
   pushTokens,
+  products,
+  orders,
+  orderItems,
+  reportTypes,
+  reportOrders,
+  poojas,
+  poojaBookings,
   type Coupon,
   type InsertCoupon,
   type CouponRedemption,
   type Referral,
   type PushToken,
+  type Product,
+  type InsertProduct,
+  type Order,
+  type OrderItem,
+  type ReportType,
+  type ReportOrder,
+  type Pooja,
+  type PoojaBooking,
   type User,
   type UpsertUser,
   type Kundli,
@@ -48,7 +63,7 @@ import {
   type InsertPredictionFeedback,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, desc, and, sql } from "drizzle-orm";
+import { eq, desc, and, sql, asc } from "drizzle-orm";
 import crypto from "crypto";
 import bcrypt from "bcryptjs";
 
@@ -959,6 +974,188 @@ export class DatabaseStorage implements IStorage {
 
   async deletePushToken(token: string): Promise<void> {
     await db.delete(pushTokens).where(eq(pushTokens.token, token));
+  }
+
+  // ─── Wallet helper ─────────────────────────────────────────
+  // Atomically debit the wallet; returns null when balance is insufficient.
+  async debitWallet(userId: string, cost: number, description: string): Promise<{ balance: string } | null> {
+    let wallet = await this.getWallet(userId);
+    if (!wallet) wallet = await this.createWallet(userId);
+    const balance = parseFloat(wallet.balance || "0");
+    if (balance < cost) return null;
+    const newBalance = (balance - cost).toFixed(2);
+    await this.updateWalletBalance(userId, newBalance);
+    await this.createTransaction({
+      userId,
+      amount: (-cost).toString(),
+      type: "debit",
+      description,
+      status: "completed",
+    });
+    return { balance: newBalance };
+  }
+
+  // ─── Astromall ─────────────────────────────────────────────
+  async getProducts(): Promise<Product[]> {
+    return await db
+      .select()
+      .from(products)
+      .where(eq(products.isActive, true))
+      .orderBy(asc(products.sortOrder), desc(products.createdAt));
+  }
+
+  async getAllProducts(): Promise<Product[]> {
+    return await db.select().from(products).orderBy(asc(products.sortOrder));
+  }
+
+  async getProductBySlug(slug: string): Promise<Product | undefined> {
+    const [row] = await db.select().from(products).where(eq(products.slug, slug));
+    return row;
+  }
+
+  async getProductById(id: string): Promise<Product | undefined> {
+    const [row] = await db.select().from(products).where(eq(products.id, id));
+    return row;
+  }
+
+  async createProduct(data: InsertProduct): Promise<Product> {
+    const [row] = await db.insert(products).values(data as any).returning();
+    return row;
+  }
+
+  async updateProduct(id: string, data: Partial<InsertProduct>): Promise<Product> {
+    const [row] = await db.update(products).set(data as any).where(eq(products.id, id)).returning();
+    return row;
+  }
+
+  async deleteProduct(id: string): Promise<void> {
+    await db.delete(products).where(eq(products.id, id));
+  }
+
+  async createOrder(
+    order: {
+      userId: string;
+      totalAmount: string;
+      paymentMethod?: string;
+      shippingName?: string;
+      shippingPhone?: string;
+      shippingAddress?: string;
+      shippingCity?: string;
+      shippingState?: string;
+      shippingPincode?: string;
+    },
+    items: { productId: string; productName: string; quantity: number; price: string }[],
+  ): Promise<Order> {
+    const [created] = await db.insert(orders).values(order).returning();
+    if (items.length > 0) {
+      await db.insert(orderItems).values(items.map((i) => ({ ...i, orderId: created.id })));
+    }
+    return created;
+  }
+
+  async getUserOrders(userId: string): Promise<(Order & { items: OrderItem[] })[]> {
+    const userOrders = await db
+      .select()
+      .from(orders)
+      .where(eq(orders.userId, userId))
+      .orderBy(desc(orders.createdAt));
+    const result = [];
+    for (const o of userOrders) {
+      const items = await db.select().from(orderItems).where(eq(orderItems.orderId, o.id));
+      result.push({ ...o, items });
+    }
+    return result;
+  }
+
+  async updateOrderStatus(id: string, status: string): Promise<Order> {
+    const [row] = await db.update(orders).set({ status }).where(eq(orders.id, id)).returning();
+    return row;
+  }
+
+  // ─── Reports ───────────────────────────────────────────────
+  async getReportTypes(): Promise<ReportType[]> {
+    return await db
+      .select()
+      .from(reportTypes)
+      .where(eq(reportTypes.isActive, true))
+      .orderBy(asc(reportTypes.sortOrder));
+  }
+
+  async getReportTypeById(id: string): Promise<ReportType | undefined> {
+    const [row] = await db.select().from(reportTypes).where(eq(reportTypes.id, id));
+    return row;
+  }
+
+  async createReportOrder(data: {
+    userId: string;
+    reportTypeId: string;
+    kundliId?: string;
+    amount: string;
+  }): Promise<ReportOrder> {
+    const [row] = await db.insert(reportOrders).values(data).returning();
+    return row;
+  }
+
+  async setReportOrderContent(id: string, content: object): Promise<ReportOrder> {
+    const [row] = await db
+      .update(reportOrders)
+      .set({ content, status: "ready", readyAt: new Date() })
+      .where(eq(reportOrders.id, id))
+      .returning();
+    return row;
+  }
+
+  async markReportOrderFailed(id: string): Promise<void> {
+    await db.update(reportOrders).set({ status: "failed" }).where(eq(reportOrders.id, id));
+  }
+
+  async getUserReportOrders(userId: string): Promise<ReportOrder[]> {
+    return await db
+      .select()
+      .from(reportOrders)
+      .where(eq(reportOrders.userId, userId))
+      .orderBy(desc(reportOrders.createdAt));
+  }
+
+  async getReportOrderById(id: string): Promise<ReportOrder | undefined> {
+    const [row] = await db.select().from(reportOrders).where(eq(reportOrders.id, id));
+    return row;
+  }
+
+  // ─── Poojas ────────────────────────────────────────────────
+  async getPoojas(): Promise<Pooja[]> {
+    return await db
+      .select()
+      .from(poojas)
+      .where(eq(poojas.isActive, true))
+      .orderBy(asc(poojas.sortOrder));
+  }
+
+  async getPoojaById(id: string): Promise<Pooja | undefined> {
+    const [row] = await db.select().from(poojas).where(eq(poojas.id, id));
+    return row;
+  }
+
+  async createPoojaBooking(data: {
+    userId: string;
+    poojaId: string;
+    poojaName: string;
+    amount: string;
+    devoteeName: string;
+    gotra?: string;
+    preferredDate?: Date | null;
+    sankalpNotes?: string;
+  }): Promise<PoojaBooking> {
+    const [row] = await db.insert(poojaBookings).values(data).returning();
+    return row;
+  }
+
+  async getUserPoojaBookings(userId: string): Promise<PoojaBooking[]> {
+    return await db
+      .select()
+      .from(poojaBookings)
+      .where(eq(poojaBookings.userId, userId))
+      .orderBy(desc(poojaBookings.createdAt));
   }
 }
 

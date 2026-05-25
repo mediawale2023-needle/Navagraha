@@ -58,6 +58,7 @@ import {
   generatePreConsultBrief,
   generatePostConsultFollowUp,
   matchAstrologerToChart,
+  generateReport,
 } from "./aiAstrologerService";
 import { sendWelcomeEmail, sendPaymentReceipt, sendBookingConfirmation, sendConsultationSummary } from "./emailService";
 import crypto from "crypto";
@@ -1484,6 +1485,203 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
       if (token) await storage.deletePushToken(token);
       res.json({ success: true });
     } catch { res.status(500).json({ message: "Failed to unregister push token" }); }
+  });
+
+  // ─── Astromall (store) ─────────────────────────────────────
+  app.get('/api/store/products', async (_req, res) => {
+    try {
+      res.json(await storage.getProducts());
+    } catch { res.status(500).json({ message: 'Failed to fetch products' }); }
+  });
+
+  app.get('/api/store/products/:slug', async (req, res) => {
+    try {
+      const product = await storage.getProductBySlug(req.params.slug);
+      if (!product) return res.status(404).json({ message: 'Product not found' });
+      res.json(product);
+    } catch { res.status(500).json({ message: 'Failed to fetch product' }); }
+  });
+
+  // Wallet-based checkout
+  app.post('/api/store/orders', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = (req.user as any).id;
+      const { items, shipping } = req.body as {
+        items: { productId: string; quantity: number }[];
+        shipping: { name?: string; phone?: string; address?: string; city?: string; state?: string; pincode?: string };
+      };
+      if (!Array.isArray(items) || items.length === 0) {
+        return res.status(400).json({ message: 'Cart is empty' });
+      }
+      if (!shipping?.name || !shipping?.phone || !shipping?.address || !shipping?.pincode) {
+        return res.status(400).json({ message: 'Shipping name, phone, address and pincode are required' });
+      }
+
+      // Resolve products + compute server-side total (never trust client prices)
+      const resolved = [];
+      let total = 0;
+      for (const item of items) {
+        const product = await storage.getProductById(item.productId);
+        if (!product || !product.isActive) return res.status(400).json({ message: 'A product is unavailable' });
+        const qty = Math.max(1, Math.min(10, Number(item.quantity) || 1));
+        const price = parseFloat(product.price);
+        total += price * qty;
+        resolved.push({ productId: product.id, productName: product.name, quantity: qty, price: product.price });
+      }
+      total = Math.round(total * 100) / 100;
+
+      const debit = await storage.debitWallet(userId, total, `Astromall order (${resolved.length} item${resolved.length > 1 ? 's' : ''})`);
+      if (!debit) return res.status(402).json({ message: 'Insufficient wallet balance. Please recharge to place the order.' });
+
+      const order = await storage.createOrder({
+        userId,
+        totalAmount: total.toFixed(2),
+        paymentMethod: 'wallet',
+        shippingName: shipping.name,
+        shippingPhone: shipping.phone,
+        shippingAddress: shipping.address,
+        shippingCity: shipping.city,
+        shippingState: shipping.state,
+        shippingPincode: shipping.pincode,
+      }, resolved);
+
+      await storage.createNotification({
+        userId, type: 'system', title: 'Order Placed',
+        body: `Your order of ₹${total.toFixed(2)} has been placed successfully.`,
+      });
+      sendPushToUser(userId, { title: 'Order Placed', body: `Your Astromall order of ₹${total.toFixed(2)} is confirmed.`, link: '/store' });
+
+      res.status(201).json({ order, newBalance: debit.balance });
+    } catch (err) {
+      console.error('Order error:', err);
+      res.status(500).json({ message: 'Failed to place order' });
+    }
+  });
+
+  app.get('/api/store/orders', isAuthenticated, async (req: any, res) => {
+    try {
+      res.json(await storage.getUserOrders((req.user as any).id));
+    } catch { res.status(500).json({ message: 'Failed to fetch orders' }); }
+  });
+
+  // ─── Paid Reports ──────────────────────────────────────────
+  app.get('/api/reports/types', async (_req, res) => {
+    try {
+      res.json(await storage.getReportTypes());
+    } catch { res.status(500).json({ message: 'Failed to fetch report types' }); }
+  });
+
+  app.post('/api/reports/order', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = (req.user as any).id;
+      const { reportTypeId, kundliId } = req.body;
+      const reportType = await storage.getReportTypeById(reportTypeId);
+      if (!reportType || !reportType.isActive) return res.status(404).json({ message: 'Report not available' });
+
+      // Resolve a kundli: explicit choice or the user's most recent chart
+      let kundli = null;
+      if (kundliId) kundli = await storage.getKundliById(kundliId);
+      if (!kundli) {
+        const userKundlis = await storage.getUserKundlis(userId);
+        kundli = userKundlis?.[0] ?? null;
+      }
+      if (!kundli) return res.status(400).json({ message: 'Generate your Kundli first to order a report.' });
+
+      const price = parseFloat(reportType.price);
+      const debit = await storage.debitWallet(userId, price, `Report: ${reportType.name}`);
+      if (!debit) return res.status(402).json({ message: 'Insufficient wallet balance. Please recharge to order this report.' });
+
+      const order = await storage.createReportOrder({
+        userId,
+        reportTypeId: reportType.id,
+        kundliId: kundli.id,
+        amount: reportType.price,
+      });
+
+      // Generate asynchronously; client polls until status === 'ready'
+      (async () => {
+        try {
+          const content = await generateReport(reportType.category || 'life', kundli);
+          await storage.setReportOrderContent(order.id, content);
+          await storage.createNotification({
+            userId, type: 'system', title: 'Report Ready',
+            body: `Your ${reportType.name} is ready to view.`,
+          });
+          sendPushToUser(userId, { title: 'Report Ready', body: `Your ${reportType.name} is ready.`, link: '/reports' });
+        } catch (genErr) {
+          console.error('Report generation failed:', genErr);
+          await storage.markReportOrderFailed(order.id).catch(() => {});
+        }
+      })();
+
+      res.status(201).json({ orderId: order.id, newBalance: debit.balance });
+    } catch (err) {
+      console.error('Report order error:', err);
+      res.status(500).json({ message: 'Failed to order report' });
+    }
+  });
+
+  app.get('/api/reports/orders', isAuthenticated, async (req: any, res) => {
+    try {
+      res.json(await storage.getUserReportOrders((req.user as any).id));
+    } catch { res.status(500).json({ message: 'Failed to fetch reports' }); }
+  });
+
+  app.get('/api/reports/orders/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      const order = await storage.getReportOrderById(req.params.id);
+      if (!order || order.userId !== (req.user as any).id) return res.status(404).json({ message: 'Report not found' });
+      res.json(order);
+    } catch { res.status(500).json({ message: 'Failed to fetch report' }); }
+  });
+
+  // ─── Book a Pooja ──────────────────────────────────────────
+  app.get('/api/poojas', async (_req, res) => {
+    try {
+      res.json(await storage.getPoojas());
+    } catch { res.status(500).json({ message: 'Failed to fetch poojas' }); }
+  });
+
+  app.post('/api/poojas/book', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = (req.user as any).id;
+      const { poojaId, devoteeName, gotra, preferredDate, sankalpNotes } = req.body;
+      if (!devoteeName) return res.status(400).json({ message: 'Devotee name is required' });
+      const pooja = await storage.getPoojaById(poojaId);
+      if (!pooja || !pooja.isActive) return res.status(404).json({ message: 'Pooja not available' });
+
+      const price = parseFloat(pooja.price);
+      const debit = await storage.debitWallet(userId, price, `Pooja booking: ${pooja.name}`);
+      if (!debit) return res.status(402).json({ message: 'Insufficient wallet balance. Please recharge to book this pooja.' });
+
+      const booking = await storage.createPoojaBooking({
+        userId,
+        poojaId: pooja.id,
+        poojaName: pooja.name,
+        amount: pooja.price,
+        devoteeName,
+        gotra,
+        preferredDate: preferredDate ? new Date(preferredDate) : null,
+        sankalpNotes,
+      });
+
+      await storage.createNotification({
+        userId, type: 'system', title: 'Pooja Booked',
+        body: `Your ${pooja.name} has been booked. ${pooja.durationText || ''}`.trim(),
+      });
+      sendPushToUser(userId, { title: 'Pooja Booked', body: `Your ${pooja.name} is confirmed.`, link: '/pooja' });
+
+      res.status(201).json({ booking, newBalance: debit.balance });
+    } catch (err) {
+      console.error('Pooja booking error:', err);
+      res.status(500).json({ message: 'Failed to book pooja' });
+    }
+  });
+
+  app.get('/api/poojas/bookings', isAuthenticated, async (req: any, res) => {
+    try {
+      res.json(await storage.getUserPoojaBookings((req.user as any).id));
+    } catch { res.status(500).json({ message: 'Failed to fetch bookings' }); }
   });
 
   // ─── AI Astrologer ────────────────────────────────────────
