@@ -17,7 +17,7 @@ import {
   TrendingUp, Users, Clock, IndianRupee,
   Star, Bell, LogOut, Settings, Wifi, WifiOff,
   Phone, MessageCircle, Video, Calendar, Send,
-  CheckCircle2, AlertCircle
+  CheckCircle2, AlertCircle, Radio
 } from 'lucide-react';
 
 interface DashboardData {
@@ -38,6 +38,71 @@ interface IncomingSession {
   userId: string;
   sessionType: string;
   agoraChannel?: string;
+}
+
+function KycCard({ astrologer }: { astrologer: any }) {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  const status = astrologer?.kycStatus || 'none';
+  const [form, setForm] = useState({ panNumber: '', aadhaarLast4: '', bankAccountName: '', bankAccountNumber: '', bankIfsc: '', upiId: '' });
+  const [open, setOpen] = useState(false);
+
+  const submit = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest('POST', '/api/astrologer/kyc', form);
+      return res.json();
+    },
+    onSuccess: () => {
+      toast({ title: 'KYC submitted', description: 'Our team will review and verify your profile shortly.' });
+      queryClient.invalidateQueries({ queryKey: ['/api/astrologer/dashboard'] });
+      setOpen(false);
+    },
+    onError: (e: any) => toast({ title: 'Could not submit', description: e?.message || 'Please check your details.', variant: 'destructive' }),
+  });
+
+  if (status === 'approved') {
+    return (
+      <div className="mb-6 flex items-center gap-2 px-4 py-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-700 text-sm">
+        <CheckCircle2 className="w-4 h-4" /> Your profile is verified.
+      </div>
+    );
+  }
+
+  return (
+    <div className="mb-6 rounded-xl border border-amber-200 bg-amber-50 p-4" data-testid="kyc-card">
+      <div className="flex items-center justify-between">
+        <div className="text-sm">
+          <p className="font-semibold text-amber-800">
+            {status === 'pending' ? 'KYC under review' : status === 'rejected' ? 'KYC rejected — please resubmit' : 'Complete your KYC to get verified'}
+          </p>
+          <p className="text-amber-700/80 text-xs">Verified astrologers rank higher and build more trust with seekers.</p>
+        </div>
+        {status !== 'pending' && (
+          <Button size="sm" className="rounded-lg bg-amber-600 hover:bg-amber-700 text-white" onClick={() => setOpen((o) => !o)} data-testid="button-toggle-kyc">
+            {open ? 'Close' : 'Submit KYC'}
+          </Button>
+        )}
+      </div>
+      {open && status !== 'pending' && (
+        <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-2">
+          <Input placeholder="PAN number *" value={form.panNumber} onChange={(e) => setForm({ ...form, panNumber: e.target.value.toUpperCase() })} data-testid="input-pan" />
+          <Input placeholder="Aadhaar last 4 digits" value={form.aadhaarLast4} onChange={(e) => setForm({ ...form, aadhaarLast4: e.target.value })} data-testid="input-aadhaar" />
+          <Input placeholder="Bank account holder name" value={form.bankAccountName} onChange={(e) => setForm({ ...form, bankAccountName: e.target.value })} />
+          <Input placeholder="Bank account number *" value={form.bankAccountNumber} onChange={(e) => setForm({ ...form, bankAccountNumber: e.target.value })} data-testid="input-account" />
+          <Input placeholder="IFSC code *" value={form.bankIfsc} onChange={(e) => setForm({ ...form, bankIfsc: e.target.value.toUpperCase() })} data-testid="input-ifsc" />
+          <Input placeholder="UPI ID (optional)" value={form.upiId} onChange={(e) => setForm({ ...form, upiId: e.target.value })} />
+          <Button
+            className="md:col-span-2 rounded-lg bg-amber-600 hover:bg-amber-700 text-white"
+            disabled={submit.isPending || !form.panNumber || !form.bankAccountNumber || !form.bankIfsc}
+            onClick={() => submit.mutate()}
+            data-testid="button-submit-kyc"
+          >
+            {submit.isPending ? 'Submitting…' : 'Submit for verification'}
+          </Button>
+        </div>
+      )}
+    </div>
+  );
 }
 
 export default function AstrologerDashboard() {
@@ -319,6 +384,13 @@ export default function AstrologerDashboard() {
               />
               <div className={`w-2 h-2 rounded-full ${isOnline ? 'bg-green-600 animate-pulse' : 'bg-gray-400'}`} />
             </div>
+            <button
+              onClick={() => navigate('/astrologer/live')}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-red-500 hover:bg-red-600 text-white text-sm font-medium"
+              data-testid="button-go-live"
+            >
+              <Radio className="w-4 h-4" /> Go Live
+            </button>
             <button className="p-2 rounded-xl hover:bg-[#1A1A1A]/10" onClick={handleLogout}>
               <LogOut className="w-4 h-4 text-[#1A1A1A]" />
             </button>
@@ -363,6 +435,9 @@ export default function AstrologerDashboard() {
       )}
 
       <div className="max-w-6xl mx-auto px-4 py-8">
+        {/* KYC */}
+        {dashboard?.astrologer && <KycCard astrologer={dashboard.astrologer} />}
+
         {/* Stats */}
         <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-8">
           {[

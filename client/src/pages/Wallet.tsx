@@ -40,9 +40,22 @@ function loadRazorpayScript(): Promise<boolean> {
   });
 }
 
+interface OfferType {
+  code: string;
+  description: string | null;
+  discountType: string;
+  discountValue: string;
+  maxDiscount: string | null;
+  minAmount: string | null;
+  firstRechargeOnly: boolean | null;
+}
+
 export default function Wallet() {
   const [customAmount, setCustomAmount] = useState('');
   const [selectedPack, setSelectedPack] = useState<RechargePackType | null>(null);
+  const [couponCode, setCouponCode] = useState('');
+  const [couponState, setCouponState] = useState<{ valid: boolean; bonus: number; message: string } | null>(null);
+  const [validatingCoupon, setValidatingCoupon] = useState(false);
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [location] = useLocation();
@@ -57,6 +70,10 @@ export default function Wallet() {
 
   const { data: packs } = useQuery<RechargePackType[]>({
     queryKey: ['/api/wallet/packs'],
+  });
+
+  const { data: offers } = useQuery<OfferType[]>({
+    queryKey: ['/api/coupons'],
   });
 
   const { data: config } = useQuery<{ razorpayKeyId: string; agoraAppId: string }>({
@@ -78,8 +95,11 @@ export default function Wallet() {
       return;
     }
 
+    // Only send a coupon when it has been validated for this amount
+    const couponToApply = couponState?.valid ? couponCode.trim() : undefined;
+
     try {
-      const data = await apiRequest('POST', '/api/payment/razorpay/order', { amount, packId });
+      const data = await apiRequest('POST', '/api/payment/razorpay/order', { amount, packId, couponCode: couponToApply });
       const orderData = await data.json();
 
       if (orderData.message) {
@@ -107,9 +127,11 @@ export default function Wallet() {
             if (verifyResult.success) {
               queryClient.invalidateQueries({ queryKey: ['/api/wallet'] });
               queryClient.invalidateQueries({ queryKey: ['/api/transactions'] });
+              setCouponCode('');
+              setCouponState(null);
               toast({
                 title: 'Payment Successful',
-                description: `₹${amount + bonus} added to your wallet${bonus > 0 ? ` (including ₹${bonus} bonus)` : ''}.`,
+                description: `Your wallet balance is now ₹${Number(verifyResult.newBalance).toFixed(2)}.`,
               });
             }
           } catch {
@@ -184,7 +206,25 @@ export default function Wallet() {
       return;
     }
     handlePayment(amount);
-    setCustomAmount('');
+  };
+
+  const validateCoupon = async () => {
+    const amount = Number(customAmount);
+    if (!couponCode.trim()) return;
+    if (!amount || amount < 10) {
+      toast({ title: 'Enter an amount', description: 'Enter the recharge amount before applying a coupon.', variant: 'destructive' });
+      return;
+    }
+    setValidatingCoupon(true);
+    try {
+      const res = await apiRequest('POST', '/api/coupons/validate', { code: couponCode.trim(), amount });
+      const result = await res.json();
+      setCouponState(result);
+    } catch {
+      setCouponState({ valid: false, bonus: 0, message: 'Could not validate coupon.' });
+    } finally {
+      setValidatingCoupon(false);
+    }
   };
 
   if (walletLoading) return <LoadingSpinner />;
@@ -302,6 +342,56 @@ export default function Wallet() {
                 Pay
               </Button>
             </div>
+
+            {/* Coupon code */}
+            <div className="mt-4">
+              <div className="flex gap-2">
+                <Input
+                  placeholder="Have a coupon code?"
+                  value={couponCode}
+                  onChange={(e) => { setCouponCode(e.target.value.toUpperCase()); setCouponState(null); }}
+                  className="flex-1 rounded-xl uppercase"
+                  data-testid="input-coupon"
+                />
+                <Button
+                  variant="outline"
+                  onClick={validateCoupon}
+                  disabled={!couponCode.trim() || validatingCoupon}
+                  className="rounded-xl px-6"
+                  data-testid="button-apply-coupon"
+                >
+                  {validatingCoupon ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Apply'}
+                </Button>
+              </div>
+              {couponState && (
+                <p className={`text-xs mt-2 font-medium ${couponState.valid ? 'text-emerald-600' : 'text-destructive'}`} data-testid="text-coupon-status">
+                  {couponState.message}
+                </p>
+              )}
+            </div>
+
+            {/* Available offers */}
+            {offers && offers.length > 0 && (
+              <div className="mt-5">
+                <p className="text-sm font-medium text-foreground mb-2">Available Offers</p>
+                <div className="space-y-2">
+                  {offers.map((offer) => (
+                    <button
+                      key={offer.code}
+                      onClick={() => { setCouponCode(offer.code); setCouponState(null); }}
+                      className="w-full flex items-center justify-between gap-3 p-3 rounded-xl border border-dashed border-nava-amber/60 bg-nava-amber/5 text-left hover:bg-nava-amber/10 transition-colors"
+                      data-testid={`offer-${offer.code}`}
+                    >
+                      <div>
+                        <div className="text-sm font-bold text-foreground">{offer.code}</div>
+                        <div className="text-xs text-muted-foreground">{offer.description}</div>
+                      </div>
+                      <Badge variant="outline" className="border-nava-amber text-nava-amber shrink-0">Tap to use</Badge>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* Security note */}
             <div className="mt-4 flex items-center gap-2 text-xs text-muted-foreground">

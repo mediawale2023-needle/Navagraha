@@ -12,6 +12,38 @@ import {
   astrologerEarnings,
   payoutRequests,
   aiChatMessages,
+  coupons,
+  couponRedemptions,
+  referrals,
+  pushTokens,
+  products,
+  orders,
+  orderItems,
+  reportTypes,
+  reportOrders,
+  poojas,
+  poojaBookings,
+  liveStreams,
+  streamMessages,
+  astrologerFollows,
+  consultationQueue,
+  type Coupon,
+  type InsertCoupon,
+  type CouponRedemption,
+  type Referral,
+  type PushToken,
+  type Product,
+  type InsertProduct,
+  type Order,
+  type OrderItem,
+  type ReportType,
+  type ReportOrder,
+  type Pooja,
+  type PoojaBooking,
+  type LiveStream,
+  type StreamMessage,
+  type AstrologerFollow,
+  type ConsultationQueueEntry,
   type User,
   type UpsertUser,
   type Kundli,
@@ -37,19 +69,9 @@ import {
   predictionFeedbacks,
   type PredictionFeedback,
   type InsertPredictionFeedback,
-  aiCompanies,
-  aiEmployees,
-  aiInitiatives,
-  aiDirectives,
-  type AiCompany,
-  type AiEmployee,
-  type AiInitiative,
-  type AiDirective,
-  boardroomMessages,
-  type BoardroomMessage,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, desc, and, sql } from "drizzle-orm";
+import { eq, desc, and, sql, asc } from "drizzle-orm";
 import crypto from "crypto";
 import bcrypt from "bcryptjs";
 
@@ -108,23 +130,6 @@ export interface IStorage {
   getAstrologerReviews(astrologerId: string): Promise<(Review & { userName?: string })[]>;
   getUserReviewForConsultation(userId: string, consultationId: string): Promise<Review | undefined>;
 
-  // Corporate operations
-  createAiCompany(company: any): Promise<AiCompany>;
-  getAiCompanyByUserId(userId: string): Promise<AiCompany | undefined>;
-  getAiCompanyById(id: number): Promise<AiCompany | undefined>;
-  getAiEmployees(companyId: number): Promise<AiEmployee[]>;
-  createAiEmployee(employee: any): Promise<AiEmployee>;
-  updateAiEmployee(id: number, data: Partial<AiEmployee>): Promise<AiEmployee>;
-  createAiInitiative(initiative: any): Promise<AiInitiative>;
-  getAiInitiativesByCompany(companyId: number): Promise<AiInitiative[]>;
-  createAiDirective(directive: any): Promise<AiDirective>;
-  getAiDirectivesByInitiative(initiativeId: number): Promise<AiDirective[]>;
-  getAiDirectivesByEmployee(employeeId: number): Promise<AiDirective[]>;
-
-  // Boardroom Chat
-  saveBoardroomMessage(msg: any): Promise<BoardroomMessage>;
-  getBoardroomThread(companyId: number, thread: string): Promise<BoardroomMessage[]>;
-
 
 
   // Schedule operations
@@ -149,7 +154,7 @@ export interface IStorage {
   // Astrologer earnings
   createEarning(data: {
     astrologerId: string;
-    consultationId: string;
+    consultationId?: string;
     grossAmount: string;
     platformFee: string;
     netAmount: string;
@@ -309,6 +314,21 @@ export class DatabaseStorage implements IStorage {
       .from(transactions)
       .where(eq(transactions.userId, userId))
       .orderBy(desc(transactions.createdAt));
+  }
+
+  async hasCompletedRecharge(userId: string): Promise<boolean> {
+    const rows = await db
+      .select({ id: transactions.id })
+      .from(transactions)
+      .where(
+        and(
+          eq(transactions.userId, userId),
+          eq(transactions.type, "recharge"),
+          eq(transactions.status, "completed"),
+        ),
+      )
+      .limit(1);
+    return rows.length > 0;
   }
 
   async updateTransactionStatus(
@@ -583,7 +603,7 @@ export class DatabaseStorage implements IStorage {
 
   async createEarning(data: {
     astrologerId: string;
-    consultationId: string;
+    consultationId?: string;
     grossAmount: string;
     platformFee: string;
     netAmount: string;
@@ -798,70 +818,593 @@ export class DatabaseStorage implements IStorage {
     };
   }
 
-  // ── Navagraha Corporate Implementation ────────────────
-  async createAiCompany(company: any): Promise<AiCompany> {
-    const [row] = await db.insert(aiCompanies).values(company).returning();
+  // ─── Coupons / Offers ──────────────────────────────────────
+  async getActiveCoupons(walletOnly = false): Promise<Coupon[]> {
+    const now = new Date();
+    const rows = await db.select().from(coupons).where(eq(coupons.isActive, true));
+    return rows.filter((c) => {
+      if (walletOnly && !c.showOnWallet) return false;
+      if (c.validFrom && new Date(c.validFrom) > now) return false;
+      if (c.validUntil && new Date(c.validUntil) < now) return false;
+      if (c.usageLimit != null && (c.timesUsed ?? 0) >= c.usageLimit) return false;
+      return true;
+    });
+  }
+
+  async getAllCoupons(): Promise<Coupon[]> {
+    return await db.select().from(coupons).orderBy(desc(coupons.createdAt));
+  }
+
+  async getCouponByCode(code: string): Promise<Coupon | undefined> {
+    const [row] = await db
+      .select()
+      .from(coupons)
+      .where(sql`upper(${coupons.code}) = upper(${code})`);
     return row;
   }
 
-  async getAiCompanyByUserId(userId: string): Promise<AiCompany | undefined> {
-    const [row] = await db.select().from(aiCompanies).where(eq(aiCompanies.userId, userId));
+  async createCoupon(data: InsertCoupon): Promise<Coupon> {
+    const [row] = await db.insert(coupons).values(data as any).returning();
     return row;
   }
 
-  async getAiCompanyById(id: number): Promise<AiCompany | undefined> {
-    const [row] = await db.select().from(aiCompanies).where(eq(aiCompanies.id, id));
+  async updateCoupon(id: string, data: Partial<InsertCoupon>): Promise<Coupon> {
+    const [row] = await db.update(coupons).set(data as any).where(eq(coupons.id, id)).returning();
     return row;
   }
 
-  async getAiEmployees(companyId: number): Promise<AiEmployee[]> {
-    return await db.select().from(aiEmployees).where(eq(aiEmployees.companyId, companyId));
+  async deleteCoupon(id: string): Promise<void> {
+    await db.delete(coupons).where(eq(coupons.id, id));
   }
 
-  async createAiEmployee(employee: any): Promise<AiEmployee> {
-    const [row] = await db.insert(aiEmployees).values(employee).returning();
+  // Count only redemptions tied to a COMPLETED recharge, so abandoned
+  // payment attempts don't consume a user's offer eligibility.
+  async getUserCouponRedemptionCount(userId: string, couponId: string): Promise<number> {
+    const rows = await db
+      .select({ id: couponRedemptions.id })
+      .from(couponRedemptions)
+      .innerJoin(transactions, eq(transactions.id, couponRedemptions.transactionId))
+      .where(
+        and(
+          eq(couponRedemptions.userId, userId),
+          eq(couponRedemptions.couponId, couponId),
+          eq(transactions.status, "completed"),
+        ),
+      );
+    return rows.length;
+  }
+
+  async recordCouponRedemption(data: {
+    couponId: string;
+    userId: string;
+    transactionId?: string;
+    discountAmount: string;
+  }): Promise<CouponRedemption> {
+    const [row] = await db.insert(couponRedemptions).values(data).returning();
     return row;
   }
 
-  async updateAiEmployee(id: number, data: Partial<AiEmployee>): Promise<AiEmployee> {
-    const [row] = await db.update(aiEmployees).set(data).where(eq(aiEmployees.id, id)).returning();
+  // Increment the global usage counter once a recharge actually completes.
+  async incrementCouponUsage(couponId: string): Promise<void> {
+    await db
+      .update(coupons)
+      .set({ timesUsed: sql`coalesce(${coupons.timesUsed}, 0) + 1` })
+      .where(eq(coupons.id, couponId));
+  }
+
+  // ─── Referrals ─────────────────────────────────────────────
+  async getOrCreateReferralCode(userId: string): Promise<string> {
+    const user = await this.getUser(userId);
+    if (user?.referralCode) return user.referralCode;
+    // Generate a short, human-friendly unique code
+    for (let attempt = 0; attempt < 6; attempt++) {
+      const code = `NG${crypto.randomBytes(4).toString("hex").toUpperCase().slice(0, 6)}`;
+      const existing = await db.select().from(users).where(eq(users.referralCode, code));
+      if (existing.length === 0) {
+        await db.update(users).set({ referralCode: code }).where(eq(users.id, userId));
+        return code;
+      }
+    }
+    throw new Error("Could not generate a unique referral code");
+  }
+
+  async getUserByReferralCode(code: string): Promise<User | undefined> {
+    const [row] = await db
+      .select()
+      .from(users)
+      .where(sql`upper(${users.referralCode}) = upper(${code})`);
     return row;
   }
 
-  async createAiInitiative(initiative: any): Promise<AiInitiative> {
-    const [row] = await db.insert(aiInitiatives).values(initiative).returning();
+  async getReferralByReferee(refereeId: string): Promise<Referral | undefined> {
+    const [row] = await db.select().from(referrals).where(eq(referrals.refereeId, refereeId));
     return row;
   }
 
-  async getAiInitiativesByCompany(companyId: number): Promise<AiInitiative[]> {
-    return await db.select().from(aiInitiatives).where(eq(aiInitiatives.companyId, companyId));
-  }
-
-  async createAiDirective(directive: any): Promise<AiDirective> {
-    const [row] = await db.insert(aiDirectives).values(directive).returning();
+  async createReferral(data: {
+    referrerId: string;
+    refereeId: string;
+  }): Promise<Referral> {
+    const [row] = await db.insert(referrals).values(data).returning();
     return row;
   }
 
-  async getAiDirectivesByInitiative(initiativeId: number): Promise<AiDirective[]> {
-    return await db.select().from(aiDirectives).where(eq(aiDirectives.initiativeId, initiativeId));
-  }
-
-  async getAiDirectivesByEmployee(employeeId: number): Promise<AiDirective[]> {
-    return await db.select().from(aiDirectives).where(eq(aiDirectives.assigneeId, employeeId));
-  }
-
-  // ── Boardroom Chat ─────────────────────────────────────
-  async saveBoardroomMessage(msg: any): Promise<BoardroomMessage> {
-    const [row] = await db.insert(boardroomMessages).values(msg).returning();
-    return row;
-  }
-
-  async getBoardroomThread(companyId: number, thread: string): Promise<BoardroomMessage[]> {
+  async getReferralsByReferrer(referrerId: string): Promise<Referral[]> {
     return await db
       .select()
-      .from(boardroomMessages)
-      .where(and(eq(boardroomMessages.companyId, companyId), eq(boardroomMessages.thread, thread)))
-      .orderBy(boardroomMessages.createdAt);
+      .from(referrals)
+      .where(eq(referrals.referrerId, referrerId))
+      .orderBy(desc(referrals.createdAt));
+  }
+
+  async markReferralRewarded(
+    id: string,
+    referrerReward: string,
+    refereeReward: string,
+  ): Promise<Referral> {
+    const [row] = await db
+      .update(referrals)
+      .set({ status: "rewarded", referrerReward, refereeReward, rewardedAt: new Date() })
+      .where(eq(referrals.id, id))
+      .returning();
+    return row;
+  }
+
+  // ─── Push notification tokens ──────────────────────────────
+  async savePushToken(data: {
+    ownerId: string;
+    ownerType: string;
+    token: string;
+    platform?: string;
+  }): Promise<PushToken> {
+    const [row] = await db
+      .insert(pushTokens)
+      .values(data)
+      .onConflictDoUpdate({
+        target: pushTokens.token,
+        set: {
+          ownerId: data.ownerId,
+          ownerType: data.ownerType,
+          platform: data.platform || "web",
+          updatedAt: new Date(),
+        },
+      })
+      .returning();
+    return row;
+  }
+
+  async getPushTokens(ownerId: string, ownerType: string): Promise<PushToken[]> {
+    return await db
+      .select()
+      .from(pushTokens)
+      .where(and(eq(pushTokens.ownerId, ownerId), eq(pushTokens.ownerType, ownerType)));
+  }
+
+  async deletePushToken(token: string): Promise<void> {
+    await db.delete(pushTokens).where(eq(pushTokens.token, token));
+  }
+
+  // ─── Wallet helper ─────────────────────────────────────────
+  // Atomically debit the wallet; returns null when balance is insufficient.
+  async debitWallet(userId: string, cost: number, description: string): Promise<{ balance: string } | null> {
+    let wallet = await this.getWallet(userId);
+    if (!wallet) wallet = await this.createWallet(userId);
+    const balance = parseFloat(wallet.balance || "0");
+    if (balance < cost) return null;
+    const newBalance = (balance - cost).toFixed(2);
+    await this.updateWalletBalance(userId, newBalance);
+    await this.createTransaction({
+      userId,
+      amount: (-cost).toString(),
+      type: "debit",
+      description,
+      status: "completed",
+    });
+    return { balance: newBalance };
+  }
+
+  // ─── Astromall ─────────────────────────────────────────────
+  async getProducts(): Promise<Product[]> {
+    return await db
+      .select()
+      .from(products)
+      .where(eq(products.isActive, true))
+      .orderBy(asc(products.sortOrder), desc(products.createdAt));
+  }
+
+  async getAllProducts(): Promise<Product[]> {
+    return await db.select().from(products).orderBy(asc(products.sortOrder));
+  }
+
+  async getProductBySlug(slug: string): Promise<Product | undefined> {
+    const [row] = await db.select().from(products).where(eq(products.slug, slug));
+    return row;
+  }
+
+  async getProductById(id: string): Promise<Product | undefined> {
+    const [row] = await db.select().from(products).where(eq(products.id, id));
+    return row;
+  }
+
+  async createProduct(data: InsertProduct): Promise<Product> {
+    const [row] = await db.insert(products).values(data as any).returning();
+    return row;
+  }
+
+  async updateProduct(id: string, data: Partial<InsertProduct>): Promise<Product> {
+    const [row] = await db.update(products).set(data as any).where(eq(products.id, id)).returning();
+    return row;
+  }
+
+  async deleteProduct(id: string): Promise<void> {
+    await db.delete(products).where(eq(products.id, id));
+  }
+
+  async createOrder(
+    order: {
+      userId: string;
+      totalAmount: string;
+      paymentMethod?: string;
+      shippingName?: string;
+      shippingPhone?: string;
+      shippingAddress?: string;
+      shippingCity?: string;
+      shippingState?: string;
+      shippingPincode?: string;
+    },
+    items: { productId: string; productName: string; quantity: number; price: string }[],
+  ): Promise<Order> {
+    const [created] = await db.insert(orders).values(order).returning();
+    if (items.length > 0) {
+      await db.insert(orderItems).values(items.map((i) => ({ ...i, orderId: created.id })));
+    }
+    return created;
+  }
+
+  async getUserOrders(userId: string): Promise<(Order & { items: OrderItem[] })[]> {
+    const userOrders = await db
+      .select()
+      .from(orders)
+      .where(eq(orders.userId, userId))
+      .orderBy(desc(orders.createdAt));
+    const result = [];
+    for (const o of userOrders) {
+      const items = await db.select().from(orderItems).where(eq(orderItems.orderId, o.id));
+      result.push({ ...o, items });
+    }
+    return result;
+  }
+
+  async updateOrderStatus(id: string, status: string): Promise<Order> {
+    const [row] = await db.update(orders).set({ status }).where(eq(orders.id, id)).returning();
+    return row;
+  }
+
+  // ─── Reports ───────────────────────────────────────────────
+  async getReportTypes(): Promise<ReportType[]> {
+    return await db
+      .select()
+      .from(reportTypes)
+      .where(eq(reportTypes.isActive, true))
+      .orderBy(asc(reportTypes.sortOrder));
+  }
+
+  async getReportTypeById(id: string): Promise<ReportType | undefined> {
+    const [row] = await db.select().from(reportTypes).where(eq(reportTypes.id, id));
+    return row;
+  }
+
+  async createReportOrder(data: {
+    userId: string;
+    reportTypeId: string;
+    kundliId?: string;
+    amount: string;
+  }): Promise<ReportOrder> {
+    const [row] = await db.insert(reportOrders).values(data).returning();
+    return row;
+  }
+
+  async setReportOrderContent(id: string, content: object): Promise<ReportOrder> {
+    const [row] = await db
+      .update(reportOrders)
+      .set({ content, status: "ready", readyAt: new Date() })
+      .where(eq(reportOrders.id, id))
+      .returning();
+    return row;
+  }
+
+  async markReportOrderFailed(id: string): Promise<void> {
+    await db.update(reportOrders).set({ status: "failed" }).where(eq(reportOrders.id, id));
+  }
+
+  async getUserReportOrders(userId: string): Promise<ReportOrder[]> {
+    return await db
+      .select()
+      .from(reportOrders)
+      .where(eq(reportOrders.userId, userId))
+      .orderBy(desc(reportOrders.createdAt));
+  }
+
+  async getReportOrderById(id: string): Promise<ReportOrder | undefined> {
+    const [row] = await db.select().from(reportOrders).where(eq(reportOrders.id, id));
+    return row;
+  }
+
+  // ─── Poojas ────────────────────────────────────────────────
+  async getPoojas(): Promise<Pooja[]> {
+    return await db
+      .select()
+      .from(poojas)
+      .where(eq(poojas.isActive, true))
+      .orderBy(asc(poojas.sortOrder));
+  }
+
+  async getPoojaById(id: string): Promise<Pooja | undefined> {
+    const [row] = await db.select().from(poojas).where(eq(poojas.id, id));
+    return row;
+  }
+
+  async createPoojaBooking(data: {
+    userId: string;
+    poojaId: string;
+    poojaName: string;
+    amount: string;
+    devoteeName: string;
+    gotra?: string;
+    preferredDate?: Date | null;
+    sankalpNotes?: string;
+  }): Promise<PoojaBooking> {
+    const [row] = await db.insert(poojaBookings).values(data).returning();
+    return row;
+  }
+
+  async getUserPoojaBookings(userId: string): Promise<PoojaBooking[]> {
+    return await db
+      .select()
+      .from(poojaBookings)
+      .where(eq(poojaBookings.userId, userId))
+      .orderBy(desc(poojaBookings.createdAt));
+  }
+
+  // ─── Live streaming ────────────────────────────────────────
+  async createLiveStream(data: { astrologerId: string; title: string; agoraChannel: string }): Promise<LiveStream> {
+    const [row] = await db.insert(liveStreams).values(data).returning();
+    return row;
+  }
+
+  async getActiveLiveStreams(): Promise<(LiveStream & { astrologerName?: string; astrologerImage?: string; specializations?: string[] | null })[]> {
+    const rows = await db
+      .select({
+        stream: liveStreams,
+        astrologerName: astrologers.name,
+        astrologerImage: astrologers.profileImageUrl,
+        specializations: astrologers.specializations,
+      })
+      .from(liveStreams)
+      .innerJoin(astrologers, eq(astrologers.id, liveStreams.astrologerId))
+      .where(eq(liveStreams.status, "live"))
+      .orderBy(desc(liveStreams.viewerCount));
+    return rows.map((r) => ({
+      ...r.stream,
+      astrologerName: r.astrologerName ?? undefined,
+      astrologerImage: r.astrologerImage ?? undefined,
+      specializations: r.specializations,
+    }));
+  }
+
+  async getLiveStreamById(id: string): Promise<LiveStream | undefined> {
+    const [row] = await db.select().from(liveStreams).where(eq(liveStreams.id, id));
+    return row;
+  }
+
+  async getActiveLiveStreamByAstrologer(astrologerId: string): Promise<LiveStream | undefined> {
+    const [row] = await db
+      .select()
+      .from(liveStreams)
+      .where(and(eq(liveStreams.astrologerId, astrologerId), eq(liveStreams.status, "live")));
+    return row;
+  }
+
+  async endLiveStream(id: string): Promise<LiveStream> {
+    const [row] = await db
+      .update(liveStreams)
+      .set({ status: "ended", endedAt: new Date() })
+      .where(eq(liveStreams.id, id))
+      .returning();
+    return row;
+  }
+
+  async incrementStreamViewers(id: string): Promise<LiveStream> {
+    const [row] = await db
+      .update(liveStreams)
+      .set({
+        viewerCount: sql`coalesce(${liveStreams.viewerCount}, 0) + 1`,
+        peakViewers: sql`greatest(coalesce(${liveStreams.peakViewers}, 0), coalesce(${liveStreams.viewerCount}, 0) + 1)`,
+      })
+      .where(eq(liveStreams.id, id))
+      .returning();
+    return row;
+  }
+
+  async decrementStreamViewers(id: string): Promise<void> {
+    await db
+      .update(liveStreams)
+      .set({ viewerCount: sql`greatest(0, coalesce(${liveStreams.viewerCount}, 0) - 1)` })
+      .where(eq(liveStreams.id, id));
+  }
+
+  async addStreamGiftTotal(id: string, amount: number): Promise<void> {
+    await db
+      .update(liveStreams)
+      .set({ totalGifts: sql`coalesce(${liveStreams.totalGifts}, 0) + ${amount}` })
+      .where(eq(liveStreams.id, id));
+  }
+
+  async createStreamMessage(data: {
+    streamId: string;
+    senderId: string;
+    senderType: string;
+    senderName: string;
+    type: string;
+    message?: string;
+    giftName?: string;
+    giftAmount?: string;
+  }): Promise<StreamMessage> {
+    const [row] = await db.insert(streamMessages).values(data).returning();
+    return row;
+  }
+
+  async getStreamMessages(streamId: string, limit = 80): Promise<StreamMessage[]> {
+    const rows = await db
+      .select()
+      .from(streamMessages)
+      .where(eq(streamMessages.streamId, streamId))
+      .orderBy(desc(streamMessages.createdAt))
+      .limit(limit);
+    return rows.reverse();
+  }
+
+  // ─── Follow / favourite astrologers ────────────────────────
+  async followAstrologer(userId: string, astrologerId: string): Promise<void> {
+    await db
+      .insert(astrologerFollows)
+      .values({ userId, astrologerId })
+      .onConflictDoNothing();
+  }
+
+  async unfollowAstrologer(userId: string, astrologerId: string): Promise<void> {
+    await db
+      .delete(astrologerFollows)
+      .where(and(eq(astrologerFollows.userId, userId), eq(astrologerFollows.astrologerId, astrologerId)));
+  }
+
+  async isFollowing(userId: string, astrologerId: string): Promise<boolean> {
+    const rows = await db
+      .select({ id: astrologerFollows.id })
+      .from(astrologerFollows)
+      .where(and(eq(astrologerFollows.userId, userId), eq(astrologerFollows.astrologerId, astrologerId)))
+      .limit(1);
+    return rows.length > 0;
+  }
+
+  async getFollowedAstrologerIds(userId: string): Promise<string[]> {
+    const rows = await db
+      .select({ astrologerId: astrologerFollows.astrologerId })
+      .from(astrologerFollows)
+      .where(eq(astrologerFollows.userId, userId));
+    return rows.map((r) => r.astrologerId);
+  }
+
+  async getFollowerUserIds(astrologerId: string): Promise<string[]> {
+    const rows = await db
+      .select({ userId: astrologerFollows.userId })
+      .from(astrologerFollows)
+      .where(eq(astrologerFollows.astrologerId, astrologerId));
+    return rows.map((r) => r.userId);
+  }
+
+  // ─── Consultation waitlist ─────────────────────────────────
+  async joinQueue(userId: string, astrologerId: string, type: string): Promise<ConsultationQueueEntry> {
+    // Remove any prior waiting entry for the same pair, then add fresh
+    await db
+      .delete(consultationQueue)
+      .where(and(
+        eq(consultationQueue.userId, userId),
+        eq(consultationQueue.astrologerId, astrologerId),
+        eq(consultationQueue.status, "waiting"),
+      ));
+    const [row] = await db.insert(consultationQueue).values({ userId, astrologerId, type }).returning();
+    return row;
+  }
+
+  async leaveQueue(userId: string, astrologerId: string): Promise<void> {
+    await db
+      .delete(consultationQueue)
+      .where(and(eq(consultationQueue.userId, userId), eq(consultationQueue.astrologerId, astrologerId)));
+  }
+
+  async getQueuePosition(userId: string, astrologerId: string): Promise<number | null> {
+    const waiting = await db
+      .select()
+      .from(consultationQueue)
+      .where(and(eq(consultationQueue.astrologerId, astrologerId), eq(consultationQueue.status, "waiting")))
+      .orderBy(asc(consultationQueue.createdAt));
+    const idx = waiting.findIndex((e) => e.userId === userId);
+    return idx === -1 ? null : idx + 1;
+  }
+
+  async getWaitingQueue(astrologerId: string): Promise<ConsultationQueueEntry[]> {
+    return await db
+      .select()
+      .from(consultationQueue)
+      .where(and(eq(consultationQueue.astrologerId, astrologerId), eq(consultationQueue.status, "waiting")))
+      .orderBy(asc(consultationQueue.createdAt));
+  }
+
+  async markQueueNotified(astrologerId: string): Promise<void> {
+    await db
+      .update(consultationQueue)
+      .set({ status: "notified" })
+      .where(and(eq(consultationQueue.astrologerId, astrologerId), eq(consultationQueue.status, "waiting")));
+  }
+
+  // ─── Admin fulfilment ──────────────────────────────────────
+  async getAllOrders(): Promise<(Order & { items: OrderItem[] })[]> {
+    const all = await db.select().from(orders).orderBy(desc(orders.createdAt));
+    const result = [];
+    for (const o of all) {
+      const items = await db.select().from(orderItems).where(eq(orderItems.orderId, o.id));
+      result.push({ ...o, items });
+    }
+    return result;
+  }
+
+  async getAllPoojaBookings(): Promise<PoojaBooking[]> {
+    return await db.select().from(poojaBookings).orderBy(desc(poojaBookings.createdAt));
+  }
+
+  async updatePoojaBookingStatus(id: string, status: string): Promise<PoojaBooking> {
+    const [row] = await db.update(poojaBookings).set({ status }).where(eq(poojaBookings.id, id)).returning();
+    return row;
+  }
+
+  // ─── Astrologer KYC ────────────────────────────────────────
+  async submitAstrologerKyc(astrologerId: string, data: {
+    panNumber?: string;
+    aadhaarLast4?: string;
+    bankAccountName?: string;
+    bankAccountNumber?: string;
+    bankIfsc?: string;
+    upiId?: string;
+  }): Promise<Astrologer> {
+    const [row] = await db
+      .update(astrologers)
+      .set({ ...data, kycStatus: "pending", kycSubmittedAt: new Date() })
+      .where(eq(astrologers.id, astrologerId))
+      .returning();
+    return row;
+  }
+
+  async getAstrologersByKycStatus(status: string): Promise<Astrologer[]> {
+    return await db
+      .select()
+      .from(astrologers)
+      .where(eq(astrologers.kycStatus, status))
+      .orderBy(desc(astrologers.kycSubmittedAt));
+  }
+
+  async reviewAstrologerKyc(astrologerId: string, approve: boolean, notes?: string): Promise<Astrologer> {
+    const [row] = await db
+      .update(astrologers)
+      .set({
+        kycStatus: approve ? "approved" : "rejected",
+        isVerified: approve,
+        kycNotes: notes,
+        kycReviewedAt: new Date(),
+      })
+      .where(eq(astrologers.id, astrologerId))
+      .returning();
+    return row;
   }
 }
 

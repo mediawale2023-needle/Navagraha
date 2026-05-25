@@ -182,13 +182,25 @@ The application is fully responsive with:
 - Input validation with Zod schemas
 - SQL injection protection via Drizzle ORM
 
+## ✅ Implemented
+
+- [x] Real-time WebSocket chat with per-minute billing
+- [x] Voice/video consultations (Agora)
+- [x] Payment gateways (Razorpay, Snapmint BNPL, LazyPay)
+- [x] Email notifications (SMTP) + web push (Firebase Cloud Messaging)
+- [x] AI Astrologer (multi-agent "council") + AI Kundli interpretation
+- [x] Offers/coupons, referrals, and first-chat-free
+- [x] Astromall store, paid astrology reports, and pooja booking
+- [x] Live streaming with chat and gifting
+- [x] Astrologer dashboard, earnings, and payouts
+- [x] Admin dashboard, homepage CMS, analytics (PostHog), metrics (Prometheus)
+
 ## 🚧 Roadmap
 
-- [ ] Real-time WebSocket chat
-- [ ] Payment gateway integration (Stripe/Razorpay)
-- [ ] Email notifications
-- [ ] Advanced chart analysis features
-- [ ] Astrologer booking system
+- [ ] Follow/favourite astrologers and waitlist when busy
+- [ ] Daily Panchang
+- [ ] Astrologer KYC/verification workflow
+- [ ] Admin fulfilment UI for store orders / pooja bookings
 - [ ] Mobile app (React Native)
 
 ## 📄 License

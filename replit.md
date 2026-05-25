@@ -92,8 +92,9 @@ Preferred communication style: Simple, everyday language.
 - Session-based authentication using express-session with PostgreSQL store
 
 **Authentication:**
-- Replit Auth integration using OpenID Connect (OIDC)
-- Passport.js with OpenID Client strategy
+- Google OAuth 2.0 (Passport.js) + email/password for users
+- Separate astrologer session auth (`isAstrologerAuthenticated`)
+- Admin gating via `ADMIN_EMAILS` (`isAdmin`)
 - Session management with PostgreSQL-backed session store
 - Protected API routes using `isAuthenticated` middleware
 - Guest mode supported for browsing without authentication
@@ -183,8 +184,21 @@ Preferred communication style: Simple, everyday language.
   - Graceful degradation to manual input if API unavailable
   - Cities-focused autocomplete for better relevance
 
-**Current Limitations:**
-- No actual payment gateway integration (wallet is simulated)
-- Chat is basic implementation without WebSocket real-time updates (uses polling)
-- No actual astrologer availability/booking system
-- Timezone calculation uses fixed IST (5.5) - needs dynamic calculation based on location
+**Monetisation & Engagement (implemented):**
+- Payment gateways: Razorpay, Snapmint (BNPL), LazyPay — real integrations
+- Offers/coupons, referrals, and first-chat-free
+- Astromall store, paid astrology reports, and pooja booking (wallet checkout)
+- Live streaming with chat and gifting
+- Real-time chat + voice/video via WebSocket + Agora, with per-minute billing
+- Web push via Firebase Cloud Messaging
+
+**Current Limitations / Roadmap:**
+- Follow/favourite astrologers and waitlist-when-busy not yet implemented
+- No daily Panchang yet
+- Astrologer KYC/verification workflow pending (verified flag exists)
+- Admin fulfilment UI for store orders / pooja bookings pending (APIs exist)
+- Store/report/pooja checkout is wallet-based (no direct per-item gateway pay yet)
+- Live chat uses polling (Agora handles real-time A/V)
+- Timezone calculation uses fixed IST (5.5) — needs location-based calculation
+- Third-party features degrade gracefully when their keys are absent
+  (Razorpay, Agora, Firebase, OpenAI, Google Maps)

@@ -5,8 +5,6 @@ import { setupVite, serveStatic, log } from "./vite";
 import { runMigrations } from "./migrate";
 import { waitForDatabase } from "./db";
 import { setupWebSocket } from "./websocketService";
-import { startHeartbeatEngine } from "./corporate/heartbeat";
-import { corporateOrchestrator } from "./corporate/orchestrator";
 import client from "prom-client";
 
 // Prevent unhandled errors from killing the process before the port binds
@@ -20,7 +18,6 @@ process.on("unhandledRejection", (err) =>
 const app = express();
 let startupReady = false;
 let startupError: string | null = null;
-const isCorporateAutomationEnabled = process.env.ENABLE_CORPORATE_AUTOMATION === "true";
 
 declare module "http" {
   interface IncomingMessage {
@@ -97,6 +94,14 @@ app.get("/api/config", (_req, res) => {
     razorpayKeyId: process.env.RAZORPAY_KEY_ID || "",
     agoraAppId: process.env.AGORA_APP_ID || "",
     posthogKey: process.env.POSTHOG_API_KEY || "",
+    firebase: {
+      apiKey: process.env.FIREBASE_API_KEY || "",
+      authDomain: process.env.FIREBASE_AUTH_DOMAIN || "",
+      projectId: process.env.FIREBASE_PROJECT_ID || "",
+      messagingSenderId: process.env.FIREBASE_MESSAGING_SENDER_ID || "",
+      appId: process.env.FIREBASE_APP_ID || "",
+      vapidKey: process.env.FIREBASE_VAPID_KEY || "",
+    },
   });
 });
 
@@ -139,14 +144,8 @@ waitForDatabase()
       serveStatic(app);
     }
 
-    // Run DB migrations, then start optional corporate automation.
-    return runMigrations().then(async () => {
-      if (isCorporateAutomationEnabled) {
-        startHeartbeatEngine();
-        await corporateOrchestrator.resumePendingTasks();
-      } else {
-        log("corporate automation disabled in this environment");
-      }
+    // Run DB migrations, then mark startup complete.
+    return runMigrations().then(() => {
       startupReady = true;
     });
   })

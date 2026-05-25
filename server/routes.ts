@@ -5,19 +5,13 @@ import { db } from "./db";
 import { sql, eq, asc, desc, and, inArray } from "drizzle-orm";
 import { setupAuth, isAuthenticated, isAdmin } from "./auth";
 import { runCouncil, UserContext } from "./agents/orchestrator";
-import { corporateOrchestrator } from "./corporate/orchestrator";
-import { triggerHeartbeat } from "./corporate/heartbeat";
 import { setupSwagger } from "./swagger";
 import rateLimit from "express-rate-limit";
 import {
   insertKundliSchema,
   insertConsultationSchema,
   insertAstrologerSchema,
-  boardroomMessages,
-  aiCompanies,
-  aiEmployees,
-  aiInitiatives,
-  aiDirectives,
+  insertCouponSchema,
   insertTransactionSchema,
   insertChatMessageSchema,
   insertReviewSchema,
@@ -41,6 +35,7 @@ import {
   callSynastryEngine,
   callRemediationEngine,
 } from "./astroEngineClient";
+import { computePanchang } from "./astroEngine/panchang";
 import {
   createRazorpayOrder,
   verifyRazorpaySignature,
@@ -51,14 +46,20 @@ import {
   verifyPayUResponseHash,
   RECHARGE_PACKS,
   PLATFORM_FEE_PERCENTAGE,
+  evaluateCoupon,
+  REFERRER_REWARD,
+  REFEREE_REWARD,
+  FREE_CHAT_MINUTES,
 } from "./paymentService";
 import { generateAgoraToken, getChannelName } from "./agoraService";
 import { notifyUser, notifyAstrologer } from "./websocketService";
+import { sendPushToUser, sendPushToAstrologer } from "./pushService";
 import {
   interpretKundli,
   generatePreConsultBrief,
   generatePostConsultFollowUp,
   matchAstrologerToChart,
+  generateReport,
 } from "./aiAstrologerService";
 import { sendWelcomeEmail, sendPaymentReceipt, sendBookingConfirmation, sendConsultationSummary } from "./emailService";
 import crypto from "crypto";
@@ -88,69 +89,7 @@ const paymentLimiter = rateLimit({
   max: 30,
 });
 
-function isCorporateAutomationEnabled() {
-  return process.env.ENABLE_CORPORATE_AUTOMATION === "true";
-}
-
-function requireCorporateAutomation(_req: Request, res: Response, next: Function) {
-  if (!isCorporateAutomationEnabled()) {
-    return res.status(403).json({ message: "Corporate automation is disabled" });
-  }
-  next();
-}
-
 export async function registerRoutes(app: Express, existingServer?: Server): Promise<Server> {
-
-  // ── Admin Utilities ────────────────────────────────────────────────────────
-  app.post('/api/admin/corporate/sync-roster', isAdmin, adminLimiter, async (req, res) => {
-    try {
-      const allCompanies = await db.select().from(aiCompanies);
-      let added = 0;
-
-      for (const company of allCompanies) {
-        const employees = await db.select().from(aiEmployees).where(eq(aiEmployees.companyId, company.id));
-        const hasDev = employees.some((e) => e.role === "DEV");
-
-        if (!hasDev) {
-          await db.insert(aiEmployees).values({
-            companyId: company.id,
-            role: "DEV",
-            name: "Ada",
-            personality: "Full Stack AI Developer. Speaks in Markdown. Turns CTO architecture into pull requests. Obsessed with clean, type-safe code.",
-            status: "active",
-          });
-          added++;
-        }
-      }
-      res.json({ success: true, message: `Synced roster. Added ${added} missing agents.` });
-    } catch (e) {
-      res.status(500).json({ error: String(e) });
-    }
-  });
-
-  app.post('/api/admin/corporate/hire', isAdmin, adminLimiter, async (req, res) => {
-    try {
-      const { role, name, personality } = req.body;
-      if (!role || !name || !personality) {
-        return res.status(400).json({ message: "Role, Name, and Personality are required." });
-      }
-
-      const allCompanies = await db.select().from(aiCompanies);
-      for (const company of allCompanies) {
-        await db.insert(aiEmployees).values({
-          companyId: company.id,
-          role: role.toUpperCase(),
-          name,
-          personality,
-          status: "active",
-        });
-      }
-
-      res.json({ success: true, message: `Hired ${name} as ${role} for all boardrooms.` });
-    } catch (e) {
-      res.status(500).json({ error: String(e) });
-    }
-  });
 
   // Mount Swagger UI
   setupSwagger(app);
@@ -321,6 +260,18 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
     } catch { res.status(500).json({ message: "Failed to fetch horoscope" }); }
   });
 
+  // ─── Panchang ─────────────────────────────────────────────
+  app.get('/api/panchang', (req, res) => {
+    try {
+      const date = (req.query.date as string) || undefined;
+      const tz = req.query.tz ? parseInt(req.query.tz as string, 10) : 330;
+      res.json(computePanchang(date, Number.isFinite(tz) ? tz : 330));
+    } catch (err) {
+      console.error('Panchang error:', err);
+      res.status(500).json({ message: 'Failed to compute panchang' });
+    }
+  });
+
   // ─── Matchmaking ──────────────────────────────────────────
   app.post('/api/matchmaking', async (req, res) => {
     try {
@@ -465,13 +416,63 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
     } catch { res.status(500).json({ message: "Failed to fetch astrologers" }); }
   });
 
-  app.get('/api/astrologers/:id', async (req, res) => {
+  app.get('/api/astrologers/:id', async (req: any, res) => {
     try {
       const astrologer = await storage.getAstrologerById(req.params.id);
       if (!astrologer) return res.status(404).json({ message: "Astrologer not found" });
       const { passwordHash: _ph, bankAccountNumber: _ban, bankIfsc: _bi, ...safe } = astrologer;
-      res.json(safe);
+      const followers = await storage.getFollowerUserIds(astrologer.id);
+      const currentUserId = (req.user as any)?.id || req.session?.userId;
+      const isFollowing = currentUserId ? followers.includes(currentUserId) : false;
+      res.json({ ...safe, followerCount: followers.length, isFollowing });
     } catch { res.status(500).json({ message: "Failed to fetch astrologer" }); }
+  });
+
+  // Follow / unfollow an astrologer
+  app.post('/api/astrologers/:id/follow', isAuthenticated, async (req: any, res) => {
+    try {
+      await storage.followAstrologer((req.user as any).id, req.params.id);
+      res.json({ following: true });
+    } catch { res.status(500).json({ message: "Failed to follow" }); }
+  });
+
+  app.delete('/api/astrologers/:id/follow', isAuthenticated, async (req: any, res) => {
+    try {
+      await storage.unfollowAstrologer((req.user as any).id, req.params.id);
+      res.json({ following: false });
+    } catch { res.status(500).json({ message: "Failed to unfollow" }); }
+  });
+
+  // List astrologers the current user follows
+  app.get('/api/astrologers/following/list', isAuthenticated, async (req: any, res) => {
+    try {
+      const ids = await storage.getFollowedAstrologerIds((req.user as any).id);
+      res.json(ids);
+    } catch { res.status(500).json({ message: "Failed to fetch following" }); }
+  });
+
+  // ─── Waitlist (when astrologer is busy/offline) ────────────
+  app.post('/api/astrologers/:id/waitlist', isAuthenticated, async (req: any, res) => {
+    try {
+      const { type } = req.body;
+      const entry = await storage.joinQueue((req.user as any).id, req.params.id, type || 'chat');
+      const position = await storage.getQueuePosition((req.user as any).id, req.params.id);
+      res.status(201).json({ entry, position });
+    } catch { res.status(500).json({ message: "Failed to join waitlist" }); }
+  });
+
+  app.delete('/api/astrologers/:id/waitlist', isAuthenticated, async (req: any, res) => {
+    try {
+      await storage.leaveQueue((req.user as any).id, req.params.id);
+      res.json({ success: true });
+    } catch { res.status(500).json({ message: "Failed to leave waitlist" }); }
+  });
+
+  app.get('/api/astrologers/:id/waitlist', isAuthenticated, async (req: any, res) => {
+    try {
+      const position = await storage.getQueuePosition((req.user as any).id, req.params.id);
+      res.json({ position });
+    } catch { res.status(500).json({ message: "Failed to fetch waitlist status" }); }
   });
 
   // ─── Astrologer Auth ──────────────────────────────────────
@@ -532,6 +533,23 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
     } catch { res.status(500).json({ message: "Failed to fetch profile" }); }
   });
 
+  // Astrologer submits KYC for verification
+  app.post('/api/astrologer/kyc', isAstrologerAuthenticated, async (req: any, res) => {
+    try {
+      const { panNumber, aadhaarLast4, bankAccountName, bankAccountNumber, bankIfsc, upiId } = req.body;
+      if (!panNumber || !bankAccountNumber || !bankIfsc) {
+        return res.status(400).json({ message: 'PAN, bank account number and IFSC are required.' });
+      }
+      const updated = await storage.submitAstrologerKyc(req.session.astrologerId, {
+        panNumber, aadhaarLast4, bankAccountName, bankAccountNumber, bankIfsc, upiId,
+      });
+      res.json({ kycStatus: updated.kycStatus });
+    } catch (err) {
+      console.error('KYC submit error:', err);
+      res.status(500).json({ message: 'Failed to submit KYC' });
+    }
+  });
+
   // ─── Astrologer Dashboard ─────────────────────────────────
 
   app.get('/api/astrologer/dashboard', isAstrologerAuthenticated, async (req: any, res) => {
@@ -585,9 +603,29 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
 
   app.post('/api/astrologer/status', isAstrologerAuthenticated, async (req: any, res) => {
     try {
+      const astrologerId = req.session.astrologerId;
       const { isOnline } = req.body;
-      await storage.updateAstrologerOnlineStatus(req.session.astrologerId, isOnline);
+      await storage.updateAstrologerOnlineStatus(astrologerId, isOnline);
       res.json({ isOnline });
+
+      // When coming online, alert waitlisted users + followers (best-effort)
+      if (isOnline) {
+        (async () => {
+          try {
+            const astro = await storage.getAstrologerById(astrologerId);
+            const name = astro?.name || 'Your astrologer';
+            const waiting = await storage.getWaitingQueue(astrologerId);
+            for (const entry of waiting) {
+              await storage.createNotification({
+                userId: entry.userId, type: 'system', title: `${name} is online`,
+                body: `${name} is now available. Tap to start your ${entry.type} consultation.`,
+              });
+              sendPushToUser(entry.userId, { title: `${name} is online`, body: `Start your ${entry.type} consultation now.`, link: `/astrologers` });
+            }
+            await storage.markQueueNotified(astrologerId);
+          } catch (err) { console.error('Waitlist notify error:', err); }
+        })();
+      }
     } catch { res.status(500).json({ message: "Failed to update status" }); }
   });
 
@@ -712,12 +750,106 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
     res.json(RECHARGE_PACKS);
   });
 
+  // ─── Offers / Coupons ────────────────────────────────────
+
+  // Public: active offers to surface on the wallet/recharge screen
+  app.get('/api/coupons', async (_req, res) => {
+    try {
+      const list = await storage.getActiveCoupons(true);
+      res.json(list.map((c) => ({
+        code: c.code,
+        description: c.description,
+        discountType: c.discountType,
+        discountValue: c.discountValue,
+        maxDiscount: c.maxDiscount,
+        minAmount: c.minAmount,
+        firstRechargeOnly: c.firstRechargeOnly,
+      })));
+    } catch { res.status(500).json({ message: 'Failed to fetch offers' }); }
+  });
+
+  // Validate a coupon against an intended recharge amount (no side effects)
+  app.post('/api/coupons/validate', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = (req.user as any).id;
+      const { code, amount } = req.body;
+      const rechargeAmount = parseFloat(amount);
+      if (!code || !rechargeAmount || rechargeAmount <= 0) {
+        return res.status(400).json({ valid: false, message: 'Enter a recharge amount and coupon code.' });
+      }
+      const coupon = await storage.getCouponByCode(String(code).trim());
+      if (!coupon) return res.status(404).json({ valid: false, message: 'Invalid coupon code.' });
+
+      const isFirstRecharge = !(await storage.hasCompletedRecharge(userId));
+      const userRedemptionCount = await storage.getUserCouponRedemptionCount(userId, coupon.id);
+      const result = evaluateCoupon(coupon, rechargeAmount, { isFirstRecharge, userRedemptionCount });
+      res.json({ valid: result.ok, bonus: result.bonus, message: result.message });
+    } catch (err) {
+      console.error('Coupon validate error:', err);
+      res.status(500).json({ valid: false, message: 'Failed to validate coupon' });
+    }
+  });
+
+  // ─── Referrals ───────────────────────────────────────────
+
+  // My referral code + reward stats
+  app.get('/api/referral', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = (req.user as any).id;
+      const code = await storage.getOrCreateReferralCode(userId);
+      const referrals = await storage.getReferralsByReferrer(userId);
+      const rewarded = referrals.filter((r) => r.status === 'rewarded');
+      const totalEarned = rewarded.reduce((sum, r) => sum + parseFloat(r.referrerReward || '0'), 0);
+      res.json({
+        code,
+        referrerReward: REFERRER_REWARD,
+        refereeReward: REFEREE_REWARD,
+        totalInvited: referrals.length,
+        totalRewarded: rewarded.length,
+        totalEarned,
+      });
+    } catch (err) {
+      console.error('Referral fetch error:', err);
+      res.status(500).json({ message: 'Failed to fetch referral details' });
+    }
+  });
+
+  // Apply a referral code (before the user's first recharge)
+  app.post('/api/referral/apply', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = (req.user as any).id;
+      const { code } = req.body;
+      if (!code) return res.status(400).json({ message: 'Referral code required' });
+
+      const existing = await storage.getReferralByReferee(userId);
+      if (existing) return res.status(400).json({ message: 'You have already used a referral code.' });
+
+      if (await storage.hasCompletedRecharge(userId)) {
+        return res.status(400).json({ message: 'Referral codes can only be applied before your first recharge.' });
+      }
+
+      const referrer = await storage.getUserByReferralCode(String(code).trim());
+      if (!referrer) return res.status(404).json({ message: 'Invalid referral code.' });
+      if (referrer.id === userId) return res.status(400).json({ message: "You can't refer yourself." });
+
+      await storage.createReferral({ referrerId: referrer.id, refereeId: userId });
+      await storage.updateUser(userId, { referredBy: String(code).trim() });
+      res.json({
+        success: true,
+        message: `Referral applied! You'll get ₹${REFEREE_REWARD} on your first recharge.`,
+      });
+    } catch (err) {
+      console.error('Referral apply error:', err);
+      res.status(500).json({ message: 'Failed to apply referral code' });
+    }
+  });
+
   // ─── Razorpay Payment ────────────────────────────────────
 
   app.post('/api/payment/razorpay/order', isAuthenticated, paymentLimiter, async (req: any, res) => {
     try {
       const userId = (req.user as any).id;
-      const { amount, packId } = req.body;
+      const { amount, packId, couponCode } = req.body;
 
       if (!amount || amount < 1) return res.status(400).json({ message: "Invalid amount" });
 
@@ -731,28 +863,63 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
       }
       const bonus = pack?.bonus || 0;
 
+      // Apply coupon (if any) as additional wallet credit
+      let couponBonus = 0;
+      let appliedCouponCode: string | undefined;
+      let appliedCouponId: string | undefined;
+      if (couponCode) {
+        const coupon = await storage.getCouponByCode(String(couponCode).trim());
+        if (!coupon) return res.status(400).json({ message: "Invalid coupon code" });
+        const isFirstRecharge = !(await storage.hasCompletedRecharge(userId));
+        const userRedemptionCount = await storage.getUserCouponRedemptionCount(userId, coupon.id);
+        const evalResult = evaluateCoupon(coupon, amount, { isFirstRecharge, userRedemptionCount });
+        if (!evalResult.ok) return res.status(400).json({ message: evalResult.message });
+        couponBonus = evalResult.bonus;
+        appliedCouponCode = coupon.code;
+        appliedCouponId = coupon.id;
+      }
+
       const order = await createRazorpayOrder({
         amount,
         receipt: `wallet_${userId}_${Date.now()}`,
         notes: { userId, bonus: bonus.toString() },
       });
 
+      const totalCredit = amount + bonus + couponBonus;
+      const bonusLabel = [
+        bonus > 0 ? `+₹${bonus} bonus` : '',
+        couponBonus > 0 ? `+₹${couponBonus} (${appliedCouponCode})` : '',
+      ].filter(Boolean).join(' ');
+
       // Create pending transaction
-      await storage.createTransaction({
+      const pendingTxn = await storage.createTransaction({
         userId,
-        amount: (amount + bonus).toString(),
+        amount: totalCredit.toString(),
         type: 'recharge',
-        description: `Wallet recharge${bonus > 0 ? ` (+₹${bonus} bonus)` : ''}`,
+        description: `Wallet recharge${bonusLabel ? ` (${bonusLabel})` : ''}`,
         status: 'pending',
         paymentMethod: 'razorpay',
         gatewayOrderId: order.id,
+        couponCode: appliedCouponCode,
       });
+
+      // Stage the redemption (counts only once the transaction completes)
+      if (appliedCouponId && couponBonus > 0) {
+        await storage.recordCouponRedemption({
+          couponId: appliedCouponId,
+          userId,
+          transactionId: pendingTxn.id,
+          discountAmount: couponBonus.toString(),
+        });
+      }
 
       res.json({
         orderId: order.id,
         amount: order.amount,
         currency: order.currency,
         keyId: process.env.RAZORPAY_KEY_ID,
+        couponBonus,
+        totalCredit,
       });
     } catch (error: any) {
       console.error("Razorpay order error:", error);
@@ -794,6 +961,69 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
         title: 'Wallet Recharged',
         body: `₹${totalCredit} added to your wallet successfully.`,
       });
+      sendPushToUser(userId, {
+        title: 'Wallet Recharged',
+        body: `₹${totalCredit} added to your wallet successfully.`,
+        link: '/wallet',
+        data: { type: 'payment' },
+      });
+
+      // Finalise coupon usage now that the recharge is confirmed
+      if (pendingTxn.couponCode) {
+        const coupon = await storage.getCouponByCode(pendingTxn.couponCode);
+        if (coupon) await storage.incrementCouponUsage(coupon.id);
+      }
+
+      // Referral reward: fire once on the invitee's first completed recharge
+      let runningBalance = parseFloat(newBalance);
+      try {
+        const referral = await storage.getReferralByReferee(userId);
+        if (referral && referral.status === 'pending') {
+          // Credit the new user (referee)
+          runningBalance = runningBalance + REFEREE_REWARD;
+          await storage.updateWalletBalance(userId, runningBalance.toFixed(2));
+          await storage.createTransaction({
+            userId,
+            amount: REFEREE_REWARD.toString(),
+            type: 'recharge',
+            description: 'Referral bonus',
+            status: 'completed',
+          });
+          await storage.createNotification({
+            userId,
+            type: 'payment',
+            title: 'Referral Bonus',
+            body: `You received ₹${REFEREE_REWARD} referral bonus in your wallet.`,
+          });
+
+          // Credit the inviter (referrer)
+          const referrerWallet = (await storage.getWallet(referral.referrerId))
+            || (await storage.createWallet(referral.referrerId));
+          const referrerBalance = (parseFloat(referrerWallet.balance || '0') + REFERRER_REWARD).toFixed(2);
+          await storage.updateWalletBalance(referral.referrerId, referrerBalance);
+          await storage.createTransaction({
+            userId: referral.referrerId,
+            amount: REFERRER_REWARD.toString(),
+            type: 'recharge',
+            description: 'Referral reward',
+            status: 'completed',
+          });
+          await storage.createNotification({
+            userId: referral.referrerId,
+            type: 'payment',
+            title: 'Referral Reward',
+            body: `Your friend recharged! ₹${REFERRER_REWARD} has been added to your wallet.`,
+          });
+
+          await storage.markReferralRewarded(
+            referral.id,
+            REFERRER_REWARD.toString(),
+            REFEREE_REWARD.toString(),
+          );
+        }
+      } catch (refErr) {
+        console.error('Referral reward error:', refErr);
+      }
 
       // Send email receipt (fire-and-forget)
       const user = await storage.getUser(userId);
@@ -802,12 +1032,12 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
           userName: user.firstName || 'User',
           amount: parseFloat(pendingTxn.amount || "0"),
           bonus: 0,
-          newBalance: parseFloat(newBalance),
+          newBalance: runningBalance,
           paymentId,
         }).catch(() => {});
       }
 
-      res.json({ success: true, newBalance: parseFloat(newBalance) });
+      res.json({ success: true, newBalance: runningBalance });
     } catch (error) {
       console.error("Razorpay verify error:", error);
       res.status(500).json({ message: "Payment verification failed" });
@@ -1006,6 +1236,24 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
         return res.json({ userMessage: chatMessage, aiMessage: aiMessage });
       }
 
+      // Push the message to the recipient (best-effort)
+      if (sender === 'user') {
+        sendPushToAstrologer(astrologerId, {
+          title: `${user.firstName || 'A user'} sent you a message`,
+          body: message.slice(0, 120),
+          link: `/chat/${userId}`,
+          data: { type: 'chat', userId },
+        });
+      } else {
+        const astro = await storage.getAstrologerById(astrologerId);
+        sendPushToUser(userId, {
+          title: `${astro?.name || 'Your astrologer'} replied`,
+          body: message.slice(0, 120),
+          link: `/chat/${astrologerId}`,
+          data: { type: 'chat', astrologerId },
+        });
+      }
+
       res.json(chatMessage);
     } catch { res.status(500).json({ message: "Failed to send message" }); }
   });
@@ -1021,12 +1269,19 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
       if (!astrologer) return res.status(404).json({ message: "Astrologer not found" });
       if (!astrologer.isOnline) return res.status(400).json({ message: "Astrologer is currently offline" });
 
-      // Check wallet balance (minimum 5 minutes)
-      const wallet = await storage.getWallet(userId);
       const pricePerMin = parseFloat(astrologer.pricePerMinute || "25");
-      const minRequired = pricePerMin * 5;
-      if (parseFloat(wallet?.balance || "0") < minRequired) {
-        return res.status(400).json({ message: `Insufficient balance. Minimum ₹${minRequired} required for 5 minutes.` });
+
+      // First-chat-free: a user's very first chat consultation gets N free minutes
+      const startUser = await storage.getUser(userId);
+      const eligibleForFreeChat = type === 'chat' && !startUser?.freeChatUsed;
+
+      // Check wallet balance (minimum 5 minutes) — skipped for the free first chat
+      if (!eligibleForFreeChat) {
+        const wallet = await storage.getWallet(userId);
+        const minRequired = pricePerMin * 5;
+        if (parseFloat(wallet?.balance || "0") < minRequired) {
+          return res.status(400).json({ message: `Insufficient balance. Minimum ₹${minRequired} required for 5 minutes.` });
+        }
       }
 
       const agoraChannel = getChannelName(`${astrologerId}_${Date.now()}`);
@@ -1037,7 +1292,14 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
         status: 'active',
         pricePerMinute: pricePerMin.toString(),
         agoraChannel,
+        isFree: eligibleForFreeChat,
+        freeMinutes: eligibleForFreeChat ? FREE_CHAT_MINUTES : 0,
       });
+
+      // Consume the free-chat entitlement immediately so it can't be reused
+      if (eligibleForFreeChat) {
+        await storage.updateUser(userId, { freeChatUsed: true });
+      }
 
       // Update astrologer status to busy
       await storage.updateAstrologer(astrologerId, { availability: 'busy' });
@@ -1049,6 +1311,12 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
         userId,
         sessionType: type,
         agoraChannel,
+      });
+      sendPushToAstrologer(astrologerId, {
+        title: 'New consultation request',
+        body: `A user started a ${type} consultation with you.`,
+        link: '/astrologer/dashboard',
+        data: { type: 'new_session', consultationId: consultation.id },
       });
 
       await storage.createNotification({
@@ -1294,6 +1562,433 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
     } catch { res.status(500).json({ message: "Failed to mark notifications" }); }
   });
 
+  // ─── Push notification tokens (FCM) ────────────────────────
+  app.post('/api/push/register', isAuthenticated, async (req: any, res) => {
+    try {
+      const { token, platform } = req.body;
+      if (!token) return res.status(400).json({ message: "token required" });
+      // A logged-in astrologer dashboard uses the astrologer session
+      const identity = req.session?.astrologerId
+        ? { ownerId: req.session.astrologerId, ownerType: 'astrologer' }
+        : { ownerId: (req.user as any).id, ownerType: 'user' };
+      await storage.savePushToken({ ...identity, token, platform: platform || 'web' });
+      res.json({ success: true });
+    } catch (err) {
+      console.error('Push register error:', err);
+      res.status(500).json({ message: "Failed to register push token" });
+    }
+  });
+
+  app.post('/api/push/unregister', async (req: any, res) => {
+    try {
+      const { token } = req.body;
+      if (token) await storage.deletePushToken(token);
+      res.json({ success: true });
+    } catch { res.status(500).json({ message: "Failed to unregister push token" }); }
+  });
+
+  // ─── Astromall (store) ─────────────────────────────────────
+  app.get('/api/store/products', async (_req, res) => {
+    try {
+      res.json(await storage.getProducts());
+    } catch { res.status(500).json({ message: 'Failed to fetch products' }); }
+  });
+
+  app.get('/api/store/products/:slug', async (req, res) => {
+    try {
+      const product = await storage.getProductBySlug(req.params.slug);
+      if (!product) return res.status(404).json({ message: 'Product not found' });
+      res.json(product);
+    } catch { res.status(500).json({ message: 'Failed to fetch product' }); }
+  });
+
+  // Wallet-based checkout
+  app.post('/api/store/orders', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = (req.user as any).id;
+      const { items, shipping } = req.body as {
+        items: { productId: string; quantity: number }[];
+        shipping: { name?: string; phone?: string; address?: string; city?: string; state?: string; pincode?: string };
+      };
+      if (!Array.isArray(items) || items.length === 0) {
+        return res.status(400).json({ message: 'Cart is empty' });
+      }
+      if (!shipping?.name || !shipping?.phone || !shipping?.address || !shipping?.pincode) {
+        return res.status(400).json({ message: 'Shipping name, phone, address and pincode are required' });
+      }
+
+      // Resolve products + compute server-side total (never trust client prices)
+      const resolved = [];
+      let total = 0;
+      for (const item of items) {
+        const product = await storage.getProductById(item.productId);
+        if (!product || !product.isActive) return res.status(400).json({ message: 'A product is unavailable' });
+        const qty = Math.max(1, Math.min(10, Number(item.quantity) || 1));
+        const price = parseFloat(product.price);
+        total += price * qty;
+        resolved.push({ productId: product.id, productName: product.name, quantity: qty, price: product.price });
+      }
+      total = Math.round(total * 100) / 100;
+
+      const debit = await storage.debitWallet(userId, total, `Astromall order (${resolved.length} item${resolved.length > 1 ? 's' : ''})`);
+      if (!debit) return res.status(402).json({ message: 'Insufficient wallet balance. Please recharge to place the order.' });
+
+      const order = await storage.createOrder({
+        userId,
+        totalAmount: total.toFixed(2),
+        paymentMethod: 'wallet',
+        shippingName: shipping.name,
+        shippingPhone: shipping.phone,
+        shippingAddress: shipping.address,
+        shippingCity: shipping.city,
+        shippingState: shipping.state,
+        shippingPincode: shipping.pincode,
+      }, resolved);
+
+      await storage.createNotification({
+        userId, type: 'system', title: 'Order Placed',
+        body: `Your order of ₹${total.toFixed(2)} has been placed successfully.`,
+      });
+      sendPushToUser(userId, { title: 'Order Placed', body: `Your Astromall order of ₹${total.toFixed(2)} is confirmed.`, link: '/store' });
+
+      res.status(201).json({ order, newBalance: debit.balance });
+    } catch (err) {
+      console.error('Order error:', err);
+      res.status(500).json({ message: 'Failed to place order' });
+    }
+  });
+
+  app.get('/api/store/orders', isAuthenticated, async (req: any, res) => {
+    try {
+      res.json(await storage.getUserOrders((req.user as any).id));
+    } catch { res.status(500).json({ message: 'Failed to fetch orders' }); }
+  });
+
+  // ─── Paid Reports ──────────────────────────────────────────
+  app.get('/api/reports/types', async (_req, res) => {
+    try {
+      res.json(await storage.getReportTypes());
+    } catch { res.status(500).json({ message: 'Failed to fetch report types' }); }
+  });
+
+  app.post('/api/reports/order', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = (req.user as any).id;
+      const { reportTypeId, kundliId } = req.body;
+      const reportType = await storage.getReportTypeById(reportTypeId);
+      if (!reportType || !reportType.isActive) return res.status(404).json({ message: 'Report not available' });
+
+      // Resolve a kundli: explicit choice or the user's most recent chart
+      let kundli = null;
+      if (kundliId) kundli = await storage.getKundliById(kundliId);
+      if (!kundli) {
+        const userKundlis = await storage.getUserKundlis(userId);
+        kundli = userKundlis?.[0] ?? null;
+      }
+      if (!kundli) return res.status(400).json({ message: 'Generate your Kundli first to order a report.' });
+
+      const price = parseFloat(reportType.price);
+      const debit = await storage.debitWallet(userId, price, `Report: ${reportType.name}`);
+      if (!debit) return res.status(402).json({ message: 'Insufficient wallet balance. Please recharge to order this report.' });
+
+      const order = await storage.createReportOrder({
+        userId,
+        reportTypeId: reportType.id,
+        kundliId: kundli.id,
+        amount: reportType.price,
+      });
+
+      // Generate asynchronously; client polls until status === 'ready'
+      (async () => {
+        try {
+          const content = await generateReport(reportType.category || 'life', kundli);
+          await storage.setReportOrderContent(order.id, content);
+          await storage.createNotification({
+            userId, type: 'system', title: 'Report Ready',
+            body: `Your ${reportType.name} is ready to view.`,
+          });
+          sendPushToUser(userId, { title: 'Report Ready', body: `Your ${reportType.name} is ready.`, link: '/reports' });
+        } catch (genErr) {
+          console.error('Report generation failed:', genErr);
+          await storage.markReportOrderFailed(order.id).catch(() => {});
+        }
+      })();
+
+      res.status(201).json({ orderId: order.id, newBalance: debit.balance });
+    } catch (err) {
+      console.error('Report order error:', err);
+      res.status(500).json({ message: 'Failed to order report' });
+    }
+  });
+
+  app.get('/api/reports/orders', isAuthenticated, async (req: any, res) => {
+    try {
+      res.json(await storage.getUserReportOrders((req.user as any).id));
+    } catch { res.status(500).json({ message: 'Failed to fetch reports' }); }
+  });
+
+  app.get('/api/reports/orders/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      const order = await storage.getReportOrderById(req.params.id);
+      if (!order || order.userId !== (req.user as any).id) return res.status(404).json({ message: 'Report not found' });
+      res.json(order);
+    } catch { res.status(500).json({ message: 'Failed to fetch report' }); }
+  });
+
+  // ─── Book a Pooja ──────────────────────────────────────────
+  app.get('/api/poojas', async (_req, res) => {
+    try {
+      res.json(await storage.getPoojas());
+    } catch { res.status(500).json({ message: 'Failed to fetch poojas' }); }
+  });
+
+  app.post('/api/poojas/book', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = (req.user as any).id;
+      const { poojaId, devoteeName, gotra, preferredDate, sankalpNotes } = req.body;
+      if (!devoteeName) return res.status(400).json({ message: 'Devotee name is required' });
+      const pooja = await storage.getPoojaById(poojaId);
+      if (!pooja || !pooja.isActive) return res.status(404).json({ message: 'Pooja not available' });
+
+      const price = parseFloat(pooja.price);
+      const debit = await storage.debitWallet(userId, price, `Pooja booking: ${pooja.name}`);
+      if (!debit) return res.status(402).json({ message: 'Insufficient wallet balance. Please recharge to book this pooja.' });
+
+      const booking = await storage.createPoojaBooking({
+        userId,
+        poojaId: pooja.id,
+        poojaName: pooja.name,
+        amount: pooja.price,
+        devoteeName,
+        gotra,
+        preferredDate: preferredDate ? new Date(preferredDate) : null,
+        sankalpNotes,
+      });
+
+      await storage.createNotification({
+        userId, type: 'system', title: 'Pooja Booked',
+        body: `Your ${pooja.name} has been booked. ${pooja.durationText || ''}`.trim(),
+      });
+      sendPushToUser(userId, { title: 'Pooja Booked', body: `Your ${pooja.name} is confirmed.`, link: '/pooja' });
+
+      res.status(201).json({ booking, newBalance: debit.balance });
+    } catch (err) {
+      console.error('Pooja booking error:', err);
+      res.status(500).json({ message: 'Failed to book pooja' });
+    }
+  });
+
+  app.get('/api/poojas/bookings', isAuthenticated, async (req: any, res) => {
+    try {
+      res.json(await storage.getUserPoojaBookings((req.user as any).id));
+    } catch { res.status(500).json({ message: 'Failed to fetch bookings' }); }
+  });
+
+  // ─── Live Streaming ────────────────────────────────────────
+  const GIFT_CATALOG = [
+    { id: 'rose', name: 'Rose', emoji: '🌹', amount: 10 },
+    { id: 'diya', name: 'Diya', emoji: '🪔', amount: 25 },
+    { id: 'garland', name: 'Garland', emoji: '💐', amount: 51 },
+    { id: 'coconut', name: 'Coconut', emoji: '🥥', amount: 101 },
+    { id: 'crown', name: 'Crown', emoji: '👑', amount: 251 },
+    { id: 'temple', name: 'Temple', emoji: '🛕', amount: 501 },
+  ];
+
+  app.get('/api/live/gifts', (_req, res) => res.json(GIFT_CATALOG));
+
+  // Public: list active live streams
+  app.get('/api/live', async (_req, res) => {
+    try {
+      res.json(await storage.getActiveLiveStreams());
+    } catch { res.status(500).json({ message: 'Failed to fetch live streams' }); }
+  });
+
+  // Astrologer: go live
+  app.post('/api/live/start', isAstrologerAuthenticated, async (req: any, res) => {
+    try {
+      const astrologerId = req.session.astrologerId;
+      const { title } = req.body;
+      const astrologer = await storage.getAstrologerById(astrologerId);
+      if (!astrologer) return res.status(404).json({ message: 'Astrologer not found' });
+
+      const existing = await storage.getActiveLiveStreamByAstrologer(astrologerId);
+      if (existing) return res.status(400).json({ message: 'You are already live', stream: existing });
+
+      const agoraChannel = getChannelName(`live_${astrologerId}_${Date.now()}`);
+      const stream = await storage.createLiveStream({
+        astrologerId,
+        title: title?.trim() || `Live with ${astrologer.name}`,
+        agoraChannel,
+      });
+      await storage.updateAstrologer(astrologerId, { isOnline: true, availability: 'online' });
+
+      let token: string | null = null;
+      try {
+        token = generateAgoraToken(agoraChannel, 0, 'publisher');
+      } catch { /* Agora not configured — A/V disabled, chat still works */ }
+
+      // Alert followers that this astrologer is live (best-effort)
+      (async () => {
+        try {
+          const followerIds = await storage.getFollowerUserIds(astrologerId);
+          for (const uid of followerIds) {
+            await storage.createNotification({
+              userId: uid, type: 'system', title: `${astrologer.name} is live! 🔴`,
+              body: stream.title,
+            });
+            sendPushToUser(uid, { title: `${astrologer.name} is live! 🔴`, body: stream.title, link: `/live/${stream.id}` });
+          }
+        } catch (err) { console.error('Live follower notify error:', err); }
+      })();
+
+      res.status(201).json({ stream, token, appId: process.env.AGORA_APP_ID, gifts: GIFT_CATALOG });
+    } catch (err) {
+      console.error('Live start error:', err);
+      res.status(500).json({ message: 'Failed to start live stream' });
+    }
+  });
+
+  // Astrologer: end live
+  app.post('/api/live/:id/end', isAstrologerAuthenticated, async (req: any, res) => {
+    try {
+      const stream = await storage.getLiveStreamById(req.params.id);
+      if (!stream || stream.astrologerId !== req.session.astrologerId) {
+        return res.status(404).json({ message: 'Stream not found' });
+      }
+      const ended = await storage.endLiveStream(stream.id);
+      res.json(ended);
+    } catch { res.status(500).json({ message: 'Failed to end stream' }); }
+  });
+
+  // Viewer: get stream detail + audience token (public — guests can watch)
+  app.get('/api/live/:id', async (req: any, res) => {
+    try {
+      const stream = await storage.getLiveStreamById(req.params.id);
+      if (!stream) return res.status(404).json({ message: 'Stream not found' });
+      const astrologer = await storage.getAstrologerById(stream.astrologerId);
+      let token: string | null = null;
+      try {
+        token = generateAgoraToken(stream.agoraChannel, 0, 'subscriber');
+      } catch { /* Agora not configured */ }
+      res.json({
+        stream,
+        astrologer: astrologer ? { id: astrologer.id, name: astrologer.name, profileImageUrl: astrologer.profileImageUrl, specializations: astrologer.specializations } : null,
+        token,
+        appId: process.env.AGORA_APP_ID,
+        gifts: GIFT_CATALOG,
+      });
+    } catch { res.status(500).json({ message: 'Failed to fetch stream' }); }
+  });
+
+  app.post('/api/live/:id/join', isAuthenticated, async (req: any, res) => {
+    try {
+      const stream = await storage.incrementStreamViewers(req.params.id);
+      const user = req.user as any;
+      await storage.createStreamMessage({
+        streamId: req.params.id,
+        senderId: user.id,
+        senderType: 'user',
+        senderName: user.firstName || 'A viewer',
+        type: 'join',
+        message: 'joined',
+      });
+      res.json({ viewerCount: stream.viewerCount });
+    } catch { res.status(500).json({ message: 'Failed to join' }); }
+  });
+
+  app.post('/api/live/:id/leave', isAuthenticated, async (req, res) => {
+    try {
+      await storage.decrementStreamViewers(req.params.id);
+      res.json({ success: true });
+    } catch { res.status(500).json({ message: 'Failed to leave' }); }
+  });
+
+  app.get('/api/live/:id/messages', async (req, res) => {
+    try {
+      res.json(await storage.getStreamMessages(req.params.id));
+    } catch { res.status(500).json({ message: 'Failed to fetch messages' }); }
+  });
+
+  // Chat in a stream (user or astrologer)
+  app.post('/api/live/:id/message', async (req: any, res) => {
+    try {
+      const streamId = req.params.id;
+      const { message } = req.body;
+      if (!message?.trim()) return res.status(400).json({ message: 'Message required' });
+
+      let sender: { id: string; name: string; type: string };
+      if (req.session?.astrologerId) {
+        const astro = await storage.getAstrologerById(req.session.astrologerId);
+        sender = { id: req.session.astrologerId, name: astro?.name || 'Astrologer', type: 'astrologer' };
+      } else if (req.isAuthenticated?.() || req.session?.userId) {
+        const userId = (req.user as any)?.id || req.session.userId;
+        const user = await storage.getUser(userId);
+        sender = { id: userId, name: user?.firstName || 'Viewer', type: 'user' };
+      } else {
+        return res.status(401).json({ message: 'Login to chat' });
+      }
+
+      const saved = await storage.createStreamMessage({
+        streamId,
+        senderId: sender.id,
+        senderType: sender.type,
+        senderName: sender.name,
+        type: 'chat',
+        message: message.slice(0, 300),
+      });
+      res.status(201).json(saved);
+    } catch { res.status(500).json({ message: 'Failed to send message' }); }
+  });
+
+  // Send a gift (deducts wallet, credits astrologer)
+  app.post('/api/live/:id/gift', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = (req.user as any).id;
+      const { giftId } = req.body;
+      const gift = GIFT_CATALOG.find((g) => g.id === giftId);
+      if (!gift) return res.status(400).json({ message: 'Invalid gift' });
+
+      const stream = await storage.getLiveStreamById(req.params.id);
+      if (!stream || stream.status !== 'live') return res.status(404).json({ message: 'Stream is not live' });
+
+      const debit = await storage.debitWallet(userId, gift.amount, `Live gift: ${gift.name}`);
+      if (!debit) return res.status(402).json({ message: 'Insufficient balance. Recharge to send gifts.' });
+
+      // Credit astrologer (net of platform fee)
+      const platformFee = (gift.amount * PLATFORM_FEE_PERCENTAGE) / 100;
+      const net = gift.amount - platformFee;
+      await storage.createEarning({
+        astrologerId: stream.astrologerId,
+        grossAmount: gift.amount.toFixed(2),
+        platformFee: platformFee.toFixed(2),
+        netAmount: net.toFixed(2),
+      });
+      await storage.addStreamGiftTotal(stream.id, gift.amount);
+
+      const user = await storage.getUser(userId);
+      const saved = await storage.createStreamMessage({
+        streamId: stream.id,
+        senderId: userId,
+        senderType: 'user',
+        senderName: user?.firstName || 'A viewer',
+        type: 'gift',
+        message: `${gift.emoji} sent ${gift.name}`,
+        giftName: gift.name,
+        giftAmount: gift.amount.toFixed(2),
+      });
+
+      sendPushToAstrologer(stream.astrologerId, {
+        title: 'You received a gift! 🎁',
+        body: `${user?.firstName || 'A viewer'} sent you a ${gift.name} (₹${gift.amount}).`,
+      });
+
+      res.status(201).json({ message: saved, newBalance: debit.balance });
+    } catch (err) {
+      console.error('Gift error:', err);
+      res.status(500).json({ message: 'Failed to send gift' });
+    }
+  });
+
   // ─── AI Astrologer ────────────────────────────────────────
 
   // Get AI Chat session history
@@ -1504,105 +2199,88 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
     } catch { res.status(500).json({ message: 'Failed to update astrologer' }); }
   });
 
-  // ─── Navagraha Corporate (The Boardroom) ────────────────────
-  app.get('/api/corporate/company', isAdmin, requireCorporateAutomation, async (req, res) => {
-    if (!req.isAuthenticated()) return res.status(401).send("Unauthorized");
-    const company = await storage.getAiCompanyByUserId((req.user as any).id.toString());
-    res.json(company || null);
+  // ─── Admin: store orders / pooja bookings ──────────────────
+  app.get('/api/admin/orders', isAdmin, adminLimiter, async (_req, res) => {
+    try {
+      res.json(await storage.getAllOrders());
+    } catch { res.status(500).json({ message: 'Failed to fetch orders' }); }
   });
 
-  app.post('/api/corporate/initialize', isAdmin, requireCorporateAutomation, async (req, res) => {
-    if (!req.isAuthenticated()) return res.status(401).send("Unauthorized");
-    const { name, mission } = req.body;
+  app.put('/api/admin/orders/:id', isAdmin, adminLimiter, async (req, res) => {
     try {
-      const company = await corporateOrchestrator.hireDefaultCSuite((req.user as any).id.toString(), name, mission);
-      res.status(201).json(company);
+      const { status } = req.body;
+      const updated = await storage.updateOrderStatus(req.params.id, status);
+      res.json(updated);
+    } catch { res.status(500).json({ message: 'Failed to update order' }); }
+  });
+
+  app.get('/api/admin/pooja-bookings', isAdmin, adminLimiter, async (_req, res) => {
+    try {
+      res.json(await storage.getAllPoojaBookings());
+    } catch { res.status(500).json({ message: 'Failed to fetch bookings' }); }
+  });
+
+  app.put('/api/admin/pooja-bookings/:id', isAdmin, adminLimiter, async (req, res) => {
+    try {
+      const { status } = req.body;
+      const updated = await storage.updatePoojaBookingStatus(req.params.id, status);
+      res.json(updated);
+    } catch { res.status(500).json({ message: 'Failed to update booking' }); }
+  });
+
+  // ─── Admin: astrologer KYC review ──────────────────────────
+  app.get('/api/admin/kyc', isAdmin, adminLimiter, async (_req, res) => {
+    try {
+      res.json(await storage.getAstrologersByKycStatus('pending'));
+    } catch { res.status(500).json({ message: 'Failed to fetch KYC submissions' }); }
+  });
+
+  app.post('/api/admin/kyc/:id', isAdmin, adminLimiter, async (req, res) => {
+    try {
+      const { action, notes } = req.body; // approve | reject
+      const updated = await storage.reviewAstrologerKyc(req.params.id, action === 'approve', notes);
+      await storage.createNotification({
+        userId: updated.id, recipientType: 'astrologer', type: 'system',
+        title: action === 'approve' ? 'KYC Approved ✅' : 'KYC Rejected',
+        body: action === 'approve' ? 'Your profile is now verified.' : (notes || 'Please resubmit your KYC details.'),
+      });
+      const { passwordHash: _p, bankAccountNumber: _b, ...safe } = updated;
+      res.json(safe);
+    } catch { res.status(500).json({ message: 'Failed to review KYC' }); }
+  });
+
+  // ─── Admin: Coupons / Offers ───────────────────────────────
+  app.get('/api/admin/coupons', isAdmin, adminLimiter, async (_req, res) => {
+    try {
+      const list = await storage.getAllCoupons();
+      res.json(list);
+    } catch { res.status(500).json({ message: 'Failed to fetch coupons' }); }
+  });
+
+  app.post('/api/admin/coupons', isAdmin, adminLimiter, async (req, res) => {
+    try {
+      const parsed = insertCouponSchema.parse({ ...req.body, code: String(req.body.code || '').trim().toUpperCase() });
+      const created = await storage.createCoupon(parsed);
+      res.status(201).json(created);
     } catch (err) {
-      res.status(500).json({ message: "Failed to initialize boardroom" });
+      if (err instanceof z.ZodError) return res.status(400).json({ message: 'Invalid coupon data', errors: err.errors });
+      console.error('Create coupon error:', err);
+      res.status(500).json({ message: 'Failed to create coupon' });
     }
   });
 
-  app.get('/api/corporate/employees', isAdmin, requireCorporateAutomation, async (req, res) => {
-    if (!req.isAuthenticated()) return res.status(401).send("Unauthorized");
-    const company = await storage.getAiCompanyByUserId((req.user as any).id.toString());
-    if (!company) return res.status(404).json({ message: "No company found" });
-    const employees = await storage.getAiEmployees(company.id);
-    res.json(employees);
-  });
-
-  app.get('/api/corporate/initiatives', isAdmin, requireCorporateAutomation, async (req, res) => {
-    if (!req.isAuthenticated()) return res.status(401).send("Unauthorized");
-    const company = await storage.getAiCompanyByUserId((req.user as any).id.toString());
-    if (!company) return res.status(404).json({ message: "No company found" });
-    const initiatives = await storage.getAiInitiativesByCompany(company.id);
-    res.json(initiatives);
-  });
-
-  app.post('/api/corporate/plan', isAdmin, requireCorporateAutomation, async (req, res) => {
-    if (!req.isAuthenticated()) return res.status(401).send("Unauthorized");
-    const company = await storage.getAiCompanyByUserId((req.user as any).id.toString());
-    if (!company) return res.status(404).json({ message: "No company found" });
+  app.put('/api/admin/coupons/:id', isAdmin, adminLimiter, async (req, res) => {
     try {
-      const initiatives = await corporateOrchestrator.generateStrategicInitiatives(company.id);
-      res.json(initiatives);
-    } catch (err) {
-      res.status(500).json({ message: "Failed to generate plan" });
-    }
+      const updated = await storage.updateCoupon(req.params.id, req.body);
+      res.json(updated);
+    } catch { res.status(500).json({ message: 'Failed to update coupon' }); }
   });
 
-  // Chat: Get thread messages
-  app.get('/api/corporate/chat/:thread', isAdmin, requireCorporateAutomation, async (req, res) => {
-    if (!req.isAuthenticated()) return res.status(401).send("Unauthorized");
-    const company = await storage.getAiCompanyByUserId((req.user as any).id.toString());
-    if (!company) return res.status(404).json({ message: "No company found" });
-    const msgs = await storage.getBoardroomThread(company.id, req.params.thread);
-    res.json(msgs);
-  });
-
-  // Chat: User DMs one executive
-  app.post('/api/corporate/chat/dm/:employeeId', isAdmin, requireCorporateAutomation, async (req, res) => {
-    if (!req.isAuthenticated()) return res.status(401).send("Unauthorized");
-    const company = await storage.getAiCompanyByUserId((req.user as any).id.toString());
-    if (!company) return res.status(404).json({ message: "No company found" });
-    const { message } = req.body;
-    if (!message) return res.status(400).json({ message: "Message required" });
+  app.delete('/api/admin/coupons/:id', isAdmin, adminLimiter, async (req, res) => {
     try {
-      const result = await corporateOrchestrator.chatWithEmployee(
-        company.id, parseInt(req.params.employeeId), message, (req.user as any).id.toString()
-      );
-      res.json(result);
-    } catch (err: any) {
-      res.status(500).json({ message: err.message || "Failed to send message" });
-    }
-  });
-
-  // Chat: Trigger exec-room debate
-  app.post('/api/corporate/chat/exec-room', isAdmin, requireCorporateAutomation, async (req, res) => {
-    if (!req.isAuthenticated()) return res.status(401).send("Unauthorized");
-    const company = await storage.getAiCompanyByUserId((req.user as any).id.toString());
-    if (!company) return res.status(404).json({ message: "No company found" });
-    const { topic } = req.body;
-    if (!topic) return res.status(400).json({ message: "Topic required" });
-    try {
-      const msgs = await corporateOrchestrator.runExecRoomDebate(
-        company.id, topic, (req.user as any).id.toString()
-      );
-      res.json(msgs);
-    } catch (err: any) {
-      res.status(500).json({ message: err.message || "Failed to run debate" });
-    }
-  });
-
-  // Heartbeat: manual trigger
-  app.post('/api/corporate/heartbeat', isAdmin, requireCorporateAutomation, async (req, res) => {
-    if (!req.isAuthenticated()) return res.status(401).send("Unauthorized");
-    const { session } = req.body as { session: "morning" | "evening" };
-    if (!session || !['morning','evening'].includes(session)) {
-      return res.status(400).json({ message: 'session must be morning or evening' });
-    }
-    // Run in background, respond immediately
-    triggerHeartbeat(session).catch(err => console.error('[heartbeat] manual trigger error:', err));
-    res.json({ message: `${session} heartbeat triggered for all companies` });
+      await storage.deleteCoupon(req.params.id);
+      res.json({ success: true });
+    } catch { res.status(500).json({ message: 'Failed to delete coupon' }); }
   });
 
   // ─── Homepage CMS ──────────────────────────────────────────
@@ -1685,261 +2363,6 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
       }
       res.json({ success: true });
     } catch { res.status(500).json({ message: 'Failed to reorder' }); }
-  });
-
-  // ─── Navagraha Corporate (The Boardroom) ────────────────────
-  app.get('/api/corporate/company', isAdmin, requireCorporateAutomation, async (req, res) => {
-    if (!req.isAuthenticated()) return res.status(401).send("Unauthorized");
-    const company = await storage.getAiCompanyByUserId((req.user as any).id.toString());
-    res.json(company || null);
-  });
-
-  app.post('/api/corporate/initialize', isAdmin, requireCorporateAutomation, async (req, res) => {
-    if (!req.isAuthenticated()) return res.status(401).send("Unauthorized");
-    const { name, mission } = req.body;
-    try {
-      const company = await corporateOrchestrator.hireDefaultCSuite((req.user as any).id.toString(), name, mission);
-      res.status(201).json(company);
-    } catch (err) {
-      console.error(err);
-      res.status(500).json({ message: "Failed to initialize boardroom" });
-    }
-  });
-
-  app.get('/api/corporate/employees', isAdmin, requireCorporateAutomation, async (req, res) => {
-    if (!req.isAuthenticated()) return res.status(401).send("Unauthorized");
-    const company = await storage.getAiCompanyByUserId((req.user as any).id.toString());
-    if (!company) return res.status(404).json({ message: "No company found" });
-    const employees = await storage.getAiEmployees(company.id);
-    res.json(employees);
-  });
-
-  app.get('/api/corporate/initiatives', isAdmin, requireCorporateAutomation, async (req, res) => {
-    if (!req.isAuthenticated()) return res.status(401).send("Unauthorized");
-    const company = await storage.getAiCompanyByUserId((req.user as any).id.toString());
-    if (!company) return res.status(404).json({ message: "No company found" });
-    const initiatives = await storage.getAiInitiativesByCompany(company.id);
-    res.json(initiatives);
-  });
-
-  app.post('/api/corporate/plan', isAdmin, requireCorporateAutomation, async (req, res) => {
-    if (!req.isAuthenticated()) return res.status(401).send("Unauthorized");
-    const company = await storage.getAiCompanyByUserId((req.user as any).id.toString());
-    if (!company) return res.status(404).json({ message: "No company found" });
-    try {
-      const initiatives = await corporateOrchestrator.generateStrategicInitiatives(company.id);
-      
-      // Auto-delegate the first one to CTO as a proof of concept
-      if (initiatives.length > 0) {
-        const directives = await corporateOrchestrator.delegateDirective(initiatives[0].id);
-        if (directives.length > 0) {
-           await corporateOrchestrator.processCodeDirective(directives[0].id);
-        }
-      }
-
-      res.json(initiatives);
-    } catch (err) {
-      res.status(500).json({ message: "Failed to generate plan" });
-    }
-  });
-
-  app.get('/api/corporate/directives', isAdmin, requireCorporateAutomation, async (req, res) => {
-    if (!req.isAuthenticated()) return res.status(401).send("Unauthorized");
-    const company = await storage.getAiCompanyByUserId((req.user as any).id.toString());
-    if (!company) return res.status(404).json({ message: "No company found" });
-    
-    try {
-      // Find all initiatives for the company, then their directives
-      const initiatives = await db.select().from(aiInitiatives).where(eq(aiInitiatives.companyId, company.id));
-      const initIds = initiatives.map(i => i.id);
-
-      if (initIds.length === 0) return res.json([]);
-
-      // we shouldn't use inArray if it's empty, but we handled it.
-      const sqlQuery = sql`${aiDirectives.initiativeId} IN (${sql.join(initIds.map(id => sql`${id}`), sql`, `)})`;
-      const directives = await db.select().from(aiDirectives).where(sqlQuery);
-
-      res.json(directives);
-    } catch (err) {
-      res.status(500).json({ message: "Failed to fetch directives" });
-    }
-  });
-
-  app.post('/api/corporate/directives/manual', isAdmin, requireCorporateAutomation, async (req, res) => {
-    if (!req.isAuthenticated()) return res.status(401).send("Unauthorized");
-    
-    try {
-      const company = await storage.getAiCompanyByUserId((req.user as any).id.toString());
-      if (!company) return res.status(404).json({ message: "No company found" });
-
-      const employees = await storage.getAiEmployees(company.id);
-      const dev = employees.find(e => e.role === "DEV");
-      const cto = employees.find(e => e.role === "CTO");
-
-      if (!dev || !cto) return res.status(400).json({ message: "AI Team not fully hired." });
-
-      const { content } = req.body;
-      
-      // Create a dummy initiative if none exists to link the directive to
-      let initiativeId = 1; 
-      const existingInits = await db.select().from(aiInitiatives).where(eq(aiInitiatives.companyId, company.id)).limit(1);
-      if (existingInits.length > 0) {
-        initiativeId = existingInits[0].id;
-      } else {
-         const newInit = await storage.createAiInitiative({
-            companyId: company.id,
-            title: "Manual Founder Directives",
-            description: "Tasks manually issued by the Founder.",
-            priority: "high",
-            status: "active"
-         });
-         initiativeId = newInit.id;
-      }
-
-      const created = await storage.createAiDirective({
-        initiativeId: initiativeId,
-        issuerId: cto.id,
-        assigneeId: dev.id,
-        content: content,
-        type: "CODE_CHANGE",
-        status: "pending",
-      });
-
-      // Trigger the autonomous loop in the background!
-      corporateOrchestrator.processCodeDirective(created.id).catch(err => {
-        console.error("Background code directive failed", err);
-      });
-
-      res.status(201).json(created);
-    } catch (err) {
-      console.error(err);
-      res.status(500).json({ message: "Failed to issue task" });
-    }
-  });
-
-  app.post('/api/corporate/directives/:id/approve', isAdmin, requireCorporateAutomation, async (req, res) => {
-    if (!req.isAuthenticated()) return res.status(401).send("Unauthorized");
-    
-    try {
-      const directiveId = parseInt(req.params.id);
-      const directive = await db.select().from(aiDirectives).where(eq(aiDirectives.id, directiveId)).then(r => r[0]);
-      
-      if (!directive || directive.type !== "CODE_CHANGE") return res.status(404).json({ message: "Directive not found" });
-
-      if (directive.proposedChanges && Array.isArray(directive.proposedChanges)) {
-        const fs = await import("fs");
-        const path = await import("path");
-        
-        for (const change of directive.proposedChanges as any[]) {
-          if (change.filePath && change.content) {
-            const absolutePath = path.resolve(process.cwd(), change.filePath);
-            const workspaceRoot = process.cwd();
-            if (!absolutePath.startsWith(workspaceRoot + path.sep)) {
-              return res.status(400).json({ message: "Refusing to write outside workspace root" });
-            }
-            // Ensure directory exists
-            fs.mkdirSync(path.dirname(absolutePath), { recursive: true });
-            fs.writeFileSync(absolutePath, change.content, "utf8");
-          }
-        }
-        
-        await db.update(aiDirectives).set({ status: "approved" }).where(eq(aiDirectives.id, directiveId));
-        res.json({ success: true, message: "Code changes applied successfully." });
-      } else {
-        res.status(400).json({ message: "No proposed changes to apply." });
-      }
-    } catch (err) {
-      console.error(err);
-      res.status(500).json({ message: "Failed to apply changes" });
-    }
-  });
-
-
-  app.post('/api/corporate/directives/:id/reset', isAdmin, requireCorporateAutomation, async (req, res) => {
-    if (!req.isAuthenticated()) return res.status(401).send("Unauthorized");
-    const { id } = req.params;
-    try {
-      await db.update(aiDirectives)
-        .set({ status: "pending", proposedChanges: null })
-        .where(eq(aiDirectives.id, parseInt(id)));
-      
-      // Trigger the loop again
-      corporateOrchestrator.processCodeDirective(parseInt(id)).catch(console.error);
-      res.json({ message: "Task reset and triggered successfully" });
-    } catch (err) {
-      console.error(err);
-      res.status(500).json({ message: "Failed to reset task" });
-    }
-  });
-
-  app.post('/api/corporate/system/nuke', isAdmin, requireCorporateAutomation, async (req, res) => {
-    if (!req.isAuthenticated()) return res.status(401).send("Unauthorized");
-    try {
-      const userId = String((req.user as any).id);
-      console.log(`[System:Nuke] Requested by user: ${userId}`);
-      
-      const companies = await db.select().from(aiCompanies).where(eq(aiCompanies.userId, userId)).limit(1);
-      if (companies.length === 0) {
-        console.warn(`[System:Nuke] FAILED: No company found for user ${userId}`);
-        return res.status(404).json({ message: "No company found for your user account" });
-      }
-      const company = companies[0];
-
-      console.log(`[System:Nuke] STARTING purge for company ${company.id} (${company.name})...`);
-
-      // 1. Delete Directives (linked to initiatives)
-      const initiativeIds = await db.select({ id: aiInitiatives.id })
-        .from(aiInitiatives)
-        .where(eq(aiInitiatives.companyId, company.id))
-        .then(rows => rows.map(r => r.id));
-      
-      console.log(`[System:Nuke] PURGING ${initiativeIds.length} initiatives...`);
-      
-      if (initiativeIds.length > 0) {
-        await db.delete(aiDirectives).where(inArray(aiDirectives.initiativeId, initiativeIds));
-        console.log(`[System:Nuke] DELETED aiDirectives.`);
-      }
-
-      // 2. Delete the rest by companyId
-      await db.delete(boardroomMessages).where(eq(boardroomMessages.companyId, company.id));
-      console.log(`[System:Nuke] DELETED boardroomMessages.`);
-      
-      await db.delete(aiInitiatives).where(eq(aiInitiatives.companyId, company.id));
-      console.log(`[System:Nuke] DELETED aiInitiatives.`);
-      
-      await db.delete(aiEmployees).where(eq(aiEmployees.companyId, company.id));
-      console.log(`[System:Nuke] DELETED aiEmployees.`);
-      
-      // 3. Re-hire the team with existing company metadata
-      console.log(`[System:Nuke] RE-HIRING default Team...`);
-      await corporateOrchestrator.hireDefaultCSuite(userId, company.name, company.mission);
-      console.log(`[System:Nuke] SUCCESS: Boardroom wiped and rebooted.`);
-      
-      res.json({ message: "Boardroom wiped and rebooted successfully. Conversation is fresh." });
-    } catch (err) {
-      console.error("[System:Nuke] FATAL ERROR", err);
-      res.status(500).json({ message: "Failed to wipe boardroom: " + (err as Error).message });
-    }
-  });
-
-  app.post('/api/corporate/plan/autonomous', isAdmin, requireCorporateAutomation, async (req, res) => {
-    if (!req.isAuthenticated()) return res.status(401).send("Unauthorized");
-    const { goal } = req.body;
-    try {
-      const userId = String((req.user as any).id);
-      const companies = await db.select().from(aiCompanies).where(eq(aiCompanies.userId, userId)).limit(1);
-      if (companies.length === 0) return res.status(404).json({ message: "No company found" });
-      const companyId = companies[0].id;
-      
-      console.log(`[System:Chain] Triggered by ${userId} for company ${companyId}: ${goal}`);
-      corporateOrchestrator.runAutonomousStrategicChain(companyId, goal, userId).catch(err => {
-        console.error("[System:Chain] FATAL ERROR", err);
-      });
-      res.json({ message: "Autonomous Strategic Chain triggered. Watch the Boardroom Chat for the live debate." });
-    } catch (err) {
-      console.error("[System:Chain] Route error", err);
-      res.status(500).json({ message: "Failed to trigger strategic chain" });
-    }
   });
 
   return existingServer ?? createServer(app);

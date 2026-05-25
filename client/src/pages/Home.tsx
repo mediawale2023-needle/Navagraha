@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { type LucideIcon, Phone, MessageCircle, Calendar, Sparkles, User, Wallet, LogOut, ArrowRight } from 'lucide-react';
+import { type LucideIcon, Phone, MessageCircle, Calendar, Sparkles, User, Wallet, LogOut, ArrowRight, Radio, ShoppingBag, FileText, Flame, CalendarDays } from 'lucide-react';
 import { Link, useLocation } from 'wouter';
 import { QuickActionCard } from '@/components/QuickActionCard';
 import { HeroBanner } from '@/components/HeroBanner';
@@ -215,6 +215,20 @@ export default function Home() {
                 />
               </>
             )}
+          </div>
+        </section>
+
+        {/* Explore */}
+        <section className="mb-7 pt-1">
+          <div className="px-4 md:px-8 lg:px-12">
+            <SectionHeader title="Explore" showViewAll={false} />
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-3 px-4 md:px-8 lg:px-12">
+            <QuickActionCard title="Live" icon={Radio} color="purple" onClick={() => setLocation('/live')} />
+            <QuickActionCard title="Astromall" icon={ShoppingBag} color="orange" onClick={() => setLocation('/store')} />
+            <QuickActionCard title="Reports" icon={FileText} color="green" onClick={() => setLocation('/reports')} />
+            <QuickActionCard title="Book a Pooja" icon={Flame} color="navy" onClick={() => setLocation('/pooja')} />
+            <QuickActionCard title="Panchang" icon={CalendarDays} color="purple" onClick={() => setLocation('/panchang')} />
           </div>
         </section>
 

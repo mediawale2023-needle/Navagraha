@@ -158,12 +158,33 @@ export function setupWebSocket(server: Server) {
             break;
           }
 
+          // First-chat-free: skip charging for the first N minutes
+          const freeMinutes = consultation.isFree ? (consultation.freeMinutes || 0) : 0;
+          let minutesElapsed = 0;
+
           // Deduct every 60 seconds
           const timer = setInterval(async () => {
             try {
+              const cost = parseFloat(consultation.pricePerMinute || "0");
+
+              // Free-minute window: notify but don't charge
+              if (minutesElapsed < freeMinutes) {
+                minutesElapsed++;
+                const freeClient = userClients.get(userId);
+                if (freeClient) {
+                  send(freeClient.ws, {
+                    type: "billing_tick",
+                    deducted: 0,
+                    free: true,
+                    freeMinutesLeft: freeMinutes - minutesElapsed,
+                    consultationId,
+                  });
+                }
+                return;
+              }
+
               const wallet = await storage.getWallet(userId);
               const balance = parseFloat(wallet?.balance || "0");
-              const cost = parseFloat(consultation.pricePerMinute || "0");
 
               if (balance < cost) {
                 // Insufficient balance — end session

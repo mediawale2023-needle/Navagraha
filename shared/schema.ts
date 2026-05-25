@@ -11,7 +11,6 @@ import {
   boolean,
   decimal,
   serial,
-  numeric,
 } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
@@ -40,6 +39,9 @@ export const users = pgTable("users", {
   placeOfBirth: varchar("place_of_birth"),
   passwordHash: varchar("password_hash"), // for email/password auth
   authProvider: varchar("auth_provider").default("google"), // google | email
+  referralCode: varchar("referral_code").unique(),
+  referredBy: varchar("referred_by"), // referralCode of the inviter
+  freeChatUsed: boolean("free_chat_used").default(false),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -107,6 +109,13 @@ export const astrologers = pgTable("astrologers", {
   upiId: varchar("upi_id"),
   phoneNumber: varchar("phone_number"),
   lastSeenAt: timestamp("last_seen_at"),
+  // KYC / verification
+  kycStatus: varchar("kyc_status").default("none"), // none | pending | approved | rejected
+  panNumber: varchar("pan_number"),
+  aadhaarLast4: varchar("aadhaar_last4"),
+  kycNotes: text("kyc_notes"),
+  kycSubmittedAt: timestamp("kyc_submitted_at"),
+  kycReviewedAt: timestamp("kyc_reviewed_at"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -144,6 +153,8 @@ export const transactions = pgTable("transactions", {
   gatewaySignature: varchar("gateway_signature"),
   // Consultation reference
   consultationId: varchar("consultation_id"),
+  // Applied coupon (if any) on a recharge
+  couponCode: varchar("coupon_code"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -189,6 +200,9 @@ export const consultations = pgTable("consultations", {
   totalAmount: decimal("total_amount", { precision: 10, scale: 2 }).default("0"),
   // Agora channel for calls
   agoraChannel: varchar("agora_channel"),
+  // First-chat-free promotion
+  isFree: boolean("is_free").default(false),
+  freeMinutes: integer("free_minutes").default(0),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -404,6 +418,242 @@ export const insertHomepageContentSchema = createInsertSchema(homepageContent).o
 export type InsertHomepageContent = z.infer<typeof insertHomepageContentSchema>;
 export type HomepageContent = typeof homepageContent.$inferSelect;
 
+// ─── Offers / Coupons ──────────────────────────────────────
+export const coupons = pgTable("coupons", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  code: varchar("code").notNull().unique(),
+  description: text("description"),
+  discountType: varchar("discount_type").notNull().default("percent"), // percent | flat
+  discountValue: decimal("discount_value", { precision: 10, scale: 2 }).notNull(),
+  maxDiscount: decimal("max_discount", { precision: 10, scale: 2 }), // cap for percent type
+  minAmount: decimal("min_amount", { precision: 10, scale: 2 }).default("0"),
+  usageLimit: integer("usage_limit"), // total redemptions (null = unlimited)
+  perUserLimit: integer("per_user_limit").default(1),
+  firstRechargeOnly: boolean("first_recharge_only").default(false),
+  timesUsed: integer("times_used").default(0),
+  validFrom: timestamp("valid_from"),
+  validUntil: timestamp("valid_until"),
+  isActive: boolean("is_active").default(true),
+  showOnWallet: boolean("show_on_wallet").default(true), // surface to users
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertCouponSchema = createInsertSchema(coupons).omit({
+  id: true,
+  timesUsed: true,
+  createdAt: true,
+}).extend({
+  validFrom: z.union([z.date(), z.string().transform((s) => new Date(s))]).optional().nullable(),
+  validUntil: z.union([z.date(), z.string().transform((s) => new Date(s))]).optional().nullable(),
+});
+
+export type InsertCoupon = z.infer<typeof insertCouponSchema>;
+export type Coupon = typeof coupons.$inferSelect;
+
+export const couponRedemptions = pgTable("coupon_redemptions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  couponId: varchar("coupon_id").references(() => coupons.id).notNull(),
+  userId: varchar("user_id").references(() => users.id).notNull(),
+  transactionId: varchar("transaction_id"),
+  discountAmount: decimal("discount_amount", { precision: 10, scale: 2 }).notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export type CouponRedemption = typeof couponRedemptions.$inferSelect;
+
+// ─── Push notification tokens (FCM) ────────────────────────
+export const pushTokens = pgTable("push_tokens", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  ownerId: varchar("owner_id").notNull(), // user or astrologer id
+  ownerType: varchar("owner_type").notNull().default("user"), // user | astrologer
+  token: varchar("token").notNull().unique(),
+  platform: varchar("platform").default("web"), // web | android | ios
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export type PushToken = typeof pushTokens.$inferSelect;
+
+// ─── Referrals ─────────────────────────────────────────────
+export const referrals = pgTable("referrals", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  referrerId: varchar("referrer_id").references(() => users.id).notNull(),
+  refereeId: varchar("referee_id").references(() => users.id).notNull().unique(),
+  status: varchar("status").default("pending"), // pending | rewarded
+  referrerReward: decimal("referrer_reward", { precision: 10, scale: 2 }).default("0"),
+  refereeReward: decimal("referee_reward", { precision: 10, scale: 2 }).default("0"),
+  rewardedAt: timestamp("rewarded_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export type Referral = typeof referrals.$inferSelect;
+
+// ─── Astromall (e-commerce store) ──────────────────────────
+export const products = pgTable("products", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: varchar("name").notNull(),
+  slug: varchar("slug").notNull().unique(),
+  description: text("description"),
+  category: varchar("category").notNull(), // gemstone | rudraksha | yantra | bracelet | mala | other
+  price: decimal("price", { precision: 10, scale: 2 }).notNull(),
+  mrp: decimal("mrp", { precision: 10, scale: 2 }),
+  imageUrl: varchar("image_url"),
+  images: text("images").array(),
+  stock: integer("stock").default(100),
+  rating: decimal("rating", { precision: 3, scale: 2 }).default("4.5"),
+  isActive: boolean("is_active").default(true),
+  sortOrder: integer("sort_order").default(0),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertProductSchema = createInsertSchema(products).omit({ id: true, createdAt: true });
+export type InsertProduct = z.infer<typeof insertProductSchema>;
+export type Product = typeof products.$inferSelect;
+
+export const orders = pgTable("orders", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").references(() => users.id).notNull(),
+  status: varchar("status").default("placed"), // placed | confirmed | shipped | delivered | cancelled
+  totalAmount: decimal("total_amount", { precision: 10, scale: 2 }).notNull(),
+  paymentMethod: varchar("payment_method").default("wallet"),
+  shippingName: varchar("shipping_name"),
+  shippingPhone: varchar("shipping_phone"),
+  shippingAddress: text("shipping_address"),
+  shippingCity: varchar("shipping_city"),
+  shippingState: varchar("shipping_state"),
+  shippingPincode: varchar("shipping_pincode"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export type Order = typeof orders.$inferSelect;
+
+export const orderItems = pgTable("order_items", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  orderId: varchar("order_id").references(() => orders.id).notNull(),
+  productId: varchar("product_id").references(() => products.id).notNull(),
+  productName: varchar("product_name").notNull(),
+  quantity: integer("quantity").notNull().default(1),
+  price: decimal("price", { precision: 10, scale: 2 }).notNull(),
+});
+
+export type OrderItem = typeof orderItems.$inferSelect;
+
+// ─── Paid Reports ──────────────────────────────────────────
+export const reportTypes = pgTable("report_types", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  slug: varchar("slug").notNull().unique(),
+  name: varchar("name").notNull(),
+  description: text("description"),
+  category: varchar("category").default("life"), // career | marriage | finance | health | year_ahead | life
+  price: decimal("price", { precision: 10, scale: 2 }).notNull(),
+  icon: varchar("icon"),
+  isActive: boolean("is_active").default(true),
+  sortOrder: integer("sort_order").default(0),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export type ReportType = typeof reportTypes.$inferSelect;
+
+export const reportOrders = pgTable("report_orders", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").references(() => users.id).notNull(),
+  reportTypeId: varchar("report_type_id").references(() => reportTypes.id).notNull(),
+  kundliId: varchar("kundli_id").references(() => kundlis.id),
+  status: varchar("status").default("processing"), // processing | ready | failed
+  amount: decimal("amount", { precision: 10, scale: 2 }).notNull(),
+  content: jsonb("content"), // generated report payload
+  createdAt: timestamp("created_at").defaultNow(),
+  readyAt: timestamp("ready_at"),
+});
+
+export type ReportOrder = typeof reportOrders.$inferSelect;
+
+// ─── Book a Pooja ──────────────────────────────────────────
+export const poojas = pgTable("poojas", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  slug: varchar("slug").notNull().unique(),
+  name: varchar("name").notNull(),
+  description: text("description"),
+  benefits: text("benefits").array(),
+  price: decimal("price", { precision: 10, scale: 2 }).notNull(),
+  durationText: varchar("duration_text"), // e.g. "Performed within 7 days"
+  imageUrl: varchar("image_url"),
+  isActive: boolean("is_active").default(true),
+  sortOrder: integer("sort_order").default(0),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export type Pooja = typeof poojas.$inferSelect;
+
+export const poojaBookings = pgTable("pooja_bookings", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").references(() => users.id).notNull(),
+  poojaId: varchar("pooja_id").references(() => poojas.id).notNull(),
+  poojaName: varchar("pooja_name").notNull(),
+  status: varchar("status").default("booked"), // booked | scheduled | performed | cancelled
+  amount: decimal("amount", { precision: 10, scale: 2 }).notNull(),
+  devoteeName: varchar("devotee_name").notNull(),
+  gotra: varchar("gotra"),
+  preferredDate: timestamp("preferred_date"),
+  sankalpNotes: text("sankalp_notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export type PoojaBooking = typeof poojaBookings.$inferSelect;
+
+// ─── Live Streaming ────────────────────────────────────────
+export const liveStreams = pgTable("live_streams", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  astrologerId: varchar("astrologer_id").references(() => astrologers.id).notNull(),
+  title: varchar("title").notNull(),
+  status: varchar("status").default("live"), // live | ended
+  agoraChannel: varchar("agora_channel").notNull(),
+  viewerCount: integer("viewer_count").default(0),
+  peakViewers: integer("peak_viewers").default(0),
+  totalGifts: decimal("total_gifts", { precision: 12, scale: 2 }).default("0"),
+  startedAt: timestamp("started_at").defaultNow(),
+  endedAt: timestamp("ended_at"),
+});
+
+export type LiveStream = typeof liveStreams.$inferSelect;
+
+export const streamMessages = pgTable("stream_messages", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  streamId: varchar("stream_id").references(() => liveStreams.id).notNull(),
+  senderId: varchar("sender_id").notNull(),
+  senderType: varchar("sender_type").notNull().default("user"), // user | astrologer
+  senderName: varchar("sender_name").notNull(),
+  type: varchar("type").notNull().default("chat"), // chat | gift | join
+  message: text("message"),
+  giftName: varchar("gift_name"),
+  giftAmount: decimal("gift_amount", { precision: 10, scale: 2 }),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export type StreamMessage = typeof streamMessages.$inferSelect;
+
+// ─── Follow / Favourite astrologers ────────────────────────
+export const astrologerFollows = pgTable("astrologer_follows", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").references(() => users.id).notNull(),
+  astrologerId: varchar("astrologer_id").references(() => astrologers.id).notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (t) => [index("idx_follow_user_astro").on(t.userId, t.astrologerId)]);
+
+export type AstrologerFollow = typeof astrologerFollows.$inferSelect;
+
+// ─── Consultation waitlist (when astrologer is busy/offline) ─
+export const consultationQueue = pgTable("consultation_queue", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").references(() => users.id).notNull(),
+  astrologerId: varchar("astrologer_id").references(() => astrologers.id).notNull(),
+  type: varchar("type").notNull().default("chat"), // chat | voice | video
+  status: varchar("status").default("waiting"), // waiting | notified | cancelled
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export type ConsultationQueueEntry = typeof consultationQueue.$inferSelect;
+
 // AI Chat Messages table — conversations with the AI astrologer
 export const aiChatMessages = pgTable("ai_chat_messages", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -437,83 +687,6 @@ export const predictionFeedbacks = pgTable("prediction_feedbacks", {
   processedAt: timestamp("processed_at"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
-
-// ── Navagraha Corporate (The C-Suite) ─────────────────
-export const aiCompanies = pgTable("ai_companies", {
-  id: serial("id").primaryKey(),
-  userId: text("user_id").notNull(),   // varchar UUID from users.id
-  name: text("name").notNull(),
-  mission: text("mission").notNull(),
-  industry: text("industry").notNull(),
-  targetRevenue: numeric("target_revenue", { precision: 12, scale: 2 }),
-  targetCurrency: text("target_currency").default("INR"),
-  targetDeadline: timestamp("target_deadline"),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-});
-
-export const aiEmployees = pgTable("ai_employees", {
-  id: serial("id").primaryKey(),
-  companyId: integer("company_id").references(() => aiCompanies.id).notNull(),
-  role: text("role").notNull(), // CEO, CTO, CFO, CMO, BRAND, SALES
-  name: text("name").notNull(),
-  personality: text("personality").notNull(),
-  status: text("status").default("active"), // active, paused, thinking
-  lastOutput: text("last_output"),
-  tokenSpend: integer("token_spend").default(0),
-  updatedAt: timestamp("updated_at").defaultNow().notNull(),
-});
-
-export const aiInitiatives = pgTable("ai_initiatives", {
-  id: serial("id").primaryKey(),
-  companyId: integer("company_id").references(() => aiCompanies.id).notNull(),
-  title: text("title").notNull(),
-  description: text("description").notNull(),
-  priority: text("priority").default("medium"), // high, medium, low
-  status: text("status").default("pending"), // pending, active, completed, failed
-  deadline: timestamp("deadline"),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-});
-
-export const aiDirectives = pgTable("ai_directives", {
-  id: serial("id").primaryKey(),
-  initiativeId: integer("initiative_id").references(() => aiInitiatives.id).notNull(),
-  issuerId: integer("issuer_id").references(() => aiEmployees.id).notNull(),
-  assigneeId: integer("assignee_id").references(() => aiEmployees.id), // Can be null if global
-  content: text("content").notNull(),
-  type: text("type").notNull(), // STRATEGY, TASK, REPORT, CODE_CHANGE
-  status: text("status").default("pending"), // pending, approved, completed, rejected
-  proposedChanges: jsonb("proposed_changes"), // { filePath: string, content: string }[]
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-});
-
-// ── Zod Schemas for Corporate ─────────────────────────
-export const insertAiCompanySchema = createInsertSchema(aiCompanies);
-export const insertAiEmployeeSchema = createInsertSchema(aiEmployees);
-export const insertAiInitiativeSchema = createInsertSchema(aiInitiatives);
-export const insertAiDirectiveSchema = createInsertSchema(aiDirectives);
-
-export type AiCompany = typeof aiCompanies.$inferSelect;
-export type AiEmployee = typeof aiEmployees.$inferSelect;
-export type AiInitiative = typeof aiInitiatives.$inferSelect;
-export type AiDirective = typeof aiDirectives.$inferSelect;
-
-export const boardroomMessages = pgTable("boardroom_messages", {
-  id: serial("id").primaryKey(),
-  companyId: integer("company_id").references(() => aiCompanies.id).notNull(),
-  senderType: text("sender_type").notNull(), // 'user' | 'employee'
-  senderId: text("sender_id").notNull(),     // user UUID or employee id as string
-  senderName: text("sender_name").notNull(),
-  senderRole: text("sender_role"),           // CEO, CFO etc.
-  receiverType: text("receiver_type"),        // 'user' | 'employee' | 'all'
-  receiverId: text("receiver_id"),            // employee id or null
-  content: text("content").notNull(),
-  thread: text("thread").notNull(),           // 'exec-room' or 'dm-<employeeId>'
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-});
-
-export const insertBoardroomMessageSchema = createInsertSchema(boardroomMessages);
-export type BoardroomMessage = typeof boardroomMessages.$inferSelect;
-
 
 export const insertPredictionFeedbackSchema = createInsertSchema(predictionFeedbacks);
 

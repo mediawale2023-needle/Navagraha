@@ -25,20 +25,37 @@ import AdminDashboard from "@/pages/AdminDashboard";
 import Numerology from "@/pages/Numerology";
 import Horoscope from "@/pages/Horoscope";
 import AIAstrologer from "@/pages/AIAstrologer";
+import Store from "@/pages/Store";
+import Reports from "@/pages/Reports";
+import Pooja from "@/pages/Pooja";
+import Live from "@/pages/Live";
+import LiveStream from "@/pages/LiveStream";
+import LiveStudio from "@/pages/LiveStudio";
+import Panchang from "@/pages/Panchang";
+import Remedies from "@/pages/Remedies";
 import NotFound from "@/pages/not-found";
 import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { initAnalytics, trackEvent, identifyUser } from "@/lib/analytics";
+import { enablePushNotifications, type FirebaseConfig } from "@/lib/push";
 
 function Router() {
   const { isAuthenticated, isLoading, user } = useAuth();
   const [showSplash, setShowSplash] = useState(true);
 
   // Initialize PostHog from server config
-  const { data: config } = useQuery<{ posthogKey?: string }>({
+  const { data: config } = useQuery<{ posthogKey?: string; firebase?: FirebaseConfig }>({
     queryKey: ["/api/config"],
     refetchOnWindowFocus: false,
   });
+
+  // Register for web push once authenticated (no-op if Firebase unconfigured,
+  // unsupported, or the user has already declined permission).
+  useEffect(() => {
+    if (isAuthenticated && config?.firebase?.projectId && Notification?.permission !== 'denied') {
+      enablePushNotifications(config.firebase);
+    }
+  }, [isAuthenticated, config?.firebase?.projectId]);
 
   useEffect(() => {
     if (config?.posthogKey) {
@@ -76,6 +93,7 @@ function Router() {
       {/* Astrologer portal — always accessible */}
       <Route path="/astrologer/login" component={AstrologerLogin} />
       <Route path="/astrologer/dashboard" component={AstrologerDashboard} />
+      <Route path="/astrologer/live" component={LiveStudio} />
 
       {/* Public routes — accessible without login */}
       <Route path="/horoscope" component={Horoscope} />
@@ -87,6 +105,13 @@ function Router() {
       <Route path="/kundli/:id" component={KundliView} />
       <Route path="/numerology" component={Numerology} />
       <Route path="/ai-astrologer" component={AIAstrologer} />
+      <Route path="/store" component={Store} />
+      <Route path="/reports" component={Reports} />
+      <Route path="/pooja" component={Pooja} />
+      <Route path="/live" component={Live} />
+      <Route path="/live/:id" component={LiveStream} />
+      <Route path="/panchang" component={Panchang} />
+      <Route path="/remedies" component={Remedies} />
 
       {isLoading || !isAuthenticated ? (
         <>

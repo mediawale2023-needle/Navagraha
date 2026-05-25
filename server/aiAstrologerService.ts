@@ -116,6 +116,81 @@ ${chartSummary(kundli)}`;
   }
 }
 
+// ─── Paid Reports ─────────────────────────────────────────────────────────────
+
+export interface GeneratedReport {
+  title: string;
+  summary: string;
+  sections: { heading: string; body: string }[];
+  remedies: string[];
+  generatedAt: string;
+}
+
+const REPORT_FOCUS: Record<string, { title: string; focus: string; sections: string[] }> = {
+  career:     { title: "Career & Profession Report", focus: "career path, ideal professions, job vs business, and timing of professional growth", sections: ["Career Overview", "Strengths & Ideal Fields", "Job vs Business", "Growth Timing & Dashas", "Challenges to Watch"] },
+  marriage:   { title: "Marriage & Love Report", focus: "marriage timing, partner characteristics, married life, and relationship harmony", sections: ["Love & Marriage Overview", "Partner Traits", "Marriage Timing", "Married Life", "Harmony & Compatibility"] },
+  finance:    { title: "Wealth & Finance Report", focus: "wealth houses, income sources, investments, savings and financial timing", sections: ["Financial Overview", "Income Sources", "Wealth Accumulation", "Favourable Investment Windows", "Money Management"] },
+  health:     { title: "Health & Wellbeing Report", focus: "constitution, vulnerable periods, and lifestyle and astrological remedies", sections: ["Health Constitution", "Vulnerable Periods", "Areas to Watch", "Lifestyle Guidance"] },
+  year_ahead: { title: "Year Ahead Report", focus: "month-by-month predictions for the coming 12 months across career, money, relationships and health", sections: ["Year Overview", "Career & Work", "Money & Finance", "Relationships", "Health", "Best & Cautious Months"] },
+  life:       { title: "Life Reading Report", focus: "overall life themes, personality, and major life areas", sections: ["Life Overview", "Personality", "Career", "Relationships", "Health & Wellbeing"] },
+};
+
+function templatedReport(category: string, kundli: Partial<Kundli>): GeneratedReport {
+  const meta = REPORT_FOCUS[category] || REPORT_FOCUS.life;
+  return {
+    title: meta.title,
+    summary: `A personalised ${meta.title} prepared from your Vedic birth chart (Lagna: ${kundli.ascendant || "—"}, Moon: ${kundli.moonSign || "—"}, Rashi: ${kundli.zodiacSign || "—"}). Detailed AI analysis is being finalised; meanwhile here is your chart-based outline.`,
+    sections: meta.sections.map((heading) => ({
+      heading,
+      body: `Insights on ${heading.toLowerCase()} based on your ascendant ${kundli.ascendant || ""}, Moon sign ${kundli.moonSign || ""} and current planetary periods.`,
+    })),
+    remedies: ["Chant your ruling planet's mantra", "Wear the recommended gemstone after consultation", "Offer prayers on your favourable weekday"],
+    generatedAt: new Date().toISOString(),
+  };
+}
+
+export async function generateReport(
+  category: string,
+  kundli: Partial<Kundli>,
+): Promise<GeneratedReport> {
+  const meta = REPORT_FOCUS[category] || REPORT_FOCUS.life;
+  if (!process.env.OPENAI_API_KEY) {
+    return templatedReport(category, kundli);
+  }
+
+  try {
+    const client = getClient();
+    const prompt = `You are an expert Vedic astrologer preparing a premium paid "${meta.title}". Focus on ${meta.focus}. Analyse the birth chart and return ONLY valid JSON with this exact shape:
+{
+  "title": "${meta.title}",
+  "summary": "3-4 sentence personalised summary",
+  "sections": [${meta.sections.map((s) => `{"heading": "${s}", "body": "2-3 rich, specific paragraphs"}`).join(", ")}],
+  "remedies": ["4-6 specific, practical Vedic remedies"]
+}
+
+Birth chart:
+${chartSummary(kundli)}`;
+
+    const response = await client.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [{ role: "user", content: prompt }],
+      response_format: { type: "json_object" },
+    });
+    const text = response.choices[0]?.message?.content || "";
+    const parsed = JSON.parse(text);
+    return {
+      title: parsed.title || meta.title,
+      summary: parsed.summary || "",
+      sections: Array.isArray(parsed.sections) ? parsed.sections : [],
+      remedies: Array.isArray(parsed.remedies) ? parsed.remedies : [],
+      generatedAt: new Date().toISOString(),
+    };
+  } catch (err) {
+    console.error("[report] generation failed, using templated fallback:", err);
+    return templatedReport(category, kundli);
+  }
+}
+
 // ─── Pre-Consultation Brief ───────────────────────────────────────────────────
 
 export interface PreConsultBrief {
