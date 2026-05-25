@@ -20,6 +20,7 @@ process.on("unhandledRejection", (err) =>
 const app = express();
 let startupReady = false;
 let startupError: string | null = null;
+const isCorporateAutomationEnabled = process.env.ENABLE_CORPORATE_AUTOMATION === "true";
 
 declare module "http" {
   interface IncomingMessage {
@@ -138,10 +139,14 @@ waitForDatabase()
       serveStatic(app);
     }
 
-    // Run DB migrations, then start the heartbeat engine and watchdog
+    // Run DB migrations, then start optional corporate automation.
     return runMigrations().then(async () => {
-      startHeartbeatEngine();
-      await corporateOrchestrator.resumePendingTasks();
+      if (isCorporateAutomationEnabled) {
+        startHeartbeatEngine();
+        await corporateOrchestrator.resumePendingTasks();
+      } else {
+        log("corporate automation disabled in this environment");
+      }
       startupReady = true;
     });
   })
