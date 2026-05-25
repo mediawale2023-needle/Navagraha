@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 import { Link } from 'wouter';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -8,9 +8,10 @@ import { LoadingSpinner } from '@/components/LoadingSpinner';
 
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
+import { apiRequest } from '@/lib/queryClient';
 import {
   ArrowLeft, Search, Star, MessageCircle,
-  Phone, CheckCircle2, Sparkles, Zap
+  Phone, CheckCircle2, Sparkles, Zap, Heart, BellRing
 } from 'lucide-react';
 import type { Astrologer } from '@shared/schema';
 
@@ -42,6 +43,30 @@ export default function Astrologers() {
     enabled: isAuthenticated,
     retry: false,
     staleTime: 5 * 60_000, // cache 5 minutes — one API call per session
+  });
+
+  const { data: followingIds } = useQuery<string[]>({
+    queryKey: ['/api/astrologers/following/list'],
+    enabled: isAuthenticated,
+  });
+  const following = new Set(followingIds || []);
+
+  const toggleFollow = useMutation({
+    mutationFn: async ({ id, isFollowing }: { id: string; isFollowing: boolean }) => {
+      await apiRequest(isFollowing ? 'DELETE' : 'POST', `/api/astrologers/${id}/follow`);
+      return !isFollowing;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['/api/astrologers/following/list'] }),
+    onError: () => toast({ title: 'Please login', description: 'Login to follow astrologers.', variant: 'destructive' }),
+  });
+
+  const joinWaitlist = useMutation({
+    mutationFn: async ({ id, type }: { id: string; type: string }) => {
+      const res = await apiRequest('POST', `/api/astrologers/${id}/waitlist`, { type });
+      return res.json();
+    },
+    onSuccess: (data: any) => toast({ title: 'Added to waitlist', description: `We'll notify you when they're available${data?.position ? ` (position #${data.position})` : ''}.` }),
+    onError: () => toast({ title: 'Could not join waitlist', variant: 'destructive' }),
   });
 
   useEffect(() => {
@@ -275,8 +300,16 @@ export default function Astrologers() {
                       </div>
                     </div>
 
-                    {/* Price */}
-                    <div className="text-right shrink-0">
+                    {/* Price + follow */}
+                    <div className="text-right shrink-0 flex flex-col items-end">
+                      <button
+                        onClick={() => toggleFollow.mutate({ id: astrologer.id, isFollowing: following.has(astrologer.id) })}
+                        className="mb-1 p-1.5 rounded-full hover:bg-muted"
+                        aria-label="Follow"
+                        data-testid={`button-follow-${astrologer.id}`}
+                      >
+                        <Heart className={`w-4 h-4 ${following.has(astrologer.id) ? 'fill-red-500 text-red-500' : 'text-muted-foreground'}`} />
+                      </button>
                       <div className="mb-2">
                         <span className="font-bold text-lg text-nava-teal">₹{astrologer.pricePerMinute || '25'}</span>
                         <span className="text-xs text-muted-foreground">/min</span>
@@ -287,6 +320,7 @@ export default function Astrologers() {
                   {/* Action Buttons */}
                   <div className="flex gap-2 mt-3">
                     {isAuthenticated ? (
+                      online ? (
                       <>
                         <Link href={`/call/${astrologer.id}?type=voice`} className="flex-1">
                           <Button className="w-full bg-nava-teal hover:bg-nava-teal/90 text-white font-semibold rounded-full h-9" data-testid={`button-call-${astrologer.id}`}>
@@ -299,6 +333,17 @@ export default function Astrologers() {
                           </Button>
                         </Link>
                       </>
+                      ) : (
+                        <Button
+                          variant="outline"
+                          className="w-full font-semibold rounded-full h-9"
+                          onClick={() => joinWaitlist.mutate({ id: astrologer.id, type: 'chat' })}
+                          disabled={joinWaitlist.isPending}
+                          data-testid={`button-waitlist-${astrologer.id}`}
+                        >
+                          <BellRing className="w-4 h-4 mr-1.5" /> Notify me when online
+                        </Button>
+                      )
                     ) : (
                       <>
                         <Button className="flex-1 bg-nava-teal hover:bg-nava-teal/90 text-white font-semibold rounded-full h-9" onClick={() => handleLoginRequired('call')} data-testid={`button-call-${astrologer.id}`}>

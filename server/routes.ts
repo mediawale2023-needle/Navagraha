@@ -35,6 +35,7 @@ import {
   callSynastryEngine,
   callRemediationEngine,
 } from "./astroEngineClient";
+import { computePanchang } from "./astroEngine/panchang";
 import {
   createRazorpayOrder,
   verifyRazorpaySignature,
@@ -259,6 +260,18 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
     } catch { res.status(500).json({ message: "Failed to fetch horoscope" }); }
   });
 
+  // ─── Panchang ─────────────────────────────────────────────
+  app.get('/api/panchang', (req, res) => {
+    try {
+      const date = (req.query.date as string) || undefined;
+      const tz = req.query.tz ? parseInt(req.query.tz as string, 10) : 330;
+      res.json(computePanchang(date, Number.isFinite(tz) ? tz : 330));
+    } catch (err) {
+      console.error('Panchang error:', err);
+      res.status(500).json({ message: 'Failed to compute panchang' });
+    }
+  });
+
   // ─── Matchmaking ──────────────────────────────────────────
   app.post('/api/matchmaking', async (req, res) => {
     try {
@@ -403,13 +416,63 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
     } catch { res.status(500).json({ message: "Failed to fetch astrologers" }); }
   });
 
-  app.get('/api/astrologers/:id', async (req, res) => {
+  app.get('/api/astrologers/:id', async (req: any, res) => {
     try {
       const astrologer = await storage.getAstrologerById(req.params.id);
       if (!astrologer) return res.status(404).json({ message: "Astrologer not found" });
       const { passwordHash: _ph, bankAccountNumber: _ban, bankIfsc: _bi, ...safe } = astrologer;
-      res.json(safe);
+      const followers = await storage.getFollowerUserIds(astrologer.id);
+      const currentUserId = (req.user as any)?.id || req.session?.userId;
+      const isFollowing = currentUserId ? followers.includes(currentUserId) : false;
+      res.json({ ...safe, followerCount: followers.length, isFollowing });
     } catch { res.status(500).json({ message: "Failed to fetch astrologer" }); }
+  });
+
+  // Follow / unfollow an astrologer
+  app.post('/api/astrologers/:id/follow', isAuthenticated, async (req: any, res) => {
+    try {
+      await storage.followAstrologer((req.user as any).id, req.params.id);
+      res.json({ following: true });
+    } catch { res.status(500).json({ message: "Failed to follow" }); }
+  });
+
+  app.delete('/api/astrologers/:id/follow', isAuthenticated, async (req: any, res) => {
+    try {
+      await storage.unfollowAstrologer((req.user as any).id, req.params.id);
+      res.json({ following: false });
+    } catch { res.status(500).json({ message: "Failed to unfollow" }); }
+  });
+
+  // List astrologers the current user follows
+  app.get('/api/astrologers/following/list', isAuthenticated, async (req: any, res) => {
+    try {
+      const ids = await storage.getFollowedAstrologerIds((req.user as any).id);
+      res.json(ids);
+    } catch { res.status(500).json({ message: "Failed to fetch following" }); }
+  });
+
+  // ─── Waitlist (when astrologer is busy/offline) ────────────
+  app.post('/api/astrologers/:id/waitlist', isAuthenticated, async (req: any, res) => {
+    try {
+      const { type } = req.body;
+      const entry = await storage.joinQueue((req.user as any).id, req.params.id, type || 'chat');
+      const position = await storage.getQueuePosition((req.user as any).id, req.params.id);
+      res.status(201).json({ entry, position });
+    } catch { res.status(500).json({ message: "Failed to join waitlist" }); }
+  });
+
+  app.delete('/api/astrologers/:id/waitlist', isAuthenticated, async (req: any, res) => {
+    try {
+      await storage.leaveQueue((req.user as any).id, req.params.id);
+      res.json({ success: true });
+    } catch { res.status(500).json({ message: "Failed to leave waitlist" }); }
+  });
+
+  app.get('/api/astrologers/:id/waitlist', isAuthenticated, async (req: any, res) => {
+    try {
+      const position = await storage.getQueuePosition((req.user as any).id, req.params.id);
+      res.json({ position });
+    } catch { res.status(500).json({ message: "Failed to fetch waitlist status" }); }
   });
 
   // ─── Astrologer Auth ──────────────────────────────────────
@@ -523,9 +586,29 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
 
   app.post('/api/astrologer/status', isAstrologerAuthenticated, async (req: any, res) => {
     try {
+      const astrologerId = req.session.astrologerId;
       const { isOnline } = req.body;
-      await storage.updateAstrologerOnlineStatus(req.session.astrologerId, isOnline);
+      await storage.updateAstrologerOnlineStatus(astrologerId, isOnline);
       res.json({ isOnline });
+
+      // When coming online, alert waitlisted users + followers (best-effort)
+      if (isOnline) {
+        (async () => {
+          try {
+            const astro = await storage.getAstrologerById(astrologerId);
+            const name = astro?.name || 'Your astrologer';
+            const waiting = await storage.getWaitingQueue(astrologerId);
+            for (const entry of waiting) {
+              await storage.createNotification({
+                userId: entry.userId, type: 'system', title: `${name} is online`,
+                body: `${name} is now available. Tap to start your ${entry.type} consultation.`,
+              });
+              sendPushToUser(entry.userId, { title: `${name} is online`, body: `Start your ${entry.type} consultation now.`, link: `/astrologers` });
+            }
+            await storage.markQueueNotified(astrologerId);
+          } catch (err) { console.error('Waitlist notify error:', err); }
+        })();
+      }
     } catch { res.status(500).json({ message: "Failed to update status" }); }
   });
 
@@ -1726,6 +1809,20 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
       try {
         token = generateAgoraToken(agoraChannel, 0, 'publisher');
       } catch { /* Agora not configured — A/V disabled, chat still works */ }
+
+      // Alert followers that this astrologer is live (best-effort)
+      (async () => {
+        try {
+          const followerIds = await storage.getFollowerUserIds(astrologerId);
+          for (const uid of followerIds) {
+            await storage.createNotification({
+              userId: uid, type: 'system', title: `${astrologer.name} is live! 🔴`,
+              body: stream.title,
+            });
+            sendPushToUser(uid, { title: `${astrologer.name} is live! 🔴`, body: stream.title, link: `/live/${stream.id}` });
+          }
+        } catch (err) { console.error('Live follower notify error:', err); }
+      })();
 
       res.status(201).json({ stream, token, appId: process.env.AGORA_APP_ID, gifts: GIFT_CATALOG });
     } catch (err) {

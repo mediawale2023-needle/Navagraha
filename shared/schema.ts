@@ -625,6 +625,28 @@ export const streamMessages = pgTable("stream_messages", {
 
 export type StreamMessage = typeof streamMessages.$inferSelect;
 
+// ─── Follow / Favourite astrologers ────────────────────────
+export const astrologerFollows = pgTable("astrologer_follows", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").references(() => users.id).notNull(),
+  astrologerId: varchar("astrologer_id").references(() => astrologers.id).notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (t) => [index("idx_follow_user_astro").on(t.userId, t.astrologerId)]);
+
+export type AstrologerFollow = typeof astrologerFollows.$inferSelect;
+
+// ─── Consultation waitlist (when astrologer is busy/offline) ─
+export const consultationQueue = pgTable("consultation_queue", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").references(() => users.id).notNull(),
+  astrologerId: varchar("astrologer_id").references(() => astrologers.id).notNull(),
+  type: varchar("type").notNull().default("chat"), // chat | voice | video
+  status: varchar("status").default("waiting"), // waiting | notified | cancelled
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export type ConsultationQueueEntry = typeof consultationQueue.$inferSelect;
+
 // AI Chat Messages table — conversations with the AI astrologer
 export const aiChatMessages = pgTable("ai_chat_messages", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),

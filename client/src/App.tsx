@@ -31,6 +31,7 @@ import Pooja from "@/pages/Pooja";
 import Live from "@/pages/Live";
 import LiveStream from "@/pages/LiveStream";
 import LiveStudio from "@/pages/LiveStudio";
+import Panchang from "@/pages/Panchang";
 import NotFound from "@/pages/not-found";
 import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
@@ -108,6 +109,7 @@ function Router() {
       <Route path="/pooja" component={Pooja} />
       <Route path="/live" component={Live} />
       <Route path="/live/:id" component={LiveStream} />
+      <Route path="/panchang" component={Panchang} />
 
       {isLoading || !isAuthenticated ? (
         <>

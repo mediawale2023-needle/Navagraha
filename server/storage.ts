@@ -25,6 +25,8 @@ import {
   poojaBookings,
   liveStreams,
   streamMessages,
+  astrologerFollows,
+  consultationQueue,
   type Coupon,
   type InsertCoupon,
   type CouponRedemption,
@@ -40,6 +42,8 @@ import {
   type PoojaBooking,
   type LiveStream,
   type StreamMessage,
+  type AstrologerFollow,
+  type ConsultationQueueEntry,
   type User,
   type UpsertUser,
   type Kundli,
@@ -1258,6 +1262,90 @@ export class DatabaseStorage implements IStorage {
       .orderBy(desc(streamMessages.createdAt))
       .limit(limit);
     return rows.reverse();
+  }
+
+  // ─── Follow / favourite astrologers ────────────────────────
+  async followAstrologer(userId: string, astrologerId: string): Promise<void> {
+    await db
+      .insert(astrologerFollows)
+      .values({ userId, astrologerId })
+      .onConflictDoNothing();
+  }
+
+  async unfollowAstrologer(userId: string, astrologerId: string): Promise<void> {
+    await db
+      .delete(astrologerFollows)
+      .where(and(eq(astrologerFollows.userId, userId), eq(astrologerFollows.astrologerId, astrologerId)));
+  }
+
+  async isFollowing(userId: string, astrologerId: string): Promise<boolean> {
+    const rows = await db
+      .select({ id: astrologerFollows.id })
+      .from(astrologerFollows)
+      .where(and(eq(astrologerFollows.userId, userId), eq(astrologerFollows.astrologerId, astrologerId)))
+      .limit(1);
+    return rows.length > 0;
+  }
+
+  async getFollowedAstrologerIds(userId: string): Promise<string[]> {
+    const rows = await db
+      .select({ astrologerId: astrologerFollows.astrologerId })
+      .from(astrologerFollows)
+      .where(eq(astrologerFollows.userId, userId));
+    return rows.map((r) => r.astrologerId);
+  }
+
+  async getFollowerUserIds(astrologerId: string): Promise<string[]> {
+    const rows = await db
+      .select({ userId: astrologerFollows.userId })
+      .from(astrologerFollows)
+      .where(eq(astrologerFollows.astrologerId, astrologerId));
+    return rows.map((r) => r.userId);
+  }
+
+  // ─── Consultation waitlist ─────────────────────────────────
+  async joinQueue(userId: string, astrologerId: string, type: string): Promise<ConsultationQueueEntry> {
+    // Remove any prior waiting entry for the same pair, then add fresh
+    await db
+      .delete(consultationQueue)
+      .where(and(
+        eq(consultationQueue.userId, userId),
+        eq(consultationQueue.astrologerId, astrologerId),
+        eq(consultationQueue.status, "waiting"),
+      ));
+    const [row] = await db.insert(consultationQueue).values({ userId, astrologerId, type }).returning();
+    return row;
+  }
+
+  async leaveQueue(userId: string, astrologerId: string): Promise<void> {
+    await db
+      .delete(consultationQueue)
+      .where(and(eq(consultationQueue.userId, userId), eq(consultationQueue.astrologerId, astrologerId)));
+  }
+
+  async getQueuePosition(userId: string, astrologerId: string): Promise<number | null> {
+    const waiting = await db
+      .select()
+      .from(consultationQueue)
+      .where(and(eq(consultationQueue.astrologerId, astrologerId), eq(consultationQueue.status, "waiting")))
+      .orderBy(asc(consultationQueue.createdAt));
+    const idx = waiting.findIndex((e) => e.userId === userId);
+    return idx === -1 ? null : idx + 1;
+  }
+
+  async getWaitingQueue(astrologerId: string): Promise<ConsultationQueueEntry[]> {
+    return await db
+      .select()
+      .from(consultationQueue)
+      .where(and(eq(consultationQueue.astrologerId, astrologerId), eq(consultationQueue.status, "waiting")))
+      .orderBy(asc(consultationQueue.createdAt));
+  }
+
+  async markQueueNotified(astrologerId: string): Promise<void> {
+    await db
+      .update(consultationQueue)
+      .set({ status: "notified" })
+      .where(and(eq(consultationQueue.astrologerId, astrologerId), eq(consultationQueue.status, "waiting")));
   }
 }
 

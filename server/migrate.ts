@@ -422,6 +422,25 @@ CREATE TABLE IF NOT EXISTS stream_messages (
   created_at timestamp DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS idx_stream_messages_stream ON stream_messages (stream_id, created_at);
+
+-- ─── Follow / waitlist ─────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS astrologer_follows (
+  id varchar PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id varchar NOT NULL REFERENCES users(id),
+  astrologer_id varchar NOT NULL REFERENCES astrologers(id),
+  created_at timestamp DEFAULT now()
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_follow_user_astro ON astrologer_follows (user_id, astrologer_id);
+
+CREATE TABLE IF NOT EXISTS consultation_queue (
+  id varchar PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id varchar NOT NULL REFERENCES users(id),
+  astrologer_id varchar NOT NULL REFERENCES astrologers(id),
+  type varchar NOT NULL DEFAULT 'chat',
+  status varchar DEFAULT 'waiting',
+  created_at timestamp DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_queue_astro ON consultation_queue (astrologer_id, status);
 `;
 
 const SEED_STORE_SQL = `
