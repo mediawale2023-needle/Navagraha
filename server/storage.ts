@@ -1347,6 +1347,65 @@ export class DatabaseStorage implements IStorage {
       .set({ status: "notified" })
       .where(and(eq(consultationQueue.astrologerId, astrologerId), eq(consultationQueue.status, "waiting")));
   }
+
+  // ─── Admin fulfilment ──────────────────────────────────────
+  async getAllOrders(): Promise<(Order & { items: OrderItem[] })[]> {
+    const all = await db.select().from(orders).orderBy(desc(orders.createdAt));
+    const result = [];
+    for (const o of all) {
+      const items = await db.select().from(orderItems).where(eq(orderItems.orderId, o.id));
+      result.push({ ...o, items });
+    }
+    return result;
+  }
+
+  async getAllPoojaBookings(): Promise<PoojaBooking[]> {
+    return await db.select().from(poojaBookings).orderBy(desc(poojaBookings.createdAt));
+  }
+
+  async updatePoojaBookingStatus(id: string, status: string): Promise<PoojaBooking> {
+    const [row] = await db.update(poojaBookings).set({ status }).where(eq(poojaBookings.id, id)).returning();
+    return row;
+  }
+
+  // ─── Astrologer KYC ────────────────────────────────────────
+  async submitAstrologerKyc(astrologerId: string, data: {
+    panNumber?: string;
+    aadhaarLast4?: string;
+    bankAccountName?: string;
+    bankAccountNumber?: string;
+    bankIfsc?: string;
+    upiId?: string;
+  }): Promise<Astrologer> {
+    const [row] = await db
+      .update(astrologers)
+      .set({ ...data, kycStatus: "pending", kycSubmittedAt: new Date() })
+      .where(eq(astrologers.id, astrologerId))
+      .returning();
+    return row;
+  }
+
+  async getAstrologersByKycStatus(status: string): Promise<Astrologer[]> {
+    return await db
+      .select()
+      .from(astrologers)
+      .where(eq(astrologers.kycStatus, status))
+      .orderBy(desc(astrologers.kycSubmittedAt));
+  }
+
+  async reviewAstrologerKyc(astrologerId: string, approve: boolean, notes?: string): Promise<Astrologer> {
+    const [row] = await db
+      .update(astrologers)
+      .set({
+        kycStatus: approve ? "approved" : "rejected",
+        isVerified: approve,
+        kycNotes: notes,
+        kycReviewedAt: new Date(),
+      })
+      .where(eq(astrologers.id, astrologerId))
+      .returning();
+    return row;
+  }
 }
 
 

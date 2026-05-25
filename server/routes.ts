@@ -533,6 +533,23 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
     } catch { res.status(500).json({ message: "Failed to fetch profile" }); }
   });
 
+  // Astrologer submits KYC for verification
+  app.post('/api/astrologer/kyc', isAstrologerAuthenticated, async (req: any, res) => {
+    try {
+      const { panNumber, aadhaarLast4, bankAccountName, bankAccountNumber, bankIfsc, upiId } = req.body;
+      if (!panNumber || !bankAccountNumber || !bankIfsc) {
+        return res.status(400).json({ message: 'PAN, bank account number and IFSC are required.' });
+      }
+      const updated = await storage.submitAstrologerKyc(req.session.astrologerId, {
+        panNumber, aadhaarLast4, bankAccountName, bankAccountNumber, bankIfsc, upiId,
+      });
+      res.json({ kycStatus: updated.kycStatus });
+    } catch (err) {
+      console.error('KYC submit error:', err);
+      res.status(500).json({ message: 'Failed to submit KYC' });
+    }
+  });
+
   // ─── Astrologer Dashboard ─────────────────────────────────
 
   app.get('/api/astrologer/dashboard', isAstrologerAuthenticated, async (req: any, res) => {
@@ -2180,6 +2197,56 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
       const updated = await storage.updateAstrologer(req.params.id, req.body);
       res.json(updated);
     } catch { res.status(500).json({ message: 'Failed to update astrologer' }); }
+  });
+
+  // ─── Admin: store orders / pooja bookings ──────────────────
+  app.get('/api/admin/orders', isAdmin, adminLimiter, async (_req, res) => {
+    try {
+      res.json(await storage.getAllOrders());
+    } catch { res.status(500).json({ message: 'Failed to fetch orders' }); }
+  });
+
+  app.put('/api/admin/orders/:id', isAdmin, adminLimiter, async (req, res) => {
+    try {
+      const { status } = req.body;
+      const updated = await storage.updateOrderStatus(req.params.id, status);
+      res.json(updated);
+    } catch { res.status(500).json({ message: 'Failed to update order' }); }
+  });
+
+  app.get('/api/admin/pooja-bookings', isAdmin, adminLimiter, async (_req, res) => {
+    try {
+      res.json(await storage.getAllPoojaBookings());
+    } catch { res.status(500).json({ message: 'Failed to fetch bookings' }); }
+  });
+
+  app.put('/api/admin/pooja-bookings/:id', isAdmin, adminLimiter, async (req, res) => {
+    try {
+      const { status } = req.body;
+      const updated = await storage.updatePoojaBookingStatus(req.params.id, status);
+      res.json(updated);
+    } catch { res.status(500).json({ message: 'Failed to update booking' }); }
+  });
+
+  // ─── Admin: astrologer KYC review ──────────────────────────
+  app.get('/api/admin/kyc', isAdmin, adminLimiter, async (_req, res) => {
+    try {
+      res.json(await storage.getAstrologersByKycStatus('pending'));
+    } catch { res.status(500).json({ message: 'Failed to fetch KYC submissions' }); }
+  });
+
+  app.post('/api/admin/kyc/:id', isAdmin, adminLimiter, async (req, res) => {
+    try {
+      const { action, notes } = req.body; // approve | reject
+      const updated = await storage.reviewAstrologerKyc(req.params.id, action === 'approve', notes);
+      await storage.createNotification({
+        userId: updated.id, recipientType: 'astrologer', type: 'system',
+        title: action === 'approve' ? 'KYC Approved ✅' : 'KYC Rejected',
+        body: action === 'approve' ? 'Your profile is now verified.' : (notes || 'Please resubmit your KYC details.'),
+      });
+      const { passwordHash: _p, bankAccountNumber: _b, ...safe } = updated;
+      res.json(safe);
+    } catch { res.status(500).json({ message: 'Failed to review KYC' }); }
   });
 
   // ─── Admin: Coupons / Offers ───────────────────────────────

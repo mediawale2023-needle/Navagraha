@@ -441,6 +441,14 @@ CREATE TABLE IF NOT EXISTS consultation_queue (
   created_at timestamp DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS idx_queue_astro ON consultation_queue (astrologer_id, status);
+
+-- ─── Astrologer KYC fields ─────────────────────────────────────────────────
+ALTER TABLE astrologers ADD COLUMN IF NOT EXISTS kyc_status varchar DEFAULT 'none';
+ALTER TABLE astrologers ADD COLUMN IF NOT EXISTS pan_number varchar;
+ALTER TABLE astrologers ADD COLUMN IF NOT EXISTS aadhaar_last4 varchar;
+ALTER TABLE astrologers ADD COLUMN IF NOT EXISTS kyc_notes text;
+ALTER TABLE astrologers ADD COLUMN IF NOT EXISTS kyc_submitted_at timestamp;
+ALTER TABLE astrologers ADD COLUMN IF NOT EXISTS kyc_reviewed_at timestamp;
 `;
 
 const SEED_STORE_SQL = `

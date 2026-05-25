@@ -8,7 +8,7 @@ import { LoadingSpinner } from '@/components/LoadingSpinner';
 import {
   Users, Star, BookOpen, IndianRupee, Activity, Wifi, WifiOff,
   ChevronUp, ChevronDown, Plus, Trash2, Eye, EyeOff, Pencil, X, Check,
-  LayoutDashboard, FileText,
+  LayoutDashboard, FileText, Package,
 } from 'lucide-react';
 import { apiRequest } from '@/lib/queryClient';
 import { useToast } from "@/hooks/use-toast";
@@ -364,6 +364,98 @@ function ContentEditor() {
 }
 
 /* ═══════════════════════════════════════════════════════ */
+/*  Operations: orders, poojas, KYC                        */
+/* ═══════════════════════════════════════════════════════ */
+
+function AdminOps() {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  const [sub, setSub] = useState<'orders' | 'poojas' | 'kyc'>('orders');
+
+  const { data: orders } = useQuery<any[]>({ queryKey: ['/api/admin/orders'], enabled: sub === 'orders' });
+  const { data: bookings } = useQuery<any[]>({ queryKey: ['/api/admin/pooja-bookings'], enabled: sub === 'poojas' });
+  const { data: kyc } = useQuery<any[]>({ queryKey: ['/api/admin/kyc'], enabled: sub === 'kyc' });
+
+  const setOrderStatus = useMutation({
+    mutationFn: (v: { id: string; status: string }) => apiRequest('PUT', `/api/admin/orders/${v.id}`, { status: v.status }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['/api/admin/orders'] }),
+  });
+  const setBookingStatus = useMutation({
+    mutationFn: (v: { id: string; status: string }) => apiRequest('PUT', `/api/admin/pooja-bookings/${v.id}`, { status: v.status }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['/api/admin/pooja-bookings'] }),
+  });
+  const reviewKyc = useMutation({
+    mutationFn: (v: { id: string; action: string }) => apiRequest('POST', `/api/admin/kyc/${v.id}`, { action: v.action }),
+    onSuccess: (_d, v) => { queryClient.invalidateQueries({ queryKey: ['/api/admin/kyc'] }); toast({ title: v.action === 'approve' ? 'KYC approved' : 'KYC rejected' }); },
+  });
+
+  const tabBtn = (key: typeof sub, label: string) => (
+    <Button variant={sub === key ? 'default' : 'outline'} size="sm" className="rounded-xl" onClick={() => setSub(key)} data-testid={`ops-tab-${key}`}>{label}</Button>
+  );
+
+  return (
+    <div className="space-y-4">
+      <div className="flex gap-2">{tabBtn('orders', 'Store Orders')}{tabBtn('poojas', 'Pooja Bookings')}{tabBtn('kyc', 'KYC Review')}</div>
+
+      {sub === 'orders' && (
+        <Card><CardContent className="p-4 space-y-3">
+          {(!orders || orders.length === 0) && <p className="text-sm text-muted-foreground py-8 text-center">No orders.</p>}
+          {orders?.map((o) => (
+            <div key={o.id} className="border border-border/50 rounded-xl p-3" data-testid={`admin-order-${o.id}`}>
+              <div className="flex items-center justify-between">
+                <div className="text-sm">
+                  <p className="font-medium">{o.shippingName} · ₹{parseFloat(o.totalAmount).toFixed(0)}</p>
+                  <p className="text-xs text-muted-foreground">{o.shippingAddress}, {o.shippingCity} {o.shippingPincode} · {o.shippingPhone}</p>
+                  <p className="text-xs text-muted-foreground">{o.items?.map((i: any) => `${i.productName} ×${i.quantity}`).join(', ')}</p>
+                </div>
+                <select className="text-sm rounded-lg border border-border bg-background px-2 py-1" value={o.status} onChange={(e) => setOrderStatus.mutate({ id: o.id, status: e.target.value })} data-testid={`order-status-${o.id}`}>
+                  {['placed', 'confirmed', 'shipped', 'delivered', 'cancelled'].map((s) => <option key={s} value={s}>{s}</option>)}
+                </select>
+              </div>
+            </div>
+          ))}
+        </CardContent></Card>
+      )}
+
+      {sub === 'poojas' && (
+        <Card><CardContent className="p-4 space-y-3">
+          {(!bookings || bookings.length === 0) && <p className="text-sm text-muted-foreground py-8 text-center">No bookings.</p>}
+          {bookings?.map((b) => (
+            <div key={b.id} className="border border-border/50 rounded-xl p-3 flex items-center justify-between" data-testid={`admin-booking-${b.id}`}>
+              <div className="text-sm">
+                <p className="font-medium">{b.poojaName} · ₹{parseFloat(b.amount).toFixed(0)}</p>
+                <p className="text-xs text-muted-foreground">For {b.devoteeName}{b.gotra ? ` (${b.gotra})` : ''}{b.preferredDate ? ` · ${new Date(b.preferredDate).toLocaleDateString()}` : ''}</p>
+              </div>
+              <select className="text-sm rounded-lg border border-border bg-background px-2 py-1" value={b.status} onChange={(e) => setBookingStatus.mutate({ id: b.id, status: e.target.value })} data-testid={`booking-status-${b.id}`}>
+                {['booked', 'scheduled', 'performed', 'cancelled'].map((s) => <option key={s} value={s}>{s}</option>)}
+              </select>
+            </div>
+          ))}
+        </CardContent></Card>
+      )}
+
+      {sub === 'kyc' && (
+        <Card><CardContent className="p-4 space-y-3">
+          {(!kyc || kyc.length === 0) && <p className="text-sm text-muted-foreground py-8 text-center">No pending KYC submissions.</p>}
+          {kyc?.map((a) => (
+            <div key={a.id} className="border border-border/50 rounded-xl p-3 flex items-center justify-between" data-testid={`admin-kyc-${a.id}`}>
+              <div className="text-sm">
+                <p className="font-medium">{a.name} · {a.email}</p>
+                <p className="text-xs text-muted-foreground">PAN: {a.panNumber || '—'} · Aadhaar ••••{a.aadhaarLast4 || '—'} · IFSC: {a.bankIfsc || '—'}</p>
+              </div>
+              <div className="flex gap-2">
+                <Button size="sm" className="rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white" onClick={() => reviewKyc.mutate({ id: a.id, action: 'approve' })} data-testid={`kyc-approve-${a.id}`}>Approve</Button>
+                <Button size="sm" variant="outline" className="rounded-lg" onClick={() => reviewKyc.mutate({ id: a.id, action: 'reject' })} data-testid={`kyc-reject-${a.id}`}>Reject</Button>
+              </div>
+            </div>
+          ))}
+        </CardContent></Card>
+      )}
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════ */
 /*  Main AdminDashboard                                   */
 /* ═══════════════════════════════════════════════════════ */
 
@@ -371,7 +463,7 @@ export default function AdminDashboard() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const [search, setSearch] = useState('');
-  const [activeTab, setActiveTab] = useState<'overview' | 'content'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'content' | 'ops'>('overview');
 
   const { data: stats, isLoading: statsLoading } = useQuery<AdminStats>({
     queryKey: ['/api/admin/stats'],
@@ -436,6 +528,16 @@ export default function AdminDashboard() {
               }`}
           >
             <FileText className="w-4 h-4" /> Content
+          </button>
+          <button
+            onClick={() => setActiveTab('ops')}
+            className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 ${activeTab === 'ops'
+                ? 'border-primary text-primary'
+                : 'border-transparent text-muted-foreground hover:text-foreground'
+              }`}
+            data-testid="tab-ops"
+          >
+            <Package className="w-4 h-4" /> Operations
           </button>
         </div>
       </div>
@@ -524,6 +626,8 @@ export default function AdminDashboard() {
         )}
 
         {activeTab === 'content' && <ContentEditor />}
+
+        {activeTab === 'ops' && <AdminOps />}
 
       </div>
     </div>

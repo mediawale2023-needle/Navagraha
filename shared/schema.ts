@@ -109,6 +109,13 @@ export const astrologers = pgTable("astrologers", {
   upiId: varchar("upi_id"),
   phoneNumber: varchar("phone_number"),
   lastSeenAt: timestamp("last_seen_at"),
+  // KYC / verification
+  kycStatus: varchar("kyc_status").default("none"), // none | pending | approved | rejected
+  panNumber: varchar("pan_number"),
+  aadhaarLast4: varchar("aadhaar_last4"),
+  kycNotes: text("kyc_notes"),
+  kycSubmittedAt: timestamp("kyc_submitted_at"),
+  kycReviewedAt: timestamp("kyc_reviewed_at"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
