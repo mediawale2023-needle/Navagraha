@@ -67,7 +67,7 @@ export default function BottomNav() {
   const [location, setLocation] = useLocation();
 
   return (
-    <nav className="md:hidden fixed bottom-6 left-4 right-4 rounded-2xl bg-white/95 backdrop-blur-xl z-50 overflow-hidden shadow-lg border border-border pb-safe">
+    <nav className="md:hidden fixed bottom-6 left-4 right-4 rounded-2xl bg-card/95 backdrop-blur-xl z-50 overflow-hidden shadow-lg border border-border pb-safe">
       <div className="flex items-center justify-around h-16 px-2 relative">
         {NAV_ITEMS.map((item, i) => {
           const isActive = location === item.path;

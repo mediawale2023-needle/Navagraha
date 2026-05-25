@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest } from '@/lib/queryClient';
+import { ThemeToggle } from '@/components/ThemeToggle';
 import type { Astrologer } from '@shared/schema';
 
 const CATEGORIES = [
@@ -34,6 +35,7 @@ export default function Landing() {
   const { toast } = useToast();
 
   const onlineCount = astrologers?.filter((a: Astrologer) => a.availability === 'online').length ?? 0;
+  const featuredAstrologers = astrologers?.slice(0, 4) || [];
 
   const authMutation = useMutation({
     mutationFn: async () => {
@@ -62,25 +64,29 @@ export default function Landing() {
         transition={{ duration: 0.6 }}
         className="fixed top-0 inset-x-0 z-50 px-4 pt-4 pb-3 bg-background/80 backdrop-blur-md border-b border-border/30"
       >
-        <div className="max-w-lg mx-auto flex items-center justify-between">
+        <div className="max-w-6xl mx-auto flex items-center justify-between gap-3">
           <div className="flex items-center gap-2">
             <div className="w-9 h-9 rounded-xl bg-nava-magenta flex items-center justify-center">
               <Sparkles className="w-5 h-5 text-white" />
             </div>
             <span className="font-bold text-lg text-foreground">Navagraha</span>
           </div>
-          <Button
-            className="bg-nava-teal hover:bg-nava-teal/90 text-white font-semibold rounded-full px-5 h-9"
-            onClick={() => setAuthOpen(true)}
-          >
-            Sign In
-          </Button>
+          <div className="flex items-center gap-2">
+            <ThemeToggle />
+            <Button
+              className="bg-nava-teal hover:bg-nava-teal/90 text-white font-semibold rounded-full px-5 h-9"
+              onClick={() => setAuthOpen(true)}
+            >
+              Sign In
+            </Button>
+          </div>
         </div>
       </motion.header>
 
       {/* ─── Hero Section ─── */}
-      <div className="relative pt-24 pb-8 px-4">
-        <div className="max-w-lg mx-auto">
+      <div className="relative pt-24 pb-8 px-4 md:px-6">
+        <div className="max-w-6xl mx-auto grid gap-6 lg:grid-cols-[minmax(0,1.3fr)_minmax(320px,0.9fr)] lg:items-start">
+          <div>
           {/* Branding */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -109,7 +115,7 @@ export default function Landing() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.2 }}
-            className="bg-card rounded-2xl p-4 shadow-sm border border-border/50 mb-6"
+            className="bg-card rounded-2xl p-5 shadow-sm border border-border/50 mb-5"
           >
             <h2 className="font-bold text-xl text-foreground mb-1">
               Namaste, Seeker 🙏
@@ -124,7 +130,7 @@ export default function Landing() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.3 }}
-            className="relative overflow-hidden rounded-3xl bg-nava-magenta p-6 mb-6 cursor-pointer shadow-md"
+            className="relative overflow-hidden rounded-3xl bg-nava-magenta p-6 mb-5 cursor-pointer shadow-md"
             onClick={() => setAuthOpen(true)}
           >
             {/* Background decorative circles */}
@@ -147,42 +153,100 @@ export default function Landing() {
             </div>
           </motion.div>
 
-          {/* First-recharge bonus banner */}
           <motion.div
-            initial={{ opacity: 0, scale: 0.9 }}
+            initial={{ opacity: 0, scale: 0.96 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ duration: 0.5, delay: 0.4 }}
-            className="flex justify-center mb-3"
+            className="grid grid-cols-2 gap-3"
           >
+            <div className="rounded-2xl border border-border/60 bg-card p-4 shadow-sm">
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">Live</p>
+              <div className="mt-2 flex items-center gap-2">
+                <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
+                <span className="text-xl font-bold text-foreground">{onlineCount || '24+'}</span>
+              </div>
+              <p className="mt-1 text-sm text-muted-foreground">Astrologers available right now</p>
+            </div>
             <div
-              className="inline-flex items-center gap-2 bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 rounded-full px-4 py-2 shadow-sm cursor-pointer hover:bg-emerald-100 dark:hover:bg-emerald-900/40 transition-colors"
+              className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 shadow-sm cursor-pointer hover:bg-emerald-100 transition-colors"
               onClick={() => setAuthOpen(true)}
             >
-              <Gift className="w-3.5 h-3.5 text-emerald-600" />
-              <span className="text-sm font-semibold text-emerald-700 dark:text-emerald-400">Get up to 25% bonus on first recharge</span>
-              <ArrowRight className="w-3.5 h-3.5 text-emerald-600" />
+              <div className="flex items-center gap-2 text-emerald-700">
+                <Gift className="w-4 h-4" />
+                <p className="text-xs font-semibold uppercase tracking-[0.18em]">Bonus</p>
+              </div>
+              <p className="mt-2 text-lg font-bold text-emerald-800">Up to 25% extra</p>
+              <p className="mt-1 text-sm text-emerald-700">On your first wallet recharge</p>
             </div>
           </motion.div>
+          </div>
 
-          {/* Live Count Badge */}
-          <motion.div
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ duration: 0.5, delay: 0.45 }}
-            className="flex justify-center mb-6"
+          <motion.aside
+            initial={{ opacity: 0, x: 18 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.55, delay: 0.2 }}
+            className="space-y-4"
           >
-            <div className="inline-flex items-center gap-2 bg-card rounded-full px-4 py-2 shadow-sm border border-border/50">
-              <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
-              <span className="text-sm font-medium text-muted-foreground">
-                {onlineCount > 0 ? `${onlineCount} astrologers online` : 'Astrologers available now'}
-              </span>
+            <div className="rounded-3xl border border-border/60 bg-card p-5 shadow-sm">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">Start Here</p>
+                  <h3 className="mt-2 text-xl font-bold text-foreground">Get answers in minutes</h3>
+                </div>
+                <div className="rounded-2xl bg-nava-lavender p-3">
+                  <Sparkles className="w-5 h-5 text-nava-royal-purple" />
+                </div>
+              </div>
+              <div className="mt-4 grid grid-cols-2 gap-3">
+                {CATEGORIES.slice(0, 4).map(({ label, href, icon: Icon, color }) => (
+                  <Link key={label} href={href}>
+                    <button className={`w-full rounded-2xl p-4 text-left text-white shadow-sm transition-transform hover:-translate-y-0.5 ${color}`}>
+                      <Icon className="w-5 h-5 mb-3" />
+                      <span className="block text-sm font-semibold leading-snug whitespace-pre-line">{label}</span>
+                    </button>
+                  </Link>
+                ))}
+              </div>
             </div>
-          </motion.div>
+
+            <div className="rounded-3xl border border-border/60 bg-card p-5 shadow-sm">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h3 className="text-lg font-bold text-foreground">Trusted Experts</h3>
+                  <p className="text-sm text-muted-foreground">Shortlist before you sign in</p>
+                </div>
+                <Link href="/astrologers" className="text-sm font-semibold text-nava-teal">Browse</Link>
+              </div>
+              <div className="space-y-3">
+                {featuredAstrologers.map((astrologer) => (
+                  <div key={astrologer.id} className="flex items-center gap-3 rounded-2xl bg-muted/60 px-3 py-3">
+                    <Avatar className="w-11 h-11 border border-border">
+                      <AvatarImage src={astrologer.profileImageUrl || undefined} className="object-cover" />
+                      <AvatarFallback className="bg-nava-navy text-white">
+                        {astrologer.name.charAt(0)}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-1.5">
+                        <p className="truncate text-sm font-semibold text-foreground">{astrologer.name}</p>
+                        {astrologer.isVerified && <CheckCircle2 className="w-3.5 h-3.5 text-nava-amber shrink-0" />}
+                      </div>
+                      <p className="truncate text-xs text-muted-foreground">{astrologer.specializations?.[0] || 'Vedic Astrology'}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-sm font-bold text-nava-teal">₹{astrologer.pricePerMinute || '25'}</p>
+                      <p className="text-xs text-muted-foreground">per min</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </motion.aside>
         </div>
       </div>
 
       {/* ─── Quick Actions Grid ───────────────────────────────── */}
-      <div className="py-6 px-4">
+      <div className="py-6 px-4 md:px-6 lg:hidden">
         <div className="max-w-lg mx-auto">
           <h2 className="font-bold text-lg text-foreground mb-4">Quick Actions</h2>
           <div className="grid grid-cols-3 gap-3">
@@ -212,8 +276,8 @@ export default function Landing() {
       </div>
 
       {/* ─── Featured Astrologers ────────────────────────── */}
-      <div className="py-8 px-4">
-        <div className="max-w-lg mx-auto">
+      <div className="py-8 px-4 md:px-6">
+        <div className="max-w-6xl mx-auto">
           <div className="flex items-center justify-between mb-4">
             <div>
               <h2 className="font-bold text-lg text-foreground">Online Astrologers</h2>
@@ -226,8 +290,8 @@ export default function Landing() {
             </Link>
           </div>
 
-          <div className="space-y-3">
-            {(astrologers?.slice(0, 3) || Array.from({ length: 3 })).map((astrologer: any, idx) => (
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+            {(astrologers?.slice(0, 6) || Array.from({ length: 6 })).map((astrologer: any, idx) => (
               <motion.div
                 key={astrologer?.id || idx}
                 initial={{ opacity: 0, x: -20 }}
@@ -283,12 +347,13 @@ export default function Landing() {
       </div>
 
       {/* ─── CTA Section ─────────────────────────────── */}
-      <div className="py-12 px-4">
-        <div className="max-w-lg mx-auto text-center">
+      <div className="py-12 px-4 md:px-6">
+        <div className="max-w-6xl mx-auto">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
+            className="rounded-[2rem] border border-border/60 bg-gradient-to-r from-card via-card to-nava-lavender/40 px-6 py-8 text-center shadow-sm md:px-12"
           >
             <h2 className="text-2xl font-bold text-foreground mb-3">
               Ready to explore your destiny?

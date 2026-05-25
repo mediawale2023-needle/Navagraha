@@ -116,10 +116,10 @@ import TopNav from "@/components/TopNav";
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <ThemeProvider defaultTheme="dark">
+      <ThemeProvider defaultTheme="light">
         <TooltipProvider>
           <Toaster />
-          <div className="min-h-screen celestial-bg">
+          <div className="min-h-screen bg-background">
             <TopNav />
             <div className="pb-20 md:pb-0">
               <Router />

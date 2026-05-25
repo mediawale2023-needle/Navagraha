@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { type LucideIcon, Phone, MessageCircle, Calendar, Sparkles, User, Wallet, LogOut } from 'lucide-react';
+import { type LucideIcon, Phone, MessageCircle, Calendar, Sparkles, User, Wallet, LogOut, ArrowRight } from 'lucide-react';
 import { Link, useLocation } from 'wouter';
 import { QuickActionCard } from '@/components/QuickActionCard';
 import { HeroBanner } from '@/components/HeroBanner';
@@ -45,6 +45,7 @@ export default function Home() {
 
   const cmsBanner = cmsContent?.banners?.[0];
   const cmsServices = cmsContent?.services ?? [];
+  const balance = Number(wallet?.balance || 0);
 
   if (userLoading) {
     return (
@@ -59,7 +60,7 @@ export default function Home() {
       {/* Content */}
       <div className="relative pb-24 md:pb-8 w-full max-w-7xl mx-auto">
         {/* Header */}
-        <header className="pt-6 pb-4 px-4 md:px-8 lg:px-12">
+        <header className="pt-5 pb-3 px-4 md:px-8 lg:px-12">
           <div className="flex items-center justify-between mb-5">
             <div className="md:hidden">
               <h1 className="font-semibold text-2xl text-foreground tracking-tight">
@@ -107,26 +108,75 @@ export default function Home() {
             </div>
           </div>
 
-          {/* Greeting Card */}
-          <GreetingCard
-            userName={user?.firstName ? user.firstName.split(' ')[0] : 'Seeker'}
-            subtitle="How can the stars guide you today?"
-          />
+          <div className="grid gap-4 lg:grid-cols-[minmax(0,1.5fr)_320px] lg:items-stretch">
+            <GreetingCard
+              userName={user?.firstName ? user.firstName.split(' ')[0] : 'Seeker'}
+              subtitle="How can the stars guide you today?"
+              className="h-full rounded-2xl p-5"
+            />
+            <div className="rounded-2xl border border-border bg-card p-5 shadow-sm">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">Wallet</p>
+                  <p className="mt-2 text-3xl font-bold text-foreground">₹{balance.toFixed(0)}</p>
+                  <p className="mt-1 text-sm text-muted-foreground">Ready for chats, calls, and reports</p>
+                </div>
+                <div className="rounded-2xl bg-nava-lavender p-3">
+                  <Wallet className="w-5 h-5 text-nava-royal-purple" />
+                </div>
+              </div>
+              <button
+                onClick={() => setLocation('/wallet')}
+                className="mt-4 inline-flex items-center gap-2 text-sm font-semibold text-nava-royal-purple"
+              >
+                Add money
+                <ArrowRight className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
         </header>
 
         <div className="px-4 md:px-8 lg:px-12">
-          <HeroBanner
-            title={cmsBanner?.title}
-            subtitle={cmsBanner?.subtitle ?? undefined}
-            cta={cmsBanner?.cta ?? undefined}
-            href={cmsBanner?.href ?? undefined}
-          />
+          <div className="grid gap-4 xl:grid-cols-[minmax(0,1.55fr)_minmax(280px,0.9fr)]">
+            <HeroBanner
+              title={cmsBanner?.title}
+              subtitle={cmsBanner?.subtitle ?? undefined}
+              cta={cmsBanner?.cta ?? undefined}
+              href={cmsBanner?.href ?? undefined}
+              className="h-full rounded-[1.75rem] p-6"
+            />
+            <div className="rounded-[1.75rem] border border-border bg-card p-5 shadow-sm">
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">Today</p>
+              <h2 className="mt-2 text-xl font-bold text-foreground">Move with clarity</h2>
+              <p className="mt-2 text-sm text-muted-foreground">
+                Your strongest next step is a quick reading, a fresh chart, or a scheduled expert session.
+              </p>
+              <div className="mt-4 grid grid-cols-2 gap-3">
+                <button
+                  onClick={() => setLocation('/kundli/new')}
+                  className="rounded-2xl bg-muted px-4 py-4 text-left transition-colors hover:bg-accent"
+                >
+                  <p className="text-sm font-semibold text-foreground">Create chart</p>
+                  <p className="mt-1 text-xs text-muted-foreground">Get your kundli</p>
+                </button>
+                <button
+                  onClick={() => setLocation('/astrologers')}
+                  className="rounded-2xl bg-muted px-4 py-4 text-left transition-colors hover:bg-accent"
+                >
+                  <p className="text-sm font-semibold text-foreground">Talk live</p>
+                  <p className="mt-1 text-xs text-muted-foreground">Browse astrologers</p>
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
 
         {/* Quick Actions - 2x2 Grid */}
-        <section className="mb-8">
-          <SectionHeader title="Quick Actions" showViewAll={false} />
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 px-4 md:px-8 lg:px-12">
+        <section className="mb-7 pt-1">
+          <div className="px-4 md:px-8 lg:px-12">
+            <SectionHeader title="Quick Actions" showViewAll={false} />
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 px-4 md:px-8 lg:px-12 xl:grid-cols-4">
             {cmsServices.length > 0 ? (
               cmsServices.map((svc, i) => (
                 <QuickActionCard
@@ -169,39 +219,59 @@ export default function Home() {
         </section>
 
         {/* Active Influences */}
-        <section className="mb-8 px-4 md:px-8 lg:px-12">
-          <SectionHeader
-            title="Active Influences"
-            subtitle="Current planetary periods affecting you"
-            viewAllLink="/kundli/new"
-          />
-          <div className="space-y-3">
-            <ActiveInfluenceCard
-              title="Mars Mahadasha"
-              description="High energy period. Focus on career and ambition. Watch for impulsiveness."
-              type="dasha"
-              severity="medium"
-              endDate="Mar 2027"
-              linkTo="/kundli/new"
-            />
-            <ActiveInfluenceCard
-              title="Saturn Transit 12th House"
-              description="Time for rest and spiritual growth. Avoid major decisions."
-              type="transit"
-              severity="low"
-              endDate="Jan 2026"
-              linkTo="/kundli/new"
-            />
+        <section className="mb-7 px-4 md:px-8 lg:px-12">
+          <div className="grid gap-5 xl:grid-cols-[minmax(0,1.45fr)_360px]">
+            <div>
+              <SectionHeader
+                title="Active Influences"
+                subtitle="Current planetary periods affecting you"
+                viewAllLink="/kundli/new"
+              />
+              <div className="space-y-3">
+                <ActiveInfluenceCard
+                  title="Mars Mahadasha"
+                  description="High energy period. Focus on career and ambition. Watch for impulsiveness."
+                  type="dasha"
+                  severity="medium"
+                  endDate="Mar 2027"
+                  linkTo="/kundli/new"
+                />
+                <ActiveInfluenceCard
+                  title="Saturn Transit 12th House"
+                  description="Time for rest and spiritual growth. Avoid major decisions."
+                  type="transit"
+                  severity="low"
+                  endDate="Jan 2026"
+                  linkTo="/kundli/new"
+                />
+              </div>
+            </div>
+            <div className="rounded-[1.75rem] border border-nava-royal-purple/15 bg-gradient-to-br from-card via-card to-nava-lavender/35 p-6 shadow-sm">
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">Today&apos;s Guidance</p>
+              <h3 className="mt-2 text-xl font-bold text-foreground">A grounded day for action</h3>
+              <p className="mt-3 text-sm text-muted-foreground">
+                Generate your kundli to unlock chart-specific guidance, stronger remedies, and better astrologer matching.
+              </p>
+              <button
+                onClick={() => setLocation('/kundli/new')}
+                className="mt-5 inline-flex items-center gap-2 rounded-full bg-nava-royal-purple px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-nava-royal-purple/90"
+              >
+                Create Your Chart
+                <ArrowRight className="w-4 h-4" />
+              </button>
+            </div>
           </div>
         </section>
 
         {/* Online Astrologers */}
-        <section className="mb-8 relative">
-          <SectionHeader
-            title="Online Astrologers"
-            subtitle="Connect instantly with experts"
-            viewAllLink="/astrologers"
-          />
+        <section className="mb-7 relative">
+          <div className="px-4 md:px-8 lg:px-12">
+            <SectionHeader
+              title="Online Astrologers"
+              subtitle="Connect instantly with experts"
+              viewAllLink="/astrologers"
+            />
+          </div>
           <div className="flex md:grid md:grid-cols-3 lg:grid-cols-5 gap-4 overflow-x-auto md:overflow-visible px-4 md:px-8 lg:px-12 pb-4 pt-2 scrollbar-hide snap-x snap-mandatory md:snap-none">
             {astrologersLoading && <LoadingSpinner />}
             {(astrologers || []).slice(0, 5).map((astrologer) => (
@@ -217,26 +287,6 @@ export default function Home() {
                 isOnline={astrologer.isOnline || astrologer.availability === 'available'}
               />
             ))}
-          </div>
-        </section>
-
-        {/* Daily Guidance Placeholder */}
-        <section className="mb-8 px-4 md:px-8 lg:px-12">
-          <SectionHeader
-            title="Today's Guidance"
-            subtitle="Cosmic weather for your chart"
-            showViewAll={false}
-          />
-          <div className="bg-nava-lavender/30 border border-nava-royal-purple/20 rounded-xl p-8 text-center">
-            <p className="text-muted-foreground text-sm">
-              Generate your Kundli to see personalized daily guidance
-            </p>
-            <button
-              onClick={() => setLocation('/kundli/new')}
-              className="mt-3 text-nava-royal-purple text-sm font-medium hover:underline"
-            >
-              Create Your Chart →
-            </button>
           </div>
         </section>
 
