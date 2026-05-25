@@ -313,3 +313,80 @@ export const RECHARGE_PACKS = [
 
 // Platform takes 25% of each consultation
 export const PLATFORM_FEE_PERCENTAGE = 25;
+
+// ─────────────────────────────────────────────────────────────
+// OFFERS / REFERRALS / FIRST-CHAT-FREE CONFIG
+// ─────────────────────────────────────────────────────────────
+
+// Credited to the inviter once the invitee makes their first recharge
+export const REFERRER_REWARD = 75;
+// Credited to the new user on their first recharge
+export const REFEREE_REWARD = 25;
+// Number of free minutes on a user's very first chat consultation
+export const FREE_CHAT_MINUTES = 3;
+
+export interface CouponLike {
+  discountType: string | null;
+  discountValue: string | number;
+  maxDiscount?: string | number | null;
+  minAmount?: string | number | null;
+  usageLimit?: number | null;
+  perUserLimit?: number | null;
+  firstRechargeOnly?: boolean | null;
+  timesUsed?: number | null;
+  isActive?: boolean | null;
+  validFrom?: Date | string | null;
+  validUntil?: Date | string | null;
+}
+
+export interface CouponEvaluation {
+  ok: boolean;
+  bonus: number; // extra credit added to the wallet on top of `amount`
+  message: string;
+}
+
+/**
+ * Pure evaluation of a coupon against a recharge amount and the user's
+ * eligibility facts. Returns the bonus credit to apply, or an error message.
+ */
+export function evaluateCoupon(
+  coupon: CouponLike,
+  amount: number,
+  ctx: { isFirstRecharge: boolean; userRedemptionCount: number },
+): CouponEvaluation {
+  const num = (v: unknown) => (v == null ? null : parseFloat(String(v)));
+  const now = Date.now();
+
+  if (!coupon.isActive) return { ok: false, bonus: 0, message: "This offer is no longer active." };
+  if (coupon.validFrom && new Date(coupon.validFrom).getTime() > now)
+    return { ok: false, bonus: 0, message: "This offer is not active yet." };
+  if (coupon.validUntil && new Date(coupon.validUntil).getTime() < now)
+    return { ok: false, bonus: 0, message: "This offer has expired." };
+
+  const minAmount = num(coupon.minAmount) ?? 0;
+  if (amount < minAmount)
+    return { ok: false, bonus: 0, message: `Minimum recharge of ₹${minAmount} required for this offer.` };
+
+  if (coupon.usageLimit != null && (coupon.timesUsed ?? 0) >= coupon.usageLimit)
+    return { ok: false, bonus: 0, message: "This offer has reached its usage limit." };
+
+  if (coupon.perUserLimit != null && ctx.userRedemptionCount >= coupon.perUserLimit)
+    return { ok: false, bonus: 0, message: "You have already used this offer." };
+
+  if (coupon.firstRechargeOnly && !ctx.isFirstRecharge)
+    return { ok: false, bonus: 0, message: "This offer is valid only on your first recharge." };
+
+  const value = num(coupon.discountValue) ?? 0;
+  let bonus = 0;
+  if (coupon.discountType === "flat") {
+    bonus = value;
+  } else {
+    bonus = (amount * value) / 100;
+    const cap = num(coupon.maxDiscount);
+    if (cap != null && bonus > cap) bonus = cap;
+  }
+  bonus = Math.round(bonus * 100) / 100;
+  if (bonus <= 0) return { ok: false, bonus: 0, message: "This offer does not apply to this amount." };
+
+  return { ok: true, bonus, message: `You'll get ₹${bonus} extra in your wallet!` };
+}

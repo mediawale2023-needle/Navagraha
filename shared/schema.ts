@@ -39,6 +39,9 @@ export const users = pgTable("users", {
   placeOfBirth: varchar("place_of_birth"),
   passwordHash: varchar("password_hash"), // for email/password auth
   authProvider: varchar("auth_provider").default("google"), // google | email
+  referralCode: varchar("referral_code").unique(),
+  referredBy: varchar("referred_by"), // referralCode of the inviter
+  freeChatUsed: boolean("free_chat_used").default(false),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -143,6 +146,8 @@ export const transactions = pgTable("transactions", {
   gatewaySignature: varchar("gateway_signature"),
   // Consultation reference
   consultationId: varchar("consultation_id"),
+  // Applied coupon (if any) on a recharge
+  couponCode: varchar("coupon_code"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -188,6 +193,9 @@ export const consultations = pgTable("consultations", {
   totalAmount: decimal("total_amount", { precision: 10, scale: 2 }).default("0"),
   // Agora channel for calls
   agoraChannel: varchar("agora_channel"),
+  // First-chat-free promotion
+  isFree: boolean("is_free").default(false),
+  freeMinutes: integer("free_minutes").default(0),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -402,6 +410,63 @@ export const insertHomepageContentSchema = createInsertSchema(homepageContent).o
 
 export type InsertHomepageContent = z.infer<typeof insertHomepageContentSchema>;
 export type HomepageContent = typeof homepageContent.$inferSelect;
+
+// ─── Offers / Coupons ──────────────────────────────────────
+export const coupons = pgTable("coupons", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  code: varchar("code").notNull().unique(),
+  description: text("description"),
+  discountType: varchar("discount_type").notNull().default("percent"), // percent | flat
+  discountValue: decimal("discount_value", { precision: 10, scale: 2 }).notNull(),
+  maxDiscount: decimal("max_discount", { precision: 10, scale: 2 }), // cap for percent type
+  minAmount: decimal("min_amount", { precision: 10, scale: 2 }).default("0"),
+  usageLimit: integer("usage_limit"), // total redemptions (null = unlimited)
+  perUserLimit: integer("per_user_limit").default(1),
+  firstRechargeOnly: boolean("first_recharge_only").default(false),
+  timesUsed: integer("times_used").default(0),
+  validFrom: timestamp("valid_from"),
+  validUntil: timestamp("valid_until"),
+  isActive: boolean("is_active").default(true),
+  showOnWallet: boolean("show_on_wallet").default(true), // surface to users
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertCouponSchema = createInsertSchema(coupons).omit({
+  id: true,
+  timesUsed: true,
+  createdAt: true,
+}).extend({
+  validFrom: z.union([z.date(), z.string().transform((s) => new Date(s))]).optional().nullable(),
+  validUntil: z.union([z.date(), z.string().transform((s) => new Date(s))]).optional().nullable(),
+});
+
+export type InsertCoupon = z.infer<typeof insertCouponSchema>;
+export type Coupon = typeof coupons.$inferSelect;
+
+export const couponRedemptions = pgTable("coupon_redemptions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  couponId: varchar("coupon_id").references(() => coupons.id).notNull(),
+  userId: varchar("user_id").references(() => users.id).notNull(),
+  transactionId: varchar("transaction_id"),
+  discountAmount: decimal("discount_amount", { precision: 10, scale: 2 }).notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export type CouponRedemption = typeof couponRedemptions.$inferSelect;
+
+// ─── Referrals ─────────────────────────────────────────────
+export const referrals = pgTable("referrals", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  referrerId: varchar("referrer_id").references(() => users.id).notNull(),
+  refereeId: varchar("referee_id").references(() => users.id).notNull().unique(),
+  status: varchar("status").default("pending"), // pending | rewarded
+  referrerReward: decimal("referrer_reward", { precision: 10, scale: 2 }).default("0"),
+  refereeReward: decimal("referee_reward", { precision: 10, scale: 2 }).default("0"),
+  rewardedAt: timestamp("rewarded_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export type Referral = typeof referrals.$inferSelect;
 
 // AI Chat Messages table — conversations with the AI astrologer
 export const aiChatMessages = pgTable("ai_chat_messages", {

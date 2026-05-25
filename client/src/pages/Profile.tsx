@@ -1,15 +1,142 @@
-import { useQuery } from '@tanstack/react-query';
+import { useState } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'wouter';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
+import { useToast } from '@/hooks/use-toast';
+import { apiRequest } from '@/lib/queryClient';
 import {
   ArrowLeft, User, Mail, Phone, Calendar,
-  MapPin, Clock, Sparkles
+  MapPin, Clock, Sparkles, Gift, Copy, Check
 } from 'lucide-react';
 import type { User as UserType, Kundli } from '@shared/schema';
+
+interface ReferralInfo {
+  code: string;
+  referrerReward: number;
+  refereeReward: number;
+  totalInvited: number;
+  totalRewarded: number;
+  totalEarned: number;
+}
+
+function ReferralCard() {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const [copied, setCopied] = useState(false);
+  const [applyCode, setApplyCode] = useState('');
+
+  const { data: referral } = useQuery<ReferralInfo>({
+    queryKey: ['/api/referral'],
+  });
+
+  const applyMutation = useMutation({
+    mutationFn: async (code: string) => {
+      const res = await apiRequest('POST', '/api/referral/apply', { code });
+      return res.json();
+    },
+    onSuccess: (data: any) => {
+      if (data.success) {
+        toast({ title: 'Referral Applied', description: data.message });
+        setApplyCode('');
+        queryClient.invalidateQueries({ queryKey: ['/api/referral'] });
+      } else {
+        toast({ title: 'Could not apply', description: data.message, variant: 'destructive' });
+      }
+    },
+    onError: (err: any) => {
+      toast({ title: 'Could not apply', description: err?.message || 'Invalid referral code', variant: 'destructive' });
+    },
+  });
+
+  const copyCode = () => {
+    if (!referral?.code) return;
+    navigator.clipboard?.writeText(referral.code);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+    toast({ title: 'Copied!', description: 'Referral code copied to clipboard.' });
+  };
+
+  const share = () => {
+    if (!referral?.code) return;
+    const text = `Join me on Navagraha for Vedic astrology consultations! Use my code ${referral.code} and get ₹${referral.refereeReward} on your first recharge.`;
+    if (navigator.share) {
+      navigator.share({ title: 'Navagraha', text }).catch(() => {});
+    } else {
+      navigator.clipboard?.writeText(text);
+      toast({ title: 'Copied invite', description: 'Invite message copied to clipboard.' });
+    }
+  };
+
+  return (
+    <Card className="mb-6 bg-card border-border/50 shadow-sm">
+      <CardHeader className="pb-3">
+        <CardTitle className="text-base flex items-center gap-2">
+          <Gift className="w-4 h-4 text-nava-amber" /> Refer &amp; Earn
+        </CardTitle>
+        <CardDescription>
+          Invite friends — they get ₹{referral?.refereeReward ?? 25} on their first recharge and you earn ₹{referral?.referrerReward ?? 75}.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="pt-0 space-y-4">
+        {referral?.code && (
+          <div className="flex items-center gap-2">
+            <div className="flex-1 px-4 py-3 rounded-xl border-2 border-dashed border-nava-amber/60 bg-nava-amber/5 text-center font-mono font-bold tracking-widest text-foreground" data-testid="text-referral-code">
+              {referral.code}
+            </div>
+            <Button variant="outline" size="icon" onClick={copyCode} className="rounded-xl h-12 w-12" data-testid="button-copy-code">
+              {copied ? <Check className="w-4 h-4 text-emerald-600" /> : <Copy className="w-4 h-4" />}
+            </Button>
+            <Button onClick={share} className="bg-nava-teal hover:bg-nava-teal/90 text-white rounded-xl h-12" data-testid="button-share-code">
+              Share
+            </Button>
+          </div>
+        )}
+
+        <div className="grid grid-cols-3 gap-2 text-center">
+          <div className="p-2 rounded-lg bg-muted/50">
+            <div className="text-lg font-bold text-foreground">{referral?.totalInvited ?? 0}</div>
+            <div className="text-[10px] text-muted-foreground">Invited</div>
+          </div>
+          <div className="p-2 rounded-lg bg-muted/50">
+            <div className="text-lg font-bold text-foreground">{referral?.totalRewarded ?? 0}</div>
+            <div className="text-[10px] text-muted-foreground">Joined</div>
+          </div>
+          <div className="p-2 rounded-lg bg-muted/50">
+            <div className="text-lg font-bold text-emerald-600">₹{referral?.totalEarned ?? 0}</div>
+            <div className="text-[10px] text-muted-foreground">Earned</div>
+          </div>
+        </div>
+
+        <div>
+          <p className="text-xs text-muted-foreground mb-2">Have a referral code? Apply it before your first recharge.</p>
+          <div className="flex gap-2">
+            <Input
+              placeholder="Enter referral code"
+              value={applyCode}
+              onChange={(e) => setApplyCode(e.target.value.toUpperCase())}
+              className="flex-1 rounded-xl uppercase"
+              data-testid="input-apply-referral"
+            />
+            <Button
+              variant="outline"
+              onClick={() => applyMutation.mutate(applyCode.trim())}
+              disabled={!applyCode.trim() || applyMutation.isPending}
+              className="rounded-xl px-6"
+              data-testid="button-apply-referral"
+            >
+              Apply
+            </Button>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
 
 export default function Profile() {
   const { data: user, isLoading: userLoading } = useQuery<UserType>({
@@ -106,6 +233,9 @@ export default function Profile() {
             <div className="text-xs text-muted-foreground">Member</div>
           </div>
         </div>
+
+        {/* Refer & Earn */}
+        <ReferralCard />
 
         {/* Birth Details Card */}
         {(user?.dateOfBirth || user?.timeOfBirth || user?.placeOfBirth) && (

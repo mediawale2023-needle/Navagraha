@@ -228,6 +228,68 @@ DROP TABLE IF EXISTS ai_directives CASCADE;
 DROP TABLE IF EXISTS ai_initiatives CASCADE;
 DROP TABLE IF EXISTS ai_employees CASCADE;
 DROP TABLE IF EXISTS ai_companies CASCADE;
+
+-- ─── Offers / Referrals / First-chat-free ──────────────────────────────────
+ALTER TABLE users ADD COLUMN IF NOT EXISTS referral_code varchar;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS referred_by varchar;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS free_chat_used boolean DEFAULT false;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_users_referral_code ON users (referral_code);
+
+ALTER TABLE transactions ADD COLUMN IF NOT EXISTS coupon_code varchar;
+
+ALTER TABLE consultations ADD COLUMN IF NOT EXISTS is_free boolean DEFAULT false;
+ALTER TABLE consultations ADD COLUMN IF NOT EXISTS free_minutes integer DEFAULT 0;
+
+CREATE TABLE IF NOT EXISTS coupons (
+  id varchar PRIMARY KEY DEFAULT gen_random_uuid(),
+  code varchar NOT NULL UNIQUE,
+  description text,
+  discount_type varchar NOT NULL DEFAULT 'percent',
+  discount_value decimal(10, 2) NOT NULL,
+  max_discount decimal(10, 2),
+  min_amount decimal(10, 2) DEFAULT 0,
+  usage_limit integer,
+  per_user_limit integer DEFAULT 1,
+  first_recharge_only boolean DEFAULT false,
+  times_used integer DEFAULT 0,
+  valid_from timestamp,
+  valid_until timestamp,
+  is_active boolean DEFAULT true,
+  show_on_wallet boolean DEFAULT true,
+  created_at timestamp DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS coupon_redemptions (
+  id varchar PRIMARY KEY DEFAULT gen_random_uuid(),
+  coupon_id varchar NOT NULL REFERENCES coupons(id),
+  user_id varchar NOT NULL REFERENCES users(id),
+  transaction_id varchar,
+  discount_amount decimal(10, 2) NOT NULL,
+  created_at timestamp DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_coupon_redemptions_user ON coupon_redemptions (user_id);
+
+CREATE TABLE IF NOT EXISTS referrals (
+  id varchar PRIMARY KEY DEFAULT gen_random_uuid(),
+  referrer_id varchar NOT NULL REFERENCES users(id),
+  referee_id varchar NOT NULL UNIQUE REFERENCES users(id),
+  status varchar DEFAULT 'pending',
+  referrer_reward decimal(10, 2) DEFAULT 0,
+  referee_reward decimal(10, 2) DEFAULT 0,
+  rewarded_at timestamp,
+  created_at timestamp DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_referrals_referrer ON referrals (referrer_id);
+`;
+
+const SEED_COUPONS_SQL = `
+INSERT INTO coupons (code, description, discount_type, discount_value, max_discount, min_amount, per_user_limit, first_recharge_only, is_active, show_on_wallet)
+SELECT * FROM (VALUES
+  ('WELCOME50', 'Get 50% extra on your first recharge (up to ₹100)', 'percent', 50, 100, 100, 1, true, true, true),
+  ('ADD20', 'Get 20% extra cashback on any recharge (up to ₹200)', 'percent', 20, 200, 200, 5, false, true, true),
+  ('FLAT100', 'Flat ₹100 bonus on recharge of ₹500 or more', 'flat', 100, NULL, 500, 3, false, true, true)
+) AS v(code, description, discount_type, discount_value, max_discount, min_amount, per_user_limit, first_recharge_only, is_active, show_on_wallet)
+WHERE NOT EXISTS (SELECT 1 FROM coupons LIMIT 1);
 `;
 
 
@@ -252,5 +314,6 @@ WHERE NOT EXISTS (SELECT 1 FROM homepage_content LIMIT 1);
 export async function runMigrations(): Promise<void> {
   await pool.query(SCHEMA_SQL);
   await pool.query(SEED_HOMEPAGE_SQL);
+  await pool.query(SEED_COUPONS_SQL);
   console.log('[migrate] Schema initialised successfully');
 }

@@ -12,6 +12,13 @@ import {
   astrologerEarnings,
   payoutRequests,
   aiChatMessages,
+  coupons,
+  couponRedemptions,
+  referrals,
+  type Coupon,
+  type InsertCoupon,
+  type CouponRedemption,
+  type Referral,
   type User,
   type UpsertUser,
   type Kundli,
@@ -282,6 +289,21 @@ export class DatabaseStorage implements IStorage {
       .from(transactions)
       .where(eq(transactions.userId, userId))
       .orderBy(desc(transactions.createdAt));
+  }
+
+  async hasCompletedRecharge(userId: string): Promise<boolean> {
+    const rows = await db
+      .select({ id: transactions.id })
+      .from(transactions)
+      .where(
+        and(
+          eq(transactions.userId, userId),
+          eq(transactions.type, "recharge"),
+          eq(transactions.status, "completed"),
+        ),
+      )
+      .limit(1);
+    return rows.length > 0;
   }
 
   async updateTransactionStatus(
@@ -769,6 +791,138 @@ export class DatabaseStorage implements IStorage {
       accuracy: Math.round((accurate / total) * 100),
       dashaStats
     };
+  }
+
+  // ─── Coupons / Offers ──────────────────────────────────────
+  async getActiveCoupons(walletOnly = false): Promise<Coupon[]> {
+    const now = new Date();
+    const rows = await db.select().from(coupons).where(eq(coupons.isActive, true));
+    return rows.filter((c) => {
+      if (walletOnly && !c.showOnWallet) return false;
+      if (c.validFrom && new Date(c.validFrom) > now) return false;
+      if (c.validUntil && new Date(c.validUntil) < now) return false;
+      if (c.usageLimit != null && (c.timesUsed ?? 0) >= c.usageLimit) return false;
+      return true;
+    });
+  }
+
+  async getAllCoupons(): Promise<Coupon[]> {
+    return await db.select().from(coupons).orderBy(desc(coupons.createdAt));
+  }
+
+  async getCouponByCode(code: string): Promise<Coupon | undefined> {
+    const [row] = await db
+      .select()
+      .from(coupons)
+      .where(sql`upper(${coupons.code}) = upper(${code})`);
+    return row;
+  }
+
+  async createCoupon(data: InsertCoupon): Promise<Coupon> {
+    const [row] = await db.insert(coupons).values(data as any).returning();
+    return row;
+  }
+
+  async updateCoupon(id: string, data: Partial<InsertCoupon>): Promise<Coupon> {
+    const [row] = await db.update(coupons).set(data as any).where(eq(coupons.id, id)).returning();
+    return row;
+  }
+
+  async deleteCoupon(id: string): Promise<void> {
+    await db.delete(coupons).where(eq(coupons.id, id));
+  }
+
+  // Count only redemptions tied to a COMPLETED recharge, so abandoned
+  // payment attempts don't consume a user's offer eligibility.
+  async getUserCouponRedemptionCount(userId: string, couponId: string): Promise<number> {
+    const rows = await db
+      .select({ id: couponRedemptions.id })
+      .from(couponRedemptions)
+      .innerJoin(transactions, eq(transactions.id, couponRedemptions.transactionId))
+      .where(
+        and(
+          eq(couponRedemptions.userId, userId),
+          eq(couponRedemptions.couponId, couponId),
+          eq(transactions.status, "completed"),
+        ),
+      );
+    return rows.length;
+  }
+
+  async recordCouponRedemption(data: {
+    couponId: string;
+    userId: string;
+    transactionId?: string;
+    discountAmount: string;
+  }): Promise<CouponRedemption> {
+    const [row] = await db.insert(couponRedemptions).values(data).returning();
+    return row;
+  }
+
+  // Increment the global usage counter once a recharge actually completes.
+  async incrementCouponUsage(couponId: string): Promise<void> {
+    await db
+      .update(coupons)
+      .set({ timesUsed: sql`coalesce(${coupons.timesUsed}, 0) + 1` })
+      .where(eq(coupons.id, couponId));
+  }
+
+  // ─── Referrals ─────────────────────────────────────────────
+  async getOrCreateReferralCode(userId: string): Promise<string> {
+    const user = await this.getUser(userId);
+    if (user?.referralCode) return user.referralCode;
+    // Generate a short, human-friendly unique code
+    for (let attempt = 0; attempt < 6; attempt++) {
+      const code = `NG${crypto.randomBytes(4).toString("hex").toUpperCase().slice(0, 6)}`;
+      const existing = await db.select().from(users).where(eq(users.referralCode, code));
+      if (existing.length === 0) {
+        await db.update(users).set({ referralCode: code }).where(eq(users.id, userId));
+        return code;
+      }
+    }
+    throw new Error("Could not generate a unique referral code");
+  }
+
+  async getUserByReferralCode(code: string): Promise<User | undefined> {
+    const [row] = await db
+      .select()
+      .from(users)
+      .where(sql`upper(${users.referralCode}) = upper(${code})`);
+    return row;
+  }
+
+  async getReferralByReferee(refereeId: string): Promise<Referral | undefined> {
+    const [row] = await db.select().from(referrals).where(eq(referrals.refereeId, refereeId));
+    return row;
+  }
+
+  async createReferral(data: {
+    referrerId: string;
+    refereeId: string;
+  }): Promise<Referral> {
+    const [row] = await db.insert(referrals).values(data).returning();
+    return row;
+  }
+
+  async getReferralsByReferrer(referrerId: string): Promise<Referral[]> {
+    return await db
+      .select()
+      .from(referrals)
+      .where(eq(referrals.referrerId, referrerId))
+      .orderBy(desc(referrals.createdAt));
+  }
+
+  async markReferralRewarded(
+    id: string,
+    referrerReward: string,
+    refereeReward: string,
+  ): Promise<Referral> {
+    const [row] = await db
+      .update(referrals)
+      .set({ status: "rewarded", referrerReward, refereeReward, rewardedAt: new Date() })
+      .where(eq(referrals.id, id))
+      .returning();
+    return row;
   }
 }
 

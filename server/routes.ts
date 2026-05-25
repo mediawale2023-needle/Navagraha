@@ -11,6 +11,7 @@ import {
   insertKundliSchema,
   insertConsultationSchema,
   insertAstrologerSchema,
+  insertCouponSchema,
   insertTransactionSchema,
   insertChatMessageSchema,
   insertReviewSchema,
@@ -44,6 +45,10 @@ import {
   verifyPayUResponseHash,
   RECHARGE_PACKS,
   PLATFORM_FEE_PERCENTAGE,
+  evaluateCoupon,
+  REFERRER_REWARD,
+  REFEREE_REWARD,
+  FREE_CHAT_MINUTES,
 } from "./paymentService";
 import { generateAgoraToken, getChannelName } from "./agoraService";
 import { notifyUser, notifyAstrologer } from "./websocketService";
@@ -643,12 +648,106 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
     res.json(RECHARGE_PACKS);
   });
 
+  // ─── Offers / Coupons ────────────────────────────────────
+
+  // Public: active offers to surface on the wallet/recharge screen
+  app.get('/api/coupons', async (_req, res) => {
+    try {
+      const list = await storage.getActiveCoupons(true);
+      res.json(list.map((c) => ({
+        code: c.code,
+        description: c.description,
+        discountType: c.discountType,
+        discountValue: c.discountValue,
+        maxDiscount: c.maxDiscount,
+        minAmount: c.minAmount,
+        firstRechargeOnly: c.firstRechargeOnly,
+      })));
+    } catch { res.status(500).json({ message: 'Failed to fetch offers' }); }
+  });
+
+  // Validate a coupon against an intended recharge amount (no side effects)
+  app.post('/api/coupons/validate', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = (req.user as any).id;
+      const { code, amount } = req.body;
+      const rechargeAmount = parseFloat(amount);
+      if (!code || !rechargeAmount || rechargeAmount <= 0) {
+        return res.status(400).json({ valid: false, message: 'Enter a recharge amount and coupon code.' });
+      }
+      const coupon = await storage.getCouponByCode(String(code).trim());
+      if (!coupon) return res.status(404).json({ valid: false, message: 'Invalid coupon code.' });
+
+      const isFirstRecharge = !(await storage.hasCompletedRecharge(userId));
+      const userRedemptionCount = await storage.getUserCouponRedemptionCount(userId, coupon.id);
+      const result = evaluateCoupon(coupon, rechargeAmount, { isFirstRecharge, userRedemptionCount });
+      res.json({ valid: result.ok, bonus: result.bonus, message: result.message });
+    } catch (err) {
+      console.error('Coupon validate error:', err);
+      res.status(500).json({ valid: false, message: 'Failed to validate coupon' });
+    }
+  });
+
+  // ─── Referrals ───────────────────────────────────────────
+
+  // My referral code + reward stats
+  app.get('/api/referral', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = (req.user as any).id;
+      const code = await storage.getOrCreateReferralCode(userId);
+      const referrals = await storage.getReferralsByReferrer(userId);
+      const rewarded = referrals.filter((r) => r.status === 'rewarded');
+      const totalEarned = rewarded.reduce((sum, r) => sum + parseFloat(r.referrerReward || '0'), 0);
+      res.json({
+        code,
+        referrerReward: REFERRER_REWARD,
+        refereeReward: REFEREE_REWARD,
+        totalInvited: referrals.length,
+        totalRewarded: rewarded.length,
+        totalEarned,
+      });
+    } catch (err) {
+      console.error('Referral fetch error:', err);
+      res.status(500).json({ message: 'Failed to fetch referral details' });
+    }
+  });
+
+  // Apply a referral code (before the user's first recharge)
+  app.post('/api/referral/apply', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = (req.user as any).id;
+      const { code } = req.body;
+      if (!code) return res.status(400).json({ message: 'Referral code required' });
+
+      const existing = await storage.getReferralByReferee(userId);
+      if (existing) return res.status(400).json({ message: 'You have already used a referral code.' });
+
+      if (await storage.hasCompletedRecharge(userId)) {
+        return res.status(400).json({ message: 'Referral codes can only be applied before your first recharge.' });
+      }
+
+      const referrer = await storage.getUserByReferralCode(String(code).trim());
+      if (!referrer) return res.status(404).json({ message: 'Invalid referral code.' });
+      if (referrer.id === userId) return res.status(400).json({ message: "You can't refer yourself." });
+
+      await storage.createReferral({ referrerId: referrer.id, refereeId: userId });
+      await storage.updateUser(userId, { referredBy: String(code).trim() });
+      res.json({
+        success: true,
+        message: `Referral applied! You'll get ₹${REFEREE_REWARD} on your first recharge.`,
+      });
+    } catch (err) {
+      console.error('Referral apply error:', err);
+      res.status(500).json({ message: 'Failed to apply referral code' });
+    }
+  });
+
   // ─── Razorpay Payment ────────────────────────────────────
 
   app.post('/api/payment/razorpay/order', isAuthenticated, paymentLimiter, async (req: any, res) => {
     try {
       const userId = (req.user as any).id;
-      const { amount, packId } = req.body;
+      const { amount, packId, couponCode } = req.body;
 
       if (!amount || amount < 1) return res.status(400).json({ message: "Invalid amount" });
 
@@ -662,28 +761,63 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
       }
       const bonus = pack?.bonus || 0;
 
+      // Apply coupon (if any) as additional wallet credit
+      let couponBonus = 0;
+      let appliedCouponCode: string | undefined;
+      let appliedCouponId: string | undefined;
+      if (couponCode) {
+        const coupon = await storage.getCouponByCode(String(couponCode).trim());
+        if (!coupon) return res.status(400).json({ message: "Invalid coupon code" });
+        const isFirstRecharge = !(await storage.hasCompletedRecharge(userId));
+        const userRedemptionCount = await storage.getUserCouponRedemptionCount(userId, coupon.id);
+        const evalResult = evaluateCoupon(coupon, amount, { isFirstRecharge, userRedemptionCount });
+        if (!evalResult.ok) return res.status(400).json({ message: evalResult.message });
+        couponBonus = evalResult.bonus;
+        appliedCouponCode = coupon.code;
+        appliedCouponId = coupon.id;
+      }
+
       const order = await createRazorpayOrder({
         amount,
         receipt: `wallet_${userId}_${Date.now()}`,
         notes: { userId, bonus: bonus.toString() },
       });
 
+      const totalCredit = amount + bonus + couponBonus;
+      const bonusLabel = [
+        bonus > 0 ? `+₹${bonus} bonus` : '',
+        couponBonus > 0 ? `+₹${couponBonus} (${appliedCouponCode})` : '',
+      ].filter(Boolean).join(' ');
+
       // Create pending transaction
-      await storage.createTransaction({
+      const pendingTxn = await storage.createTransaction({
         userId,
-        amount: (amount + bonus).toString(),
+        amount: totalCredit.toString(),
         type: 'recharge',
-        description: `Wallet recharge${bonus > 0 ? ` (+₹${bonus} bonus)` : ''}`,
+        description: `Wallet recharge${bonusLabel ? ` (${bonusLabel})` : ''}`,
         status: 'pending',
         paymentMethod: 'razorpay',
         gatewayOrderId: order.id,
+        couponCode: appliedCouponCode,
       });
+
+      // Stage the redemption (counts only once the transaction completes)
+      if (appliedCouponId && couponBonus > 0) {
+        await storage.recordCouponRedemption({
+          couponId: appliedCouponId,
+          userId,
+          transactionId: pendingTxn.id,
+          discountAmount: couponBonus.toString(),
+        });
+      }
 
       res.json({
         orderId: order.id,
         amount: order.amount,
         currency: order.currency,
         keyId: process.env.RAZORPAY_KEY_ID,
+        couponBonus,
+        totalCredit,
       });
     } catch (error: any) {
       console.error("Razorpay order error:", error);
@@ -726,6 +860,63 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
         body: `₹${totalCredit} added to your wallet successfully.`,
       });
 
+      // Finalise coupon usage now that the recharge is confirmed
+      if (pendingTxn.couponCode) {
+        const coupon = await storage.getCouponByCode(pendingTxn.couponCode);
+        if (coupon) await storage.incrementCouponUsage(coupon.id);
+      }
+
+      // Referral reward: fire once on the invitee's first completed recharge
+      let runningBalance = parseFloat(newBalance);
+      try {
+        const referral = await storage.getReferralByReferee(userId);
+        if (referral && referral.status === 'pending') {
+          // Credit the new user (referee)
+          runningBalance = runningBalance + REFEREE_REWARD;
+          await storage.updateWalletBalance(userId, runningBalance.toFixed(2));
+          await storage.createTransaction({
+            userId,
+            amount: REFEREE_REWARD.toString(),
+            type: 'recharge',
+            description: 'Referral bonus',
+            status: 'completed',
+          });
+          await storage.createNotification({
+            userId,
+            type: 'payment',
+            title: 'Referral Bonus',
+            body: `You received ₹${REFEREE_REWARD} referral bonus in your wallet.`,
+          });
+
+          // Credit the inviter (referrer)
+          const referrerWallet = (await storage.getWallet(referral.referrerId))
+            || (await storage.createWallet(referral.referrerId));
+          const referrerBalance = (parseFloat(referrerWallet.balance || '0') + REFERRER_REWARD).toFixed(2);
+          await storage.updateWalletBalance(referral.referrerId, referrerBalance);
+          await storage.createTransaction({
+            userId: referral.referrerId,
+            amount: REFERRER_REWARD.toString(),
+            type: 'recharge',
+            description: 'Referral reward',
+            status: 'completed',
+          });
+          await storage.createNotification({
+            userId: referral.referrerId,
+            type: 'payment',
+            title: 'Referral Reward',
+            body: `Your friend recharged! ₹${REFERRER_REWARD} has been added to your wallet.`,
+          });
+
+          await storage.markReferralRewarded(
+            referral.id,
+            REFERRER_REWARD.toString(),
+            REFEREE_REWARD.toString(),
+          );
+        }
+      } catch (refErr) {
+        console.error('Referral reward error:', refErr);
+      }
+
       // Send email receipt (fire-and-forget)
       const user = await storage.getUser(userId);
       if (user?.email) {
@@ -733,12 +924,12 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
           userName: user.firstName || 'User',
           amount: parseFloat(pendingTxn.amount || "0"),
           bonus: 0,
-          newBalance: parseFloat(newBalance),
+          newBalance: runningBalance,
           paymentId,
         }).catch(() => {});
       }
 
-      res.json({ success: true, newBalance: parseFloat(newBalance) });
+      res.json({ success: true, newBalance: runningBalance });
     } catch (error) {
       console.error("Razorpay verify error:", error);
       res.status(500).json({ message: "Payment verification failed" });
@@ -952,12 +1143,19 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
       if (!astrologer) return res.status(404).json({ message: "Astrologer not found" });
       if (!astrologer.isOnline) return res.status(400).json({ message: "Astrologer is currently offline" });
 
-      // Check wallet balance (minimum 5 minutes)
-      const wallet = await storage.getWallet(userId);
       const pricePerMin = parseFloat(astrologer.pricePerMinute || "25");
-      const minRequired = pricePerMin * 5;
-      if (parseFloat(wallet?.balance || "0") < minRequired) {
-        return res.status(400).json({ message: `Insufficient balance. Minimum ₹${minRequired} required for 5 minutes.` });
+
+      // First-chat-free: a user's very first chat consultation gets N free minutes
+      const startUser = await storage.getUser(userId);
+      const eligibleForFreeChat = type === 'chat' && !startUser?.freeChatUsed;
+
+      // Check wallet balance (minimum 5 minutes) — skipped for the free first chat
+      if (!eligibleForFreeChat) {
+        const wallet = await storage.getWallet(userId);
+        const minRequired = pricePerMin * 5;
+        if (parseFloat(wallet?.balance || "0") < minRequired) {
+          return res.status(400).json({ message: `Insufficient balance. Minimum ₹${minRequired} required for 5 minutes.` });
+        }
       }
 
       const agoraChannel = getChannelName(`${astrologerId}_${Date.now()}`);
@@ -968,7 +1166,14 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
         status: 'active',
         pricePerMinute: pricePerMin.toString(),
         agoraChannel,
+        isFree: eligibleForFreeChat,
+        freeMinutes: eligibleForFreeChat ? FREE_CHAT_MINUTES : 0,
       });
+
+      // Consume the free-chat entitlement immediately so it can't be reused
+      if (eligibleForFreeChat) {
+        await storage.updateUser(userId, { freeChatUsed: true });
+      }
 
       // Update astrologer status to busy
       await storage.updateAstrologer(astrologerId, { availability: 'busy' });
@@ -1433,6 +1638,40 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
       const updated = await storage.updateAstrologer(req.params.id, req.body);
       res.json(updated);
     } catch { res.status(500).json({ message: 'Failed to update astrologer' }); }
+  });
+
+  // ─── Admin: Coupons / Offers ───────────────────────────────
+  app.get('/api/admin/coupons', isAdmin, adminLimiter, async (_req, res) => {
+    try {
+      const list = await storage.getAllCoupons();
+      res.json(list);
+    } catch { res.status(500).json({ message: 'Failed to fetch coupons' }); }
+  });
+
+  app.post('/api/admin/coupons', isAdmin, adminLimiter, async (req, res) => {
+    try {
+      const parsed = insertCouponSchema.parse({ ...req.body, code: String(req.body.code || '').trim().toUpperCase() });
+      const created = await storage.createCoupon(parsed);
+      res.status(201).json(created);
+    } catch (err) {
+      if (err instanceof z.ZodError) return res.status(400).json({ message: 'Invalid coupon data', errors: err.errors });
+      console.error('Create coupon error:', err);
+      res.status(500).json({ message: 'Failed to create coupon' });
+    }
+  });
+
+  app.put('/api/admin/coupons/:id', isAdmin, adminLimiter, async (req, res) => {
+    try {
+      const updated = await storage.updateCoupon(req.params.id, req.body);
+      res.json(updated);
+    } catch { res.status(500).json({ message: 'Failed to update coupon' }); }
+  });
+
+  app.delete('/api/admin/coupons/:id', isAdmin, adminLimiter, async (req, res) => {
+    try {
+      await storage.deleteCoupon(req.params.id);
+      res.json({ success: true });
+    } catch { res.status(500).json({ message: 'Failed to delete coupon' }); }
   });
 
   // ─── Homepage CMS ──────────────────────────────────────────
