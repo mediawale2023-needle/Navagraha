@@ -5,8 +5,6 @@ import { setupVite, serveStatic, log } from "./vite";
 import { runMigrations } from "./migrate";
 import { waitForDatabase } from "./db";
 import { setupWebSocket } from "./websocketService";
-import { startHeartbeatEngine } from "./corporate/heartbeat";
-import { corporateOrchestrator } from "./corporate/orchestrator";
 import client from "prom-client";
 
 // Prevent unhandled errors from killing the process before the port binds
@@ -20,7 +18,6 @@ process.on("unhandledRejection", (err) =>
 const app = express();
 let startupReady = false;
 let startupError: string | null = null;
-const isCorporateAutomationEnabled = process.env.ENABLE_CORPORATE_AUTOMATION === "true";
 
 declare module "http" {
   interface IncomingMessage {
@@ -139,14 +136,8 @@ waitForDatabase()
       serveStatic(app);
     }
 
-    // Run DB migrations, then start optional corporate automation.
-    return runMigrations().then(async () => {
-      if (isCorporateAutomationEnabled) {
-        startHeartbeatEngine();
-        await corporateOrchestrator.resumePendingTasks();
-      } else {
-        log("corporate automation disabled in this environment");
-      }
+    // Run DB migrations, then mark startup complete.
+    return runMigrations().then(() => {
       startupReady = true;
     });
   })

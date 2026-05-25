@@ -8,11 +8,10 @@ import { LoadingSpinner } from '@/components/LoadingSpinner';
 import {
   Users, Star, BookOpen, IndianRupee, Activity, Wifi, WifiOff,
   ChevronUp, ChevronDown, Plus, Trash2, Eye, EyeOff, Pencil, X, Check,
-  LayoutDashboard, FileText, Building2, RefreshCw,
+  LayoutDashboard, FileText,
 } from 'lucide-react';
 import { apiRequest } from '@/lib/queryClient';
 import { useToast } from "@/hooks/use-toast";
-import Boardroom from './Boardroom';
 
 /* ═══════════════════════════════════════════════════════ */
 /*  Types                                                 */
@@ -372,7 +371,7 @@ export default function AdminDashboard() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const [search, setSearch] = useState('');
-  const [activeTab, setActiveTab] = useState<'overview' | 'content' | 'boardroom'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'content'>('overview');
 
   const { data: stats, isLoading: statsLoading } = useQuery<AdminStats>({
     queryKey: ['/api/admin/stats'],
@@ -390,19 +389,6 @@ export default function AdminDashboard() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/admin/astrologers'] });
     },
-  });
-
-  const syncRosterMutation = useMutation({
-    mutationFn: async () => {
-      return apiRequest('POST', '/api/admin/corporate/sync-roster');
-    },
-    onSuccess: (data: any) => {
-      queryClient.invalidateQueries({ queryKey: ['/api/corporate/employees'] });
-      toast({ title: "Roster Synced", description: data.message });
-    },
-    onError: (err) => {
-      toast({ variant: "destructive", title: "Sync failed", description: String(err) });
-    }
   });
 
   const filtered = astrologers.filter(
@@ -423,16 +409,6 @@ export default function AdminDashboard() {
             <p className="text-sm text-muted-foreground">Platform overview &amp; management</p>
           </div>
           <div className="flex items-center gap-3">
-            <Button 
-              variant="secondary" 
-              size="sm" 
-              className="gap-1.5"
-              disabled={syncRosterMutation.isPending}
-              onClick={() => syncRosterMutation.mutate()}
-            >
-              <RefreshCw className={`w-3.5 h-3.5 ${syncRosterMutation.isPending ? 'animate-spin' : ''}`} />
-              Sync C-Suite
-            </Button>
             <Badge variant="outline" className="text-green-600 border-green-600">
               Developer Access
             </Badge>
@@ -460,15 +436,6 @@ export default function AdminDashboard() {
               }`}
           >
             <FileText className="w-4 h-4" /> Content
-          </button>
-          <button
-            onClick={() => setActiveTab('boardroom')}
-            className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 ${activeTab === 'boardroom'
-                ? 'border-primary text-primary'
-                : 'border-transparent text-muted-foreground hover:text-foreground'
-              }`}
-          >
-            <Building2 className="w-4 h-4" /> Boardroom
           </button>
         </div>
       </div>
@@ -557,12 +524,6 @@ export default function AdminDashboard() {
         )}
 
         {activeTab === 'content' && <ContentEditor />}
-
-        {activeTab === 'boardroom' && (
-          <div className="-mx-6 -my-8">
-            <Boardroom />
-          </div>
-        )}
 
       </div>
     </div>

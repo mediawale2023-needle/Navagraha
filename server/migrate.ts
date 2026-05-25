@@ -222,71 +222,12 @@ CREATE TABLE IF NOT EXISTS prediction_feedbacks (
   created_at timestamp DEFAULT now()
 );
 
-CREATE TABLE IF NOT EXISTS ai_companies (
-  id serial PRIMARY KEY,
-  user_id varchar NOT NULL,   -- matches users.id which is varchar UUID
-  name text NOT NULL,
-  mission text NOT NULL,
-  industry text NOT NULL,
-  target_revenue numeric(12, 2),
-  target_currency text DEFAULT 'INR',
-  target_deadline timestamp,
-  created_at timestamp DEFAULT now()
-);
--- Idempotent fix: ensure user_id is varchar for existing deployments
-ALTER TABLE ai_companies ALTER COLUMN user_id TYPE varchar USING user_id::varchar;
-
-
-CREATE TABLE IF NOT EXISTS ai_employees (
-  id serial PRIMARY KEY,
-  company_id integer NOT NULL REFERENCES ai_companies(id),
-  role text NOT NULL,
-  name text NOT NULL,
-  personality text NOT NULL,
-  status text DEFAULT 'active',
-  last_output text,
-  token_spend integer DEFAULT 0,
-  updated_at timestamp DEFAULT now()
-);
-
-CREATE TABLE IF NOT EXISTS ai_initiatives (
-  id serial PRIMARY KEY,
-  company_id integer NOT NULL REFERENCES ai_companies(id),
-  title text NOT NULL,
-  description text NOT NULL,
-  priority text DEFAULT 'medium',
-  status text DEFAULT 'pending',
-  deadline timestamp,
-  created_at timestamp DEFAULT now()
-);
-
-CREATE TABLE IF NOT EXISTS ai_directives (
-  id serial PRIMARY KEY,
-  initiative_id integer NOT NULL REFERENCES ai_initiatives(id),
-  issuer_id integer NOT NULL REFERENCES ai_employees(id),
-  assignee_id integer REFERENCES ai_employees(id),
-  content text NOT NULL,
-  type text NOT NULL,
-  status text DEFAULT 'pending',
-  proposed_changes jsonb,
-  created_at timestamp DEFAULT now()
-);
-ALTER TABLE ai_directives ADD COLUMN IF NOT EXISTS proposed_changes jsonb;
-
-CREATE TABLE IF NOT EXISTS boardroom_messages (
-  id serial PRIMARY KEY,
-  company_id integer NOT NULL REFERENCES ai_companies(id),
-  sender_type varchar NOT NULL,
-  sender_id varchar NOT NULL,
-  sender_name varchar NOT NULL,
-  sender_role varchar,
-  receiver_type varchar,
-  receiver_id varchar,
-  content text NOT NULL,
-  thread varchar NOT NULL,
-  created_at timestamp DEFAULT now()
-);
-CREATE INDEX IF NOT EXISTS idx_boardroom_msgs ON boardroom_messages (company_id, thread);
+-- Decommission the legacy "Corporate/Boardroom" subsystem (removed pre-launch).
+DROP TABLE IF EXISTS boardroom_messages CASCADE;
+DROP TABLE IF EXISTS ai_directives CASCADE;
+DROP TABLE IF EXISTS ai_initiatives CASCADE;
+DROP TABLE IF EXISTS ai_employees CASCADE;
+DROP TABLE IF EXISTS ai_companies CASCADE;
 `;
 
 
