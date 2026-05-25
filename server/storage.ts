@@ -15,10 +15,12 @@ import {
   coupons,
   couponRedemptions,
   referrals,
+  pushTokens,
   type Coupon,
   type InsertCoupon,
   type CouponRedemption,
   type Referral,
+  type PushToken,
   type User,
   type UpsertUser,
   type Kundli,
@@ -923,6 +925,40 @@ export class DatabaseStorage implements IStorage {
       .where(eq(referrals.id, id))
       .returning();
     return row;
+  }
+
+  // ─── Push notification tokens ──────────────────────────────
+  async savePushToken(data: {
+    ownerId: string;
+    ownerType: string;
+    token: string;
+    platform?: string;
+  }): Promise<PushToken> {
+    const [row] = await db
+      .insert(pushTokens)
+      .values(data)
+      .onConflictDoUpdate({
+        target: pushTokens.token,
+        set: {
+          ownerId: data.ownerId,
+          ownerType: data.ownerType,
+          platform: data.platform || "web",
+          updatedAt: new Date(),
+        },
+      })
+      .returning();
+    return row;
+  }
+
+  async getPushTokens(ownerId: string, ownerType: string): Promise<PushToken[]> {
+    return await db
+      .select()
+      .from(pushTokens)
+      .where(and(eq(pushTokens.ownerId, ownerId), eq(pushTokens.ownerType, ownerType)));
+  }
+
+  async deletePushToken(token: string): Promise<void> {
+    await db.delete(pushTokens).where(eq(pushTokens.token, token));
   }
 }
 

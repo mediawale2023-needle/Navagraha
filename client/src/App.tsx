@@ -29,16 +29,25 @@ import NotFound from "@/pages/not-found";
 import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { initAnalytics, trackEvent, identifyUser } from "@/lib/analytics";
+import { enablePushNotifications, type FirebaseConfig } from "@/lib/push";
 
 function Router() {
   const { isAuthenticated, isLoading, user } = useAuth();
   const [showSplash, setShowSplash] = useState(true);
 
   // Initialize PostHog from server config
-  const { data: config } = useQuery<{ posthogKey?: string }>({
+  const { data: config } = useQuery<{ posthogKey?: string; firebase?: FirebaseConfig }>({
     queryKey: ["/api/config"],
     refetchOnWindowFocus: false,
   });
+
+  // Register for web push once authenticated (no-op if Firebase unconfigured,
+  // unsupported, or the user has already declined permission).
+  useEffect(() => {
+    if (isAuthenticated && config?.firebase?.projectId && Notification?.permission !== 'denied') {
+      enablePushNotifications(config.firebase);
+    }
+  }, [isAuthenticated, config?.firebase?.projectId]);
 
   useEffect(() => {
     if (config?.posthogKey) {

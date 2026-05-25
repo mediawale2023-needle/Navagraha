@@ -52,6 +52,7 @@ import {
 } from "./paymentService";
 import { generateAgoraToken, getChannelName } from "./agoraService";
 import { notifyUser, notifyAstrologer } from "./websocketService";
+import { sendPushToUser, sendPushToAstrologer } from "./pushService";
 import {
   interpretKundli,
   generatePreConsultBrief,
@@ -859,6 +860,12 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
         title: 'Wallet Recharged',
         body: `₹${totalCredit} added to your wallet successfully.`,
       });
+      sendPushToUser(userId, {
+        title: 'Wallet Recharged',
+        body: `₹${totalCredit} added to your wallet successfully.`,
+        link: '/wallet',
+        data: { type: 'payment' },
+      });
 
       // Finalise coupon usage now that the recharge is confirmed
       if (pendingTxn.couponCode) {
@@ -1128,6 +1135,24 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
         return res.json({ userMessage: chatMessage, aiMessage: aiMessage });
       }
 
+      // Push the message to the recipient (best-effort)
+      if (sender === 'user') {
+        sendPushToAstrologer(astrologerId, {
+          title: `${user.firstName || 'A user'} sent you a message`,
+          body: message.slice(0, 120),
+          link: `/chat/${userId}`,
+          data: { type: 'chat', userId },
+        });
+      } else {
+        const astro = await storage.getAstrologerById(astrologerId);
+        sendPushToUser(userId, {
+          title: `${astro?.name || 'Your astrologer'} replied`,
+          body: message.slice(0, 120),
+          link: `/chat/${astrologerId}`,
+          data: { type: 'chat', astrologerId },
+        });
+      }
+
       res.json(chatMessage);
     } catch { res.status(500).json({ message: "Failed to send message" }); }
   });
@@ -1185,6 +1210,12 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
         userId,
         sessionType: type,
         agoraChannel,
+      });
+      sendPushToAstrologer(astrologerId, {
+        title: 'New consultation request',
+        body: `A user started a ${type} consultation with you.`,
+        link: '/astrologer/dashboard',
+        data: { type: 'new_session', consultationId: consultation.id },
       });
 
       await storage.createNotification({
@@ -1428,6 +1459,31 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
       await storage.markAllNotificationsRead((req.user as any).id);
       res.json({ success: true });
     } catch { res.status(500).json({ message: "Failed to mark notifications" }); }
+  });
+
+  // ─── Push notification tokens (FCM) ────────────────────────
+  app.post('/api/push/register', isAuthenticated, async (req: any, res) => {
+    try {
+      const { token, platform } = req.body;
+      if (!token) return res.status(400).json({ message: "token required" });
+      // A logged-in astrologer dashboard uses the astrologer session
+      const identity = req.session?.astrologerId
+        ? { ownerId: req.session.astrologerId, ownerType: 'astrologer' }
+        : { ownerId: (req.user as any).id, ownerType: 'user' };
+      await storage.savePushToken({ ...identity, token, platform: platform || 'web' });
+      res.json({ success: true });
+    } catch (err) {
+      console.error('Push register error:', err);
+      res.status(500).json({ message: "Failed to register push token" });
+    }
+  });
+
+  app.post('/api/push/unregister', async (req: any, res) => {
+    try {
+      const { token } = req.body;
+      if (token) await storage.deletePushToken(token);
+      res.json({ success: true });
+    } catch { res.status(500).json({ message: "Failed to unregister push token" }); }
   });
 
   // ─── AI Astrologer ────────────────────────────────────────

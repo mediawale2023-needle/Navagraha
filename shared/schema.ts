@@ -454,6 +454,19 @@ export const couponRedemptions = pgTable("coupon_redemptions", {
 
 export type CouponRedemption = typeof couponRedemptions.$inferSelect;
 
+// ─── Push notification tokens (FCM) ────────────────────────
+export const pushTokens = pgTable("push_tokens", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  ownerId: varchar("owner_id").notNull(), // user or astrologer id
+  ownerType: varchar("owner_type").notNull().default("user"), // user | astrologer
+  token: varchar("token").notNull().unique(),
+  platform: varchar("platform").default("web"), // web | android | ios
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export type PushToken = typeof pushTokens.$inferSelect;
+
 // ─── Referrals ─────────────────────────────────────────────
 export const referrals = pgTable("referrals", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),

@@ -280,6 +280,18 @@ CREATE TABLE IF NOT EXISTS referrals (
   created_at timestamp DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS idx_referrals_referrer ON referrals (referrer_id);
+
+-- ─── Push notification tokens (FCM) ────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS push_tokens (
+  id varchar PRIMARY KEY DEFAULT gen_random_uuid(),
+  owner_id varchar NOT NULL,
+  owner_type varchar NOT NULL DEFAULT 'user',
+  token varchar NOT NULL UNIQUE,
+  platform varchar DEFAULT 'web',
+  created_at timestamp DEFAULT now(),
+  updated_at timestamp DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_push_tokens_owner ON push_tokens (owner_id, owner_type);
 `;
 
 const SEED_COUPONS_SQL = `
