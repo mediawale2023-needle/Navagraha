@@ -594,6 +594,37 @@ export const poojaBookings = pgTable("pooja_bookings", {
 
 export type PoojaBooking = typeof poojaBookings.$inferSelect;
 
+// ─── Live Streaming ────────────────────────────────────────
+export const liveStreams = pgTable("live_streams", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  astrologerId: varchar("astrologer_id").references(() => astrologers.id).notNull(),
+  title: varchar("title").notNull(),
+  status: varchar("status").default("live"), // live | ended
+  agoraChannel: varchar("agora_channel").notNull(),
+  viewerCount: integer("viewer_count").default(0),
+  peakViewers: integer("peak_viewers").default(0),
+  totalGifts: decimal("total_gifts", { precision: 12, scale: 2 }).default("0"),
+  startedAt: timestamp("started_at").defaultNow(),
+  endedAt: timestamp("ended_at"),
+});
+
+export type LiveStream = typeof liveStreams.$inferSelect;
+
+export const streamMessages = pgTable("stream_messages", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  streamId: varchar("stream_id").references(() => liveStreams.id).notNull(),
+  senderId: varchar("sender_id").notNull(),
+  senderType: varchar("sender_type").notNull().default("user"), // user | astrologer
+  senderName: varchar("sender_name").notNull(),
+  type: varchar("type").notNull().default("chat"), // chat | gift | join
+  message: text("message"),
+  giftName: varchar("gift_name"),
+  giftAmount: decimal("gift_amount", { precision: 10, scale: 2 }),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export type StreamMessage = typeof streamMessages.$inferSelect;
+
 // AI Chat Messages table — conversations with the AI astrologer
 export const aiChatMessages = pgTable("ai_chat_messages", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),

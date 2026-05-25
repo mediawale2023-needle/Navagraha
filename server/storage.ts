@@ -23,6 +23,8 @@ import {
   reportOrders,
   poojas,
   poojaBookings,
+  liveStreams,
+  streamMessages,
   type Coupon,
   type InsertCoupon,
   type CouponRedemption,
@@ -36,6 +38,8 @@ import {
   type ReportOrder,
   type Pooja,
   type PoojaBooking,
+  type LiveStream,
+  type StreamMessage,
   type User,
   type UpsertUser,
   type Kundli,
@@ -146,7 +150,7 @@ export interface IStorage {
   // Astrologer earnings
   createEarning(data: {
     astrologerId: string;
-    consultationId: string;
+    consultationId?: string;
     grossAmount: string;
     platformFee: string;
     netAmount: string;
@@ -595,7 +599,7 @@ export class DatabaseStorage implements IStorage {
 
   async createEarning(data: {
     astrologerId: string;
-    consultationId: string;
+    consultationId?: string;
     grossAmount: string;
     platformFee: string;
     netAmount: string;
@@ -1156,6 +1160,104 @@ export class DatabaseStorage implements IStorage {
       .from(poojaBookings)
       .where(eq(poojaBookings.userId, userId))
       .orderBy(desc(poojaBookings.createdAt));
+  }
+
+  // ─── Live streaming ────────────────────────────────────────
+  async createLiveStream(data: { astrologerId: string; title: string; agoraChannel: string }): Promise<LiveStream> {
+    const [row] = await db.insert(liveStreams).values(data).returning();
+    return row;
+  }
+
+  async getActiveLiveStreams(): Promise<(LiveStream & { astrologerName?: string; astrologerImage?: string; specializations?: string[] | null })[]> {
+    const rows = await db
+      .select({
+        stream: liveStreams,
+        astrologerName: astrologers.name,
+        astrologerImage: astrologers.profileImageUrl,
+        specializations: astrologers.specializations,
+      })
+      .from(liveStreams)
+      .innerJoin(astrologers, eq(astrologers.id, liveStreams.astrologerId))
+      .where(eq(liveStreams.status, "live"))
+      .orderBy(desc(liveStreams.viewerCount));
+    return rows.map((r) => ({
+      ...r.stream,
+      astrologerName: r.astrologerName ?? undefined,
+      astrologerImage: r.astrologerImage ?? undefined,
+      specializations: r.specializations,
+    }));
+  }
+
+  async getLiveStreamById(id: string): Promise<LiveStream | undefined> {
+    const [row] = await db.select().from(liveStreams).where(eq(liveStreams.id, id));
+    return row;
+  }
+
+  async getActiveLiveStreamByAstrologer(astrologerId: string): Promise<LiveStream | undefined> {
+    const [row] = await db
+      .select()
+      .from(liveStreams)
+      .where(and(eq(liveStreams.astrologerId, astrologerId), eq(liveStreams.status, "live")));
+    return row;
+  }
+
+  async endLiveStream(id: string): Promise<LiveStream> {
+    const [row] = await db
+      .update(liveStreams)
+      .set({ status: "ended", endedAt: new Date() })
+      .where(eq(liveStreams.id, id))
+      .returning();
+    return row;
+  }
+
+  async incrementStreamViewers(id: string): Promise<LiveStream> {
+    const [row] = await db
+      .update(liveStreams)
+      .set({
+        viewerCount: sql`coalesce(${liveStreams.viewerCount}, 0) + 1`,
+        peakViewers: sql`greatest(coalesce(${liveStreams.peakViewers}, 0), coalesce(${liveStreams.viewerCount}, 0) + 1)`,
+      })
+      .where(eq(liveStreams.id, id))
+      .returning();
+    return row;
+  }
+
+  async decrementStreamViewers(id: string): Promise<void> {
+    await db
+      .update(liveStreams)
+      .set({ viewerCount: sql`greatest(0, coalesce(${liveStreams.viewerCount}, 0) - 1)` })
+      .where(eq(liveStreams.id, id));
+  }
+
+  async addStreamGiftTotal(id: string, amount: number): Promise<void> {
+    await db
+      .update(liveStreams)
+      .set({ totalGifts: sql`coalesce(${liveStreams.totalGifts}, 0) + ${amount}` })
+      .where(eq(liveStreams.id, id));
+  }
+
+  async createStreamMessage(data: {
+    streamId: string;
+    senderId: string;
+    senderType: string;
+    senderName: string;
+    type: string;
+    message?: string;
+    giftName?: string;
+    giftAmount?: string;
+  }): Promise<StreamMessage> {
+    const [row] = await db.insert(streamMessages).values(data).returning();
+    return row;
+  }
+
+  async getStreamMessages(streamId: string, limit = 80): Promise<StreamMessage[]> {
+    const rows = await db
+      .select()
+      .from(streamMessages)
+      .where(eq(streamMessages.streamId, streamId))
+      .orderBy(desc(streamMessages.createdAt))
+      .limit(limit);
+    return rows.reverse();
   }
 }
 

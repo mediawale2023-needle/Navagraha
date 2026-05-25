@@ -1684,6 +1684,197 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
     } catch { res.status(500).json({ message: 'Failed to fetch bookings' }); }
   });
 
+  // ─── Live Streaming ────────────────────────────────────────
+  const GIFT_CATALOG = [
+    { id: 'rose', name: 'Rose', emoji: '🌹', amount: 10 },
+    { id: 'diya', name: 'Diya', emoji: '🪔', amount: 25 },
+    { id: 'garland', name: 'Garland', emoji: '💐', amount: 51 },
+    { id: 'coconut', name: 'Coconut', emoji: '🥥', amount: 101 },
+    { id: 'crown', name: 'Crown', emoji: '👑', amount: 251 },
+    { id: 'temple', name: 'Temple', emoji: '🛕', amount: 501 },
+  ];
+
+  app.get('/api/live/gifts', (_req, res) => res.json(GIFT_CATALOG));
+
+  // Public: list active live streams
+  app.get('/api/live', async (_req, res) => {
+    try {
+      res.json(await storage.getActiveLiveStreams());
+    } catch { res.status(500).json({ message: 'Failed to fetch live streams' }); }
+  });
+
+  // Astrologer: go live
+  app.post('/api/live/start', isAstrologerAuthenticated, async (req: any, res) => {
+    try {
+      const astrologerId = req.session.astrologerId;
+      const { title } = req.body;
+      const astrologer = await storage.getAstrologerById(astrologerId);
+      if (!astrologer) return res.status(404).json({ message: 'Astrologer not found' });
+
+      const existing = await storage.getActiveLiveStreamByAstrologer(astrologerId);
+      if (existing) return res.status(400).json({ message: 'You are already live', stream: existing });
+
+      const agoraChannel = getChannelName(`live_${astrologerId}_${Date.now()}`);
+      const stream = await storage.createLiveStream({
+        astrologerId,
+        title: title?.trim() || `Live with ${astrologer.name}`,
+        agoraChannel,
+      });
+      await storage.updateAstrologer(astrologerId, { isOnline: true, availability: 'online' });
+
+      let token: string | null = null;
+      try {
+        token = generateAgoraToken(agoraChannel, 0, 'publisher');
+      } catch { /* Agora not configured — A/V disabled, chat still works */ }
+
+      res.status(201).json({ stream, token, appId: process.env.AGORA_APP_ID, gifts: GIFT_CATALOG });
+    } catch (err) {
+      console.error('Live start error:', err);
+      res.status(500).json({ message: 'Failed to start live stream' });
+    }
+  });
+
+  // Astrologer: end live
+  app.post('/api/live/:id/end', isAstrologerAuthenticated, async (req: any, res) => {
+    try {
+      const stream = await storage.getLiveStreamById(req.params.id);
+      if (!stream || stream.astrologerId !== req.session.astrologerId) {
+        return res.status(404).json({ message: 'Stream not found' });
+      }
+      const ended = await storage.endLiveStream(stream.id);
+      res.json(ended);
+    } catch { res.status(500).json({ message: 'Failed to end stream' }); }
+  });
+
+  // Viewer: get stream detail + audience token (public — guests can watch)
+  app.get('/api/live/:id', async (req: any, res) => {
+    try {
+      const stream = await storage.getLiveStreamById(req.params.id);
+      if (!stream) return res.status(404).json({ message: 'Stream not found' });
+      const astrologer = await storage.getAstrologerById(stream.astrologerId);
+      let token: string | null = null;
+      try {
+        token = generateAgoraToken(stream.agoraChannel, 0, 'subscriber');
+      } catch { /* Agora not configured */ }
+      res.json({
+        stream,
+        astrologer: astrologer ? { id: astrologer.id, name: astrologer.name, profileImageUrl: astrologer.profileImageUrl, specializations: astrologer.specializations } : null,
+        token,
+        appId: process.env.AGORA_APP_ID,
+        gifts: GIFT_CATALOG,
+      });
+    } catch { res.status(500).json({ message: 'Failed to fetch stream' }); }
+  });
+
+  app.post('/api/live/:id/join', isAuthenticated, async (req: any, res) => {
+    try {
+      const stream = await storage.incrementStreamViewers(req.params.id);
+      const user = req.user as any;
+      await storage.createStreamMessage({
+        streamId: req.params.id,
+        senderId: user.id,
+        senderType: 'user',
+        senderName: user.firstName || 'A viewer',
+        type: 'join',
+        message: 'joined',
+      });
+      res.json({ viewerCount: stream.viewerCount });
+    } catch { res.status(500).json({ message: 'Failed to join' }); }
+  });
+
+  app.post('/api/live/:id/leave', isAuthenticated, async (req, res) => {
+    try {
+      await storage.decrementStreamViewers(req.params.id);
+      res.json({ success: true });
+    } catch { res.status(500).json({ message: 'Failed to leave' }); }
+  });
+
+  app.get('/api/live/:id/messages', async (req, res) => {
+    try {
+      res.json(await storage.getStreamMessages(req.params.id));
+    } catch { res.status(500).json({ message: 'Failed to fetch messages' }); }
+  });
+
+  // Chat in a stream (user or astrologer)
+  app.post('/api/live/:id/message', async (req: any, res) => {
+    try {
+      const streamId = req.params.id;
+      const { message } = req.body;
+      if (!message?.trim()) return res.status(400).json({ message: 'Message required' });
+
+      let sender: { id: string; name: string; type: string };
+      if (req.session?.astrologerId) {
+        const astro = await storage.getAstrologerById(req.session.astrologerId);
+        sender = { id: req.session.astrologerId, name: astro?.name || 'Astrologer', type: 'astrologer' };
+      } else if (req.isAuthenticated?.() || req.session?.userId) {
+        const userId = (req.user as any)?.id || req.session.userId;
+        const user = await storage.getUser(userId);
+        sender = { id: userId, name: user?.firstName || 'Viewer', type: 'user' };
+      } else {
+        return res.status(401).json({ message: 'Login to chat' });
+      }
+
+      const saved = await storage.createStreamMessage({
+        streamId,
+        senderId: sender.id,
+        senderType: sender.type,
+        senderName: sender.name,
+        type: 'chat',
+        message: message.slice(0, 300),
+      });
+      res.status(201).json(saved);
+    } catch { res.status(500).json({ message: 'Failed to send message' }); }
+  });
+
+  // Send a gift (deducts wallet, credits astrologer)
+  app.post('/api/live/:id/gift', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = (req.user as any).id;
+      const { giftId } = req.body;
+      const gift = GIFT_CATALOG.find((g) => g.id === giftId);
+      if (!gift) return res.status(400).json({ message: 'Invalid gift' });
+
+      const stream = await storage.getLiveStreamById(req.params.id);
+      if (!stream || stream.status !== 'live') return res.status(404).json({ message: 'Stream is not live' });
+
+      const debit = await storage.debitWallet(userId, gift.amount, `Live gift: ${gift.name}`);
+      if (!debit) return res.status(402).json({ message: 'Insufficient balance. Recharge to send gifts.' });
+
+      // Credit astrologer (net of platform fee)
+      const platformFee = (gift.amount * PLATFORM_FEE_PERCENTAGE) / 100;
+      const net = gift.amount - platformFee;
+      await storage.createEarning({
+        astrologerId: stream.astrologerId,
+        grossAmount: gift.amount.toFixed(2),
+        platformFee: platformFee.toFixed(2),
+        netAmount: net.toFixed(2),
+      });
+      await storage.addStreamGiftTotal(stream.id, gift.amount);
+
+      const user = await storage.getUser(userId);
+      const saved = await storage.createStreamMessage({
+        streamId: stream.id,
+        senderId: userId,
+        senderType: 'user',
+        senderName: user?.firstName || 'A viewer',
+        type: 'gift',
+        message: `${gift.emoji} sent ${gift.name}`,
+        giftName: gift.name,
+        giftAmount: gift.amount.toFixed(2),
+      });
+
+      sendPushToAstrologer(stream.astrologerId, {
+        title: 'You received a gift! 🎁',
+        body: `${user?.firstName || 'A viewer'} sent you a ${gift.name} (₹${gift.amount}).`,
+      });
+
+      res.status(201).json({ message: saved, newBalance: debit.balance });
+    } catch (err) {
+      console.error('Gift error:', err);
+      res.status(500).json({ message: 'Failed to send gift' });
+    }
+  });
+
   // ─── AI Astrologer ────────────────────────────────────────
 
   // Get AI Chat session history

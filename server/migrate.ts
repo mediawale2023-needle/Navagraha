@@ -393,6 +393,35 @@ CREATE TABLE IF NOT EXISTS pooja_bookings (
   created_at timestamp DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS idx_pooja_bookings_user ON pooja_bookings (user_id);
+
+-- ─── Live streaming ────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS live_streams (
+  id varchar PRIMARY KEY DEFAULT gen_random_uuid(),
+  astrologer_id varchar NOT NULL REFERENCES astrologers(id),
+  title varchar NOT NULL,
+  status varchar DEFAULT 'live',
+  agora_channel varchar NOT NULL,
+  viewer_count integer DEFAULT 0,
+  peak_viewers integer DEFAULT 0,
+  total_gifts decimal(12, 2) DEFAULT 0,
+  started_at timestamp DEFAULT now(),
+  ended_at timestamp
+);
+CREATE INDEX IF NOT EXISTS idx_live_streams_status ON live_streams (status);
+
+CREATE TABLE IF NOT EXISTS stream_messages (
+  id varchar PRIMARY KEY DEFAULT gen_random_uuid(),
+  stream_id varchar NOT NULL REFERENCES live_streams(id),
+  sender_id varchar NOT NULL,
+  sender_type varchar NOT NULL DEFAULT 'user',
+  sender_name varchar NOT NULL,
+  type varchar NOT NULL DEFAULT 'chat',
+  message text,
+  gift_name varchar,
+  gift_amount decimal(10, 2),
+  created_at timestamp DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_stream_messages_stream ON stream_messages (stream_id, created_at);
 `;
 
 const SEED_STORE_SQL = `

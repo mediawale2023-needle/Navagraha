@@ -17,7 +17,7 @@ import {
   TrendingUp, Users, Clock, IndianRupee,
   Star, Bell, LogOut, Settings, Wifi, WifiOff,
   Phone, MessageCircle, Video, Calendar, Send,
-  CheckCircle2, AlertCircle
+  CheckCircle2, AlertCircle, Radio
 } from 'lucide-react';
 
 interface DashboardData {
@@ -319,6 +319,13 @@ export default function AstrologerDashboard() {
               />
               <div className={`w-2 h-2 rounded-full ${isOnline ? 'bg-green-600 animate-pulse' : 'bg-gray-400'}`} />
             </div>
+            <button
+              onClick={() => navigate('/astrologer/live')}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-red-500 hover:bg-red-600 text-white text-sm font-medium"
+              data-testid="button-go-live"
+            >
+              <Radio className="w-4 h-4" /> Go Live
+            </button>
             <button className="p-2 rounded-xl hover:bg-[#1A1A1A]/10" onClick={handleLogout}>
               <LogOut className="w-4 h-4 text-[#1A1A1A]" />
             </button>

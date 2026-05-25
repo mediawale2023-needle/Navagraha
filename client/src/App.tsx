@@ -28,6 +28,9 @@ import AIAstrologer from "@/pages/AIAstrologer";
 import Store from "@/pages/Store";
 import Reports from "@/pages/Reports";
 import Pooja from "@/pages/Pooja";
+import Live from "@/pages/Live";
+import LiveStream from "@/pages/LiveStream";
+import LiveStudio from "@/pages/LiveStudio";
 import NotFound from "@/pages/not-found";
 import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
@@ -88,6 +91,7 @@ function Router() {
       {/* Astrologer portal — always accessible */}
       <Route path="/astrologer/login" component={AstrologerLogin} />
       <Route path="/astrologer/dashboard" component={AstrologerDashboard} />
+      <Route path="/astrologer/live" component={LiveStudio} />
 
       {/* Public routes — accessible without login */}
       <Route path="/horoscope" component={Horoscope} />
@@ -102,6 +106,8 @@ function Router() {
       <Route path="/store" component={Store} />
       <Route path="/reports" component={Reports} />
       <Route path="/pooja" component={Pooja} />
+      <Route path="/live" component={Live} />
+      <Route path="/live/:id" component={LiveStream} />
 
       {isLoading || !isAuthenticated ? (
         <>
