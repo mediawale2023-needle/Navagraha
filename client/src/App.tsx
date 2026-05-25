@@ -32,6 +32,7 @@ import Live from "@/pages/Live";
 import LiveStream from "@/pages/LiveStream";
 import LiveStudio from "@/pages/LiveStudio";
 import Panchang from "@/pages/Panchang";
+import Remedies from "@/pages/Remedies";
 import NotFound from "@/pages/not-found";
 import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
@@ -110,6 +111,7 @@ function Router() {
       <Route path="/live" component={Live} />
       <Route path="/live/:id" component={LiveStream} />
       <Route path="/panchang" component={Panchang} />
+      <Route path="/remedies" component={Remedies} />
 
       {isLoading || !isAuthenticated ? (
         <>
