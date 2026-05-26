@@ -117,12 +117,27 @@ export async function setupAuth(app: Express) {
     return;
   }
 
+  // Google requires the redirect_uri we send to EXACTLY match an "Authorized
+  // redirect URI" configured on the OAuth client. A relative callbackURL makes
+  // the value depend on the request host/proto (unreliable behind a proxy), so
+  // derive an absolute, deterministic URL from APP_URL (or an explicit override)
+  // and log it so it can be registered verbatim in Google Cloud Console.
+  const baseUrl = (process.env.APP_URL || '').replace(/\/$/, '');
+  const callbackURL = process.env.GOOGLE_CALLBACK_URL
+    || (baseUrl ? `${baseUrl}/api/auth/google/callback` : '/api/auth/google/callback');
+  console.log(
+    `[auth] Google OAuth callback URL: ${callbackURL}\n` +
+    `[auth] This EXACT URL must be listed under "Authorized redirect URIs" in ` +
+    `Google Cloud Console → Credentials → your OAuth 2.0 Client.`,
+  );
+
   passport.use(
     new GoogleStrategy(
       {
         clientID: process.env.GOOGLE_CLIENT_ID,
         clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-        callbackURL: '/api/auth/google/callback',
+        callbackURL,
+        proxy: true,
       },
       async (_accessToken, _refreshToken, profile, done) => {
         try {
