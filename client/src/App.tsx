@@ -1,4 +1,4 @@
-import { Switch, Route } from "wouter";
+import { Switch, Route, Redirect } from "wouter";
 import { queryClient, apiRequest } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -117,6 +117,10 @@ function Router() {
         <>
           <Route path="/" component={Landing} />
           <Route path="/astrologer/login" component={AstrologerLogin} />
+          {/* Admin URLs while logged out: show the login form instead of 404 */}
+          <Route path="/admin" component={Landing} />
+          <Route path="/admin/dashboard" component={Landing} />
+          <Route path="/admin/patterns" component={Landing} />
         </>
       ) : (
         <>
@@ -127,6 +131,7 @@ function Router() {
           <Route path="/call/:astrologerId" component={CallRoom} />
           <Route path="/schedule" component={Schedule} />
           <Route path="/profile" component={Profile} />
+          <Route path="/admin">{() => <Redirect to="/admin/dashboard" />}</Route>
           <Route path="/admin/dashboard" component={AdminDashboard} />
           <Route path="/admin/patterns" component={PatternMatcher} />
         </>
