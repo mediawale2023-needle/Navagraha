@@ -13,7 +13,6 @@ import {
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest } from '@/lib/queryClient';
-import { ThemeToggle } from '@/components/ThemeToggle';
 import type { Astrologer } from '@shared/schema';
 
 const CATEGORIES = [
@@ -72,7 +71,6 @@ export default function Landing() {
             <span className="font-bold text-lg text-foreground">Navagraha</span>
           </div>
           <div className="flex items-center gap-2">
-            <ThemeToggle />
             <Button
               className="bg-nava-teal hover:bg-nava-teal/90 text-white font-semibold rounded-full px-5 h-9"
               onClick={() => setAuthOpen(true)}
