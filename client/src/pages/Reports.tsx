@@ -9,6 +9,8 @@ import {
 } from '@/components/ui/dialog';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
 import { NorthIndianChart } from '@/components/NorthIndianChart';
+import { PlacesAutocomplete } from '@/components/PlacesAutocomplete';
+import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest } from '@/lib/queryClient';
 import { downloadReportPdf, type ReportContent } from '@/lib/reportPdf';
@@ -38,8 +40,21 @@ export default function Reports() {
   const [tab, setTab] = useState<'browse' | 'mine'>('browse');
   const [selected, setSelected] = useState<ReportType | null>(null);
   const [kundliId, setKundliId] = useState<string>('');
+  const [orderMode, setOrderMode] = useState<'saved' | 'details'>('saved');
+  const emptyBirth = { name: '', gender: 'male', dateOfBirth: '', timeOfBirth: '', placeOfBirth: '' };
+  const [birth, setBirth] = useState(emptyBirth);
+  const [birthCoords, setBirthCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [viewing, setViewing] = useState<ReportOrder | null>(null);
   const [downloading, setDownloading] = useState(false);
+
+  const openOrder = (t: ReportType) => {
+    setSelected(t);
+    setOrderMode(kundlis && kundlis.length > 0 ? 'saved' : 'details');
+    setKundliId('');
+    setBirth(emptyBirth);
+    setBirthCoords(null);
+  };
+  const birthValid = !!(birth.name.trim() && birth.dateOfBirth && birth.timeOfBirth && birth.placeOfBirth.trim());
 
   const handleDownload = async (content: ReportContent | null) => {
     if (!content) return;
@@ -63,14 +78,31 @@ export default function Reports() {
 
   const orderReport = useMutation({
     mutationFn: async () => {
-      const res = await apiRequest('POST', '/api/reports/order', { reportTypeId: selected!.id, kundliId: kundliId || undefined });
+      let resolvedKundliId = kundliId || undefined;
+      // Birth-details mode: create + save the chart first, then order against it.
+      if (orderMode === 'details') {
+        const created: any = await apiRequest('POST', '/api/kundli', {
+          name: birth.name,
+          gender: birth.gender,
+          dateOfBirth: birth.dateOfBirth,
+          timeOfBirth: birth.timeOfBirth,
+          placeOfBirth: birth.placeOfBirth,
+          latitude: birthCoords?.lat,
+          longitude: birthCoords?.lng,
+        });
+        resolvedKundliId = created?.id;
+      }
+      const res = await apiRequest('POST', '/api/reports/order', { reportTypeId: selected!.id, kundliId: resolvedKundliId });
       return res.json();
     },
     onSuccess: () => {
       toast({ title: 'Report ordered', description: 'Your report is being prepared. It will be ready shortly.' });
       setSelected(null);
       setKundliId('');
+      setBirth(emptyBirth);
+      setBirthCoords(null);
       queryClient.invalidateQueries({ queryKey: ['/api/wallet'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/kundli'] });
       queryClient.invalidateQueries({ queryKey: ['/api/reports/orders'] });
       setTab('mine');
     },
@@ -108,7 +140,7 @@ export default function Reports() {
                   <p className="text-sm text-muted-foreground mt-1 flex-1">{t.description}</p>
                   <div className="flex items-center justify-between mt-4">
                     <span className="text-lg font-bold">₹{parseFloat(t.price).toFixed(0)}</span>
-                    <Button size="sm" className="rounded-lg bg-nava-royal-purple hover:bg-nava-royal-purple/90 text-white" onClick={() => setSelected(t)} data-testid={`button-order-${t.slug}`}>
+                    <Button size="sm" className="rounded-lg bg-nava-royal-purple hover:bg-nava-royal-purple/90 text-white" onClick={() => openOrder(t)} data-testid={`button-order-${t.slug}`}>
                       Get Report
                     </Button>
                   </div>
@@ -154,27 +186,91 @@ export default function Reports() {
 
       {/* Order dialog */}
       <Dialog open={!!selected} onOpenChange={(o) => !o && setSelected(null)}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>{selected?.name}</DialogTitle></DialogHeader>
           <p className="text-sm text-muted-foreground">{selected?.description}</p>
-          <div className="space-y-2">
-            <label className="text-sm font-medium">Select birth chart</label>
-            {kundlis && kundlis.length > 0 ? (
-              <select className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm" value={kundliId} onChange={(e) => setKundliId(e.target.value)} data-testid="select-kundli">
-                <option value="">Most recent chart</option>
-                {kundlis.map((k) => <option key={k.id} value={k.id}>{k.name}</option>)}
-              </select>
-            ) : (
-              <p className="text-sm text-muted-foreground">No chart found. <Link href="/kundli/new"><span className="text-nava-royal-purple font-medium">Generate your Kundli</span></Link> first.</p>
-            )}
+
+          {/* Mode toggle */}
+          <div className="grid grid-cols-2 gap-2">
+            <Button
+              type="button"
+              variant={orderMode === 'saved' ? 'default' : 'outline'}
+              className="rounded-lg"
+              disabled={!kundlis || kundlis.length === 0}
+              onClick={() => setOrderMode('saved')}
+              data-testid="mode-saved"
+            >
+              Saved chart
+            </Button>
+            <Button
+              type="button"
+              variant={orderMode === 'details' ? 'default' : 'outline'}
+              className="rounded-lg"
+              onClick={() => setOrderMode('details')}
+              data-testid="mode-details"
+            >
+              Enter birth details
+            </Button>
           </div>
+
+          {orderMode === 'saved' ? (
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Select birth chart</label>
+              {kundlis && kundlis.length > 0 ? (
+                <select className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm" value={kundliId} onChange={(e) => setKundliId(e.target.value)} data-testid="select-kundli">
+                  <option value="">Most recent chart</option>
+                  {kundlis.map((k) => <option key={k.id} value={k.id}>{k.name}</option>)}
+                </select>
+              ) : (
+                <p className="text-sm text-muted-foreground">No saved chart. Switch to <span className="font-medium text-nava-royal-purple">Enter birth details</span>.</p>
+              )}
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <div>
+                <label className="text-sm font-medium">Full name</label>
+                <Input className="mt-1" placeholder="Full name" value={birth.name} onChange={(e) => setBirth({ ...birth, name: e.target.value })} data-testid="input-bd-name" />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-sm font-medium">Date of birth</label>
+                  <Input type="date" className="mt-1" value={birth.dateOfBirth} onChange={(e) => setBirth({ ...birth, dateOfBirth: e.target.value })} data-testid="input-bd-date" />
+                </div>
+                <div>
+                  <label className="text-sm font-medium">Time of birth</label>
+                  <Input type="time" className="mt-1" value={birth.timeOfBirth} onChange={(e) => setBirth({ ...birth, timeOfBirth: e.target.value })} data-testid="input-bd-time" />
+                </div>
+              </div>
+              <div>
+                <label className="text-sm font-medium">Gender</label>
+                <select className="w-full mt-1 rounded-xl border border-border bg-background px-3 py-2 text-sm" value={birth.gender} onChange={(e) => setBirth({ ...birth, gender: e.target.value })} data-testid="select-bd-gender">
+                  <option value="male">Male</option>
+                  <option value="female">Female</option>
+                  <option value="other">Other</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-sm font-medium">Place of birth</label>
+                <div className="mt-1">
+                  <PlacesAutocomplete
+                    value={birth.placeOfBirth}
+                    onChange={(v) => setBirth((b) => ({ ...b, placeOfBirth: v }))}
+                    onPlaceSelect={(place) => setBirthCoords({ lat: place.lat, lng: place.lng })}
+                    placeholder="City, State, Country"
+                  />
+                </div>
+                <p className="text-[11px] text-muted-foreground mt-1">Exact time &amp; place give the most accurate chart.</p>
+              </div>
+            </div>
+          )}
+
           <Button
             className="w-full bg-nava-royal-purple hover:bg-nava-royal-purple/90 text-white"
-            disabled={orderReport.isPending || !kundlis || kundlis.length === 0}
+            disabled={orderReport.isPending || (orderMode === 'saved' ? (!kundlis || kundlis.length === 0) : !birthValid)}
             onClick={() => orderReport.mutate()}
             data-testid="button-confirm-order"
           >
-            {orderReport.isPending ? 'Ordering…' : `Pay ₹${selected ? parseFloat(selected.price).toFixed(0) : ''} from Wallet`}
+            {orderReport.isPending ? 'Generating…' : `Pay ₹${selected ? parseFloat(selected.price).toFixed(0) : ''} from Wallet`}
           </Button>
           <p className="text-[11px] text-center text-muted-foreground">Paid from your wallet. <Link href="/wallet"><span className="text-nava-royal-purple font-medium">Recharge</span></Link> if needed.</p>
         </DialogContent>
