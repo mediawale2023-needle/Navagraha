@@ -1119,6 +1119,7 @@ export class DatabaseStorage implements IStorage {
     userId: string;
     reportTypeId: string;
     kundliId?: string;
+    subjectName?: string;
     amount: string;
   }): Promise<ReportOrder> {
     const [row] = await db.insert(reportOrders).values(data).returning();

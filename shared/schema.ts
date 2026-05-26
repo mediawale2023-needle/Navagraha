@@ -559,6 +559,7 @@ export const reportOrders = pgTable("report_orders", {
   userId: varchar("user_id").references(() => users.id).notNull(),
   reportTypeId: varchar("report_type_id").references(() => reportTypes.id).notNull(),
   kundliId: varchar("kundli_id").references(() => kundlis.id),
+  subjectName: varchar("subject_name"), // person the report is for (shown in list)
   status: varchar("status").default("processing"), // processing | ready | failed
   amount: decimal("amount", { precision: 10, scale: 2 }).notNull(),
   content: jsonb("content"), // generated report payload

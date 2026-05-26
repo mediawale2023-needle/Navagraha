@@ -1721,6 +1721,7 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
         userId,
         reportTypeId: reportType.id,
         kundliId: kundliRef,
+        subjectName: (kundli as any).name || undefined,
         amount: reportType.price,
       });
 
