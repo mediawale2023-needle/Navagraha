@@ -8,7 +8,7 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
 } from '@/components/ui/dialog';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
-import { NorthIndianChart } from '@/components/NorthIndianChart';
+import { NorthIndianChartEnhanced } from '@/components/NorthIndianChartEnhanced';
 import { PlacesAutocomplete } from '@/components/PlacesAutocomplete';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
@@ -309,10 +309,10 @@ export default function Reports() {
               )}
 
               {/* Kundli chart */}
-              {viewing.content.houses && viewing.content.houses.length > 0 && (
+              {viewing.content.chartData?.planetaryPositions && (
                 <div>
                   <h3 className="font-semibold text-nava-royal-purple mb-2">Birth Chart</h3>
-                  <NorthIndianChart houses={viewing.content.houses} size="medium" />
+                  <NorthIndianChartEnhanced chartData={viewing.content.chartData} />
                 </div>
               )}
 

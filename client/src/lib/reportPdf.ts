@@ -1,5 +1,14 @@
 // Client-side PDF export for paid astrology reports. jsPDF is imported lazily
 // so it stays out of the main bundle and only loads when a user downloads.
+import { HOUSE_TEXT, PLANET_ABBR, PLANET_COLORS, SIGN_NUM } from "@/components/NorthIndianChartEnhanced";
+
+interface ChartPlanetPos {
+  planet: string;
+  sign?: string;
+  degree?: number;
+  house?: number;
+  isRetrograde?: boolean;
+}
 
 export interface ReportContent {
   title?: string;
@@ -16,7 +25,7 @@ export interface ReportContent {
     sunSign?: string;
   };
   planetaryPositions?: { planet: string; sign?: string; house?: number; degree?: number; retrograde?: boolean }[];
-  houses?: { number: number; sign?: string; planets: { name: string; symbol: string; house: number }[] }[];
+  chartData?: { houses?: { house: number; sign?: string }[]; planetaryPositions?: ChartPlanetPos[] };
   dashaTimeline?: {
     planet: string;
     period?: string;
@@ -29,17 +38,11 @@ export interface ReportContent {
 }
 
 const PURPLE: [number, number, number] = [91, 71, 168];
-const PLANET_ABBR: Record<string, string> = {
-  Sun: "Su", Moon: "Mo", Mars: "Ma", Mercury: "Me", Jupiter: "Ju",
-  Venus: "Ve", Saturn: "Sa", Rahu: "Ra", Ketu: "Ke", Ascendant: "As",
-};
 
-// Fixed cell centres (in the chart's 0–400 coordinate space) keyed by house
-// number — mirrors the on-screen NorthIndianChart layout so PDF matches UI.
-const HOUSE_POS: Record<number, [number, number]> = {
-  1: [120, 120], 2: [280, 120], 3: [345, 160], 4: [345, 250], 5: [280, 300], 6: [120, 300],
-  7: [55, 250], 8: [55, 160], 9: [150, 55], 10: [250, 55], 11: [345, 345], 12: [55, 345],
-};
+function hexToRgb(hex: string): [number, number, number] {
+  const h = hex.replace("#", "");
+  return [parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4, 6), 16)];
+}
 
 const M = 15;
 const PW = 210;
@@ -108,10 +111,10 @@ export async function downloadReportPdf(content: ReportContent) {
   }
 
   // ── Chart ────────────────────────────────────────────────────
-  if (content.houses?.length) {
+  if (content.chartData?.planetaryPositions?.length) {
     heading("Birth Chart (North Indian)");
     ensure(96);
-    drawChart(doc, content.houses, (PW - 90) / 2, y, 90);
+    drawChart(doc, content.chartData, (PW - 90) / 2, y, 90);
     y += 96;
   }
 
@@ -178,39 +181,70 @@ export async function downloadReportPdf(content: ReportContent) {
   doc.save(`${safe || "astrology-report"}.pdf`);
 }
 
+// Reproduces the on-screen NorthIndianChartEnhanced layout exactly: a square
+// with the inner diamond (side midpoints) plus both corner diagonals, rashi
+// numbers per house, and planet labels grouped by house.
 function drawChart(
   doc: any,
-  houses: NonNullable<ReportContent["houses"]>,
+  chartData: NonNullable<ReportContent["chartData"]>,
   x0: number,
   y0: number,
   side: number,
 ) {
-  const mx = (px: number) => x0 + (px / 400) * side;
-  const my = (py: number) => y0 + (py / 400) * side;
+  const S = 400;
+  const mid = S / 2;
+  const sx = (px: number) => x0 + (px / S) * side;
+  const sy = (py: number) => y0 + (py / S) * side;
+  const L = (a: number, b: number, c: number, d: number) => doc.line(sx(a), sy(b), sx(c), sy(d));
 
-  doc.setDrawColor(60);
-  doc.setLineWidth(0.4);
-  doc.rect(x0, y0, side, side);
-  const L = (a: number, b: number, c: number, d: number) => doc.line(mx(a), my(b), mx(c), my(d));
-  L(200, 0, 200, 400);
-  L(0, 200, 400, 200);
-  L(200, 0, 0, 200);
-  L(200, 0, 400, 200);
-  L(200, 400, 0, 200);
-  L(200, 400, 400, 200);
+  // Outer border + diamond + diagonals (matches the SVG geometry).
+  doc.setDrawColor(26, 26, 46);
+  doc.setLineWidth(0.6);
+  doc.rect(sx(4), sy(4), (side * (S - 8)) / S, (side * (S - 8)) / S);
+  doc.setLineWidth(0.3);
+  L(mid, 4, 4, mid);
+  L(4, mid, mid, S - 4);
+  L(mid, S - 4, S - 4, mid);
+  L(S - 4, mid, mid, 4);
+  L(4, 4, S - 4, S - 4);
+  L(S - 4, 4, 4, S - 4);
 
-  for (const h of houses) {
-    const pos = HOUSE_POS[h.number];
-    if (!pos) continue;
-    const labels = (h.planets || []).map((p) => PLANET_ABBR[p.name] || (p.name || "").slice(0, 2));
-    if (!labels.length) continue;
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(8);
-    doc.setTextColor(...PURPLE);
-    labels.forEach((lab, i) => {
-      doc.text(lab, mx(pos[0]), my(pos[1]) + i * 3.4, { align: "center" });
+  // House sign numbers (rashi).
+  const houseSign: Record<number, string> = {};
+  for (const h of chartData.houses || []) houseSign[h.house] = h.sign || "";
+  for (const pos of chartData.planetaryPositions || []) {
+    if (pos.planet === "Ascendant" && pos.house === 1 && pos.sign) houseSign[1] = pos.sign;
+  }
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(8);
+  doc.setTextColor(...hexToRgb("#8B1A1A"));
+  for (let h = 1; h <= 12; h++) {
+    const t = HOUSE_TEXT[h];
+    const num = houseSign[h] ? SIGN_NUM[houseSign[h]] : h;
+    if (t && num) doc.text(String(num), sx(t.rx), sy(t.ry), { align: "center" });
+  }
+
+  // Planets grouped by house.
+  const byHouse: Record<number, ChartPlanetPos[]> = {};
+  for (const p of chartData.planetaryPositions || []) {
+    if (p.house && p.house >= 1 && p.house <= 12) (byHouse[p.house] ||= []).push(p);
+  }
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(6.5);
+  for (let h = 1; h <= 12; h++) {
+    const t = HOUSE_TEXT[h];
+    const planets = byHouse[h];
+    if (!t || !planets?.length) continue;
+    const lineH = 3.0;
+    const startY = sy(t.py) - ((planets.length - 1) * lineH) / 2;
+    planets.forEach((p, i) => {
+      const abbr = PLANET_ABBR[p.planet] || (p.planet === "Ascendant" ? "Asc" : p.planet.slice(0, 2));
+      const label = `${abbr}-${p.degree ?? "—"}°${p.isRetrograde ? "R" : ""}`;
+      doc.setTextColor(...hexToRgb(PLANET_COLORS[abbr] || "#1A1A2E"));
+      doc.text(label, sx(t.px), startY + i * lineH, { align: "center" });
     });
   }
+
   doc.setTextColor(40);
   doc.setFont("helvetica", "normal");
 }
