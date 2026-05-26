@@ -16,6 +16,7 @@ export interface UserContext {
   chartData?: any;
   profession?: string;
   pastEvents?: string[];
+  language?: string;
   currentQuery: string;
 }
 
@@ -31,6 +32,12 @@ export async function runCouncil(context: UserContext): Promise<string> {
   const today = new Date().toISOString().split('T')[0];
   const temporalInjector = (prompt: string) =>
     `GLOBAL DIRECTIVE: The exact current date is ${today}. All 'current' Dasha and Transit analysis MUST be relative to today. Do not hallucinate historical dates as the present.\n\n${prompt}`;
+
+  // Only the final reading is translated; the internal council reasons in English.
+  const lang = context.language && context.language.trim().toLowerCase() !== 'english' ? context.language.trim() : null;
+  const languageDirective = lang
+    ? `\n\nLANGUAGE DIRECTIVE: Write the entire final response in ${lang}, using natural, fluent, everyday ${lang}. Astrological proper nouns (planet, sign and dasha names) may stay recognizable.`
+    : '';
 
   // ─── Step 0: Deterministic Rust Math ──────────────────────────────────────
   let shadbalaSummary = '';
@@ -95,14 +102,14 @@ ${shadbalaSummary || '(Shadbala engine offline)'}
 5. **Desha-Kaala-Patra (Modern Context):** ${contextResult}
 
 Synthesize these findings into the final precise, deterministic, confident Vedic reading.
-Speak directly to the person — no "ifs", no "coulds". The math is already computed above.
+Speak directly to the person — no "ifs", no "coulds". The math is already computed above.${languageDirective}
 `;
 
   const jyotishiOutput = await callAgent("jyotishi", temporalInjector(AGENT_PROMPTS.jyotishi), synthesisPayload);
 
   // ─── Step 4: Ethicist Gate (Safety Filter) ────────────────────────────────
   console.log('[Orchestrator] Running Ethicist Gate...');
-  const finalReading = await callAgent("ethicist", temporalInjector(AGENT_PROMPTS.ethicist), jyotishiOutput);
+  const finalReading = await callAgent("ethicist", temporalInjector(AGENT_PROMPTS.ethicist) + languageDirective, jyotishiOutput);
 
   return finalReading;
 

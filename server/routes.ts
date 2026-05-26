@@ -2032,7 +2032,7 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
   app.post('/api/ai/chat', isAuthenticated, async (req: any, res) => {
     try {
       const user = req.user as any;
-      const { message, sessionId, kundliId } = req.body;
+      const { message, sessionId, kundliId, language } = req.body;
       if (!message) return res.status(400).json({ message: "Message is required" });
 
       const activeSessionId = sessionId || crypto.randomUUID();
@@ -2050,21 +2050,25 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
       let birthPlace = user.placeOfBirth || 'Unknown';
       let chartData: any = null;
 
-      if (kundliId) {
-        const kundli = await storage.getKundliById(kundliId);
-        if (kundli && kundli.userId === user.id) {
-          birthDate = kundli.dateOfBirth ? new Date(kundli.dateOfBirth).toISOString().split('T')[0] : 'Unknown';
-          birthTime = kundli.timeOfBirth || 'Unknown';
-          birthPlace = kundli.placeOfBirth || 'Unknown';
-          chartData = {
-            ascendant: kundli.ascendant,
-            sunSign: kundli.zodiacSign,
-            moonSign: kundli.moonSign,
-            planets: kundli.chartData,
-            dashas: kundli.dashas,
-            doshas: kundli.doshas
-          };
-        }
+      // Resolve a chart: explicit choice, else the user's most recent saved chart.
+      let kundli = kundliId ? await storage.getKundliById(kundliId) : null;
+      if (kundli && kundli.userId !== user.id) kundli = null;
+      if (!kundli) {
+        const userKundlis = await storage.getUserKundlis(user.id);
+        kundli = userKundlis?.[0] ?? null;
+      }
+      if (kundli) {
+        birthDate = kundli.dateOfBirth ? new Date(kundli.dateOfBirth).toISOString().split('T')[0] : 'Unknown';
+        birthTime = kundli.timeOfBirth || 'Unknown';
+        birthPlace = kundli.placeOfBirth || 'Unknown';
+        chartData = {
+          ascendant: kundli.ascendant,
+          sunSign: kundli.zodiacSign,
+          moonSign: kundli.moonSign,
+          planets: kundli.chartData,
+          dashas: kundli.dashas,
+          doshas: kundli.doshas
+        };
       }
 
       // Prepare context for Orchestrator
@@ -2076,6 +2080,7 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
         },
         chartData,
         profession: 'User',
+        language,
         currentQuery: message
       };
 
