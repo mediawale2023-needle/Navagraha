@@ -74,6 +74,7 @@ import { db } from "./db";
 import { eq, desc, and, sql, asc } from "drizzle-orm";
 import crypto from "crypto";
 import bcrypt from "bcryptjs";
+import { isAdminEmail } from "./adminAccess";
 
 export interface IStorage {
   // User operations
@@ -106,6 +107,7 @@ export interface IStorage {
   getWallet(userId: string): Promise<Wallet | undefined>;
   createWallet(userId: string): Promise<Wallet>;
   updateWalletBalance(userId: string, amount: string): Promise<Wallet>;
+  hasFreeAccess(userId: string): Promise<boolean>;
 
   // Transaction operations
   createTransaction(transaction: InsertTransaction): Promise<Transaction>;
@@ -986,9 +988,28 @@ export class DatabaseStorage implements IStorage {
 
   // ─── Wallet helper ─────────────────────────────────────────
   // Atomically debit the wallet; returns null when balance is insufficient.
+  // Admin accounts get free access to all paid features (for testing): record
+  // a zero-cost transaction for traceability but never decrement the balance.
+  async hasFreeAccess(userId: string): Promise<boolean> {
+    const user = await this.getUser(userId);
+    return isAdminEmail(user?.email);
+  }
+
   async debitWallet(userId: string, cost: number, description: string): Promise<{ balance: string } | null> {
     let wallet = await this.getWallet(userId);
     if (!wallet) wallet = await this.createWallet(userId);
+
+    if (await this.hasFreeAccess(userId)) {
+      await this.createTransaction({
+        userId,
+        amount: "0",
+        type: "debit",
+        description: `${description} (free access)`,
+        status: "completed",
+      });
+      return { balance: wallet.balance || "0" };
+    }
+
     const balance = parseFloat(wallet.balance || "0");
     if (balance < cost) return null;
     const newBalance = (balance - cost).toFixed(2);

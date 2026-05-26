@@ -51,7 +51,8 @@ Search `server/routes.ts` + `client/src/pages` before building anything below.
 
 **Admin** (`isAdmin` via `ADMIN_EMAILS`)
 - Dedicated login at `/admin/login` (`AdminLogin.tsx`) — email/password; on success probes `/api/admin/stats` to confirm whitelisting before routing to the dashboard. No separate admin account; admin = a user whose email is in `ADMIN_EMAILS`.
-- Bootstrap admin: set `ADMIN_EMAIL` + `ADMIN_PASSWORD` env vars. On boot, `seedAdminUser()` in `server/migrate.ts` creates (or password-syncs) that user, and `getAdminEmails()` treats `ADMIN_EMAIL` as admin — so the single pair both creates a loginable account and grants admin.
+- Bootstrap admin: set `ADMIN_EMAIL` + `ADMIN_PASSWORD` env vars. On boot, `seedAdminUser()` in `server/migrate.ts` creates (or password-syncs) that user, and `getAdminEmails()` treats `ADMIN_EMAIL` as admin — so the single pair both creates a loginable account and grants admin. Admin identity is centralized in `server/adminAccess.ts` (`getAdminEmails`/`isAdminEmail`).
+- **Free access for testing**: admin accounts ride free across all paid features. `storage.hasFreeAccess(userId)` (true when the user's email is an admin) bypasses `debitWallet` (records a ₹0 transaction, never decrements) and the per-minute billing loop in `websocketService.ts`.
 - Dashboard (stats, astrologers), homepage CMS, **coupons CRUD**, **Operations tab** (orders, pooja bookings, KYC review).
 
 ## Data model (tables in `shared/schema.ts`)
