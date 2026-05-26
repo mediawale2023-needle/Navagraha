@@ -16,6 +16,7 @@ import session from 'express-session';
 import connectPg from 'connect-pg-simple';
 import type { Express, RequestHandler } from 'express';
 import { storage } from './storage';
+import { getAdminEmails } from './adminAccess';
 
 // ─── Session setup ────────────────────────────────────────────
 
@@ -82,19 +83,6 @@ export function getSessionIdentity(req: any): SessionIdentity {
     userId: req.session?.userId || (typeof passportUser === 'string' ? passportUser : undefined),
     astrologerId: req.session?.astrologerId,
   };
-}
-
-function getAdminEmails(): Set<string> {
-  const set = new Set(
-    (process.env.ADMIN_EMAILS || '')
-      .split(',')
-      .map((email) => email.trim().toLowerCase())
-      .filter(Boolean),
-  );
-  // ADMIN_EMAIL (singular) is the bootstrap admin account seeded on boot.
-  const single = process.env.ADMIN_EMAIL?.trim().toLowerCase();
-  if (single) set.add(single);
-  return set;
 }
 
 // ─── Passport + routes setup ──────────────────────────────────

@@ -162,10 +162,27 @@ export function setupWebSocket(server: Server) {
           const freeMinutes = consultation.isFree ? (consultation.freeMinutes || 0) : 0;
           let minutesElapsed = 0;
 
+          // Admin/test accounts ride free for the whole session.
+          const freeAccess = await storage.hasFreeAccess(userId);
+
           // Deduct every 60 seconds
           const timer = setInterval(async () => {
             try {
               const cost = parseFloat(consultation.pricePerMinute || "0");
+
+              // Free-access (admin) account: tick without charging.
+              if (freeAccess) {
+                const freeClient = userClients.get(userId);
+                if (freeClient) {
+                  send(freeClient.ws, {
+                    type: "billing_tick",
+                    deducted: 0,
+                    free: true,
+                    consultationId,
+                  });
+                }
+                return;
+              }
 
               // Free-minute window: notify but don't charge
               if (minutesElapsed < freeMinutes) {
