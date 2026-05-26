@@ -41,6 +41,7 @@ Search `server/routes.ts` + `client/src/pages` before building anything below.
 - Wallet + recharge: Razorpay, Snapmint (BNPL), LazyPay (`Wallet.tsx`, `paymentService.ts`).
 - **Offers/coupons** (`/api/coupons`, admin CRUD), **referrals** (`/api/referral`), **first-chat-free** (free minutes in billing loop).
 - **Astromall** store (`/store`), **paid reports** (`/reports`, async AI gen), **book a pooja** (`/pooja`) — all wallet checkout via `storage.debitWallet`.
+  - Report `content` (JSONB) embeds structured chart data (birthDetails, planetaryPositions, houses, dashaTimeline) alongside AI narrative; `generateReport` in `aiAstrologerService.ts` derives these from the kundli. Client renders the North Indian chart + tables and offers **Download PDF** (`client/src/lib/reportPdf.ts`, lazy `jspdf`).
 - **Live streaming** viewer (`/live`, `/live/:id`) — chat (polling) + paid gifting.
 - Reviews, scheduled calls, notifications (in-app + **FCM push** `pushService.ts`).
 
