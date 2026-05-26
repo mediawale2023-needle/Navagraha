@@ -29,11 +29,6 @@ function getClient(): OpenAI {
 
 // ─── Internal helpers ─────────────────────────────────────────────────────────
 
-const PLANET_SYMBOLS: Record<string, string> = {
-  Sun: "☉", Moon: "☽", Mars: "♂", Mercury: "☿", Jupiter: "♃",
-  Venus: "♀", Saturn: "♄", Rahu: "☊", Ketu: "☋", Ascendant: "Asc",
-};
-
 function chartSummary(kundli: Partial<Kundli>): string {
   const { birthDetails, planetaryPositions, dashaTimeline } = deriveStructured(kundli);
 
@@ -154,11 +149,6 @@ export interface ReportPlanetPosition {
   degree?: number;
   retrograde?: boolean;
 }
-export interface ReportChartHouse {
-  number: number;
-  sign?: string;
-  planets: { name: string; symbol: string; house: number }[];
-}
 export interface ReportDashaPeriod {
   planet: string;
   period?: string;
@@ -184,7 +174,7 @@ export interface GeneratedReport {
   remedies: string[];
   birthDetails?: ReportBirthDetails;
   planetaryPositions?: ReportPlanetPosition[];
-  houses?: ReportChartHouse[];
+  chartData?: { houses?: any[]; planetaryPositions?: any[] };
   dashaTimeline?: ReportDashaPeriod[];
   generatedAt: string;
 }
@@ -192,17 +182,16 @@ export interface GeneratedReport {
 interface StructuredChart {
   birthDetails: ReportBirthDetails;
   planetaryPositions: ReportPlanetPosition[];
-  houses: ReportChartHouse[];
+  chartData: { houses?: any[]; planetaryPositions?: any[] };
   dashaTimeline: ReportDashaPeriod[];
 }
 
 // Turn a stored Kundli (chartData/dashas JSONB) into the structured shapes the
 // report renderer and PDF need: birth details, a planetary-position table, the
-// chart houses (with planet symbols) and the Vimshottari dasha timeline.
+// raw chartData (for the North Indian chart) and the Vimshottari dasha timeline.
 function deriveStructured(kundli: Partial<Kundli>): StructuredChart {
-  const cd = ((kundli as any).chartData || {}) as any;
+  const cd = ((kundli as any).chartData || {}) as { houses?: any[]; planetaryPositions?: any[] };
   const rawPositions: any[] = Array.isArray(cd.planetaryPositions) ? cd.planetaryPositions : [];
-  const rawHouses: any[] = Array.isArray(cd.houses) ? cd.houses : [];
   const rawDashas: any[] = Array.isArray((kundli as any).dashas) ? (kundli as any).dashas : [];
 
   const planetaryPositions: ReportPlanetPosition[] = rawPositions.map((p) => ({
@@ -211,16 +200,6 @@ function deriveStructured(kundli: Partial<Kundli>): StructuredChart {
     house: p.house,
     degree: typeof p.degree === "number" ? p.degree : Number(p.degree) || undefined,
     retrograde: !!p.isRetrograde,
-  }));
-
-  const houses: ReportChartHouse[] = rawHouses.map((h) => ({
-    number: h.house,
-    sign: h.sign,
-    planets: (Array.isArray(h.planets) ? h.planets : []).map((name: string) => ({
-      name,
-      symbol: PLANET_SYMBOLS[name] || name.slice(0, 2),
-      house: h.house,
-    })),
   }));
 
   const dashaTimeline: ReportDashaPeriod[] = rawDashas.map((d) => {
@@ -247,7 +226,7 @@ function deriveStructured(kundli: Partial<Kundli>): StructuredChart {
     sunSign: kundli.zodiacSign || undefined,
   };
 
-  return { birthDetails, planetaryPositions, houses, dashaTimeline };
+  return { birthDetails, planetaryPositions, chartData: cd, dashaTimeline };
 }
 
 function extractChartRemedies(kundli: Partial<Kundli>): string[] {
