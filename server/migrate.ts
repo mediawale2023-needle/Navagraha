@@ -1,4 +1,6 @@
+import bcrypt from 'bcryptjs';
 import { pool } from './db';
+import { storage } from './storage';
 
 const SCHEMA_SQL = `
 CREATE TABLE IF NOT EXISTS sessions (
@@ -512,10 +514,50 @@ SELECT * FROM (VALUES
 WHERE NOT EXISTS (SELECT 1 FROM homepage_content LIMIT 1);
 `;
 
+// Bootstrap an admin account from ADMIN_EMAIL + ADMIN_PASSWORD so a fresh
+// deploy has a guaranteed login. Idempotent: creates the user if missing,
+// otherwise syncs the password to the env value. ADMIN_EMAIL is also treated
+// as an admin in getAdminEmails(), so this single pair is enough to log in
+// and reach /admin/dashboard.
+async function seedAdminUser(): Promise<void> {
+  const rawEmail = process.env.ADMIN_EMAIL?.trim();
+  const password = process.env.ADMIN_PASSWORD;
+  if (!rawEmail || !password) return;
+
+  const email = rawEmail.toLowerCase();
+  if (password.length < 8) {
+    console.warn('[seed] ADMIN_PASSWORD must be at least 8 characters — skipping admin bootstrap');
+    return;
+  }
+
+  try {
+    const existing = await storage.getUserByEmail(email);
+    if (!existing) {
+      const user = await storage.createUserWithPassword({ email, password, firstName: 'Admin' });
+      await storage.createWallet(user.id).catch(() => {});
+      console.log(`[seed] created admin user ${email}`);
+      return;
+    }
+
+    const matches = existing.passwordHash
+      ? await bcrypt.compare(password, existing.passwordHash)
+      : false;
+    if (!matches) {
+      const passwordHash = await bcrypt.hash(password, 12);
+      await storage.updateUser(existing.id, { passwordHash, authProvider: 'email' });
+      console.log(`[seed] synced admin password for ${email}`);
+    }
+    await storage.createWallet(existing.id).catch(() => {});
+  } catch (err) {
+    console.error('[seed] admin bootstrap failed:', err);
+  }
+}
+
 export async function runMigrations(): Promise<void> {
   await pool.query(SCHEMA_SQL);
   await pool.query(SEED_HOMEPAGE_SQL);
   await pool.query(SEED_COUPONS_SQL);
   await pool.query(SEED_STORE_SQL);
+  await seedAdminUser();
   console.log('[migrate] Schema initialised successfully');
 }

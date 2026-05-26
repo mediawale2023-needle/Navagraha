@@ -85,12 +85,16 @@ export function getSessionIdentity(req: any): SessionIdentity {
 }
 
 function getAdminEmails(): Set<string> {
-  return new Set(
+  const set = new Set(
     (process.env.ADMIN_EMAILS || '')
       .split(',')
       .map((email) => email.trim().toLowerCase())
       .filter(Boolean),
   );
+  // ADMIN_EMAIL (singular) is the bootstrap admin account seeded on boot.
+  const single = process.env.ADMIN_EMAIL?.trim().toLowerCase();
+  if (single) set.add(single);
+  return set;
 }
 
 // ─── Passport + routes setup ──────────────────────────────────
