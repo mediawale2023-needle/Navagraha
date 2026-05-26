@@ -50,6 +50,7 @@ Search `server/routes.ts` + `client/src/pages` before building anything below.
 - **Go Live** broadcaster studio (`/astrologer/live`, `LiveStudio.tsx`).
 
 **Admin** (`isAdmin` via `ADMIN_EMAILS`)
+- Dedicated login at `/admin/login` (`AdminLogin.tsx`) — email/password; on success probes `/api/admin/stats` to confirm whitelisting before routing to the dashboard. No separate admin account; admin = a user whose email is in `ADMIN_EMAILS`.
 - Dashboard (stats, astrologers), homepage CMS, **coupons CRUD**, **Operations tab** (orders, pooja bookings, KYC review).
 
 ## Data model (tables in `shared/schema.ts`)
