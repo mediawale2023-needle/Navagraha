@@ -361,6 +361,91 @@ export async function generateReport(
   };
 }
 
+// ─── Personalised Daily Horoscope ─────────────────────────────────────────────
+
+export interface DailyHoroscopeContent {
+  date: string;
+  headline: string;
+  overall: string;
+  rating: number; // 1-5
+  career: string;
+  love: string;
+  health: string;
+  finance: string;
+  luckyColor: string;
+  luckyNumber: number;
+  advice: string;
+}
+
+function clampRating(r: any): number {
+  const n = Math.round(Number(r));
+  return Number.isFinite(n) ? Math.min(5, Math.max(1, n)) : 3;
+}
+
+function templatedDaily(dateStr: string, bd: ReportBirthDetails, currentMd?: ReportDashaPeriod): DailyHoroscopeContent {
+  return {
+    date: dateStr,
+    headline: "Steady progress today",
+    overall: `With your Moon in ${bd.moonSign || "your sign"}${currentMd ? ` and the ${currentMd.planet} Mahadasha active` : ""}, today favours measured, deliberate action over haste.`,
+    rating: 3,
+    career: "Focus on one priority task; avoid scattering your energy.",
+    love: "A calm, honest conversation strengthens a key relationship.",
+    health: "Balance activity with rest and keep hydrated.",
+    finance: "A good day to plan and review rather than make big purchases.",
+    luckyColor: "Yellow",
+    luckyNumber: 5,
+    advice: "Begin the day with a few minutes of stillness before acting.",
+  };
+}
+
+export async function generateDailyHoroscope(
+  kundli: Partial<Kundli>,
+  dateStr: string,
+  language?: string,
+): Promise<DailyHoroscopeContent> {
+  const { birthDetails, dashaTimeline } = deriveStructured(kundli);
+  const currentMd = dashaTimeline.find((d) => d.status === "current");
+  const lang = language && language.trim().toLowerCase() !== "english" ? language.trim() : null;
+
+  if (!process.env.OPENAI_API_KEY) {
+    return templatedDaily(dateStr, birthDetails, currentMd);
+  }
+
+  try {
+    const client = getClient();
+    const dashaCtx = currentMd
+      ? `, currently running the ${currentMd.planet} Mahadasha${currentMd.currentAntardasha ? ` / ${currentMd.currentAntardasha.planet} Antardasha` : ""}`
+      : "";
+    const prompt = `You are an expert Vedic astrologer writing today's PERSONALISED daily horoscope for ${dateStr}. Base it specifically on this person's chart — Lagna ${birthDetails.ascendant || "—"}, Moon ${birthDetails.moonSign || "—"}, Sun ${birthDetails.sunSign || "—"}${dashaCtx}. Make it specific and actionable for today — not generic sun-sign text.${lang ? ` Write every text field in ${lang}.` : ""}
+
+Return ONLY valid JSON: {"headline":"short uplifting headline","overall":"2-3 sentence personalised summary for today","rating":<integer 1-5>,"career":"1-2 sentences","love":"1-2 sentences","health":"1-2 sentences","finance":"1-2 sentences","luckyColor":"a colour","luckyNumber":<integer 1-9>,"advice":"one practical tip for today"}`;
+
+    const response = await client.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [{ role: "user", content: prompt }],
+      response_format: { type: "json_object" },
+      max_tokens: 700,
+    });
+    const parsed = JSON.parse(response.choices[0]?.message?.content || "{}");
+    return {
+      date: dateStr,
+      headline: parsed.headline || "Your day ahead",
+      overall: parsed.overall || "",
+      rating: clampRating(parsed.rating),
+      career: parsed.career || "",
+      love: parsed.love || "",
+      health: parsed.health || "",
+      finance: parsed.finance || "",
+      luckyColor: parsed.luckyColor || "—",
+      luckyNumber: Number(parsed.luckyNumber) || 1,
+      advice: parsed.advice || "",
+    };
+  } catch (err) {
+    console.error("[daily-horoscope] generation failed, using fallback:", err);
+    return templatedDaily(dateStr, birthDetails, currentMd);
+  }
+}
+
 // ─── Pre-Consultation Brief ───────────────────────────────────────────────────
 
 export interface PreConsultBrief {

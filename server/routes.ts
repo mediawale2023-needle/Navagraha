@@ -60,6 +60,7 @@ import {
   generatePostConsultFollowUp,
   matchAstrologerToChart,
   generateReport,
+  generateDailyHoroscope,
 } from "./aiAstrologerService";
 import { sendWelcomeEmail, sendPaymentReceipt, sendBookingConfirmation, sendConsultationSummary } from "./emailService";
 import crypto from "crypto";
@@ -250,6 +251,31 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
   });
 
   // ─── Horoscope ────────────────────────────────────────────
+  // Personalised daily horoscope from the user's chart, cached once per day.
+  app.get('/api/horoscope/personal', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = (req.user as any).id;
+      const language = (req.query.language as string) || 'English';
+      const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(new Date());
+
+      const userKundlis = await storage.getUserKundlis(userId);
+      const kundli = userKundlis?.[0] ?? null;
+      if (!kundli) return res.json({ hasChart: false });
+
+      const cached = await storage.getDailyHoroscope(userId, today);
+      if (cached && cached.language === language) {
+        return res.json({ hasChart: true, date: today, language, person: kundli.name, content: cached.content });
+      }
+
+      const content = await generateDailyHoroscope(kundli, today, language);
+      await storage.saveDailyHoroscope({ userId, kundliId: kundli.id, horoDate: today, language, content }).catch(() => {});
+      res.json({ hasChart: true, date: today, language, person: kundli.name, content });
+    } catch (err) {
+      console.error('Personal horoscope error:', err);
+      res.status(500).json({ message: 'Failed to fetch your daily horoscope' });
+    }
+  });
+
   app.get('/api/horoscope/:sign', async (req, res) => {
     try {
       const sign = req.params.sign.toLowerCase();
@@ -2032,7 +2058,7 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
   app.post('/api/ai/chat', isAuthenticated, async (req: any, res) => {
     try {
       const user = req.user as any;
-      const { message, sessionId, kundliId } = req.body;
+      const { message, sessionId, kundliId, language } = req.body;
       if (!message) return res.status(400).json({ message: "Message is required" });
 
       const activeSessionId = sessionId || crypto.randomUUID();
@@ -2050,21 +2076,25 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
       let birthPlace = user.placeOfBirth || 'Unknown';
       let chartData: any = null;
 
-      if (kundliId) {
-        const kundli = await storage.getKundliById(kundliId);
-        if (kundli && kundli.userId === user.id) {
-          birthDate = kundli.dateOfBirth ? new Date(kundli.dateOfBirth).toISOString().split('T')[0] : 'Unknown';
-          birthTime = kundli.timeOfBirth || 'Unknown';
-          birthPlace = kundli.placeOfBirth || 'Unknown';
-          chartData = {
-            ascendant: kundli.ascendant,
-            sunSign: kundli.zodiacSign,
-            moonSign: kundli.moonSign,
-            planets: kundli.chartData,
-            dashas: kundli.dashas,
-            doshas: kundli.doshas
-          };
-        }
+      // Resolve a chart: explicit choice, else the user's most recent saved chart.
+      let kundli = kundliId ? await storage.getKundliById(kundliId) : null;
+      if (kundli && kundli.userId !== user.id) kundli = null;
+      if (!kundli) {
+        const userKundlis = await storage.getUserKundlis(user.id);
+        kundli = userKundlis?.[0] ?? null;
+      }
+      if (kundli) {
+        birthDate = kundli.dateOfBirth ? new Date(kundli.dateOfBirth).toISOString().split('T')[0] : 'Unknown';
+        birthTime = kundli.timeOfBirth || 'Unknown';
+        birthPlace = kundli.placeOfBirth || 'Unknown';
+        chartData = {
+          ascendant: kundli.ascendant,
+          sunSign: kundli.zodiacSign,
+          moonSign: kundli.moonSign,
+          planets: kundli.chartData,
+          dashas: kundli.dashas,
+          doshas: kundli.doshas
+        };
       }
 
       // Prepare context for Orchestrator
@@ -2076,6 +2106,7 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
         },
         chartData,
         profession: 'User',
+        language,
         currentQuery: message
       };
 

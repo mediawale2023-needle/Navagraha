@@ -69,7 +69,22 @@ const SUGGESTED_QUESTIONS = [
   "What are my lucky colours, numbers, and gemstones?",
 ];
 
+const LANGUAGES = [
+  'English', 'Hindi', 'Marathi', 'Bengali', 'Tamil', 'Telugu', 'Kannada',
+  'Malayalam', 'Gujarati', 'Punjabi', 'Odia', 'Urdu', 'Spanish', 'French', 'Arabic',
+];
+
+const LIFE_AREA_PROMPTS = [
+  { label: 'Career', q: 'What does my birth chart say about my career and the right path forward?' },
+  { label: 'Love & Marriage', q: 'What does my chart reveal about love, marriage timing and my partner?' },
+  { label: 'Finance', q: 'What does my chart indicate about wealth, income and favourable times for money?' },
+  { label: 'Health', q: 'What does my chart say about my health and the periods I should be careful about?' },
+  { label: 'Year Ahead', q: 'What are the key themes and turning points for me over the next 12 months?' },
+  { label: 'Remedies', q: 'What remedies should I follow based on my chart and current dasha?' },
+];
+
 const SESSION_STORAGE_KEY = 'ai_astrologer_session_id';
+const LANGUAGE_STORAGE_KEY = 'ai_astrologer_language';
 
 export default function AIAstrologer() {
   const { toast } = useToast();
@@ -79,6 +94,9 @@ export default function AIAstrologer() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [selectedKundliId, setSelectedKundliId] = useState<string>("none");
+  const [language, setLanguage] = useState<string>(
+    () => localStorage.getItem(LANGUAGE_STORAGE_KEY) || 'English'
+  );
   const [sessionId, setSessionId] = useState<string | null>(
     () => localStorage.getItem(SESSION_STORAGE_KEY)
   );
@@ -145,6 +163,7 @@ export default function AIAstrologer() {
         message,
         history,
         kundliId: selectedKundliId !== "none" ? selectedKundliId : undefined,
+        language,
         sessionId,
       });
     },
@@ -257,6 +276,21 @@ export default function AIAstrologer() {
                       <SelectItem key={k.id} value={k.id}>
                         {k.name}
                       </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="min-w-[130px]">
+                <Select
+                  value={language}
+                  onValueChange={(v) => { setLanguage(v); localStorage.setItem(LANGUAGE_STORAGE_KEY, v); }}
+                >
+                  <SelectTrigger className="bg-background border-border" data-testid="select-language">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="bg-card border-border max-h-72">
+                    {LANGUAGES.map((l) => (
+                      <SelectItem key={l} value={l}>{l}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -498,6 +532,20 @@ export default function AIAstrologer() {
 
         {/* Input */}
         <div className="sticky bottom-0 bg-background/95 backdrop-blur-sm pt-3 pb-safe">
+          {/* Life-area quick questions */}
+          <div className="flex gap-2 overflow-x-auto pb-2 -mx-1 px-1">
+            {LIFE_AREA_PROMPTS.map((a) => (
+              <button
+                key={a.label}
+                onClick={() => sendMessage(a.q)}
+                disabled={chatMutation.isPending}
+                className="shrink-0 text-xs font-medium text-nava-royal-purple bg-nava-lavender/50 hover:bg-nava-lavender border border-nava-royal-purple/20 rounded-full px-3 py-1.5 transition-colors disabled:opacity-50"
+                data-testid={`chip-${a.label.toLowerCase().replace(/\s+/g, '-')}`}
+              >
+                {a.label}
+              </button>
+            ))}
+          </div>
           <div className="flex gap-2">
             <Textarea
               value={input}

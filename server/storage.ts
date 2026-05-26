@@ -21,6 +21,7 @@ import {
   orderItems,
   reportTypes,
   reportOrders,
+  dailyHoroscopes,
   poojas,
   poojaBookings,
   liveStreams,
@@ -38,6 +39,7 @@ import {
   type OrderItem,
   type ReportType,
   type ReportOrder,
+  type DailyHoroscope,
   type Pooja,
   type PoojaBooking,
   type LiveStream,
@@ -1149,6 +1151,35 @@ export class DatabaseStorage implements IStorage {
 
   async getReportOrderById(id: string): Promise<ReportOrder | undefined> {
     const [row] = await db.select().from(reportOrders).where(eq(reportOrders.id, id));
+    return row;
+  }
+
+  // ─── Daily horoscope (personalised, cached per user per day) ──
+  async getDailyHoroscope(userId: string, horoDate: string): Promise<DailyHoroscope | undefined> {
+    const [row] = await db
+      .select()
+      .from(dailyHoroscopes)
+      .where(and(eq(dailyHoroscopes.userId, userId), eq(dailyHoroscopes.horoDate, horoDate)));
+    return row;
+  }
+
+  async saveDailyHoroscope(data: {
+    userId: string;
+    kundliId?: string;
+    horoDate: string;
+    language: string;
+    content: object;
+  }): Promise<DailyHoroscope> {
+    const existing = await this.getDailyHoroscope(data.userId, data.horoDate);
+    if (existing) {
+      const [row] = await db
+        .update(dailyHoroscopes)
+        .set({ kundliId: data.kundliId, language: data.language, content: data.content, createdAt: new Date() })
+        .where(eq(dailyHoroscopes.id, existing.id))
+        .returning();
+      return row;
+    }
+    const [row] = await db.insert(dailyHoroscopes).values(data).returning();
     return row;
   }
 

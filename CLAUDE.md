@@ -35,7 +35,8 @@ Search `server/routes.ts` + `client/src/pages` before building anything below.
 - Auth: Google OAuth + email/password (`server/auth.ts`). NOT Replit OIDC.
 - Kundli generate/view, matchmaking, numerology, prashna, synastry, remedies (`/kundli/*`, `Matchmaking`, `Numerology`, `Prashna`, `Remedies.tsx`).
 - Horoscope (`/horoscope`), **Panchang** (`/panchang`, `server/astroEngine/panchang.ts`, `GET /api/panchang`).
-- AI Astrologer chat (`/ai-astrologer`, `runCouncil`).
+  - **Personalised daily horoscope**: `GET /api/horoscope/personal` (`generateDailyHoroscope` in `aiAstrologerService.ts`) derives a per-user daily card from the most recent chart's dasha, cached once/day per user in `dailyHoroscopes`. Shown atop the Horoscope page.
+- AI Astrologer chat (`/ai-astrologer`, `runCouncil`) — auto-binds the user's most recent chart, **multi-language** replies (language directive injected into the council synthesizer/ethicist), and life-area quick-question chips.
 - Astrologer list/detail, **follow/favourite** (heart), **waitlist** when offline (`/astrologers`, `/api/astrologers/:id/follow`, `/waitlist`).
 - Chat (WebSocket), voice/video calls (Agora, `/call/:id`), per-minute billing in `websocketService.ts`.
 - Wallet + recharge: Razorpay, Snapmint (BNPL), LazyPay (`Wallet.tsx`, `paymentService.ts`).
@@ -58,7 +59,7 @@ Search `server/routes.ts` + `client/src/pages` before building anything below.
 
 ## Data model (tables in `shared/schema.ts`)
 
-users, astrologers, kundlis, wallets, transactions, chatMessages, consultations, reviews, scheduledCalls, notifications, astrologerEarnings, payoutRequests, aiChatMessages, predictionFeedbacks, homepageContent, **coupons, couponRedemptions, referrals, pushTokens, products, orders, orderItems, reportTypes, reportOrders, poojas, poojaBookings, liveStreams, streamMessages, astrologerFollows, consultationQueue**.
+users, astrologers, kundlis, wallets, transactions, chatMessages, consultations, reviews, scheduledCalls, notifications, astrologerEarnings, payoutRequests, aiChatMessages, predictionFeedbacks, homepageContent, **coupons, couponRedemptions, referrals, pushTokens, products, orders, orderItems, reportTypes, reportOrders, dailyHoroscopes, poojas, poojaBookings, liveStreams, streamMessages, astrologerFollows, consultationQueue**.
 
 ## Conventions
 
