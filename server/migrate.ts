@@ -368,6 +368,17 @@ CREATE TABLE IF NOT EXISTS report_orders (
 CREATE INDEX IF NOT EXISTS idx_report_orders_user ON report_orders (user_id);
 ALTER TABLE report_orders ADD COLUMN IF NOT EXISTS subject_name varchar;
 
+CREATE TABLE IF NOT EXISTS daily_horoscopes (
+  id varchar PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id varchar NOT NULL REFERENCES users(id),
+  kundli_id varchar REFERENCES kundlis(id),
+  horo_date varchar NOT NULL,
+  language varchar DEFAULT 'English',
+  content jsonb NOT NULL,
+  created_at timestamp DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_daily_horo_user_date ON daily_horoscopes (user_id, horo_date);
+
 -- ─── Book a pooja ──────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS poojas (
   id varchar PRIMARY KEY DEFAULT gen_random_uuid(),

@@ -60,6 +60,7 @@ import {
   generatePostConsultFollowUp,
   matchAstrologerToChart,
   generateReport,
+  generateDailyHoroscope,
 } from "./aiAstrologerService";
 import { sendWelcomeEmail, sendPaymentReceipt, sendBookingConfirmation, sendConsultationSummary } from "./emailService";
 import crypto from "crypto";
@@ -250,6 +251,31 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
   });
 
   // ─── Horoscope ────────────────────────────────────────────
+  // Personalised daily horoscope from the user's chart, cached once per day.
+  app.get('/api/horoscope/personal', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = (req.user as any).id;
+      const language = (req.query.language as string) || 'English';
+      const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(new Date());
+
+      const userKundlis = await storage.getUserKundlis(userId);
+      const kundli = userKundlis?.[0] ?? null;
+      if (!kundli) return res.json({ hasChart: false });
+
+      const cached = await storage.getDailyHoroscope(userId, today);
+      if (cached && cached.language === language) {
+        return res.json({ hasChart: true, date: today, language, person: kundli.name, content: cached.content });
+      }
+
+      const content = await generateDailyHoroscope(kundli, today, language);
+      await storage.saveDailyHoroscope({ userId, kundliId: kundli.id, horoDate: today, language, content }).catch(() => {});
+      res.json({ hasChart: true, date: today, language, person: kundli.name, content });
+    } catch (err) {
+      console.error('Personal horoscope error:', err);
+      res.status(500).json({ message: 'Failed to fetch your daily horoscope' });
+    }
+  });
+
   app.get('/api/horoscope/:sign', async (req, res) => {
     try {
       const sign = req.params.sign.toLowerCase();

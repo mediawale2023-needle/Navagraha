@@ -7,6 +7,105 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { apiRequest } from "@/lib/queryClient";
+import { useAuth } from "@/hooks/useAuth";
+
+interface PersonalDailyData {
+  hasChart: boolean;
+  date?: string;
+  person?: string;
+  content?: {
+    headline: string;
+    overall: string;
+    rating: number;
+    career: string;
+    love: string;
+    health: string;
+    finance: string;
+    luckyColor: string;
+    luckyNumber: number;
+    advice: string;
+  };
+}
+
+function PersonalDaily() {
+  const { isAuthenticated } = useAuth();
+  const language = typeof window !== "undefined" ? localStorage.getItem("ai_astrologer_language") || "English" : "English";
+  const { data, isLoading } = useQuery<PersonalDailyData>({
+    queryKey: ["/api/horoscope/personal", language],
+    queryFn: () => apiRequest("GET", `/api/horoscope/personal?language=${encodeURIComponent(language)}`),
+    enabled: isAuthenticated,
+  });
+
+  if (!isAuthenticated) return null;
+  if (isLoading) {
+    return (
+      <Card className="mb-6 border-nava-royal-purple/20">
+        <CardContent className="p-5 flex items-center gap-2 text-muted-foreground text-sm">
+          <Loader2 className="w-4 h-4 animate-spin" /> Preparing your personalised day…
+        </CardContent>
+      </Card>
+    );
+  }
+  if (!data) return null;
+  if (!data.hasChart) {
+    return (
+      <Card className="mb-6 bg-nava-lavender/40 border-nava-royal-purple/20">
+        <CardContent className="p-5 flex items-center justify-between gap-3">
+          <div>
+            <p className="font-semibold text-foreground">Get your personalised daily horoscope</p>
+            <p className="text-sm text-muted-foreground">Generate your birth chart to unlock guidance tailored to you.</p>
+          </div>
+          <Link href="/kundli/new">
+            <Button className="bg-nava-royal-purple hover:bg-nava-royal-purple/90 text-white rounded-full shrink-0">Create Kundli</Button>
+          </Link>
+        </CardContent>
+      </Card>
+    );
+  }
+  const c = data.content;
+  if (!c) return null;
+  const areas = [
+    { Icon: TrendingUp, label: "Career", v: c.career },
+    { Icon: Heart, label: "Love", v: c.love },
+    { Icon: Activity, label: "Health", v: c.health },
+    { Icon: Star, label: "Finance", v: c.finance },
+  ];
+  return (
+    <Card className="mb-6 border-nava-royal-purple/20">
+      <CardContent className="p-5">
+        <div className="flex items-center justify-between mb-1">
+          <span className="text-xs font-semibold text-nava-royal-purple uppercase tracking-wider">
+            Your Day{data.person ? ` · ${data.person}` : ""}
+          </span>
+          <div className="flex items-center gap-0.5">
+            {[1, 2, 3, 4, 5].map((n) => (
+              <Star key={n} className={`w-3.5 h-3.5 ${n <= (c.rating || 3) ? "text-nava-amber fill-nava-amber" : "text-muted-foreground/30"}`} />
+            ))}
+          </div>
+        </div>
+        <h2 className="text-lg font-bold text-foreground">{c.headline}</h2>
+        <p className="text-sm text-foreground/90 mt-1 leading-relaxed">{c.overall}</p>
+        <div className="grid grid-cols-2 gap-3 mt-4">
+          {areas.map(({ Icon, label, v }) =>
+            v ? (
+              <div key={label} className="bg-muted/40 rounded-xl p-3">
+                <div className="flex items-center gap-1.5 text-xs font-semibold text-nava-royal-purple mb-1">
+                  <Icon className="w-3.5 h-3.5" /> {label}
+                </div>
+                <p className="text-xs text-foreground/80 leading-relaxed">{v}</p>
+              </div>
+            ) : null
+          )}
+        </div>
+        <div className="flex flex-wrap items-center gap-2 mt-4">
+          {c.luckyColor && <Badge className="bg-nava-teal/10 text-nava-teal border-0">Lucky colour: {c.luckyColor}</Badge>}
+          {c.luckyNumber != null && <Badge className="bg-nava-magenta/10 text-nava-magenta border-0">Lucky number: {c.luckyNumber}</Badge>}
+        </div>
+        {c.advice && <p className="text-sm italic text-muted-foreground mt-3">Today's tip — {c.advice}</p>}
+      </CardContent>
+    </Card>
+  );
+}
 
 const ZODIAC_SIGNS = [
   { id: "aries", emoji: "🐏", name: "Mesh", englishName: "Aries", dates: "Mar 21 - Apr 19", bg: "bg-nava-amber" },
@@ -154,6 +253,9 @@ function SignGrid({ onSelect }: { onSelect: (sign: (typeof ZODIAC_SIGNS)[0]) => 
           <p className="text-sm text-muted-foreground">Know your Rashi predictions</p>
         </div>
       </div>
+
+      {/* Personalised daily horoscope (logged-in users) */}
+      <PersonalDaily />
 
       {/* Zodiac Grid - 4 columns on mobile, 6 on desktop */}
       <div className="grid grid-cols-4 md:grid-cols-6 gap-3">

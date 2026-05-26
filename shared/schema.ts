@@ -569,6 +569,19 @@ export const reportOrders = pgTable("report_orders", {
 
 export type ReportOrder = typeof reportOrders.$inferSelect;
 
+// Personalised daily horoscope, cached once per user per day.
+export const dailyHoroscopes = pgTable("daily_horoscopes", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").references(() => users.id).notNull(),
+  kundliId: varchar("kundli_id").references(() => kundlis.id),
+  horoDate: varchar("horo_date").notNull(), // YYYY-MM-DD (IST)
+  language: varchar("language").default("English"),
+  content: jsonb("content").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export type DailyHoroscope = typeof dailyHoroscopes.$inferSelect;
+
 // ─── Book a Pooja ──────────────────────────────────────────
 export const poojas = pgTable("poojas", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
