@@ -78,10 +78,11 @@ export default function Reports() {
 
   const orderReport = useMutation({
     mutationFn: async () => {
-      let resolvedKundliId = kundliId || undefined;
-      // Birth-details mode: create + save the chart first, then order against it.
+      const body: any = { reportTypeId: selected!.id };
       if (orderMode === 'details') {
-        const created: any = await apiRequest('POST', '/api/kundli', {
+        // Send raw birth details; the server computes the chart for this report
+        // only and does NOT save it to the user's charts.
+        body.birthDetails = {
           name: birth.name,
           gender: birth.gender,
           dateOfBirth: birth.dateOfBirth,
@@ -89,10 +90,11 @@ export default function Reports() {
           placeOfBirth: birth.placeOfBirth,
           latitude: birthCoords?.lat,
           longitude: birthCoords?.lng,
-        });
-        resolvedKundliId = created?.id;
+        };
+      } else {
+        body.kundliId = kundliId || undefined;
       }
-      const res = await apiRequest('POST', '/api/reports/order', { reportTypeId: selected!.id, kundliId: resolvedKundliId });
+      const res = await apiRequest('POST', '/api/reports/order', body);
       return res.json();
     },
     onSuccess: () => {
@@ -102,7 +104,6 @@ export default function Reports() {
       setBirth(emptyBirth);
       setBirthCoords(null);
       queryClient.invalidateQueries({ queryKey: ['/api/wallet'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/kundli'] });
       queryClient.invalidateQueries({ queryKey: ['/api/reports/orders'] });
       setTab('mine');
     },

@@ -1674,18 +1674,44 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
   app.post('/api/reports/order', isAuthenticated, async (req: any, res) => {
     try {
       const userId = (req.user as any).id;
-      const { reportTypeId, kundliId } = req.body;
+      const { reportTypeId, kundliId, birthDetails } = req.body;
       const reportType = await storage.getReportTypeById(reportTypeId);
       if (!reportType || !reportType.isActive) return res.status(404).json({ message: 'Report not available' });
 
-      // Resolve a kundli: explicit choice or the user's most recent chart
-      let kundli = null;
-      if (kundliId) kundli = await storage.getKundliById(kundliId);
+      // Resolve a chart: an explicit saved chart, an on-the-fly chart computed
+      // from entered birth details (NOT saved to the user's charts), or the
+      // user's most recent saved chart.
+      let kundli: any = null;
+      let kundliRef: string | undefined;
+      if (kundliId) {
+        kundli = await storage.getKundliById(kundliId);
+        if (kundli) kundliRef = kundli.id;
+      }
+      if (!kundli && birthDetails?.dateOfBirth && birthDetails?.timeOfBirth) {
+        const dob = new Date(birthDetails.dateOfBirth);
+        const lat = birthDetails.latitude ? parseFloat(String(birthDetails.latitude)) : 28.6139;
+        const lon = birthDetails.longitude ? parseFloat(String(birthDetails.longitude)) : 77.2090;
+        const nk = await getKundli(dob, birthDetails.timeOfBirth, lat, lon);
+        kundli = {
+          name: birthDetails.name,
+          dateOfBirth: dob,
+          timeOfBirth: birthDetails.timeOfBirth,
+          placeOfBirth: birthDetails.placeOfBirth,
+          zodiacSign: nk.zodiacSign,
+          moonSign: nk.moonSign,
+          ascendant: nk.ascendant,
+          chartData: nk.chartData,
+          dashas: nk.dashas,
+          doshas: nk.doshas,
+          remedies: nk.remedies,
+        };
+      }
       if (!kundli) {
         const userKundlis = await storage.getUserKundlis(userId);
         kundli = userKundlis?.[0] ?? null;
+        if (kundli) kundliRef = kundli.id;
       }
-      if (!kundli) return res.status(400).json({ message: 'Generate your Kundli first to order a report.' });
+      if (!kundli) return res.status(400).json({ message: 'Provide birth details or generate your Kundli first to order a report.' });
 
       const price = parseFloat(reportType.price);
       const debit = await storage.debitWallet(userId, price, `Report: ${reportType.name}`);
@@ -1694,7 +1720,7 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
       const order = await storage.createReportOrder({
         userId,
         reportTypeId: reportType.id,
-        kundliId: kundli.id,
+        kundliId: kundliRef,
         amount: reportType.price,
       });
 
