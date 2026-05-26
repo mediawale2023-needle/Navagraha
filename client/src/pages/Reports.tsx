@@ -29,6 +29,7 @@ interface ReportOrder {
   reportTypeId: string;
   status: string;
   amount: string;
+  subjectName?: string | null;
   content: ReportContent | null;
   createdAt: string;
 }
@@ -166,6 +167,13 @@ export default function Reports() {
                   <CardContent className="p-4 flex items-center justify-between">
                     <div>
                       <p className="font-semibold">{r.content?.title || t?.name || 'Report'}</p>
+                      {(r.content?.birthDetails?.name || r.subjectName) && (
+                        <p className="text-xs text-foreground/80">
+                          {r.content?.birthDetails?.name || r.subjectName}
+                          {r.content?.birthDetails?.dateOfBirth ? ` · ${r.content.birthDetails.dateOfBirth}` : ''}
+                          {r.content?.birthDetails?.placeOfBirth ? ` · ${r.content.birthDetails.placeOfBirth}` : ''}
+                        </p>
+                      )}
                       <p className="text-xs text-muted-foreground">{new Date(r.createdAt).toLocaleDateString()} · ₹{parseFloat(r.amount).toFixed(0)}</p>
                     </div>
                     {r.status === 'ready' ? (

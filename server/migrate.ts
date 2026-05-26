@@ -358,6 +358,7 @@ CREATE TABLE IF NOT EXISTS report_orders (
   user_id varchar NOT NULL REFERENCES users(id),
   report_type_id varchar NOT NULL REFERENCES report_types(id),
   kundli_id varchar REFERENCES kundlis(id),
+  subject_name varchar,
   status varchar DEFAULT 'processing',
   amount decimal(10, 2) NOT NULL,
   content jsonb,
@@ -365,6 +366,7 @@ CREATE TABLE IF NOT EXISTS report_orders (
   ready_at timestamp
 );
 CREATE INDEX IF NOT EXISTS idx_report_orders_user ON report_orders (user_id);
+ALTER TABLE report_orders ADD COLUMN IF NOT EXISTS subject_name varchar;
 
 -- ─── Book a pooja ──────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS poojas (
