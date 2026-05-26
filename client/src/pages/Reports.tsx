@@ -8,9 +8,11 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
 } from '@/components/ui/dialog';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
+import { NorthIndianChart } from '@/components/NorthIndianChart';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest } from '@/lib/queryClient';
-import { ArrowLeft, FileText, Sparkles, Clock, CheckCircle2 } from 'lucide-react';
+import { downloadReportPdf, type ReportContent } from '@/lib/reportPdf';
+import { ArrowLeft, FileText, Sparkles, Clock, CheckCircle2, Download } from 'lucide-react';
 
 interface ReportType {
   id: string;
@@ -25,7 +27,7 @@ interface ReportOrder {
   reportTypeId: string;
   status: string;
   amount: string;
-  content: { title: string; summary: string; sections: { heading: string; body: string }[]; remedies: string[] } | null;
+  content: ReportContent | null;
   createdAt: string;
 }
 interface Kundli { id: string; name: string }
@@ -37,6 +39,19 @@ export default function Reports() {
   const [selected, setSelected] = useState<ReportType | null>(null);
   const [kundliId, setKundliId] = useState<string>('');
   const [viewing, setViewing] = useState<ReportOrder | null>(null);
+  const [downloading, setDownloading] = useState(false);
+
+  const handleDownload = async (content: ReportContent | null) => {
+    if (!content) return;
+    setDownloading(true);
+    try {
+      await downloadReportPdf(content);
+    } catch {
+      toast({ title: 'Download failed', description: 'Could not generate the PDF. Please try again.', variant: 'destructive' });
+    } finally {
+      setDownloading(false);
+    }
+  };
 
   const { data: types, isLoading } = useQuery<ReportType[]>({ queryKey: ['/api/reports/types'] });
   const { data: kundlis } = useQuery<Kundli[]>({ queryKey: ['/api/kundli'] });
@@ -168,17 +183,107 @@ export default function Reports() {
       {/* Report viewer */}
       <Dialog open={!!viewing} onOpenChange={(o) => !o && setViewing(null)}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader><DialogTitle>{viewing?.content?.title}</DialogTitle></DialogHeader>
+          <DialogHeader>
+            <DialogTitle className="pr-8">{viewing?.content?.title}</DialogTitle>
+          </DialogHeader>
           {viewing?.content && (
-            <div className="space-y-4">
-              <p className="text-sm text-muted-foreground italic">{viewing.content.summary}</p>
+            <div className="space-y-5">
+              <Button
+                size="sm"
+                className="rounded-lg bg-nava-royal-purple hover:bg-nava-royal-purple/90 text-white"
+                disabled={downloading}
+                onClick={() => handleDownload(viewing.content)}
+                data-testid="button-download-pdf"
+              >
+                <Download className="w-4 h-4 mr-1.5" />
+                {downloading ? 'Preparing PDF…' : 'Download PDF'}
+              </Button>
+
+              {/* Birth details */}
+              {viewing.content.birthDetails && (
+                <div className="rounded-xl border border-border/50 p-3 text-sm grid grid-cols-2 gap-x-4 gap-y-1">
+                  {viewing.content.birthDetails.name && <div><span className="text-muted-foreground">Name:</span> {viewing.content.birthDetails.name}</div>}
+                  {viewing.content.birthDetails.dateOfBirth && <div><span className="text-muted-foreground">DOB:</span> {viewing.content.birthDetails.dateOfBirth}</div>}
+                  {viewing.content.birthDetails.timeOfBirth && <div><span className="text-muted-foreground">Time:</span> {viewing.content.birthDetails.timeOfBirth}</div>}
+                  {viewing.content.birthDetails.placeOfBirth && <div><span className="text-muted-foreground">Place:</span> {viewing.content.birthDetails.placeOfBirth}</div>}
+                  {viewing.content.birthDetails.ascendant && <div><span className="text-muted-foreground">Lagna:</span> {viewing.content.birthDetails.ascendant}</div>}
+                  {viewing.content.birthDetails.moonSign && <div><span className="text-muted-foreground">Moon:</span> {viewing.content.birthDetails.moonSign}</div>}
+                </div>
+              )}
+
+              {/* Kundli chart */}
+              {viewing.content.houses && viewing.content.houses.length > 0 && (
+                <div>
+                  <h3 className="font-semibold text-nava-royal-purple mb-2">Birth Chart</h3>
+                  <NorthIndianChart houses={viewing.content.houses} size="medium" />
+                </div>
+              )}
+
+              {/* Planetary positions */}
+              {viewing.content.planetaryPositions && viewing.content.planetaryPositions.length > 0 && (
+                <div>
+                  <h3 className="font-semibold text-nava-royal-purple mb-2">Planetary Positions</h3>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm border-collapse">
+                      <thead>
+                        <tr className="bg-nava-lavender/40 text-left">
+                          <th className="p-2 font-medium">Planet</th>
+                          <th className="p-2 font-medium">Sign</th>
+                          <th className="p-2 font-medium">House</th>
+                          <th className="p-2 font-medium">Degree</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {viewing.content.planetaryPositions.map((p, i) => (
+                          <tr key={i} className="border-b border-border/40">
+                            <td className="p-2">{p.planet}{p.retrograde ? ' (R)' : ''}</td>
+                            <td className="p-2">{p.sign || '—'}</td>
+                            <td className="p-2">{p.house ?? '—'}</td>
+                            <td className="p-2">{p.degree != null ? `${p.degree}°` : '—'}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              {/* Dasha timeline */}
+              {viewing.content.dashaTimeline && viewing.content.dashaTimeline.length > 0 && (
+                <div>
+                  <h3 className="font-semibold text-nava-royal-purple mb-2">Vimshottari Dasha Timeline</h3>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm border-collapse">
+                      <thead>
+                        <tr className="bg-nava-lavender/40 text-left">
+                          <th className="p-2 font-medium">Mahadasha</th>
+                          <th className="p-2 font-medium">Period</th>
+                          <th className="p-2 font-medium">Status</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {viewing.content.dashaTimeline.map((d, i) => (
+                          <tr key={i} className={`border-b border-border/40 ${d.status === 'current' ? 'bg-nava-lavender/30 font-medium' : ''}`}>
+                            <td className="p-2">{d.planet}</td>
+                            <td className="p-2">{d.period || '—'}</td>
+                            <td className="p-2 capitalize">{d.status || '—'}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              {/* Narrative */}
+              {viewing.content.summary && <p className="text-sm text-muted-foreground italic">{viewing.content.summary}</p>}
               {viewing.content.sections?.map((s, i) => (
                 <div key={i}>
                   <h3 className="font-semibold text-nava-royal-purple">{s.heading}</h3>
                   <p className="text-sm whitespace-pre-line mt-1">{s.body}</p>
                 </div>
               ))}
-              {viewing.content.remedies?.length > 0 && (
+              {viewing.content.remedies && viewing.content.remedies.length > 0 && (
                 <div>
                   <h3 className="font-semibold text-nava-royal-purple">Recommended Remedies</h3>
                   <ul className="list-disc list-inside text-sm mt-1 space-y-1">

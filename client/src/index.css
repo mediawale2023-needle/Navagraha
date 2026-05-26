@@ -29,16 +29,16 @@
   /* ── Tailwind Theme Colors (Light Mode Default) ── */
   --font-size: 16px;
 
-  /* Backgrounds - Warm off-white, not clinical pure white */
-  --background: #F8F9FA;
+  /* Backgrounds - Warm light beige */
+  --background: #F3EADA;
   --foreground: #1A1A2E;
 
-  /* Cards - Pure white for elevated surfaces */
-  --card: #FFFFFF;
+  /* Cards - Soft cream for elevated surfaces */
+  --card: #FBF6EC;
   --card-foreground: #1A1A2E;
 
   /* Popovers */
-  --popover: #FFFFFF;
+  --popover: #FBF6EC;
   --popover-foreground: #1A1A2E;
 
   /* Primary - Royal Purple */
@@ -51,9 +51,9 @@
   --secondary-foreground: #FFFFFF;
   --secondary-border: #0A6640;
 
-  /* Muted - Subtle backgrounds */
-  --muted: #F1F3F4;
-  --muted-foreground: #5C5C6B;
+  /* Muted - Subtle beige backgrounds */
+  --muted: #EBE0CC;
+  --muted-foreground: #6B6555;
 
   /* Accent - Lavender for spiritual touch */
   --accent: #F4E6FF;
@@ -64,11 +64,11 @@
   --destructive-foreground: #FFFFFF;
   --destructive-border: #6B1414;
 
-  /* Borders - Subtle, not harsh */
-  --border: #E5E7EB;
-  --input: #E5E7EB;
-  --input-background: #F8F9FA;
-  --switch-background: #D1D5DB;
+  /* Borders - Warm beige, not harsh */
+  --border: #E0D5BF;
+  --input: #E0D5BF;
+  --input-background: #FBF6EC;
+  --switch-background: #D8CBB0;
 
   /* Typography */
   --font-weight-normal: 400;
@@ -89,69 +89,14 @@
   --radius: 12px;
 
   /* Sidebar */
-  --sidebar: #F8F9FA;
+  --sidebar: #F3EADA;
   --sidebar-foreground: #1A1A2E;
   --sidebar-primary: #5B47A8;
   --sidebar-primary-foreground: #FFFFFF;
-  --sidebar-accent: #F1F3F4;
+  --sidebar-accent: #EBE0CC;
   --sidebar-accent-foreground: #1A1A2E;
-  --sidebar-border: #E5E7EB;
+  --sidebar-border: #E0D5BF;
   --sidebar-ring: #5B47A8;
-}
-
-.dark {
-  /*
-   * DARK MODE - Still readable and trustworthy
-   * Not cosmic/gaming/casino - just a darker neutral palette
-   */
-  --background: #0F1115;
-  --foreground: #E8E8E8;
-
-  --card: #1A1D24;
-  --card-foreground: #E8E8E8;
-
-  --popover: #1A1D24;
-  --popover-foreground: #E8E8E8;
-
-  --primary: #6B5AB8;
-  --primary-foreground: #FFFFFF;
-  --primary-border: #5B47A8;
-
-  --secondary: #1A9B66;
-  --secondary-foreground: #FFFFFF;
-  --secondary-border: #0C7F4D;
-
-  --muted: #242830;
-  --muted-foreground: #9CA3AF;
-
-  --accent: #2D2440;
-  --accent-foreground: #C7B8E8;
-
-  --destructive: #A82828;
-  --destructive-foreground: #FFFFFF;
-  --destructive-border: #8B1A1A;
-
-  --border: #2D3139;
-  --input: #2D3139;
-  --input-background: #1A1D24;
-  --switch-background: #3D424D;
-
-  --ring: #6B5AB8;
-
-  --chart-1: #6B5AB8;
-  --chart-2: #1A9B66;
-  --chart-3: #A82828;
-  --chart-4: #E8E8E8;
-  --chart-5: #D47800;
-
-  --sidebar: #0F1115;
-  --sidebar-foreground: #E8E8E8;
-  --sidebar-primary: #6B5AB8;
-  --sidebar-primary-foreground: #FFFFFF;
-  --sidebar-accent: #1A1D24;
-  --sidebar-accent-foreground: #E8E8E8;
-  --sidebar-border: #2D3139;
-  --sidebar-ring: #6B5AB8;
 }
 
 @theme inline {
@@ -306,11 +251,11 @@
   }
 
   .gradient-subtle {
-    background: linear-gradient(180deg, #F8F9FA 0%, #F1F3F4 100%);
+    background: linear-gradient(180deg, #F3EADA 0%, #EBE0CC 100%);
   }
 
   .gradient-spiritual {
-    background: linear-gradient(180deg, #FFFFFF 0%, #F4E6FF 100%);
+    background: linear-gradient(180deg, #FBF6EC 0%, #F4E6FF 100%);
   }
 
   .gradient-text {

@@ -1,6 +1,5 @@
 import { Link, useLocation } from "wouter";
-import { Sparkles, Wallet, User, Sun, Moon } from "lucide-react";
-import { useTheme } from "@/components/ThemeProvider";
+import { Sparkles, Wallet, User } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -21,7 +20,6 @@ const NAV_LINKS = [
 
 export default function TopNav() {
   const [location] = useLocation();
-  const { theme, setTheme } = useTheme();
 
   return (
     <nav className="hidden md:flex sticky top-0 z-50 bg-background/95 backdrop-blur-md border-b border-border items-center justify-between px-8 lg:px-12 h-16">
@@ -53,19 +51,6 @@ export default function TopNav() {
 
       {/* Actions */}
       <div className="flex items-center gap-3 shrink-0">
-        {/* Theme Toggle */}
-        <button
-          onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-          className="w-9 h-9 rounded-full bg-muted flex items-center justify-center hover:bg-muted/80 transition-colors"
-          aria-label="Toggle theme"
-        >
-          {theme === "dark" ? (
-            <Sun className="w-4 h-4 text-nava-burnt-orange" />
-          ) : (
-            <Moon className="w-4 h-4 text-nava-royal-purple" />
-          )}
-        </button>
-
         {/* Profile Dropdown */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>

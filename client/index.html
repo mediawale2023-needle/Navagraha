@@ -12,11 +12,12 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <script>
-      // Force dark theme immediately to match AstroNex design system
+      // Light theme only (dark mode removed). Clear any previously stored dark
+      // preference and apply the light class before paint to avoid a flash.
       (function() {
-        localStorage.setItem('theme', 'dark');
-        document.documentElement.classList.add('dark');
-        document.documentElement.classList.remove('light');
+        localStorage.setItem('theme', 'light');
+        document.documentElement.classList.add('light');
+        document.documentElement.classList.remove('dark');
       })();
     </script>
   </head>

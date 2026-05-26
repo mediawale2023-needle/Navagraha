@@ -29,17 +29,46 @@ function getClient(): OpenAI {
 
 // ─── Internal helpers ─────────────────────────────────────────────────────────
 
+const PLANET_SYMBOLS: Record<string, string> = {
+  Sun: "☉", Moon: "☽", Mars: "♂", Mercury: "☿", Jupiter: "♃",
+  Venus: "♀", Saturn: "♄", Rahu: "☊", Ketu: "☋", Ascendant: "Asc",
+};
+
 function chartSummary(kundli: Partial<Kundli>): string {
+  const { birthDetails, planetaryPositions, dashaTimeline } = deriveStructured(kundli);
+
+  const posLines = planetaryPositions
+    .map((p) => `- ${p.planet}: ${p.sign ?? "—"} (House ${p.house ?? "—"}, ${p.degree ?? "—"}°${p.retrograde ? ", retrograde" : ""})`)
+    .join("\n");
+
+  const currentMd = dashaTimeline.find((d) => d.status === "current");
+  const upcoming = dashaTimeline.filter((d) => d.status === "upcoming").slice(0, 3);
+  const dashaLines = [
+    currentMd
+      ? `Current Mahadasha: ${currentMd.planet} (${currentMd.period})${currentMd.currentAntardasha ? `, Antardasha ${currentMd.currentAntardasha.planet} (${currentMd.currentAntardasha.period})` : ""}`
+      : "Current Mahadasha: not available",
+    ...upcoming.map((d) => `Upcoming Mahadasha: ${d.planet} (${d.period})`),
+  ].join("\n");
+
+  const doshas = ((kundli as any).doshas || {}) as Record<string, unknown>;
+  const doshaList = Object.entries(doshas).filter(([, v]) => v).map(([k]) => k).join(", ") || "None detected";
+
   return `
-Name: ${kundli.name || "Unknown"}
-Date of Birth: ${kundli.dateOfBirth ? new Date(kundli.dateOfBirth).toDateString() : "Unknown"}
-Time of Birth: ${kundli.timeOfBirth || "Unknown"}
-Place of Birth: ${kundli.placeOfBirth || "Unknown"}
-Sun Sign (Rashi): ${kundli.zodiacSign || "Unknown"}
-Moon Sign: ${kundli.moonSign || "Unknown"}
-Ascendant (Lagna): ${kundli.ascendant || "Unknown"}
-Current Dasha: ${kundli.dashas ? JSON.stringify(kundli.dashas).slice(0, 300) : "Not available"}
-Doshas: ${kundli.doshas ? JSON.stringify(kundli.doshas).slice(0, 200) : "None detected"}
+Name: ${birthDetails.name || "Unknown"}
+Date of Birth: ${birthDetails.dateOfBirth || "Unknown"}
+Time of Birth: ${birthDetails.timeOfBirth || "Unknown"}
+Place of Birth: ${birthDetails.placeOfBirth || "Unknown"}
+Ascendant (Lagna): ${birthDetails.ascendant || "Unknown"}
+Moon Sign (Rashi): ${birthDetails.moonSign || "Unknown"}
+Sun Sign: ${birthDetails.sunSign || "Unknown"}
+
+Planetary Positions:
+${posLines || "Not available"}
+
+Dasha Timeline:
+${dashaLines}
+
+Doshas: ${doshaList}
 `.trim();
 }
 
@@ -118,12 +147,132 @@ ${chartSummary(kundli)}`;
 
 // ─── Paid Reports ─────────────────────────────────────────────────────────────
 
+export interface ReportPlanetPosition {
+  planet: string;
+  sign?: string;
+  house?: number;
+  degree?: number;
+  retrograde?: boolean;
+}
+export interface ReportChartHouse {
+  number: number;
+  sign?: string;
+  planets: { name: string; symbol: string; house: number }[];
+}
+export interface ReportDashaPeriod {
+  planet: string;
+  period?: string;
+  status?: string;
+  startDate?: string;
+  endDate?: string;
+  currentAntardasha?: { planet: string; period?: string; startDate?: string; endDate?: string } | null;
+}
+export interface ReportBirthDetails {
+  name?: string;
+  dateOfBirth?: string;
+  timeOfBirth?: string;
+  placeOfBirth?: string;
+  ascendant?: string;
+  moonSign?: string;
+  sunSign?: string;
+}
+
 export interface GeneratedReport {
   title: string;
   summary: string;
   sections: { heading: string; body: string }[];
   remedies: string[];
+  birthDetails?: ReportBirthDetails;
+  planetaryPositions?: ReportPlanetPosition[];
+  houses?: ReportChartHouse[];
+  dashaTimeline?: ReportDashaPeriod[];
   generatedAt: string;
+}
+
+interface StructuredChart {
+  birthDetails: ReportBirthDetails;
+  planetaryPositions: ReportPlanetPosition[];
+  houses: ReportChartHouse[];
+  dashaTimeline: ReportDashaPeriod[];
+}
+
+// Turn a stored Kundli (chartData/dashas JSONB) into the structured shapes the
+// report renderer and PDF need: birth details, a planetary-position table, the
+// chart houses (with planet symbols) and the Vimshottari dasha timeline.
+function deriveStructured(kundli: Partial<Kundli>): StructuredChart {
+  const cd = ((kundli as any).chartData || {}) as any;
+  const rawPositions: any[] = Array.isArray(cd.planetaryPositions) ? cd.planetaryPositions : [];
+  const rawHouses: any[] = Array.isArray(cd.houses) ? cd.houses : [];
+  const rawDashas: any[] = Array.isArray((kundli as any).dashas) ? (kundli as any).dashas : [];
+
+  const planetaryPositions: ReportPlanetPosition[] = rawPositions.map((p) => ({
+    planet: p.planet,
+    sign: p.sign,
+    house: p.house,
+    degree: typeof p.degree === "number" ? p.degree : Number(p.degree) || undefined,
+    retrograde: !!p.isRetrograde,
+  }));
+
+  const houses: ReportChartHouse[] = rawHouses.map((h) => ({
+    number: h.house,
+    sign: h.sign,
+    planets: (Array.isArray(h.planets) ? h.planets : []).map((name: string) => ({
+      name,
+      symbol: PLANET_SYMBOLS[name] || name.slice(0, 2),
+      house: h.house,
+    })),
+  }));
+
+  const dashaTimeline: ReportDashaPeriod[] = rawDashas.map((d) => {
+    const current = Array.isArray(d.antardashas) ? d.antardashas.find((a: any) => a.status === "current") : null;
+    return {
+      planet: d.planet,
+      period: d.period,
+      status: d.status,
+      startDate: d.startDate,
+      endDate: d.endDate,
+      currentAntardasha: current
+        ? { planet: current.planet, period: current.period, startDate: current.startDate, endDate: current.endDate }
+        : null,
+    };
+  });
+
+  const birthDetails: ReportBirthDetails = {
+    name: kundli.name || undefined,
+    dateOfBirth: kundli.dateOfBirth ? new Date(kundli.dateOfBirth as any).toDateString() : undefined,
+    timeOfBirth: kundli.timeOfBirth || undefined,
+    placeOfBirth: kundli.placeOfBirth || undefined,
+    ascendant: kundli.ascendant || undefined,
+    moonSign: kundli.moonSign || undefined,
+    sunSign: kundli.zodiacSign || undefined,
+  };
+
+  return { birthDetails, planetaryPositions, houses, dashaTimeline };
+}
+
+function extractChartRemedies(kundli: Partial<Kundli>): string[] {
+  const r = (kundli as any).remedies;
+  if (!Array.isArray(r)) return [];
+  return r
+    .map((x: any) =>
+      x && typeof x === "object"
+        ? `${x.title || ""}${x.title && x.description ? ": " : ""}${x.description || ""}`.trim()
+        : String(x),
+    )
+    .filter(Boolean);
+}
+
+function dedupeRemedies(list: string[]): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const item of list) {
+    const key = item.trim().toLowerCase();
+    if (item.trim() && !seen.has(key)) {
+      seen.add(key);
+      out.push(item.trim());
+    }
+  }
+  return out.slice(0, 10);
 }
 
 const REPORT_FOCUS: Record<string, { title: string; focus: string; sections: string[] }> = {
@@ -135,17 +284,73 @@ const REPORT_FOCUS: Record<string, { title: string; focus: string; sections: str
   life:       { title: "Life Reading Report", focus: "overall life themes, personality, and major life areas", sections: ["Life Overview", "Personality", "Career", "Relationships", "Health & Wellbeing"] },
 };
 
-function templatedReport(category: string, kundli: Partial<Kundli>): GeneratedReport {
-  const meta = REPORT_FOCUS[category] || REPORT_FOCUS.life;
+type ReportMeta = { title: string; focus: string; sections: string[] };
+type ReportNarrative = Pick<GeneratedReport, "title" | "summary" | "sections" | "remedies">;
+
+// Sections common to every report, wrapping the category-specific ones with a
+// chart overview up front and a dasha-timing section at the end.
+function sectionPlan(meta: ReportMeta): string[] {
+  return ["Birth Chart Overview", "Key Planetary Influences", ...meta.sections, "Dasha Periods & Timing"];
+}
+
+function templatedNarrative(meta: ReportMeta, structured: StructuredChart): ReportNarrative {
+  const bd = structured.birthDetails;
+  const currentMd = structured.dashaTimeline.find((d) => d.status === "current");
+  const posText = structured.planetaryPositions
+    .filter((p) => p.planet !== "Ascendant")
+    .map((p) => `${p.planet} in ${p.sign} (House ${p.house})`)
+    .join(", ");
+
   return {
     title: meta.title,
-    summary: `A personalised ${meta.title} prepared from your Vedic birth chart (Lagna: ${kundli.ascendant || "—"}, Moon: ${kundli.moonSign || "—"}, Rashi: ${kundli.zodiacSign || "—"}). Detailed AI analysis is being finalised; meanwhile here is your chart-based outline.`,
-    sections: meta.sections.map((heading) => ({
-      heading,
-      body: `Insights on ${heading.toLowerCase()} based on your ascendant ${kundli.ascendant || ""}, Moon sign ${kundli.moonSign || ""} and current planetary periods.`,
-    })),
-    remedies: ["Chant your ruling planet's mantra", "Wear the recommended gemstone after consultation", "Offer prayers on your favourable weekday"],
-    generatedAt: new Date().toISOString(),
+    summary: `This ${meta.title} is prepared from your Vedic birth chart — Lagna ${bd.ascendant || "—"}, Moon ${bd.moonSign || "—"}, Sun ${bd.sunSign || "—"}. ${currentMd ? `You are currently running the ${currentMd.planet} Mahadasha${currentMd.currentAntardasha ? ` with ${currentMd.currentAntardasha.planet} Antardasha` : ""}. ` : ""}It focuses on ${meta.focus}.`,
+    sections: [
+      { heading: "Birth Chart Overview", body: `Your ascendant (Lagna) is ${bd.ascendant || "—"} with the Moon placed in ${bd.moonSign || "—"} and the Sun in ${bd.sunSign || "—"}. Planetary placements: ${posText || "—"}.` },
+      ...meta.sections.map((heading) => ({
+        heading,
+        body: `Analysis of ${heading.toLowerCase()} based on your ascendant ${bd.ascendant || ""}, Moon sign ${bd.moonSign || ""}${currentMd ? ` and the current ${currentMd.planet} Mahadasha` : ""}.`,
+      })),
+      { heading: "Dasha Periods & Timing", body: currentMd ? `Current Mahadasha: ${currentMd.planet} (${currentMd.period}).${currentMd.currentAntardasha ? ` Antardasha: ${currentMd.currentAntardasha.planet} (${currentMd.currentAntardasha.period}).` : ""} The full Vimshottari timeline is shown in your report.` : "Your Vimshottari dasha timeline is shown in your report." },
+    ],
+    remedies: [
+      "Chant your Lagna lord's beej mantra 108 times daily",
+      "Wear the gemstone recommended for your ascendant after consultation",
+      "Offer prayers and donate on your favourable weekday",
+    ],
+  };
+}
+
+async function aiNarrative(meta: ReportMeta, kundli: Partial<Kundli>): Promise<ReportNarrative> {
+  const client = getClient();
+  const plan = sectionPlan(meta);
+  const prompt = `You are an expert Vedic astrologer preparing a premium, in-depth paid report titled "${meta.title}". This is a paid product (₹299–₹499), so it must read like a thorough professional consultation — detailed, specific and personalised, NOT a short summary. Focus on ${meta.focus}.
+
+Use the EXACT planetary positions, houses and Vimshottari dasha timeline below. Reference specific planets, signs, houses and dasha periods by name throughout your analysis. Avoid generic statements that could apply to anyone.
+
+Return ONLY valid JSON with this exact shape:
+{
+  "title": "${meta.title}",
+  "summary": "a rich, personalised overview of 5-7 sentences",
+  "sections": [${plan.map((s) => `{"heading": "${s}", "body": "3-5 detailed, specific paragraphs that reference the actual chart"}`).join(", ")}],
+  "remedies": ["6-8 specific, practical Vedic remedies — include a gemstone, a mantra with its repetition count, a charity/daan, a fasting day, and a deity to worship where relevant"]
+}
+
+Birth chart:
+${chartSummary(kundli)}`;
+
+  const response = await client.chat.completions.create({
+    model: "gpt-4o",
+    messages: [{ role: "user", content: prompt }],
+    response_format: { type: "json_object" },
+    max_tokens: 4000,
+  });
+  const text = response.choices[0]?.message?.content || "";
+  const parsed = JSON.parse(text);
+  return {
+    title: parsed.title || meta.title,
+    summary: parsed.summary || "",
+    sections: Array.isArray(parsed.sections) ? parsed.sections : [],
+    remedies: Array.isArray(parsed.remedies) ? parsed.remedies : [],
   };
 }
 
@@ -154,41 +359,27 @@ export async function generateReport(
   kundli: Partial<Kundli>,
 ): Promise<GeneratedReport> {
   const meta = REPORT_FOCUS[category] || REPORT_FOCUS.life;
-  if (!process.env.OPENAI_API_KEY) {
-    return templatedReport(category, kundli);
+  const structured = deriveStructured(kundli);
+  const chartRemedies = extractChartRemedies(kundli);
+
+  let narrative: ReportNarrative;
+  if (process.env.OPENAI_API_KEY) {
+    try {
+      narrative = await aiNarrative(meta, kundli);
+    } catch (err) {
+      console.error("[report] generation failed, using templated fallback:", err);
+      narrative = templatedNarrative(meta, structured);
+    }
+  } else {
+    narrative = templatedNarrative(meta, structured);
   }
 
-  try {
-    const client = getClient();
-    const prompt = `You are an expert Vedic astrologer preparing a premium paid "${meta.title}". Focus on ${meta.focus}. Analyse the birth chart and return ONLY valid JSON with this exact shape:
-{
-  "title": "${meta.title}",
-  "summary": "3-4 sentence personalised summary",
-  "sections": [${meta.sections.map((s) => `{"heading": "${s}", "body": "2-3 rich, specific paragraphs"}`).join(", ")}],
-  "remedies": ["4-6 specific, practical Vedic remedies"]
-}
-
-Birth chart:
-${chartSummary(kundli)}`;
-
-    const response = await client.chat.completions.create({
-      model: "gpt-4o-mini",
-      messages: [{ role: "user", content: prompt }],
-      response_format: { type: "json_object" },
-    });
-    const text = response.choices[0]?.message?.content || "";
-    const parsed = JSON.parse(text);
-    return {
-      title: parsed.title || meta.title,
-      summary: parsed.summary || "",
-      sections: Array.isArray(parsed.sections) ? parsed.sections : [],
-      remedies: Array.isArray(parsed.remedies) ? parsed.remedies : [],
-      generatedAt: new Date().toISOString(),
-    };
-  } catch (err) {
-    console.error("[report] generation failed, using templated fallback:", err);
-    return templatedReport(category, kundli);
-  }
+  return {
+    ...narrative,
+    remedies: dedupeRemedies([...(narrative.remedies || []), ...chartRemedies]),
+    ...structured,
+    generatedAt: new Date().toISOString(),
+  };
 }
 
 // ─── Pre-Consultation Brief ───────────────────────────────────────────────────

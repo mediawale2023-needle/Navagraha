@@ -353,18 +353,18 @@ export default function AstrologerDashboard() {
   return (
     <div className="min-h-screen bg-white/3">
       {/* Header */}
-      <div className="sticky top-0 z-50 bg-[#0D0D0D] border-b border-white/5 shadow-sm">
+      <div className="sticky top-0 z-50 bg-card border-b border-border shadow-sm">
         <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <Avatar className="w-10 h-10 border-2 border-[#1A1A1A]">
+            <Avatar className="w-10 h-10 border-2 border-border">
               <AvatarImage src={astrologer.profileImageUrl} />
-              <AvatarFallback className="bg-[#1A1A1A] text-[#FFCF23] font-bold">
+              <AvatarFallback className="bg-nava-royal-purple text-white font-bold">
                 {astrologer.name?.charAt(0)}
               </AvatarFallback>
             </Avatar>
             <div>
-              <div className="font-bold text-[#1A1A1A]">{astrologer.name}</div>
-              <div className="text-xs text-[#1A1A1A]/60 flex items-center gap-1">
+              <div className="font-bold text-foreground">{astrologer.name}</div>
+              <div className="text-xs text-muted-foreground flex items-center gap-1">
                 {wsConnected ? (
                   <><Wifi className="w-3 h-3 text-green-600" /> Connected</>
                 ) : (
@@ -376,7 +376,7 @@ export default function AstrologerDashboard() {
           <div className="flex items-center gap-4">
             {/* Online toggle */}
             <div className="flex items-center gap-2">
-              <span className="text-sm text-[#1A1A1A] font-medium">{isOnline ? 'Online' : 'Offline'}</span>
+              <span className="text-sm text-foreground font-medium">{isOnline ? 'Online' : 'Offline'}</span>
               <Switch
                 checked={isOnline}
                 onCheckedChange={(checked) => toggleOnlineMutation.mutate(checked)}
@@ -391,8 +391,8 @@ export default function AstrologerDashboard() {
             >
               <Radio className="w-4 h-4" /> Go Live
             </button>
-            <button className="p-2 rounded-xl hover:bg-[#1A1A1A]/10" onClick={handleLogout}>
-              <LogOut className="w-4 h-4 text-[#1A1A1A]" />
+            <button className="p-2 rounded-xl hover:bg-muted" onClick={handleLogout}>
+              <LogOut className="w-4 h-4 text-foreground" />
             </button>
           </div>
         </div>
