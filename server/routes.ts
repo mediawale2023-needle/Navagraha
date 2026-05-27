@@ -196,7 +196,7 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
   // ─── Kundli ───────────────────────────────────────────────
   app.post('/api/kundli', async (req: any, res) => {
     try {
-      const userId = req.user?.id || null;
+      const userId = req.user?.id || req.session?.userId || null;
       const dateOfBirth = new Date(req.body.dateOfBirth);
       const lat = req.body.latitude ? parseFloat(req.body.latitude) : 28.6139;
       const lon = req.body.longitude ? parseFloat(req.body.longitude) : 77.2090;
