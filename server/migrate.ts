@@ -488,6 +488,11 @@ SELECT * FROM (VALUES
 ) AS v(slug, name, description, category, price, icon, sort_order)
 WHERE NOT EXISTS (SELECT 1 FROM report_types LIMIT 1);
 
+-- Premium Complete Life Report tier (idempotent: inserts once even on existing DBs)
+INSERT INTO report_types (slug, name, description, category, price, icon, sort_order)
+SELECT 'complete-life-report', 'Complete Life Report', 'A 50+ page in-depth life analysis: every planet & house, yogas, doshas, Sade Sati, the full Vimshottari dasha life-map and personalised remedies.', 'life_complete', 1499, 'BookOpen', -1
+WHERE NOT EXISTS (SELECT 1 FROM report_types WHERE slug = 'complete-life-report');
+
 INSERT INTO poojas (slug, name, description, benefits, price, duration_text, sort_order)
 SELECT slug, name, description, benefits::text[], price, duration_text, sort_order FROM (VALUES
   ('navagraha-shanti-pooja', 'Navagraha Shanti Pooja', 'Comprehensive pooja to pacify all nine planets and remove obstacles.', ARRAY['Removes planetary doshas','Brings peace & prosperity','Boosts overall fortune'], 2100, 'Performed within 7 days', 0),

@@ -110,6 +110,21 @@ export async function downloadReportPdf(content: ReportContent) {
     para(`Ascendant (Lagna): ${bd.ascendant || "—"}        Moon Sign: ${bd.moonSign || "—"}        Sun Sign: ${bd.sunSign || "—"}`);
   }
 
+  // ── Contents (for long reports) ──────────────────────────────
+  if ((content.sections?.length || 0) > 12) {
+    heading("Contents");
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(10);
+    doc.setTextColor(60);
+    content.sections!.forEach((s, i) => {
+      for (const ln of doc.splitTextToSize(`${i + 1}.  ${s.heading}`, CW) as string[]) {
+        ensure(5.2);
+        doc.text(ln, M, y);
+        y += 5.2;
+      }
+    });
+  }
+
   // ── Chart ────────────────────────────────────────────────────
   if (content.chartData?.planetaryPositions?.length) {
     heading("Birth Chart (North Indian)");
