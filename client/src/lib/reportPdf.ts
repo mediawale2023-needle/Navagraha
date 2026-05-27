@@ -29,6 +29,7 @@ export interface ReportContent {
     houses?: { house: number; sign?: string }[];
     planetaryPositions?: ChartPlanetPos[];
     navamsa?: { houses?: { house: number; sign?: string }[]; planetaryPositions?: ChartPlanetPos[] };
+    ashtakavarga?: { savByHouse?: number[] };
   };
   dashaTimeline?: {
     planet: string;
@@ -173,6 +174,19 @@ export async function downloadReportPdf(content: ReportContent) {
       [35, 50, 30, 65],
       rows,
       (i) => content.dashaTimeline![i].status === "current",
+    );
+  }
+
+  // ── Ashtakavarga (SAV) ───────────────────────────────────────
+  if (content.chartData?.ashtakavarga?.savByHouse?.length === 12) {
+    heading("Ashtakavarga — House Strength (SAV)");
+    const rows = content.chartData.ashtakavarga.savByHouse.map((b, i) => [
+      `House ${i + 1}`,
+      String(b),
+      b >= 30 ? "Strong" : b < 25 ? "Weak" : "Moderate",
+    ]);
+    y = drawTable(doc, M, y, ["House", "SAV Bindus", "Strength"], [55, 45, 55], rows, (i) =>
+      (content.chartData!.ashtakavarga!.savByHouse![i]) >= 30,
     );
   }
 

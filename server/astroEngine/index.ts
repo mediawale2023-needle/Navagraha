@@ -11,6 +11,7 @@ import {
   navamsaSign, navamsaDegree,
 } from './vedic.js';
 import { calculateDashas }     from './dasha.js';
+import { computeAshtakavarga } from './ashtakavarga.js';
 import { hasMangalDosha, hasKaalSarpDosha, hasPitraDosha } from './doshas.js';
 import { ashtakootMatch }      from './matching.js';
 import { calculateNumerology } from './numerology.js';
@@ -32,6 +33,12 @@ export interface NativeKundliResult {
     navamsa?: {
       houses:             Array<{ house: number; sign: string; planets: string[] }>;
       planetaryPositions: Array<{ planet: string; sign: string; degree: number; house: number; isRetrograde: boolean }>;
+    };
+    ashtakavarga?: {
+      ascSignIndex: number;
+      bav: Record<string, number[]>;  // planet -> bindus per sign (0=Aries)
+      sav: number[];                  // per sign (0=Aries)
+      savByHouse: number[];           // index 0 = 1st house (Lagna sign)
     };
   };
   dashas:   Array<{ planet: string; period: string; status: string; startDate: string; endDate: string }>;
@@ -188,6 +195,19 @@ export async function getKundli(
     };
   });
 
+  // ─── Ashtakavarga (BAV + SAV) ─────────────────────────────────
+  const avSignIndex: Record<string, number> = { Ascendant: Math.floor((ascSidereal % 360) / 30) % 12 };
+  for (const p of ['Sun', 'Moon', 'Mars', 'Mercury', 'Jupiter', 'Venus', 'Saturn']) {
+    avSignIndex[p] = Math.floor(((sidereal[p] ?? 0) % 360) / 30) % 12;
+  }
+  const av = computeAshtakavarga(avSignIndex);
+  const ashtakavarga = {
+    ascSignIndex: avSignIndex.Ascendant,
+    bav: av.bav,
+    sav: av.sav,
+    savByHouse: Array.from({ length: 12 }, (_, h) => av.sav[(avSignIndex.Ascendant + h) % 12]),
+  };
+
   // Vimshottari Dasha
   const dashas = calculateDashas(sidereal['Moon'], birthUTC);
 
@@ -212,6 +232,7 @@ export async function getKundli(
         houses: navamsaHouses,
         planetaryPositions: [navAscEntry, ...navamsaPositions],
       },
+      ashtakavarga,
     },
     dashas: dashas.map(d => ({
       planet:      d.planet,

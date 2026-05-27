@@ -384,6 +384,57 @@ export default function KundliView() {
                 </div>
               </CardContent>
             </Card>
+
+            {chartData?.ashtakavarga?.savByHouse && (
+              <Card className="mt-4">
+                <CardHeader>
+                  <CardTitle className="text-base">Ashtakavarga</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div>
+                    <p className="text-xs font-semibold text-nava-royal-purple mb-2">Sarvashtakavarga (SAV) — strength by house</p>
+                    <div className="grid grid-cols-6 gap-1.5">
+                      {chartData.ashtakavarga.savByHouse.map((b: number, i: number) => (
+                        <div key={i} className={`rounded-lg p-2 text-center ${b >= 30 ? 'bg-green-600/15 text-green-700' : b < 25 ? 'bg-red-600/10 text-red-700' : 'bg-muted text-foreground'}`}>
+                          <div className="text-[10px] text-muted-foreground">H{i + 1}</div>
+                          <div className="text-sm font-bold">{b}</div>
+                        </div>
+                      ))}
+                    </div>
+                    <p className="text-[11px] text-muted-foreground mt-1.5">Higher bindus = stronger house. Total across all houses = 337.</p>
+                  </div>
+
+                  {chartData.ashtakavarga.bav && (
+                    <div className="overflow-x-auto">
+                      <p className="text-xs font-semibold text-nava-royal-purple mb-2">Bhinnashtakavarga (BAV) — by sign</p>
+                      <table className="w-full text-xs border-collapse">
+                        <thead>
+                          <tr className="bg-nava-lavender/40">
+                            <th className="p-1.5 text-left font-medium">Planet</th>
+                            {['Ar','Ta','Ge','Cn','Le','Vi','Li','Sc','Sg','Cp','Aq','Pi'].map((s) => (
+                              <th key={s} className="p-1.5 font-medium">{s}</th>
+                            ))}
+                            <th className="p-1.5 font-medium">Σ</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {['Sun','Moon','Mars','Mercury','Jupiter','Venus','Saturn'].map((pl) => {
+                            const row: number[] = chartData.ashtakavarga.bav[pl] || [];
+                            return (
+                              <tr key={pl} className="border-b border-border/40">
+                                <td className="p-1.5 font-medium">{pl}</td>
+                                {row.map((v, i) => <td key={i} className="p-1.5 text-center">{v}</td>)}
+                                <td className="p-1.5 text-center font-semibold">{row.reduce((a, b) => a + b, 0)}</td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
           </TabsContent>
 
           {/* Insights */}
