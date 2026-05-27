@@ -86,6 +86,14 @@ const LIFE_AREA_PROMPTS = [
 const SESSION_STORAGE_KEY = 'ai_astrologer_session_id';
 const LANGUAGE_STORAGE_KEY = 'ai_astrologer_language';
 
+const THINKING_STEPS = [
+  'Casting your chart…',
+  'Reading planetary positions…',
+  'Consulting the astrologer council…',
+  'Weighing dasha & transits…',
+  'Composing your reading…',
+];
+
 export default function AIAstrologer() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -100,6 +108,7 @@ export default function AIAstrologer() {
   const [sessionId, setSessionId] = useState<string | null>(
     () => localStorage.getItem(SESSION_STORAGE_KEY)
   );
+  const [thinkingStep, setThinkingStep] = useState(0);
   const [showInterpretation, setShowInterpretation] = useState(false);
   const [interpretation, setInterpretation] = useState<AiInterpretation | null>(null);
   const [questionsUsed, setQuestionsUsed] = useState<number | null>(null);
@@ -186,6 +195,16 @@ export default function AIAstrologer() {
       });
     },
   });
+
+  // Rotate the "thinking" status while the council computes (it can take a while).
+  useEffect(() => {
+    if (!chatMutation.isPending) {
+      setThinkingStep(0);
+      return;
+    }
+    const id = setInterval(() => setThinkingStep((s) => (s + 1) % THINKING_STEPS.length), 2500);
+    return () => clearInterval(id);
+  }, [chatMutation.isPending]);
 
   const interpretMutation = useMutation({
     mutationFn: async (kundliId: string) => {
@@ -514,15 +533,19 @@ export default function AIAstrologer() {
 
           {chatMutation.isPending && (
             <div className="flex gap-3 justify-start">
-              <div className="w-8 h-8 rounded-full bg-nava-amber flex items-center justify-center flex-shrink-0">
+              <div className="w-8 h-8 rounded-full bg-nava-amber flex items-center justify-center flex-shrink-0 mt-1">
                 <Sparkles className="w-4 h-4 text-white animate-pulse" />
               </div>
-              <div className="bg-card border border-border/50 rounded-2xl px-4 py-3">
-                <div className="flex gap-1">
-                  <span className="w-2 h-2 bg-nava-amber rounded-full animate-bounce" style={{ animationDelay: "0ms" }} />
-                  <span className="w-2 h-2 bg-nava-amber rounded-full animate-bounce" style={{ animationDelay: "150ms" }} />
-                  <span className="w-2 h-2 bg-nava-amber rounded-full animate-bounce" style={{ animationDelay: "300ms" }} />
+              <div className="bg-card border border-border/50 rounded-2xl px-4 py-3 flex items-center gap-3">
+                {/* Orbiting planet — a clear "AI is working" cue */}
+                <div className="relative w-7 h-7 shrink-0">
+                  <div className="absolute inset-0 rounded-full border border-nava-amber/30" />
+                  <div className="absolute inset-0 animate-spin" style={{ animationDuration: "1.4s" }}>
+                    <span className="absolute -top-[3px] left-1/2 -translate-x-1/2 w-2.5 h-2.5 rounded-full bg-nava-amber shadow-sm" />
+                  </div>
+                  <span className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-2 h-2 rounded-full bg-nava-royal-purple" />
                 </div>
+                <span className="text-sm text-muted-foreground">{THINKING_STEPS[thinkingStep]}</span>
               </div>
             </div>
           )}
@@ -551,9 +574,9 @@ export default function AIAstrologer() {
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder="Ask about your stars, destiny, remedies..."
+              placeholder="Ask anything…"
               rows={1}
-              className="flex-1 bg-card border-border resize-none min-h-[48px] max-h-[120px] rounded-xl"
+              className="flex-1 bg-card border-border resize-none min-h-[48px] max-h-[120px] rounded-xl text-sm leading-snug"
             />
             <Button
               onClick={() => sendMessage()}
@@ -563,8 +586,8 @@ export default function AIAstrologer() {
               <Send className="w-4 h-4" />
             </Button>
           </div>
-          <p className="text-center text-[10px] text-muted-foreground mt-2 pb-20">
-            AI interpretations are for guidance only. Always consult a qualified Jyotish for major decisions.
+          <p className="text-center text-[10px] text-muted-foreground mt-1.5 pb-24">
+            For guidance only — consult a qualified Jyotish for big decisions.
           </p>
         </div>
       </div>
