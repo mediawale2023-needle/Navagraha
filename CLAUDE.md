@@ -36,7 +36,7 @@ Search `server/routes.ts` + `client/src/pages` before building anything below.
 - Kundli generate/view, matchmaking, numerology, prashna, synastry, remedies (`/kundli/*`, `Matchmaking`, `Numerology`, `Prashna`, `Remedies.tsx`).
 - Horoscope (`/horoscope`), **Panchang** (`/panchang`, `server/astroEngine/panchang.ts`, `GET /api/panchang`).
   - **Personalised daily horoscope**: `GET /api/horoscope/personal` (`generateDailyHoroscope` in `aiAstrologerService.ts`) derives a per-user daily card from the most recent chart's dasha, cached once/day per user in `dailyHoroscopes`. Shown atop the Horoscope page.
-- AI Astrologer chat (`/ai-astrologer`, `runCouncil`) — auto-binds the user's most recent chart, **multi-language** replies (language directive injected into the council synthesizer/ethicist), and life-area quick-question chips.
+- AI Astrologer chat (`/ai-astrologer`, `runCouncil`) — pick a saved chart **or enter birth details** (computed in-memory, not saved; `birthDetails` on `POST /api/ai/chat`), **per-chart conversation threads** (session per chart in localStorage), **multi-language** replies (language directive injected into the council synthesizer/ethicist), life-area quick-question chips. `runCouncil` re-derives the running dasha from today's date and injects it + today as authoritative facts.
 - Astrologer list/detail, **follow/favourite** (heart), **waitlist** when offline (`/astrologers`, `/api/astrologers/:id/follow`, `/waitlist`).
 - Chat (WebSocket), voice/video calls (Agora, `/call/:id`), per-minute billing in `websocketService.ts`.
 - Wallet + recharge: Razorpay, Snapmint (BNPL), LazyPay (`Wallet.tsx`, `paymentService.ts`).

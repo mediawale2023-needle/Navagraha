@@ -2058,7 +2058,7 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
   app.post('/api/ai/chat', isAuthenticated, async (req: any, res) => {
     try {
       const user = req.user as any;
-      const { message, sessionId, kundliId, language } = req.body;
+      const { message, sessionId, kundliId, language, birthDetails } = req.body;
       if (!message) return res.status(400).json({ message: "Message is required" });
 
       const activeSessionId = sessionId || crypto.randomUUID();
@@ -2076,10 +2076,29 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
       let birthPlace = user.placeOfBirth || 'Unknown';
       let chartData: any = null;
 
-      // Resolve a chart: explicit choice, else the user's most recent saved chart.
-      let kundli = kundliId ? await storage.getKundliById(kundliId) : null;
+      // Resolve a chart: entered birth details (computed in-memory, not saved),
+      // an explicit saved chart, else the user's most recent saved chart.
+      let kundli: any = kundliId ? await storage.getKundliById(kundliId) : null;
       if (kundli && kundli.userId !== user.id) kundli = null;
-      if (!kundli) {
+      if (!kundli && birthDetails?.dateOfBirth && birthDetails?.timeOfBirth) {
+        const dob = new Date(birthDetails.dateOfBirth);
+        const lat = birthDetails.latitude ? parseFloat(String(birthDetails.latitude)) : 28.6139;
+        const lon = birthDetails.longitude ? parseFloat(String(birthDetails.longitude)) : 77.2090;
+        const nk = await getKundli(dob, birthDetails.timeOfBirth, lat, lon);
+        kundli = {
+          name: birthDetails.name,
+          dateOfBirth: dob,
+          timeOfBirth: birthDetails.timeOfBirth,
+          placeOfBirth: birthDetails.placeOfBirth,
+          zodiacSign: nk.zodiacSign,
+          moonSign: nk.moonSign,
+          ascendant: nk.ascendant,
+          chartData: nk.chartData,
+          dashas: nk.dashas,
+          doshas: nk.doshas,
+        };
+      }
+      if (!kundli && !birthDetails) {
         const userKundlis = await storage.getUserKundlis(user.id);
         kundli = userKundlis?.[0] ?? null;
       }
