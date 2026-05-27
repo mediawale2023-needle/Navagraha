@@ -22,7 +22,6 @@ import { InsightCard } from '@/components/InsightCard';
 import { PriorityRemedyCard } from '@/components/PriorityRemedyCard';
 import { NorthIndianChartEnhanced } from '@/components/NorthIndianChartEnhanced';
 import { AIInsightSheet } from '@/components/AIInsightSheet';
-import { BottomNav } from '@/components/BottomNav';
 
 const PDF_PRICE = 10;
 
@@ -246,18 +245,17 @@ export default function KundliView() {
   ];
 
   return (
-    <div className="min-h-screen bg-background pb-20">
+    <div className="yantra-shell min-h-screen pb-20">
       <div className="max-w-4xl mx-auto px-4 py-6">
-        {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <Link href="/">
-            <Button variant="outline" className="border-border">
+            <Button variant="outline" className="rounded-[9px] border-border bg-card">
               <ArrowLeft className="w-4 h-4 mr-2" />
               Back
             </Button>
           </Link>
           <div className="flex items-center gap-2">
-            <Button variant="outline" onClick={handleDownloadPDF} disabled={pdfChecking || pdfConfirming} className="hidden sm:flex">
+            <Button variant="outline" onClick={handleDownloadPDF} disabled={pdfChecking || pdfConfirming} className="hidden rounded-[9px] border-border bg-card sm:flex">
               <Download className="w-4 h-4 mr-2" />
               {pdfChecking ? 'Checking…' : 'Download PDF'}
             </Button>
@@ -270,7 +268,7 @@ export default function KundliView() {
           <CardHeader>
             <div className="flex items-start justify-between flex-wrap gap-3">
               <div>
-                <CardTitle className="font-trust text-2xl mb-2">{kundli.name}</CardTitle>
+                <CardTitle className="font-display text-2xl mb-2">{kundli.name}</CardTitle>
                 <div className="flex flex-wrap gap-4 text-muted-foreground text-sm">
                   <div className="flex items-center gap-1.5">
                     <Calendar className="w-4 h-4" />
@@ -287,10 +285,10 @@ export default function KundliView() {
                 </div>
               </div>
               <div className="flex flex-wrap gap-2">
-                <Badge variant="secondary" className="bg-nava-lavender text-nava-royal-purple">
+                <Badge variant="secondary" className="bg-primary/15 text-[var(--primary-border)]">
                   {kundli.zodiacSign || 'Aries'}
                 </Badge>
-                <Badge variant="secondary" className="bg-nava-lavender text-nava-royal-purple">
+                <Badge variant="secondary" className="bg-nava-teal/10 text-nava-teal">
                   Moon: {kundli.moonSign || 'Taurus'}
                 </Badge>
               </div>
@@ -300,19 +298,19 @@ export default function KundliView() {
 
         {/* Tabs */}
         <Tabs defaultValue="overview" className="w-full mb-6">
-          <TabsList className="grid w-full grid-cols-5 bg-muted">
-            <TabsTrigger value="overview" className="data-[state=active]:bg-nava-royal-purple data-[state=active]:text-white">Overview</TabsTrigger>
-            <TabsTrigger value="chart" className="data-[state=active]:bg-nava-royal-purple data-[state=active]:text-white">Chart</TabsTrigger>
-            <TabsTrigger value="insights" className="data-[state=active]:bg-nava-royal-purple data-[state=active]:text-white">Insights</TabsTrigger>
-            <TabsTrigger value="dashas" className="data-[state=active]:bg-nava-royal-purple data-[state=active]:text-white">Dashas</TabsTrigger>
-            <TabsTrigger value="remedies" className="data-[state=active]:bg-nava-royal-purple data-[state=active]:text-white">Remedies</TabsTrigger>
+          <TabsList className="grid w-full grid-cols-5 bg-muted p-1">
+            <TabsTrigger value="overview" className="rounded-[6px] data-[state=active]:bg-nava-navy data-[state=active]:text-primary">Overview</TabsTrigger>
+            <TabsTrigger value="chart" className="rounded-[6px] data-[state=active]:bg-nava-navy data-[state=active]:text-primary">Chart</TabsTrigger>
+            <TabsTrigger value="insights" className="rounded-[6px] data-[state=active]:bg-nava-navy data-[state=active]:text-primary">Insights</TabsTrigger>
+            <TabsTrigger value="dashas" className="rounded-[6px] data-[state=active]:bg-nava-navy data-[state=active]:text-primary">Dashas</TabsTrigger>
+            <TabsTrigger value="remedies" className="rounded-[6px] data-[state=active]:bg-nava-navy data-[state=active]:text-primary">Remedies</TabsTrigger>
           </TabsList>
 
           {/* Overview */}
           <TabsContent value="overview">
             <Card className="card-clean">
               <CardHeader>
-                <CardTitle>Astrological Overview</CardTitle>
+                <CardTitle className="font-display">Astrological Overview</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -354,12 +352,12 @@ export default function KundliView() {
             <Card className="card-clean">
               <CardHeader>
                 <div className="flex items-center justify-between flex-wrap gap-3">
-                  <CardTitle>Birth Chart</CardTitle>
+                  <CardTitle className="font-display">Birth Chart</CardTitle>
                   <div className="flex rounded-lg border border-border overflow-hidden">
-                    <button onClick={() => setChartStyle('north')} className={`px-4 py-1.5 text-sm font-medium transition-colors ${chartStyle === 'north' ? 'bg-nava-royal-purple text-white' : 'bg-card hover:bg-muted'}`}>
+                    <button onClick={() => setChartStyle('north')} className={`px-4 py-1.5 text-sm font-medium transition-colors ${chartStyle === 'north' ? 'bg-nava-navy text-primary' : 'bg-card hover:bg-muted'}`}>
                       North Indian
                     </button>
-                    <button onClick={() => setChartStyle('south')} className={`px-4 py-1.5 text-sm font-medium transition-colors ${chartStyle === 'south' ? 'bg-nava-royal-purple text-white' : 'bg-card hover:bg-muted'}`}>
+                    <button onClick={() => setChartStyle('south')} className={`px-4 py-1.5 text-sm font-medium transition-colors ${chartStyle === 'south' ? 'bg-nava-navy text-primary' : 'bg-card hover:bg-muted'}`}>
                       South Indian
                     </button>
                   </div>
@@ -397,12 +395,12 @@ export default function KundliView() {
           <TabsContent value="dashas">
             <Card className="card-clean">
               <CardHeader>
-                <CardTitle>Vimshottari Dashas</CardTitle>
+                <CardTitle className="font-display">Vimshottari Dashas</CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="space-y-2">
                   {dashas.length > 0 ? dashas.map((dasha: any, i: number) => (
-                    <div key={i} className={`rounded-lg border overflow-hidden ${dasha.status === 'current' ? 'border-nava-royal-purple/50' : 'border-border'}`}>
+                    <div key={i} className={`overflow-hidden rounded-[10px] border ${dasha.status === 'current' ? 'border-primary/60' : 'border-border'}`}>
                       <button className="w-full flex items-center justify-between p-4 text-left hover:bg-muted/40 transition-colors" onClick={() => setExpandedDasha(expandedDasha === i ? null : i)}>
                         <div className="flex items-center gap-3">
                           {expandedDasha === i ? <ChevronDown className="w-4 h-4 text-muted-foreground" /> : <ChevronRight className="w-4 h-4 text-muted-foreground" />}
@@ -411,12 +409,12 @@ export default function KundliView() {
                             <div className="text-sm text-muted-foreground">{dasha.period}</div>
                           </div>
                         </div>
-                        {dasha.status === 'current' && <Badge className="bg-nava-royal-purple">Current</Badge>}
+                        {dasha.status === 'current' && <Badge className="bg-nava-navy text-primary">Current</Badge>}
                       </button>
                       {expandedDasha === i && dasha.antardashas?.length > 0 && (
                         <div className="border-t border-border bg-muted/30">
                           {dasha.antardashas.map((ad: any, j: number) => (
-                            <div key={j} className={`flex items-center justify-between px-6 py-2.5 text-sm border-b last:border-0 border-border/50 ${ad.status === 'current' ? 'bg-nava-lavender/30' : ''}`}>
+                            <div key={j} className={`flex items-center justify-between border-b border-border/50 px-6 py-2.5 text-sm last:border-0 ${ad.status === 'current' ? 'bg-primary/10' : ''}`}>
                               <div>
                                 <span className="font-medium">{dasha.planet}/{ad.planet}</span>
                                 <span className="text-muted-foreground ml-2">{ad.period}</span>
@@ -437,7 +435,7 @@ export default function KundliView() {
           <TabsContent value="remedies">
             <Card className="card-clean">
               <CardHeader>
-                <CardTitle>Recommended Remedies</CardTitle>
+                <CardTitle className="font-display">Recommended Remedies</CardTitle>
               </CardHeader>
               <CardContent>
                 <DeterministicRemedies shadbala={(kundli as any)?.raw?.engineData?.shadbala} fallbackRemedies={remedies} />
@@ -452,19 +450,19 @@ export default function KundliView() {
         </div>
 
         {/* AI Astrologer CTA */}
-        <Card className="card-clean bg-nava-lavender/30 border-nava-royal-purple/20">
+        <Card className="card-clean bg-primary/10 border-primary/30">
           <CardContent className="p-5">
             <div className="flex items-center gap-3 mb-3">
-              <div className="w-10 h-10 rounded-full bg-nava-royal-purple flex items-center justify-center">
-                <Sparkles className="w-5 h-5 text-white" />
+              <div className="flex h-10 w-10 items-center justify-center rounded-[8px] bg-nava-navy">
+                <Sparkles className="w-5 h-5 text-primary" />
               </div>
               <div>
-                <h3 className="font-semibold text-foreground">Ask AI Astrologer</h3>
+                <h3 className="font-display text-foreground">Ask AI Astrologer</h3>
                 <p className="text-xs text-muted-foreground">Get personalized answers about your chart</p>
               </div>
             </div>
             <Link href="/ai-astrologer">
-              <Button className="w-full bg-nava-royal-purple hover:bg-nava-royal-purple/90">
+              <Button className="w-full rounded-[9px] bg-primary text-primary-foreground hover:bg-primary/90">
                 Ask a Question
               </Button>
             </Link>
@@ -485,8 +483,6 @@ export default function KundliView() {
         signName="Aries"
         baseInsight="This placement indicates specific influences on your life path. The planet's energy manifests through the affairs of this house."
       />
-
-      <BottomNav />
     </div>
   );
 }

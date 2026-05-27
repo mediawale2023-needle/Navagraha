@@ -117,21 +117,20 @@ export default function Astrologers() {
   const onlineCount = astrologers?.filter(isOnline).length || 0;
 
   return (
-    <div className="min-h-screen bg-background text-foreground pb-24 md:pb-8">
-      {/* Header */}
-      <div className="sticky top-0 z-50 bg-background/95 backdrop-blur-md border-b border-border/30">
+    <div className="yantra-shell min-h-screen pb-24 text-foreground md:pb-8">
+      <div className="sticky top-0 z-50 border-b border-border bg-background/95 backdrop-blur-md">
         <div className="w-full max-w-7xl mx-auto px-4 md:px-8 lg:px-12 py-3">
           <div className="flex items-center gap-3">
             <Link href="/">
-              <button className="p-1.5 rounded-lg hover:bg-muted" data-testid="button-back">
+              <button className="flex h-9 w-9 items-center justify-center rounded-[8px] border border-border bg-card hover:bg-muted" data-testid="button-back">
                 <ArrowLeft className="w-5 h-5 text-foreground" />
               </button>
             </Link>
             <div className="flex-1">
-              <h1 className="font-bold text-lg text-foreground">Astrologers</h1>
+              <h1 className="font-display text-xl text-foreground">Astrologers</h1>
               <div className="flex items-center gap-1.5">
                 <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
-                <span className="text-xs text-muted-foreground font-medium">{onlineCount} online now</span>
+                <span className="text-xs font-medium text-muted-foreground">{onlineCount} online now</span>
               </div>
             </div>
           </div>
@@ -154,7 +153,7 @@ export default function Astrologers() {
                 return (
                   <div
                     key={match.astrologerId}
-                    className="shrink-0 w-64 bg-nava-amber/10 border border-nava-amber/30 rounded-2xl p-3 flex gap-3 items-start"
+                    className="yantra-card shrink-0 flex w-64 gap-3 items-start p-3"
                   >
                     <Avatar className="w-10 h-10 shrink-0">
                       <AvatarImage src={a.profileImageUrl || undefined} alt={a.name} className="object-cover" />
@@ -165,12 +164,12 @@ export default function Astrologers() {
                       <p className="text-[11px] text-muted-foreground leading-snug mt-0.5 line-clamp-2">{match.reason}</p>
                       <div className="flex gap-1.5 mt-2">
                         <Link href={`/call/${a.id}?type=voice`}>
-                          <button className="text-[10px] font-semibold bg-nava-teal text-white rounded-full px-2.5 py-1 flex items-center gap-1">
+                          <button className="flex items-center gap-1 rounded-[8px] bg-[var(--nava-teal)] px-2.5 py-1 text-[10px] font-semibold text-white">
                             <Phone className="w-3 h-3" /> Call
                           </button>
                         </Link>
                         <Link href={`/chat/${a.id}`}>
-                          <button className="text-[10px] font-semibold bg-nava-navy text-white rounded-full px-2.5 py-1 flex items-center gap-1">
+                          <button className="flex items-center gap-1 rounded-[8px] bg-nava-navy px-2.5 py-1 text-[10px] font-semibold text-primary">
                             <MessageCircle className="w-3 h-3" /> Chat
                           </button>
                         </Link>
@@ -189,7 +188,7 @@ export default function Astrologers() {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <Input
               placeholder="Search by name or specialization..."
-              className="pl-9 bg-card border-border rounded-xl h-10 focus:border-nava-teal/50 focus:ring-nava-teal/30 text-sm"
+              className="h-11 rounded-[10px] border-border bg-card pl-9 text-sm focus:border-nava-navy/50 focus:ring-nava-navy/20"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               data-testid="input-search"
@@ -203,9 +202,9 @@ export default function Astrologers() {
             <button
               key={cat}
               onClick={() => setActiveCategory(cat)}
-              className={`flex-shrink-0 px-4 py-1.5 rounded-full text-xs font-semibold border transition-all ${activeCategory === cat
-                ? 'bg-nava-teal text-white border-nava-teal'
-                : 'bg-card border-border text-muted-foreground hover:border-nava-teal/30'
+              className={`flex-shrink-0 rounded-[6px] border px-4 py-1.5 text-xs font-semibold transition-all ${activeCategory === cat
+                ? 'border-nava-navy bg-nava-navy text-primary'
+                : 'bg-card border-border text-muted-foreground hover:border-nava-navy/30'
                 }`}
             >
               {cat}
@@ -213,8 +212,8 @@ export default function Astrologers() {
           ))}
           <button
             onClick={() => setFilterOnline(!filterOnline)}
-            className={`flex-shrink-0 px-4 py-1.5 rounded-full text-xs font-semibold border transition-all flex items-center gap-1.5 ${filterOnline
-              ? 'bg-emerald-500 border-emerald-500 text-white'
+            className={`flex-shrink-0 flex items-center gap-1.5 rounded-[6px] border px-4 py-1.5 text-xs font-semibold transition-all ${filterOnline
+              ? 'border-emerald-500 bg-emerald-500 text-white'
               : 'bg-card border-border text-muted-foreground hover:border-emerald-500/30'
               }`}
             data-testid="button-filter-available"
@@ -236,7 +235,7 @@ export default function Astrologers() {
               <button
                 key={s}
                 onClick={() => setSortBy(s)}
-                className={`px-2.5 py-1 rounded-md text-[10px] font-semibold transition-colors ${sortBy === s ? 'bg-nava-teal/10 text-nava-teal' : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+                className={`rounded-[6px] px-2.5 py-1 text-[10px] font-semibold transition-colors ${sortBy === s ? 'bg-primary/25 text-[var(--primary-border)]' : 'text-muted-foreground hover:bg-muted hover:text-foreground'
                   }`}
               >
                 {s === 'rating' ? 'Top Rated' : s === 'price' ? 'Price: Low' : 'Experience'}
@@ -257,16 +256,16 @@ export default function Astrologers() {
               return (
                 <div
                   key={astrologer.id}
-                  className="bg-card rounded-2xl p-4 shadow-sm border border-border/50"
+                  className="yantra-card p-4"
                   data-testid={`card-astrologer-${astrologer.id}`}
                 >
                   <div className="flex gap-3">
                     {/* Avatar */}
                     <div className="relative flex-shrink-0">
-                      <div className="w-16 h-16 rounded-full p-0.5 bg-gradient-to-br from-nava-teal/30 to-nava-amber/30">
-                        <Avatar className="w-full h-full border-2 border-card">
+                      <div className="rounded-[6px] border border-border bg-card p-0.5">
+                        <Avatar className="h-16 w-16 rounded-[6px] border border-card">
                           <AvatarImage src={astrologer.profileImageUrl || undefined} alt={astrologer.name} className="object-cover" />
-                          <AvatarFallback className="bg-nava-navy text-white font-bold text-lg">
+                          <AvatarFallback className="bg-nava-navy font-display text-lg text-primary">
                             {astrologer.name.charAt(0)}
                           </AvatarFallback>
                         </Avatar>
@@ -282,12 +281,12 @@ export default function Astrologers() {
                     {/* Info */}
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-1.5 mb-0.5">
-                        <h3 className="font-bold text-sm text-foreground truncate">{astrologer.name}</h3>
+                        <h3 className="font-display text-base text-foreground truncate">{astrologer.name}</h3>
                         {astrologer.isVerified && (
                           <CheckCircle2 className="w-3.5 h-3.5 text-nava-amber flex-shrink-0" />
                         )}
                       </div>
-                      <p className="text-xs text-nava-teal font-medium mb-1">
+                      <p className="mb-1 text-xs text-muted-foreground">
                         {astrologer.specializations?.slice(0, 2).join(', ') || 'Vedic Astrology'}
                       </p>
                       <div className="flex items-center gap-2 text-xs text-muted-foreground">
@@ -311,7 +310,7 @@ export default function Astrologers() {
                         <Heart className={`w-4 h-4 ${following.has(astrologer.id) ? 'fill-red-500 text-red-500' : 'text-muted-foreground'}`} />
                       </button>
                       <div className="mb-2">
-                        <span className="font-bold text-lg text-nava-teal">₹{astrologer.pricePerMinute || '25'}</span>
+                        <span className="font-display text-lg text-[var(--primary-border)]">₹{astrologer.pricePerMinute || '25'}</span>
                         <span className="text-xs text-muted-foreground">/min</span>
                       </div>
                     </div>
@@ -323,12 +322,12 @@ export default function Astrologers() {
                       online ? (
                       <>
                         <Link href={`/call/${astrologer.id}?type=voice`} className="flex-1">
-                          <Button className="w-full bg-nava-teal hover:bg-nava-teal/90 text-white font-semibold rounded-full h-9" data-testid={`button-call-${astrologer.id}`}>
+                          <Button className="h-9 w-full rounded-[9px] bg-primary font-semibold text-primary-foreground hover:bg-primary/90" data-testid={`button-call-${astrologer.id}`}>
                             <Phone className="w-4 h-4 mr-1.5" /> Call
                           </Button>
                         </Link>
                         <Link href={`/chat/${astrologer.id}`} className="flex-1">
-                          <Button className="w-full bg-nava-navy hover:bg-nava-navy/90 text-white font-semibold rounded-full h-9" data-testid={`button-chat-${astrologer.id}`}>
+                          <Button className="h-9 w-full rounded-[9px] bg-nava-navy font-semibold text-primary hover:bg-nava-navy/90" data-testid={`button-chat-${astrologer.id}`}>
                             <MessageCircle className="w-4 h-4 mr-1.5" /> Chat
                           </Button>
                         </Link>
@@ -336,7 +335,7 @@ export default function Astrologers() {
                       ) : (
                         <Button
                           variant="outline"
-                          className="w-full font-semibold rounded-full h-9"
+                          className="h-9 w-full rounded-[9px] font-semibold"
                           onClick={() => joinWaitlist.mutate({ id: astrologer.id, type: 'chat' })}
                           disabled={joinWaitlist.isPending}
                           data-testid={`button-waitlist-${astrologer.id}`}
@@ -346,10 +345,10 @@ export default function Astrologers() {
                       )
                     ) : (
                       <>
-                        <Button className="flex-1 bg-nava-teal hover:bg-nava-teal/90 text-white font-semibold rounded-full h-9" onClick={() => handleLoginRequired('call')} data-testid={`button-call-${astrologer.id}`}>
+                        <Button className="h-9 flex-1 rounded-[9px] bg-primary font-semibold text-primary-foreground hover:bg-primary/90" onClick={() => handleLoginRequired('call')} data-testid={`button-call-${astrologer.id}`}>
                           <Phone className="w-4 h-4 mr-1.5" /> Call
                         </Button>
-                        <Button className="flex-1 bg-nava-navy hover:bg-nava-navy/90 text-white font-semibold rounded-full h-9" onClick={() => handleLoginRequired('chat')} data-testid={`button-chat-${astrologer.id}`}>
+                        <Button className="h-9 flex-1 rounded-[9px] bg-nava-navy font-semibold text-primary hover:bg-nava-navy/90" onClick={() => handleLoginRequired('chat')} data-testid={`button-chat-${astrologer.id}`}>
                           <MessageCircle className="w-4 h-4 mr-1.5" /> Chat
                         </Button>
                       </>

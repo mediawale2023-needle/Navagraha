@@ -1,5 +1,5 @@
 import React from 'react';
-import { Sparkles } from 'lucide-react';
+import { ArrowRight, Sparkles } from 'lucide-react';
 import { Link } from 'wouter';
 
 interface HeroBannerProps {
@@ -26,34 +26,30 @@ export function HeroBanner({
   return (
     <Link href={href}>
       <div
-        className={`gradient-spiritual rounded-xl p-5 border border-nava-royal-purple/20 transition-all duration-200 hover:shadow-md ${className}`}
+        className={`gradient-spiritual relative overflow-hidden rounded-[12px] border border-[var(--primary-border)] p-6 transition-all duration-200 hover:shadow-md ${className}`}
       >
-        <div className="flex items-start gap-3">
-          <div className="w-10 h-10 rounded-full bg-nava-royal-purple flex items-center justify-center flex-shrink-0">
-            <Sparkles className="w-5 h-5 text-white" />
-          </div>
-          <div className="flex-1">
-            <h2 className="font-semibold text-foreground text-lg mb-1">
-              {title}
-            </h2>
-            <p className="text-sm text-muted-foreground mb-3">{subtitle}</p>
-            <span className="inline-flex items-center text-nava-royal-purple text-sm font-medium hover:underline">
-              {cta}
-              <svg
-                className="w-4 h-4 ml-1"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M9 5l7 7-7 7"
-                />
-              </svg>
-            </span>
-          </div>
+        <svg
+          aria-hidden="true"
+          className="absolute -right-8 -top-8 h-40 w-40 opacity-25"
+          viewBox="0 0 160 160"
+          fill="none"
+        >
+          <rect x="10" y="10" width="140" height="140" transform="rotate(45 80 80)" stroke="currentColor" strokeWidth="1.4" />
+          <rect x="32" y="32" width="96" height="96" transform="rotate(45 80 80)" stroke="currentColor" strokeWidth="1.4" />
+          <circle cx="80" cy="80" r="18" stroke="currentColor" strokeWidth="1.4" />
+          <circle cx="80" cy="80" r="3.8" fill="currentColor" />
+        </svg>
+        <div className="relative max-w-[70%] text-[var(--nava-navy)]">
+          <p className="yantra-eyebrow text-[var(--nava-navy)]/80">पहली चर्चा मुफ़्त · First chat free</p>
+          <h2 className="font-display mt-2 text-[1.65rem] leading-[1.12] text-[var(--nava-navy)]">
+            {title}
+          </h2>
+          <p className="mt-2 text-sm text-[var(--nava-navy)]/80">{subtitle}</p>
+          <span className="mt-4 inline-flex items-center gap-2 rounded-[9px] bg-[var(--nava-navy)] px-4 py-2 text-sm font-semibold text-primary-foreground">
+            <Sparkles className="h-4 w-4" />
+            {cta}
+            <ArrowRight className="h-4 w-4" />
+          </span>
         </div>
       </div>
     </Link>

@@ -29,24 +29,28 @@ export function ActiveInfluenceCard({
 }: ActiveInfluenceCardProps) {
   const typeConfig = {
     dasha: {
-      icon: '🕐',
-      bgColor: 'bg-nava-lavender',
-      borderColor: 'border-nava-royal-purple/20',
+      icon: '♂',
+      bgColor: 'bg-[#f4e6ff]',
+      borderColor: 'border-[#dbc5f4]',
+      iconColor: 'text-[#5b47a8]',
     },
     transit: {
-      icon: '🌟',
-      bgColor: 'bg-blue-50',
-      borderColor: 'border-blue-200',
+      icon: '♄',
+      bgColor: 'bg-[#eaf6f5]',
+      borderColor: 'border-[#c7ebe8]',
+      iconColor: 'text-[#1f7a77]',
     },
     dosha: {
-      icon: '⚠️',
-      bgColor: 'bg-red-50',
-      borderColor: 'border-red-200',
+      icon: '⚠',
+      bgColor: 'bg-[#fdeceb]',
+      borderColor: 'border-[#f2c7c5]',
+      iconColor: 'text-[#8b1a1a]',
     },
     remedy: {
-      icon: '🕉️',
-      bgColor: 'bg-green-50',
-      borderColor: 'border-green-200',
+      icon: '🕉',
+      bgColor: 'bg-[#f7e2b6]',
+      borderColor: 'border-[#e7c57f]',
+      iconColor: 'text-[#8c6b2a]',
     },
   };
 
@@ -54,13 +58,13 @@ export function ActiveInfluenceCard({
 
   return (
     <div
-      className={`${config.bgColor} border ${config.borderColor} rounded-xl p-4 ${className}`}
+      className={`${config.bgColor} ${config.borderColor} rounded-[12px] border p-4 ${className}`}
     >
       <div className="flex items-start gap-3">
-        <span className="text-xl flex-shrink-0">{config.icon}</span>
+        <span className={`${config.iconColor} font-display flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-[6px] bg-card text-lg`}>{config.icon}</span>
         <div className="flex-1 min-w-0">
           <div className="flex items-center justify-between gap-2 mb-1">
-            <h3 className="font-semibold text-foreground text-sm truncate">
+            <h3 className="font-display text-sm truncate text-foreground">
               {title}
             </h3>
             {severity === 'high' && (
@@ -69,14 +73,14 @@ export function ActiveInfluenceCard({
           </div>
           <p className="text-sm text-muted-foreground mb-2">{description}</p>
           {endDate && (
-            <p className="text-xs text-muted-foreground mb-3">
+            <p className="mb-3 text-[0.65rem] font-bold uppercase tracking-[0.12em] text-muted-foreground">
               Until {endDate}
             </p>
           )}
           {linkTo && (
             <Link
               href={linkTo}
-              className="inline-flex items-center gap-1 text-nava-royal-purple text-sm font-medium hover:underline"
+              className="inline-flex items-center gap-1 border-b border-foreground pb-0.5 text-sm font-semibold text-foreground"
             >
               Learn More
               <ArrowRight className="w-3.5 h-3.5" />

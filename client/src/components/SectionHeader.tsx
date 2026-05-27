@@ -26,11 +26,11 @@ export function SectionHeader({
   return (
     <div className={`flex items-center justify-between mb-4 ${className}`}>
       <div>
-        <h2 className="font-semibold text-foreground text-lg">
+        <h2 className="font-display text-[1.15rem] text-foreground">
           {title}
         </h2>
         {subtitle && (
-          <p className="text-sm text-muted-foreground mt-0.5">
+          <p className="mt-1 text-sm text-muted-foreground">
             {subtitle}
           </p>
         )}
@@ -38,7 +38,7 @@ export function SectionHeader({
       {showViewAll && viewAllLink && (
         <Link
           href={viewAllLink}
-          className="flex items-center gap-1 text-nava-royal-purple text-sm font-medium hover:underline"
+          className="flex items-center gap-1 border-b border-foreground pb-0.5 text-sm font-semibold text-foreground"
         >
           View All
           <ChevronRight className="w-4 h-4" />
