@@ -482,6 +482,36 @@ export default function KundliView() {
               </Card>
             )}
 
+            {chartData?.bhava?.houseLords?.length > 0 && (
+              <Card className="mt-4">
+                <CardHeader>
+                  <CardTitle className="text-base">Houses &amp; Lords</CardTitle>
+                </CardHeader>
+                <CardContent className="overflow-x-auto">
+                  <table className="w-full text-xs border-collapse">
+                    <thead>
+                      <tr className="bg-nava-lavender/40 text-left">
+                        <th className="p-1.5 font-medium">House</th>
+                        <th className="p-1.5 font-medium">Sign</th>
+                        <th className="p-1.5 font-medium">Lord</th>
+                        <th className="p-1.5 font-medium">Lord placed in</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {chartData.bhava.houseLords.map((h: any) => (
+                        <tr key={h.house} className="border-b border-border/40">
+                          <td className="p-1.5 font-medium">{h.house}</td>
+                          <td className="p-1.5">{h.sign}</td>
+                          <td className="p-1.5">{h.lord}</td>
+                          <td className="p-1.5">House {h.lordHouse} ({h.lordSign})</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </CardContent>
+              </Card>
+            )}
+
             {transits && (
               <Card className="mt-4">
                 <CardHeader>

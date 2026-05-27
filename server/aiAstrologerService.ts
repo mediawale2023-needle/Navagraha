@@ -65,6 +65,17 @@ function chartSummary(kundli: Partial<Kundli>): string {
     .map((p) => `- ${p.planet}: ${p.dignity}${p.neechaBhanga ? " (Neecha Bhanga — cancellation)" : ""}${p.retrograde ? ", retrograde" : ""}${p.combust ? ", combust" : ""}${p.planetaryWar ? `, in planetary war with ${p.planetaryWar}` : ""} — ${p.avastha}`)
     .join("\n");
 
+  const bhava: any = (kundli as any).chartData?.bhava || {};
+  const lordLines = Array.isArray(bhava.houseLords)
+    ? bhava.houseLords.map((h: any) => `- House ${h.house} (${h.sign}) lord ${h.lord} sits in house ${h.lordHouse} (${h.lordSign})`).join("\n")
+    : "";
+  const aspectLines = Array.isArray(bhava.aspects)
+    ? bhava.aspects.map((a: any) => `- ${a.planet} aspects houses ${a.aspectsHouses.join(", ")}${a.aspectsPlanets.length ? ` (planets: ${a.aspectsPlanets.join(", ")})` : ""}`).join("\n")
+    : "";
+  const chalitShifts = Array.isArray(bhava.chalit)
+    ? bhava.chalit.filter((c: any) => c.shifted).map((c: any) => `${c.planet}: Rasi H${c.rasiHouse} → Chalit H${c.chalitHouse}`).join("; ")
+    : "";
+
   return `
 Name: ${birthDetails.name || "Unknown"}
 Date of Birth: ${birthDetails.dateOfBirth || "Unknown"}
@@ -82,6 +93,14 @@ ${navLines || "Not available"}
 
 Planetary Dignity & State (what each planet can deliver):
 ${dignityLines || "Not available"}
+
+House Lords (Bhavesh placements):
+${lordLines || "Not available"}
+
+Graha Drishti (aspects):
+${aspectLines || "Not available"}
+
+Bhava Chalit shifts (planets near a sign edge): ${chalitShifts || "none"}
 
 Sarvashtakavarga (SAV) bindus by house (higher = stronger; >30 strong, <25 weak; total 337):
 ${savLine || "Not available"}
