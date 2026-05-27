@@ -248,6 +248,119 @@ export async function getKundli(
   };
 }
 
+// ─── Transits (Gochar) + Sade Sati ────────────────────────────────────────────
+
+export interface TransitInfo {
+  date: string;
+  natalMoonSign: string;
+  natalLagnaSign: string;
+  planets: Array<{ planet: string; sign: string; houseFromMoon: number; houseFromLagna: number; sav: number | null; retrograde: boolean }>;
+  sadeSati: { active: boolean; phase: string; saturnSign: string; houseFromMoon: number; note: string; sinceApprox?: string; untilApprox?: string };
+  jupiter: { sign: string; houseFromMoon: number; favourable: boolean };
+}
+
+const TRANSIT_PLANETS = ['Sun', 'Moon', 'Mars', 'Mercury', 'Jupiter', 'Venus', 'Saturn', 'Rahu', 'Ketu'];
+const signIdxOf = (lon: number) => Math.floor((((lon % 360) + 360) % 360) / 30) % 12;
+
+function siderealLongitudesOn(date: Date): Record<string, number> {
+  const jd = julianDay(date);
+  const tropical = allPlanetPositions(jd);
+  const ayan = lahiriAyanamsa(jd);
+  const out: Record<string, number> = {};
+  for (const [name, pos] of Object.entries(tropical)) {
+    out[name] = (((pos as any).lon - ayan) % 360 + 360) % 360;
+  }
+  return out;
+}
+
+function resolveSignIndex(s: string | number): number {
+  if (typeof s === 'number') return ((Math.round(s) % 12) + 12) % 12;
+  const i = (SIGNS as readonly string[]).indexOf(s);
+  return i >= 0 ? i : 0;
+}
+
+/**
+ * Current planetary transits relative to a natal chart, with Sade Sati phase.
+ * Houses are counted from the natal Moon (Chandra) and natal Lagna; transit
+ * results are weighed by the natal Sarvashtakavarga bindus of the transited sign.
+ */
+export function getTransits(
+  natalMoonSign: string | number,
+  natalLagnaSign: string | number,
+  savBySign?: number[],
+  when: Date = new Date(),
+): TransitInfo {
+  const moonIdx = resolveSignIndex(natalMoonSign);
+  const lagnaIdx = resolveSignIndex(natalLagnaSign);
+  const lons = siderealLongitudesOn(when);
+  const tropical = allPlanetPositions(julianDay(when));
+
+  const planets = TRANSIT_PLANETS.filter((p) => lons[p] != null).map((p) => {
+    const s = signIdxOf(lons[p]);
+    return {
+      planet: p,
+      sign: SIGNS[s],
+      houseFromMoon: ((s - moonIdx + 12) % 12) + 1,
+      houseFromLagna: ((s - lagnaIdx + 12) % 12) + 1,
+      sav: savBySign && savBySign.length === 12 ? savBySign[s] : null,
+      retrograde: (tropical as any)[p]?.isRetrograde ?? false,
+    };
+  });
+
+  const satSign = signIdxOf(lons['Saturn'] ?? 0);
+  const hMoonSat = ((satSign - moonIdx + 12) % 12) + 1;
+  let active = false;
+  let phase = 'Not in Sade Sati';
+  let note = '';
+  if (hMoonSat === 12) { active = true; phase = 'Rising phase — Saturn in the 12th from Moon'; }
+  else if (hMoonSat === 1) { active = true; phase = 'Peak phase (Janma Shani) — Saturn over the Moon'; }
+  else if (hMoonSat === 2) { active = true; phase = 'Setting phase — Saturn in the 2nd from Moon'; }
+  else if (hMoonSat === 4) { phase = 'Kantaka Shani — Saturn in the 4th from Moon'; note = 'Ardha-ashtama (small panoti), a ~2.5-year Saturn test.'; }
+  else if (hMoonSat === 8) { phase = 'Ashtama Shani — Saturn in the 8th from Moon'; note = 'Dhaiya (small panoti), a ~2.5-year Saturn test.'; }
+
+  // Approximate the current Saturn-sign window at month resolution.
+  const monthFmt = (d: Date) => d.toLocaleString('en-US', { month: 'short', year: 'numeric' });
+  let sinceApprox: string | undefined;
+  let untilApprox: string | undefined;
+  let b = new Date(when);
+  for (let i = 0; i < 36; i++) {
+    const prev = new Date(b); prev.setMonth(prev.getMonth() - 1);
+    if (signIdxOf(siderealLongitudesOn(prev)['Saturn'] ?? 0) !== satSign) break;
+    b = prev;
+  }
+  let e = new Date(when);
+  for (let i = 0; i < 36; i++) {
+    const next = new Date(e); next.setMonth(next.getMonth() + 1); e = next;
+    if (signIdxOf(siderealLongitudesOn(next)['Saturn'] ?? 0) !== satSign) break;
+  }
+  sinceApprox = monthFmt(b);
+  untilApprox = monthFmt(e);
+
+  const jupSign = signIdxOf(lons['Jupiter'] ?? 0);
+  const hMoonJup = ((jupSign - moonIdx + 12) % 12) + 1;
+
+  return {
+    date: when.toISOString().split('T')[0],
+    natalMoonSign: SIGNS[moonIdx],
+    natalLagnaSign: SIGNS[lagnaIdx],
+    planets,
+    sadeSati: { active, phase, saturnSign: SIGNS[satSign], houseFromMoon: hMoonSat, note, sinceApprox, untilApprox },
+    jupiter: { sign: SIGNS[jupSign], houseFromMoon: hMoonJup, favourable: [2, 5, 7, 9, 11].includes(hMoonJup) },
+  };
+}
+
+/** Compact text summary of transits for AI prompts. */
+export function transitSummary(t: TransitInfo): string {
+  const lines = t.planets
+    .map((p) => `- ${p.planet}: ${p.sign} (${p.houseFromMoon}th from Moon, ${p.houseFromLagna}th from Lagna${p.sav != null ? `, SAV ${p.sav}` : ''}${p.retrograde ? ', retrograde' : ''})`)
+    .join('\n');
+  const ss = t.sadeSati.active
+    ? `Sade Sati ACTIVE — ${t.sadeSati.phase}. Saturn in ${t.sadeSati.saturnSign} (~${t.sadeSati.sinceApprox} to ~${t.sadeSati.untilApprox}).`
+    : `Sade Sati not active. ${t.sadeSati.phase}.${t.sadeSati.note ? ' ' + t.sadeSati.note : ''}`;
+  const jup = `Jupiter transiting ${t.jupiter.sign} (${t.jupiter.houseFromMoon}th from Moon) — ${t.jupiter.favourable ? 'favourable' : 'mixed'}.`;
+  return `Current transits as of ${t.date} (natal Moon ${t.natalMoonSign}, Lagna ${t.natalLagnaSign}):\n${lines}\n${ss}\n${jup}`;
+}
+
 // ─── Kundli Matching ──────────────────────────────────────────────────────────
 
 /**

@@ -18,6 +18,7 @@ export interface UserContext {
   pastEvents?: string[];
   language?: string;
   memories?: string[];
+  transits?: string;
   currentQuery: string;
 }
 
@@ -106,6 +107,9 @@ ${currentPeriod ? `- Running Mahadasha: ${currentPeriod.maha}\n- Running Antarda
 
 ### What we know about this person (from past conversations — use to personalise; don't recite verbatim):
 ${memoryBlock}
+
+### Current Transits (Gochar — authoritative, as of today):
+${context.transits || '(transits unavailable)'}
 
 ### User Query:
 ${context.currentQuery}

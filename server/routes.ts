@@ -29,6 +29,8 @@ import {
   getKundliMatching,
   getNativeHoroscope,
   getNumerology,
+  getTransits,
+  transitSummary,
 } from "./astroEngine/index.js";
 import {
   callPrashnaEngine,
@@ -250,6 +252,19 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
       if (!kundli) return res.status(404).json({ message: "Kundli not found" });
       res.json(kundli);
     } catch { res.status(500).json({ message: "Failed to fetch kundli" }); }
+  });
+
+  // Current transits (Gochar) + Sade Sati for a saved chart.
+  app.get('/api/kundli/:id/transits', async (req, res) => {
+    try {
+      const kundli = await storage.getKundliById(req.params.id);
+      if (!kundli || !kundli.moonSign || !kundli.ascendant) return res.status(404).json({ message: "Kundli not found" });
+      const sav = (kundli.chartData as any)?.ashtakavarga?.sav;
+      res.json(getTransits(kundli.moonSign, kundli.ascendant, sav));
+    } catch (err) {
+      console.error('Transit error:', err);
+      res.status(500).json({ message: "Failed to compute transits" });
+    }
   });
 
   // ─── Horoscope ────────────────────────────────────────────
@@ -2125,6 +2140,16 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
         .then((rows) => rows.map((r) => r.content))
         .catch(() => [] as string[]);
 
+      // Current transits (Gochar) for the bound chart.
+      let transits: string | undefined;
+      if (kundli?.moonSign && kundli?.ascendant) {
+        try {
+          transits = transitSummary(getTransits(kundli.moonSign, kundli.ascendant, (kundli.chartData as any)?.ashtakavarga?.sav));
+        } catch (err) {
+          console.error('[chat] transit computation failed:', err);
+        }
+      }
+
       // Prepare context for Orchestrator
       const context: UserContext = {
         birthDetails: {
@@ -2136,6 +2161,7 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
         profession: 'User',
         language,
         memories,
+        transits,
         currentQuery: message
       };
 

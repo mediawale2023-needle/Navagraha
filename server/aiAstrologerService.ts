@@ -13,7 +13,7 @@
 
 import OpenAI from "openai";
 import type { Kundli } from "@shared/schema";
-import { getKundli } from "./astroEngine/index.js";
+import { getKundli, getTransits, transitSummary } from "./astroEngine/index.js";
 
 // Lazy-init so the server starts without the key (degraded mode)
 let _client: OpenAI | null = null;
@@ -455,7 +455,9 @@ export async function generateLifeReport(kundli: Partial<Kundli>): Promise<Gener
   }
 
   const chart = chartSummary(kundli);
-  const transit = await currentTransitContext();
+  const transit = (kundli.moonSign && kundli.ascendant)
+    ? "\n\n" + transitSummary(getTransits(kundli.moonSign, kundli.ascendant, (kundli as any).chartData?.ashtakavarga?.sav))
+    : await currentTransitContext();
 
   // Parallel batches; a failed batch degrades to empty (filtered out) rather than
   // failing the whole report.

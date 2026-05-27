@@ -26,6 +26,13 @@ import { BottomNav } from '@/components/BottomNav';
 
 const PDF_PRICE = 10;
 
+type TransitData = {
+  date: string;
+  planets: Array<{ planet: string; sign: string; houseFromMoon: number; houseFromLagna: number; sav: number | null; retrograde: boolean }>;
+  sadeSati: { active: boolean; phase: string; saturnSign: string; houseFromMoon: number; note: string; sinceApprox?: string; untilApprox?: string };
+  jupiter: { sign: string; houseFromMoon: number; favourable: boolean };
+};
+
 type PdfModal = 'confirm' | 'insufficient' | null;
 
 function ConfirmModal({ open, balance, isFree, onConfirm, onCancel, loading }: { open: boolean; balance: number; isFree: boolean; onConfirm: () => void; onCancel: () => void; loading: boolean }) {
@@ -181,6 +188,11 @@ export default function KundliView() {
   });
 
   const kundli = isPreview ? guestKundli : fetchedKundli;
+
+  const { data: transits } = useQuery<TransitData>({
+    queryKey: ['/api/kundli', kundliId, 'transits'],
+    enabled: !!kundliId && !isPreview,
+  });
 
   useEffect(() => {
     if (kundli) {
@@ -432,6 +444,53 @@ export default function KundliView() {
                       </table>
                     </div>
                   )}
+                </CardContent>
+              </Card>
+            )}
+
+            {transits && (
+              <Card className="mt-4">
+                <CardHeader>
+                  <CardTitle className="text-base">Current Transits (Gochar)</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className={`rounded-xl p-3 ${transits.sadeSati.active ? 'bg-amber-500/10 border border-amber-500/30' : 'bg-muted'}`}>
+                    <p className="text-sm font-semibold text-foreground">
+                      Sade Sati: {transits.sadeSati.active ? 'Active' : 'Not active'}
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-0.5">{transits.sadeSati.phase}</p>
+                    {transits.sadeSati.note && <p className="text-xs text-muted-foreground">{transits.sadeSati.note}</p>}
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Saturn in {transits.sadeSati.saturnSign}
+                      {transits.sadeSati.sinceApprox ? ` (~${transits.sadeSati.sinceApprox} – ${transits.sadeSati.untilApprox})` : ''}
+                    </p>
+                  </div>
+
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-xs border-collapse">
+                      <thead>
+                        <tr className="bg-nava-lavender/40 text-left">
+                          <th className="p-1.5 font-medium">Planet</th>
+                          <th className="p-1.5 font-medium">Sign</th>
+                          <th className="p-1.5 font-medium">From Moon</th>
+                          <th className="p-1.5 font-medium">From Lagna</th>
+                          <th className="p-1.5 font-medium">SAV</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {transits.planets.map((p) => (
+                          <tr key={p.planet} className="border-b border-border/40">
+                            <td className="p-1.5">{p.planet}{p.retrograde ? ' (R)' : ''}</td>
+                            <td className="p-1.5">{p.sign}</td>
+                            <td className="p-1.5 text-center">{p.houseFromMoon}</td>
+                            <td className="p-1.5 text-center">{p.houseFromLagna}</td>
+                            <td className="p-1.5 text-center">{p.sav ?? '—'}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                  <p className="text-[11px] text-muted-foreground">As of {transits.date}. Houses counted from natal Moon and Lagna; SAV = bindus of the transited sign.</p>
                 </CardContent>
               </Card>
             )}
