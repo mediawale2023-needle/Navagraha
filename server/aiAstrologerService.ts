@@ -78,6 +78,11 @@ function chartSummary(kundli: Partial<Kundli>): string {
     .map((p) => `- ${p.planet}: ${p.dignity}${p.neechaBhanga ? " (Neecha Bhanga — cancellation)" : ""}${p.retrograde ? ", retrograde" : ""}${p.combust ? ", combust" : ""}${p.planetaryWar ? `, in planetary war with ${p.planetaryWar}` : ""} — ${p.avastha}`)
     .join("\n");
 
+  const yogasArr: any[] = (kundli as any).chartData?.yogas || [];
+  const yogaLines = yogasArr
+    .map((y) => `- ${y.name}${y.cancelled ? " (cancelled/bhanga)" : ""}: ${y.description}`)
+    .join("\n");
+
   const bhava: any = (kundli as any).chartData?.bhava || {};
   const lordLines = Array.isArray(bhava.houseLords)
     ? bhava.houseLords.map((h: any) => `- House ${h.house} (${h.sign}) lord ${h.lord} sits in house ${h.lordHouse} (${h.lordSign})`).join("\n")
@@ -103,6 +108,9 @@ ${posLines || "Not available"}
 
 Navamsa Positions (D9 — marriage, dharma, true strength):
 ${navLines || "Not available"}
+
+Yogas detected (note any cancellation/bhanga):
+${yogaLines || "None detected"}
 
 Planetary Dignity & State (what each planet can deliver):
 ${dignityLines || "Not available"}

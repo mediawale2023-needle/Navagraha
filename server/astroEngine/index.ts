@@ -14,6 +14,7 @@ import { calculateDashas, calculateYoginiDasha } from './dasha.js';
 import { computeAshtakavarga } from './ashtakavarga.js';
 import { computeDignities } from './dignity.js';
 import { computeBhava } from './bhava.js';
+import { detectYogas } from './yogas.js';
 import { hasMangalDosha, hasKaalSarpDosha, hasPitraDosha } from './doshas.js';
 import { ashtakootMatch }      from './matching.js';
 import { calculateNumerology } from './numerology.js';
@@ -50,6 +51,7 @@ export interface NativeKundliResult {
       karakas: Record<number, string>;
     };
     yoginiDasha?: Array<{ yogini: string; lord: string; period: string; status: string; startDate: string; endDate: string }>;
+    yogas?: Array<{ name: string; category: string; planets: string[]; cancelled?: boolean; description: string }>;
   };
   dashas:   Array<{ planet: string; period: string; status: string; startDate: string; endDate: string }>;
   doshas:   { mangalDosha: boolean; kaalSarpDosha: boolean; pitruDosha: boolean };
@@ -226,6 +228,10 @@ export async function getKundli(
   // ─── Bhava: house lords, aspects, karakas, chalit ─────────────
   const bhava = computeBhava(sidereal, ascSidereal);
 
+  // ─── Yogas (with cancellation) ────────────────────────────────
+  const moonSignIdx = Math.floor(((sidereal['Moon'] ?? 0) % 360) / 30) % 12;
+  const yogas = detectYogas(sidereal, avSignIndex.Ascendant, moonSignIdx, dignities, bhava.houseLords);
+
   // Vimshottari Dasha (+ Yogini cross-confirming dasha)
   const dashas = calculateDashas(sidereal['Moon'], birthUTC);
   const yoginiDasha = calculateYoginiDasha(sidereal['Moon'], birthUTC);
@@ -255,6 +261,7 @@ export async function getKundli(
       dignities,
       bhava,
       yoginiDasha,
+      yogas,
     },
     dashas: dashas.map(d => ({
       planet:      d.planet,

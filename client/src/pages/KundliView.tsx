@@ -452,6 +452,26 @@ export default function KundliView() {
               </Card>
             )}
 
+            {chartData?.yogas?.length > 0 && (
+              <Card className="mt-4">
+                <CardHeader>
+                  <CardTitle className="text-base">Yogas</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-2">
+                  {chartData.yogas.map((y: any, i: number) => (
+                    <div key={i} className="rounded-lg border border-border/40 p-2.5">
+                      <div className="flex items-center gap-2">
+                        <span className="font-semibold text-sm text-foreground">{y.name}</span>
+                        <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-nava-lavender/60 text-nava-royal-purple">{y.category}</span>
+                        {y.cancelled && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-red-600/10 text-red-700">cancelled</span>}
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-1">{y.description}</p>
+                    </div>
+                  ))}
+                </CardContent>
+              </Card>
+            )}
+
             {chartData?.dignities?.length > 0 && (
               <Card className="mt-4">
                 <CardHeader>
