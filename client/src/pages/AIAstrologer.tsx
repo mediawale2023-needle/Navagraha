@@ -7,6 +7,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
+import { PlacesAutocomplete } from "@/components/PlacesAutocomplete";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import ReactMarkdown from "react-markdown";
@@ -83,8 +85,25 @@ const LIFE_AREA_PROMPTS = [
   { label: 'Remedies', q: 'What remedies should I follow based on my chart and current dasha?' },
 ];
 
-const SESSION_STORAGE_KEY = 'ai_astrologer_session_id';
 const LANGUAGE_STORAGE_KEY = 'ai_astrologer_language';
+
+// The chart selector value used for the "enter birth details" mode.
+const DETAILS_KEY = '__details__';
+
+// Per-chart chat sessions: each chart (or the details/none context) keeps its
+// own conversation thread, so switching charts shows that chart's history.
+const SESSIONS_KEY = 'ai_astrologer_sessions';
+function readSessions(): Record<string, string> {
+  try { return JSON.parse(localStorage.getItem(SESSIONS_KEY) || '{}'); } catch { return {}; }
+}
+function sessionForKey(key: string, forceNew = false): string {
+  const map = readSessions();
+  if (forceNew || !map[key]) {
+    map[key] = crypto.randomUUID();
+    localStorage.setItem(SESSIONS_KEY, JSON.stringify(map));
+  }
+  return map[key];
+}
 
 const THINKING_STEPS = [
   'Casting your chart…',
@@ -105,9 +124,10 @@ export default function AIAstrologer() {
   const [language, setLanguage] = useState<string>(
     () => localStorage.getItem(LANGUAGE_STORAGE_KEY) || 'English'
   );
-  const [sessionId, setSessionId] = useState<string | null>(
-    () => localStorage.getItem(SESSION_STORAGE_KEY)
-  );
+  const [sessionId, setSessionId] = useState<string | null>(null);
+  const emptyBirth = { name: '', gender: 'male', dateOfBirth: '', timeOfBirth: '', placeOfBirth: '' };
+  const [birth, setBirth] = useState(emptyBirth);
+  const [birthCoords, setBirthCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [thinkingStep, setThinkingStep] = useState(0);
   const [showInterpretation, setShowInterpretation] = useState(false);
   const [interpretation, setInterpretation] = useState<AiInterpretation | null>(null);
@@ -125,6 +145,9 @@ export default function AIAstrologer() {
     queryKey: ["/api/kundli"],
   });
 
+  const detailsMode = selectedKundliId === DETAILS_KEY;
+  const birthValid = !!(birth.name.trim() && birth.dateOfBirth && birth.timeOfBirth && birth.placeOfBirth.trim());
+
   // Auto-select the first available Kundli so users don't accidentally chat with an empty chart context
   useEffect(() => {
     if (kundlis.length > 0 && selectedKundliId === "none") {
@@ -132,9 +155,15 @@ export default function AIAstrologer() {
     }
   }, [kundlis, selectedKundliId]);
 
+  // Switching context (chart / details / none) loads that context's own thread.
+  useEffect(() => {
+    setSessionId(sessionForKey(selectedKundliId));
+    setMessages([]);
+  }, [selectedKundliId]);
+
   const { data: fullKundli } = useQuery<FullKundli>({
     queryKey: [`/api/kundli/${selectedKundliId}`],
-    enabled: selectedKundliId !== "none",
+    enabled: selectedKundliId !== "none" && selectedKundliId !== DETAILS_KEY,
   });
 
   // Load previous messages from the persisted session on mount
@@ -154,12 +183,10 @@ export default function AIAstrologer() {
   }, [savedMessages]);
 
   const startNewSession = useCallback(() => {
-    const newId = crypto.randomUUID();
-    localStorage.setItem(SESSION_STORAGE_KEY, newId);
-    setSessionId(newId);
+    setSessionId(sessionForKey(selectedKundliId, true));
     setMessages([]);
-    queryClient.removeQueries({ queryKey: [`/api/ai/chat/${sessionId}`] });
-  }, [sessionId, queryClient]);
+    if (sessionId) queryClient.removeQueries({ queryKey: [`/api/ai/chat/${sessionId}`] });
+  }, [selectedKundliId, sessionId, queryClient]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -168,19 +195,24 @@ export default function AIAstrologer() {
   const chatMutation = useMutation({
     mutationFn: async (message: string) => {
       const history = messages.slice(-20).map(({ role, content }) => ({ role, content }));
-      return await apiRequest("POST", "/api/ai/chat", {
-        message,
-        history,
-        kundliId: selectedKundliId !== "none" ? selectedKundliId : undefined,
-        language,
-        sessionId,
-      });
+      const body: any = { message, history, language, sessionId };
+      if (detailsMode) {
+        body.birthDetails = {
+          name: birth.name,
+          gender: birth.gender,
+          dateOfBirth: birth.dateOfBirth,
+          timeOfBirth: birth.timeOfBirth,
+          placeOfBirth: birth.placeOfBirth,
+          latitude: birthCoords?.lat,
+          longitude: birthCoords?.lng,
+        };
+      } else if (selectedKundliId !== "none") {
+        body.kundliId = selectedKundliId;
+      }
+      return await apiRequest("POST", "/api/ai/chat", body);
     },
     onSuccess: (data) => {
-      if (!sessionId || sessionId !== data.sessionId) {
-        localStorage.setItem(SESSION_STORAGE_KEY, data.sessionId);
-        setSessionId(data.sessionId);
-      }
+      if (data.sessionId && data.sessionId !== sessionId) setSessionId(data.sessionId);
       if (data.questionsUsed !== undefined) setQuestionsUsed(data.questionsUsed);
       setMessages((prev) => [
         ...prev,
@@ -227,6 +259,10 @@ export default function AIAstrologer() {
   function sendMessage(text?: string) {
     const msg = (text || input).trim();
     if (!msg || chatMutation.isPending) return;
+    if (detailsMode && !birthValid) {
+      toast({ title: "Add birth details", description: "Enter name, date, time and place first.", variant: "destructive" });
+      return;
+    }
     setMessages((prev) => [...prev, { role: "user", content: msg, id: crypto.randomUUID() }]);
     setInput("");
     chatMutation.mutate(msg);
@@ -296,6 +332,7 @@ export default function AIAstrologer() {
                         {k.name}
                       </SelectItem>
                     ))}
+                    <SelectItem value={DETAILS_KEY}>Enter birth details…</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -314,7 +351,7 @@ export default function AIAstrologer() {
                   </SelectContent>
                 </Select>
               </div>
-              {selectedKundliId !== "none" && (
+              {!detailsMode && selectedKundliId !== "none" && (
                 <Button
                   size="sm"
                   variant="outline"
@@ -331,6 +368,32 @@ export default function AIAstrologer() {
                 </Button>
               )}
             </div>
+
+            {/* Birth-details entry (no saved chart needed) */}
+            {detailsMode && (
+              <div className="mt-3 space-y-2">
+                <Input
+                  placeholder="Full name"
+                  value={birth.name}
+                  onChange={(e) => setBirth({ ...birth, name: e.target.value })}
+                  className="bg-background"
+                  data-testid="ai-bd-name"
+                />
+                <div className="grid grid-cols-2 gap-2">
+                  <Input type="date" value={birth.dateOfBirth} onChange={(e) => setBirth({ ...birth, dateOfBirth: e.target.value })} className="bg-background" data-testid="ai-bd-date" />
+                  <Input type="time" value={birth.timeOfBirth} onChange={(e) => setBirth({ ...birth, timeOfBirth: e.target.value })} className="bg-background" data-testid="ai-bd-time" />
+                </div>
+                <PlacesAutocomplete
+                  value={birth.placeOfBirth}
+                  onChange={(v) => setBirth((b) => ({ ...b, placeOfBirth: v }))}
+                  onPlaceSelect={(place) => setBirthCoords({ lat: place.lat, lng: place.lng })}
+                  placeholder="City, State, Country"
+                />
+                {!birthValid && (
+                  <p className="text-[11px] text-muted-foreground">Enter name, date, time and place to get a personalised reading.</p>
+                )}
+              </div>
+            )}
 
             {selectedKundli && (
               <div className="mt-2 flex flex-wrap gap-1.5">
@@ -371,7 +434,7 @@ export default function AIAstrologer() {
         </Card>
 
         {/* Live Dasha Timeline — shown when a kundli with dasha data is selected */}
-        {selectedKundliId !== "none" && (currentMahadasha || currentAntardasha) && (
+        {!detailsMode && selectedKundliId !== "none" && (currentMahadasha || currentAntardasha) && (
           <Card className="mb-4 bg-card border-border/50 shadow-sm">
             <CardContent className="p-4">
               <h3 className="text-xs font-semibold text-nava-teal uppercase tracking-wider mb-3">
