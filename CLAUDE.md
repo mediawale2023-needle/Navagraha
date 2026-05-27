@@ -36,7 +36,7 @@ Search `server/routes.ts` + `client/src/pages` before building anything below.
 - Kundli **list** (`/kundli`, `MyCharts.tsx` — saved charts + "generate new"; this is the Charts nav target), generate (`/kundli/new`), view (`/kundli/:id`), matchmaking, numerology, prashna, synastry, remedies (`Matchmaking`, `Numerology`, `Prashna`, `Remedies.tsx`).
 - Horoscope (`/horoscope`), **Panchang** (`/panchang`, `server/astroEngine/panchang.ts`, `GET /api/panchang`).
   - **Personalised daily horoscope**: `GET /api/horoscope/personal` (`generateDailyHoroscope` in `aiAstrologerService.ts`) derives a per-user daily card from the most recent chart's dasha, cached once/day per user in `dailyHoroscopes`. Shown atop the Horoscope page.
-- AI Astrologer chat (`/ai-astrologer`, `runCouncil`) — pick a saved chart **or enter birth details** (computed in-memory, not saved; `birthDetails` on `POST /api/ai/chat`), **per-chart conversation threads** (session per chart in localStorage), **multi-language** replies (language directive injected into the council synthesizer/ethicist), life-area quick-question chips. `runCouncil` re-derives the running dasha from today's date and injects it + today as authoritative facts.
+- AI Astrologer chat (`/ai-astrologer`, `runCouncil`) — pick a saved chart **or enter birth details** (computed in-memory, not saved; `birthDetails` on `POST /api/ai/chat`), **per-chart conversation threads** (session per chart in localStorage), **multi-language** replies (language directive injected into the council synthesizer/ethicist), life-area quick-question chips. `runCouncil` re-derives the running dasha from today's date and injects it + today as authoritative facts. **Long-term memory**: `extractMemories` pulls durable facts/goals/events from each message into `userMemories`; recent memories are injected into the council so the AI remembers the user across sessions.
 - Astrologer list/detail, **follow/favourite** (heart), **waitlist** when offline (`/astrologers`, `/api/astrologers/:id/follow`, `/waitlist`).
 - Chat (WebSocket), voice/video calls (Agora, `/call/:id`), per-minute billing in `websocketService.ts`.
 - Wallet + recharge: Razorpay, Snapmint (BNPL), LazyPay (`Wallet.tsx`, `paymentService.ts`).
@@ -60,7 +60,7 @@ Search `server/routes.ts` + `client/src/pages` before building anything below.
 
 ## Data model (tables in `shared/schema.ts`)
 
-users, astrologers, kundlis, wallets, transactions, chatMessages, consultations, reviews, scheduledCalls, notifications, astrologerEarnings, payoutRequests, aiChatMessages, predictionFeedbacks, homepageContent, **coupons, couponRedemptions, referrals, pushTokens, products, orders, orderItems, reportTypes, reportOrders, dailyHoroscopes, poojas, poojaBookings, liveStreams, streamMessages, astrologerFollows, consultationQueue**.
+users, astrologers, kundlis, wallets, transactions, chatMessages, consultations, reviews, scheduledCalls, notifications, astrologerEarnings, payoutRequests, aiChatMessages, userMemories, predictionFeedbacks, homepageContent, **coupons, couponRedemptions, referrals, pushTokens, products, orders, orderItems, reportTypes, reportOrders, dailyHoroscopes, poojas, poojaBookings, liveStreams, streamMessages, astrologerFollows, consultationQueue**.
 
 ## Conventions
 

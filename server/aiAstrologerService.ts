@@ -466,6 +466,41 @@ export async function generateLifeReport(kundli: Partial<Kundli>): Promise<Gener
   };
 }
 
+// ─── Long-term memory extraction ──────────────────────────────────────────────
+
+export interface ExtractedMemory { kind: string; content: string; }
+
+// Pull durable personal facts/goals/events out of a chat message so future
+// readings can reference them. Cheap model; degrades to [] without a key.
+export async function extractMemories(userMessage: string): Promise<ExtractedMemory[]> {
+  if (!process.env.OPENAI_API_KEY) return [];
+  try {
+    const client = getClient();
+    const prompt = `From this user's message to an astrologer, extract only DURABLE personal facts worth remembering long-term: name, relationships/marital status, profession, location, concrete goals, major life events, and stated preferences. Ignore the astrology question itself, greetings, and anything transient. If nothing durable, return an empty array.
+
+Return ONLY JSON: {"memories":[{"kind":"fact|goal|event|preference","content":"<concise third-person statement>"}]}
+
+User message: ${userMessage}`;
+    const resp = await client.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [{ role: "user", content: prompt }],
+      response_format: { type: "json_object" },
+      max_tokens: 400,
+    });
+    const parsed = JSON.parse(resp.choices[0]?.message?.content || "{}");
+    const arr: any[] = Array.isArray(parsed.memories) ? parsed.memories : [];
+    return arr
+      .filter((m) => m && typeof m.content === "string" && m.content.trim())
+      .slice(0, 6)
+      .map((m) => ({
+        kind: ["fact", "goal", "event", "preference"].includes(m.kind) ? m.kind : "fact",
+        content: String(m.content).trim(),
+      }));
+  } catch {
+    return [];
+  }
+}
+
 // ─── Personalised Daily Horoscope ─────────────────────────────────────────────
 
 export interface DailyHoroscopeContent {

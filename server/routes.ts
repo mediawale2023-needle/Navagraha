@@ -62,6 +62,7 @@ import {
   generateReport,
   generateLifeReport,
   generateDailyHoroscope,
+  extractMemories,
 } from "./aiAstrologerService";
 import { sendWelcomeEmail, sendPaymentReceipt, sendBookingConfirmation, sendConsultationSummary } from "./emailService";
 import crypto from "crypto";
@@ -2119,6 +2120,11 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
         };
       }
 
+      // Long-term memory: what we've learned about this user before.
+      const memories = await storage.getUserMemories(user.id, 30)
+        .then((rows) => rows.map((r) => r.content))
+        .catch(() => [] as string[]);
+
       // Prepare context for Orchestrator
       const context: UserContext = {
         birthDetails: {
@@ -2129,6 +2135,7 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
         chartData,
         profession: 'User',
         language,
+        memories,
         currentQuery: message
       };
 
@@ -2142,6 +2149,19 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
         role: 'assistant',
         content: aiResponseText
       });
+
+      // Extract durable facts from this message into long-term memory (async).
+      extractMemories(message)
+        .then(async (mems) => {
+          if (!mems.length) return;
+          const existing = (await storage.getUserMemories(user.id, 200)).map((m) => m.content.toLowerCase());
+          for (const m of mems) {
+            if (!existing.includes(m.content.toLowerCase())) {
+              await storage.addUserMemory({ userId: user.id, kind: m.kind, content: m.content, sourceSessionId: activeSessionId });
+            }
+          }
+        })
+        .catch((err) => console.error('[memory] extraction failed:', err));
 
       res.json({
         sessionId: activeSessionId,

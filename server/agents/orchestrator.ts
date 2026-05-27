@@ -17,6 +17,7 @@ export interface UserContext {
   profession?: string;
   pastEvents?: string[];
   language?: string;
+  memories?: string[];
   currentQuery: string;
 }
 
@@ -94,10 +95,17 @@ export async function runCouncil(context: UserContext): Promise<string> {
   // ─── Step 3: Jyotishi Synthesis ────────────────────────────────────────────
   console.log('[Orchestrator] Council computations complete. Synthesizing...');
 
+  const memoryBlock = context.memories && context.memories.length
+    ? context.memories.map((m) => `- ${m}`).join('\n')
+    : '- (no saved memory yet)';
+
   const synthesisPayload = `
 ### Authoritative Temporal Facts (DO NOT contradict):
 - Today's date: ${today}
 ${currentPeriod ? `- Running Mahadasha: ${currentPeriod.maha}\n- Running Antardasha: ${currentPeriod.antar || '—'}${currentPeriod.period ? `\n- Mahadasha period: ${currentPeriod.period}` : ''}` : '- (Dasha periods unavailable)'}
+
+### What we know about this person (from past conversations — use to personalise; don't recite verbatim):
+${memoryBlock}
 
 ### User Query:
 ${context.currentQuery}
