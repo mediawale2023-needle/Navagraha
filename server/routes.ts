@@ -37,6 +37,7 @@ import {
   callSynastryEngine,
   callRemediationEngine,
 } from "./astroEngineClient";
+import { resolveBirthCoords } from "./geocode";
 import { computePanchang } from "./astroEngine/panchang";
 import {
   createRazorpayOrder,
@@ -202,8 +203,14 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
     try {
       const userId = req.user?.id || req.session?.userId || null;
       const dateOfBirth = new Date(req.body.dateOfBirth);
-      const lat = req.body.latitude ? parseFloat(req.body.latitude) : 28.6139;
-      const lon = req.body.longitude ? parseFloat(req.body.longitude) : 77.2090;
+
+      // Never fabricate a location — a wrong Ascendant ruins every prediction.
+      const coords = await resolveBirthCoords(req.body.latitude, req.body.longitude, req.body.placeOfBirth);
+      if (!coords) {
+        return res.status(400).json({ message: "Please pick your exact birth place from the suggestions. An approximate location produces a wrong Ascendant and unreliable predictions." });
+      }
+      const lat = coords.lat;
+      const lon = coords.lng;
 
       const nk = await getKundli(dateOfBirth, req.body.timeOfBirth, lat, lon);
       const kundliData = {
@@ -1732,9 +1739,11 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
       }
       if (!kundli && birthDetails?.dateOfBirth && birthDetails?.timeOfBirth) {
         const dob = new Date(birthDetails.dateOfBirth);
-        const lat = birthDetails.latitude ? parseFloat(String(birthDetails.latitude)) : 28.6139;
-        const lon = birthDetails.longitude ? parseFloat(String(birthDetails.longitude)) : 77.2090;
-        const nk = await getKundli(dob, birthDetails.timeOfBirth, lat, lon);
+        const coords = await resolveBirthCoords(birthDetails.latitude, birthDetails.longitude, birthDetails.placeOfBirth);
+        if (!coords) {
+          return res.status(400).json({ message: "Please pick an exact birth place for the report — an approximate location gives a wrong Ascendant." });
+        }
+        const nk = await getKundli(dob, birthDetails.timeOfBirth, coords.lat, coords.lng);
         kundli = {
           name: birthDetails.name,
           dateOfBirth: dob,
@@ -2101,9 +2110,11 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
       if (kundli && kundli.userId !== user.id) kundli = null;
       if (!kundli && birthDetails?.dateOfBirth && birthDetails?.timeOfBirth) {
         const dob = new Date(birthDetails.dateOfBirth);
-        const lat = birthDetails.latitude ? parseFloat(String(birthDetails.latitude)) : 28.6139;
-        const lon = birthDetails.longitude ? parseFloat(String(birthDetails.longitude)) : 77.2090;
-        const nk = await getKundli(dob, birthDetails.timeOfBirth, lat, lon);
+        const coords = await resolveBirthCoords(birthDetails.latitude, birthDetails.longitude, birthDetails.placeOfBirth);
+        if (!coords) {
+          return res.status(400).json({ message: "Please enter an exact birth place so I can calculate the Ascendant accurately." });
+        }
+        const nk = await getKundli(dob, birthDetails.timeOfBirth, coords.lat, coords.lng);
         kundli = {
           name: birthDetails.name,
           dateOfBirth: dob,
