@@ -19,8 +19,18 @@ export interface UserContext {
   language?: string;
   memories?: string[];
   transits?: string;
+  verifiedEvents?: string[];
+  accuracyNote?: string;
   currentQuery: string;
 }
+
+const PREDICTION_DISCIPLINE = `PREDICTION DISCIPLINE (mandatory — a master astrologer's rules):
+- A yoga or placement is only a PROMISE. Predict an outcome ONLY when it is activated by the relevant Dasha/Antardasha/Pratyantardasha AND supported by transit (especially the Saturn–Jupiter double transit). Always give the timing window.
+- Never predict from a single factor. Require at least TWO further confirmations (Navamsa/Dasamsa, Ashtakavarga bindus, the house lord, the karaka, or an aspect) and name them.
+- Weigh strength: a debilitated, combust or weak planet cannot fully deliver its promise (note Neecha-bhanga if it applies). A cancelled yoga (bhanga) does not give full results.
+- Calibrated confidence: if the chart is genuinely ambiguous or the birth time is uncertain, say so plainly instead of inventing certainty.
+- Adapt classical rules to the person's modern context (Desha-Kaala-Patra); avoid archaic literalism.
+ETHICS: Never predict death or the end of longevity. Never frighten. Frame every dosha or Sade Sati with a remedy and realistic hope. Respect free will and effort — the chart shows tendency and timing, not fixed fate. Recommend only the remedies the chart's functional needs justify; never push gemstones.`;
 
 /**
  * Super-Astrologer Council: Parallel `$team` Orchestrator (v2 Shadbala Edition)
@@ -99,6 +109,9 @@ export async function runCouncil(context: UserContext): Promise<string> {
   const memoryBlock = context.memories && context.memories.length
     ? context.memories.map((m) => `- ${m}`).join('\n')
     : '- (no saved memory yet)';
+  const verifiedBlock = context.verifiedEvents && context.verifiedEvents.length
+    ? context.verifiedEvents.map((e) => `- ${e}`).join('\n')
+    : '- (none recorded yet)';
 
   const synthesisPayload = `
 ### Authoritative Temporal Facts (DO NOT contradict):
@@ -107,6 +120,10 @@ ${currentPeriod ? `- Running Mahadasha: ${currentPeriod.maha}\n- Running Antarda
 
 ### What we know about this person (from past conversations — use to personalise; don't recite verbatim):
 ${memoryBlock}
+
+### Confirmed past events for this person (ground truth — your reading must stay consistent with these):
+${verifiedBlock}
+${context.accuracyNote ? `\n### Calibration: ${context.accuracyNote}` : ''}
 
 ### Current Transits (Gochar — authoritative, as of today):
 ${context.transits || '(transits unavailable)'}
@@ -124,15 +141,17 @@ ${shadbalaSummary || '(Shadbala engine offline)'}
 4. **Event-Backtester (Confidence):** ${backtesterResult}
 5. **Desha-Kaala-Patra (Modern Context):** ${contextResult}
 
-Synthesize these findings into the final precise, deterministic, confident Vedic reading.
-Speak directly to the person — no "ifs", no "coulds". The math is already computed above.${languageDirective}
+${PREDICTION_DISCIPLINE}
+
+Now synthesize into the final reading. Be specific and confident where the chart supports it, honest where it does not.${languageDirective}
 `;
 
   const jyotishiOutput = await callAgent("jyotishi", temporalInjector(AGENT_PROMPTS.jyotishi), synthesisPayload);
 
   // ─── Step 4: Ethicist Gate (Safety Filter) ────────────────────────────────
   console.log('[Orchestrator] Running Ethicist Gate...');
-  const finalReading = await callAgent("ethicist", temporalInjector(AGENT_PROMPTS.ethicist) + languageDirective, jyotishiOutput);
+  const ethicsReinforce = "\n\nSTRICT: Remove any prediction of death or end of longevity entirely. Remove fear-mongering. Ensure every challenge (dosha, Sade Sati, malefic period) is paired with a concrete remedy and realistic hope. Do not add gemstone sales pressure.";
+  const finalReading = await callAgent("ethicist", temporalInjector(AGENT_PROMPTS.ethicist) + ethicsReinforce + languageDirective, jyotishiOutput);
 
   return finalReading;
 

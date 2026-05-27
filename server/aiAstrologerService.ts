@@ -15,6 +15,9 @@ import OpenAI from "openai";
 import type { Kundli } from "@shared/schema";
 import { getKundli, getTransits, transitSummary } from "./astroEngine/index.js";
 
+// Shared prediction discipline + ethics for all paid-report generation.
+const REPORT_DISCIPLINE = `Discipline: a yoga/placement is only a promise — tie predictions to the activating dasha + transit and at least two confirmations (Navamsa/Dasamsa, Ashtakavarga, house lord, karaka); weigh planetary strength (a weak/debilitated/combust planet under-delivers; note Neecha-bhanga and yoga cancellation). Give realistic timing windows. Ethics: never predict death or end of longevity; never frighten; pair every difficulty with a remedy and hope; respect the person's free will and effort; recommend only justified remedies, never push gemstones.`;
+
 // Lazy-init so the server starts without the key (degraded mode)
 let _client: OpenAI | null = null;
 
@@ -389,6 +392,8 @@ async function aiNarrative(meta: ReportMeta, kundli: Partial<Kundli>): Promise<R
 
 Use the EXACT planetary positions, houses and Vimshottari dasha timeline below. Reference specific planets, signs, houses and dasha periods by name throughout your analysis. Avoid generic statements that could apply to anyone.
 
+${REPORT_DISCIPLINE}
+
 Return ONLY valid JSON with this exact shape:
 {
   "title": "${meta.title}",
@@ -480,6 +485,8 @@ async function generateLifeBatch(
 ): Promise<{ heading: string; body: string }[]> {
   const client = getClient();
   const prompt = `You are a master Vedic astrologer (Jyotish) writing one part of a premium 50+ page "Complete Life Report" (Brihat Kundli). Focus on ${batch.focus}. Reference the EXACT chart data below — name specific planets, signs, houses, degrees, nakshatra and dasha periods. Be thorough, specific and personalised (never generic): write 2-4 rich paragraphs for EACH heading.
+
+${REPORT_DISCIPLINE}
 
 Return ONLY valid JSON: {"sections":[{"heading":"<exact heading>","body":"<2-4 detailed paragraphs>"}]} — one object per heading, with headings EXACTLY and in this order: ${JSON.stringify(batch.sections)}.
 

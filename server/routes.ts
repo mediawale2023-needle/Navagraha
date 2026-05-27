@@ -2161,6 +2161,21 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
         }
       }
 
+      // Closed feedback loop: this user's verified past events + system accuracy.
+      let verifiedEvents: string[] = [];
+      let accuracyNote: string | undefined;
+      try {
+        const fb = await storage.getPredictionFeedbacksByUser(user.id);
+        verifiedEvents = fb
+          .filter((f: any) => f.wasAccurate)
+          .map((f: any) => `${f.predictionCategory}${f.actualOccurrenceDate ? ` around ${new Date(f.actualOccurrenceDate).toISOString().slice(0, 7)}` : ''} (confirmed via ${f.dashaSystemUsed})`)
+          .slice(0, 20);
+        const stats = await storage.getPatternStatistics();
+        if (stats?.total > 0) accuracyNote = `Verified prediction accuracy so far: ${stats.accuracy}% over ${stats.total} confirmed predictions — calibrate confidence accordingly.`;
+      } catch (err) {
+        console.error('[chat] feedback load failed:', err);
+      }
+
       // Prepare context for Orchestrator
       const context: UserContext = {
         birthDetails: {
@@ -2173,6 +2188,8 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
         language,
         memories,
         transits,
+        verifiedEvents,
+        accuracyNote,
         currentQuery: message
       };
 
