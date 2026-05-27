@@ -25,7 +25,11 @@ export interface ReportContent {
     sunSign?: string;
   };
   planetaryPositions?: { planet: string; sign?: string; house?: number; degree?: number; retrograde?: boolean }[];
-  chartData?: { houses?: { house: number; sign?: string }[]; planetaryPositions?: ChartPlanetPos[] };
+  chartData?: {
+    houses?: { house: number; sign?: string }[];
+    planetaryPositions?: ChartPlanetPos[];
+    navamsa?: { houses?: { house: number; sign?: string }[]; planetaryPositions?: ChartPlanetPos[] };
+  };
   dashaTimeline?: {
     planet: string;
     period?: string;
@@ -125,11 +129,17 @@ export async function downloadReportPdf(content: ReportContent) {
     });
   }
 
-  // ── Chart ────────────────────────────────────────────────────
+  // ── Charts (D1 + D9) ─────────────────────────────────────────
   if (content.chartData?.planetaryPositions?.length) {
-    heading("Birth Chart (North Indian)");
+    heading("Birth Chart — Rasi (D1)");
     ensure(96);
     drawChart(doc, content.chartData, (PW - 90) / 2, y, 90);
+    y += 96;
+  }
+  if (content.chartData?.navamsa?.planetaryPositions?.length) {
+    heading("Navamsa Chart (D9)");
+    ensure(96);
+    drawChart(doc, content.chartData.navamsa, (PW - 90) / 2, y, 90);
     y += 96;
   }
 

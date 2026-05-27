@@ -319,8 +319,14 @@ export default function Reports() {
               {/* Kundli chart */}
               {viewing.content.chartData?.planetaryPositions && (
                 <div>
-                  <h3 className="font-semibold text-nava-royal-purple mb-2">Birth Chart</h3>
+                  <h3 className="font-semibold text-nava-royal-purple mb-2">Birth Chart (D1)</h3>
                   <NorthIndianChartEnhanced chartData={viewing.content.chartData} />
+                </div>
+              )}
+              {viewing.content.chartData?.navamsa?.planetaryPositions && (
+                <div>
+                  <h3 className="font-semibold text-nava-royal-purple mb-2">Navamsa (D9)</h3>
+                  <NorthIndianChartEnhanced chartData={viewing.content.chartData.navamsa} />
                 </div>
               )}
 

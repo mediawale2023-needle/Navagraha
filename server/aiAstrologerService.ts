@@ -49,6 +49,12 @@ function chartSummary(kundli: Partial<Kundli>): string {
   const doshas = ((kundli as any).doshas || {}) as Record<string, unknown>;
   const doshaList = Object.entries(doshas).filter(([, v]) => v).map(([k]) => k).join(", ") || "None detected";
 
+  const navPositions: any[] = (kundli as any).chartData?.navamsa?.planetaryPositions || [];
+  const navLines = navPositions
+    .filter((p) => p.planet !== "Ascendant")
+    .map((p) => `- ${p.planet}: ${p.sign} (D9 House ${p.house})`)
+    .join("\n");
+
   return `
 Name: ${birthDetails.name || "Unknown"}
 Date of Birth: ${birthDetails.dateOfBirth || "Unknown"}
@@ -58,8 +64,11 @@ Ascendant (Lagna): ${birthDetails.ascendant || "Unknown"}
 Moon Sign (Rashi): ${birthDetails.moonSign || "Unknown"}
 Sun Sign: ${birthDetails.sunSign || "Unknown"}
 
-Planetary Positions:
+Planetary Positions (D1 Rasi):
 ${posLines || "Not available"}
+
+Navamsa Positions (D9 — marriage, dharma, true strength):
+${navLines || "Not available"}
 
 Dasha Timeline:
 ${dashaLines}

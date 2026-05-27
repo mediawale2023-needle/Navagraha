@@ -373,6 +373,14 @@ export default function KundliView() {
                     <div className="text-center text-muted-foreground">South Indian chart coming soon</div>
                   )}
                   <p className="text-xs text-muted-foreground text-center">Tap any planet for detailed insights</p>
+
+                  {chartData?.navamsa?.planetaryPositions && (
+                    <div className="w-full pt-4 mt-2 border-t border-border/40">
+                      <h3 className="text-sm font-semibold text-nava-royal-purple text-center mb-1">Navamsa (D9)</h3>
+                      <p className="text-xs text-muted-foreground text-center mb-3">Marriage, dharma & true planetary strength</p>
+                      <NorthIndianChartEnhanced chartData={chartData.navamsa} />
+                    </div>
+                  )}
                 </div>
               </CardContent>
             </Card>

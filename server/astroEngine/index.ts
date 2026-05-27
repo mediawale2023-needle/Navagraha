@@ -8,6 +8,7 @@ import { julianDay, toSidereal, lahiriAyanamsa } from './core.js';
 import { allPlanetPositions, ascendant }          from './planets.js';
 import {
   SIGNS, signFromLon, degreeInSign, nakshatraFromLon, houseFromLon, signOfHouse, getRemedies,
+  navamsaSign, navamsaDegree,
 } from './vedic.js';
 import { calculateDashas }     from './dasha.js';
 import { hasMangalDosha, hasKaalSarpDosha, hasPitraDosha } from './doshas.js';
@@ -28,6 +29,10 @@ export interface NativeKundliResult {
   chartData: {
     houses:             Array<{ house: number; sign: string; planets: string[] }>;
     planetaryPositions: Array<{ planet: string; sign: string; degree: number; house: number; isRetrograde: boolean }>;
+    navamsa?: {
+      houses:             Array<{ house: number; sign: string; planets: string[] }>;
+      planetaryPositions: Array<{ planet: string; sign: string; degree: number; house: number; isRetrograde: boolean }>;
+    };
   };
   dashas:   Array<{ planet: string; period: string; status: string; startDate: string; endDate: string }>;
   doshas:   { mangalDosha: boolean; kaalSarpDosha: boolean; pitruDosha: boolean };
@@ -158,6 +163,31 @@ export async function getKundli(
       .map(p => p.planet),
   }));
 
+  // ─── Navamsa (D9) — Parashari ─────────────────────────────────
+  const ascNavSign = navamsaSign(ascSidereal);
+  const navamsaPositions = PLANET_NAMES.map(name => {
+    const navSign = navamsaSign(sidereal[name] ?? 0);
+    return {
+      planet:       name,
+      sign:         SIGNS[navSign],
+      degree:       parseFloat(navamsaDegree(sidereal[name] ?? 0).toFixed(2)),
+      house:        ((navSign - ascNavSign + 12) % 12) + 1,
+      isRetrograde: tropical[name]?.isRetrograde ?? false,
+    };
+  });
+  const navAscEntry = {
+    planet: 'Ascendant', sign: SIGNS[ascNavSign],
+    degree: parseFloat(navamsaDegree(ascSidereal).toFixed(2)), house: 1, isRetrograde: false,
+  };
+  const navamsaHouses = Array.from({ length: 12 }, (_, i) => {
+    const signIdx = (ascNavSign + i) % 12;
+    return {
+      house:   i + 1,
+      sign:    SIGNS[signIdx],
+      planets: navamsaPositions.filter(p => p.house === i + 1).map(p => p.planet),
+    };
+  });
+
   // Vimshottari Dasha
   const dashas = calculateDashas(sidereal['Moon'], birthUTC);
 
@@ -178,6 +208,10 @@ export async function getKundli(
     chartData: {
       houses,
       planetaryPositions: [ascEntry, ...planetaryPositions],
+      navamsa: {
+        houses: navamsaHouses,
+        planetaryPositions: [navAscEntry, ...navamsaPositions],
+      },
     },
     dashas: dashas.map(d => ({
       planet:      d.planet,

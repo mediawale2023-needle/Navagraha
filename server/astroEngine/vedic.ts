@@ -54,6 +54,25 @@ export function degreeInSign(lon: number): number {
   return ((lon % 30) + 30) % 30;
 }
 
+/**
+ * Navamsa (D9) sign index (0=Aries…11=Pisces) for a sidereal longitude.
+ * Parashari: a sign's 9 navamsas begin from a sign set by its element —
+ * fire→Aries, earth→Capricorn, air→Libra, water→Cancer.
+ */
+export function navamsaSign(lon: number): number {
+  const l = ((lon % 360) + 360) % 360;
+  const signIdx = Math.floor(l / 30) % 12;
+  const within = Math.min(8, Math.floor((l % 30) / (30 / 9))); // 0..8
+  const start = [0, 9, 6, 3][signIdx % 4]; // fire, earth, air, water
+  return (start + within) % 12;
+}
+
+/** Degree within the navamsa sub-division, scaled to 0–30°. */
+export function navamsaDegree(lon: number): number {
+  const l = ((lon % 360) + 360) % 360;
+  return ((l % (30 / 9)) / (30 / 9)) * 30;
+}
+
 // ─── Nakshatras ───────────────────────────────────────────────────────────────
 
 export interface NakshatraData {
