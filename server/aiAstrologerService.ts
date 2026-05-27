@@ -39,12 +39,25 @@ function chartSummary(kundli: Partial<Kundli>): string {
 
   const currentMd = dashaTimeline.find((d) => d.status === "current");
   const upcoming = dashaTimeline.filter((d) => d.status === "upcoming").slice(0, 3);
+
+  // Running Pratyantardasha (finer timing) + cross-confirming Yogini dasha.
+  const rawDashas: any[] = Array.isArray((kundli as any).dashas) ? (kundli as any).dashas : [];
+  const curMdRaw = rawDashas.find((d) => d.status === "current");
+  const curAdRaw = curMdRaw?.antardashas?.find((a: any) => a.status === "current");
+  const curPdRaw = curAdRaw?.pratyantardashas?.find((p: any) => p.status === "current");
+  const pratyantarLine = curPdRaw ? `Current Pratyantardasha: ${curPdRaw.planet} (${curPdRaw.period})` : "";
+  const yogini: any[] = (kundli as any).chartData?.yoginiDasha || [];
+  const curYogini = yogini.find((y) => y.status === "current");
+  const yoginiLine = curYogini ? `Yogini Dasha (cross-check): ${curYogini.yogini} / ${curYogini.lord} (${curYogini.period})` : "";
+
   const dashaLines = [
     currentMd
       ? `Current Mahadasha: ${currentMd.planet} (${currentMd.period})${currentMd.currentAntardasha ? `, Antardasha ${currentMd.currentAntardasha.planet} (${currentMd.currentAntardasha.period})` : ""}`
       : "Current Mahadasha: not available",
+    pratyantarLine,
+    yoginiLine,
     ...upcoming.map((d) => `Upcoming Mahadasha: ${d.planet} (${d.period})`),
-  ].join("\n");
+  ].filter(Boolean).join("\n");
 
   const doshas = ((kundli as any).doshas || {}) as Record<string, unknown>;
   const doshaList = Object.entries(doshas).filter(([, v]) => v).map(([k]) => k).join(", ") || "None detected";

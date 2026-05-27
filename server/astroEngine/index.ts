@@ -10,7 +10,7 @@ import {
   SIGNS, signFromLon, degreeInSign, nakshatraFromLon, houseFromLon, signOfHouse, getRemedies,
   navamsaSign, navamsaDegree,
 } from './vedic.js';
-import { calculateDashas }     from './dasha.js';
+import { calculateDashas, calculateYoginiDasha } from './dasha.js';
 import { computeAshtakavarga } from './ashtakavarga.js';
 import { computeDignities } from './dignity.js';
 import { computeBhava } from './bhava.js';
@@ -49,6 +49,7 @@ export interface NativeKundliResult {
       chalit: Array<{ planet: string; rasiHouse: number; chalitHouse: number; shifted: boolean }>;
       karakas: Record<number, string>;
     };
+    yoginiDasha?: Array<{ yogini: string; lord: string; period: string; status: string; startDate: string; endDate: string }>;
   };
   dashas:   Array<{ planet: string; period: string; status: string; startDate: string; endDate: string }>;
   doshas:   { mangalDosha: boolean; kaalSarpDosha: boolean; pitruDosha: boolean };
@@ -225,8 +226,9 @@ export async function getKundli(
   // ─── Bhava: house lords, aspects, karakas, chalit ─────────────
   const bhava = computeBhava(sidereal, ascSidereal);
 
-  // Vimshottari Dasha
+  // Vimshottari Dasha (+ Yogini cross-confirming dasha)
   const dashas = calculateDashas(sidereal['Moon'], birthUTC);
+  const yoginiDasha = calculateYoginiDasha(sidereal['Moon'], birthUTC);
 
   // Doshas
   const marsHouse = planetaryPositions.find(p => p.planet === 'Mars')?.house ?? 0;
@@ -252,6 +254,7 @@ export async function getKundli(
       ashtakavarga,
       dignities,
       bhava,
+      yoginiDasha,
     },
     dashas: dashas.map(d => ({
       planet:      d.planet,

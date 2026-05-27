@@ -28,6 +28,16 @@ export interface AntardashaEntry {
   status:    'past' | 'current' | 'upcoming';
   startDate: string;   // ISO date "YYYY-MM-DD"
   endDate:   string;   // ISO date "YYYY-MM-DD"
+  pratyantardashas?: AntardashaEntry[]; // only populated for the running antardasha
+}
+
+export interface YoginiEntry {
+  yogini:    string;
+  lord:      string;
+  period:    string;
+  status:    'past' | 'current' | 'upcoming';
+  startDate: string;
+  endDate:   string;
 }
 
 export interface DashaEntry {
@@ -119,11 +129,27 @@ function calculateAntardashas(
     }
 
     const antarEnd = new Date(cursor.getTime() + antarMs);
-    antardashas.push(makeAntardasha(antarLord, cursor, antarEnd, now));
+    antardashas.push(makeAntardasha(antarLord, cursor, antarEnd, now, true));
     cursor = antarEnd;
   }
 
   return antardashas;
+}
+
+/** 9 Pratyantardashas within an Antardasha (proportional sub-division). */
+function calculatePratyantardashas(antarLord: string, start: Date, end: Date, now: number): AntardashaEntry[] {
+  const startIdx = DASHA_ORDER.indexOf(antarLord);
+  const totalMs = end.getTime() - start.getTime();
+  const out: AntardashaEntry[] = [];
+  let cursor = new Date(start.getTime());
+  for (let i = 0; i < 9; i++) {
+    const lord = DASHA_ORDER[(startIdx + i) % 9];
+    const ms = i === 8 ? end.getTime() - cursor.getTime() : totalMs * (DASHA_YEARS[lord] / TOTAL_YEARS);
+    const pEnd = new Date(cursor.getTime() + ms);
+    out.push(makeAntardasha(lord, cursor, pEnd, now, false));
+    cursor = pEnd;
+  }
+  return out;
 }
 
 function makeDasha(
@@ -149,18 +175,72 @@ function makeDasha(
   };
 }
 
-function makeAntardasha(planet: string, start: Date, end: Date, now: number): AntardashaEntry {
+function makeAntardasha(planet: string, start: Date, end: Date, now: number, withPratyantar = false): AntardashaEntry {
   const s = start.toISOString().slice(0, 10);
   const e = end.toISOString().slice(0, 10);
   const status: AntardashaEntry['status'] =
     now >= start.getTime() && now <= end.getTime() ? 'current'
     : now > end.getTime() ? 'past' : 'upcoming';
 
-  return {
+  const entry: AntardashaEntry = {
     planet,
     period:    `${s.slice(0, 7)} – ${e.slice(0, 7)}`,
     status,
     startDate: s,
     endDate:   e,
   };
+  if (withPratyantar && status === 'current') {
+    entry.pratyantardashas = calculatePratyantardashas(planet, start, end, now);
+  }
+  return entry;
+}
+
+// ─── Yogini Dasha (36-year cross-confirming cycle) ────────────────────────────
+
+const YOGINIS = [
+  { name: 'Mangala', lord: 'Moon', years: 1 },
+  { name: 'Pingala', lord: 'Sun', years: 2 },
+  { name: 'Dhanya', lord: 'Jupiter', years: 3 },
+  { name: 'Bhramari', lord: 'Mars', years: 4 },
+  { name: 'Bhadrika', lord: 'Mercury', years: 5 },
+  { name: 'Ulka', lord: 'Saturn', years: 6 },
+  { name: 'Siddha', lord: 'Venus', years: 7 },
+  { name: 'Sankata', lord: 'Rahu', years: 8 },
+];
+
+export function calculateYoginiDasha(moonSiderealLon: number, birthDate: Date): YoginiEntry[] {
+  const lon = ((moonSiderealLon % 360) + 360) % 360;
+  const nakIdx = nakshatraIndex(lon); // 0-based
+  const posInNak = (lon % NAKSHATRA_SPAN) / NAKSHATRA_SPAN;
+
+  // Starting yogini: (Janma nakshatra number + 3) mod 8.
+  const r = ((nakIdx + 1) + 3) % 8;
+  const startIdx = r === 0 ? 7 : r - 1;
+
+  const out: YoginiEntry[] = [];
+  let cursor = new Date(birthDate.getTime());
+  const now = Date.now();
+
+  const first = YOGINIS[startIdx];
+  const firstEnd = new Date(cursor.getTime() + first.years * (1 - posInNak) * MS_PER_YEAR);
+  out.push(makeYogini(first, cursor, firstEnd, now));
+  cursor = firstEnd;
+
+  // ~14 periods forward covers well over a century — enough to reach today + future.
+  for (let i = 1; i < 14; i++) {
+    const y = YOGINIS[(startIdx + i) % 8];
+    const end = new Date(cursor.getTime() + y.years * MS_PER_YEAR);
+    out.push(makeYogini(y, cursor, end, now));
+    cursor = end;
+  }
+  return out;
+}
+
+function makeYogini(y: { name: string; lord: string }, start: Date, end: Date, now: number): YoginiEntry {
+  const s = start.toISOString().slice(0, 10);
+  const e = end.toISOString().slice(0, 10);
+  const status: YoginiEntry['status'] =
+    now >= start.getTime() && now <= end.getTime() ? 'current'
+    : now > end.getTime() ? 'past' : 'upcoming';
+  return { yogini: y.name, lord: y.lord, period: `${s.slice(0, 7)} – ${e.slice(0, 7)}`, status, startDate: s, endDate: e };
 }

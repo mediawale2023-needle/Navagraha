@@ -222,6 +222,10 @@ export default function KundliView() {
 
   const birthDate = new Date(kundli.dateOfBirth);
   const chartData = kundli.chartData as any;
+  const curMd = (kundli.dashas as any[] | undefined)?.find((d: any) => d.status === 'current');
+  const curAd = curMd?.antardashas?.find((a: any) => a.status === 'current');
+  const curPd = curAd?.pratyantardashas?.find((p: any) => p.status === 'current');
+  const curYogini = (chartData?.yoginiDasha as any[] | undefined)?.find((y: any) => y.status === 'current');
   const dashas = (kundli.dashas as any[]) || [];
   const doshas = (kundli.doshas as any) || {};
   const remedies = (kundli.remedies as any[]) || [];
@@ -508,6 +512,20 @@ export default function KundliView() {
                       ))}
                     </tbody>
                   </table>
+                </CardContent>
+              </Card>
+            )}
+
+            {(curMd || curYogini) && (
+              <Card className="mt-4">
+                <CardHeader>
+                  <CardTitle className="text-base">Current Periods</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-1.5 text-sm">
+                  {curMd && <p><span className="text-muted-foreground">Mahadasha:</span> <span className="font-medium">{curMd.planet}</span> <span className="text-xs text-muted-foreground">({curMd.period})</span></p>}
+                  {curAd && <p><span className="text-muted-foreground">Antardasha:</span> <span className="font-medium">{curAd.planet}</span> <span className="text-xs text-muted-foreground">({curAd.period})</span></p>}
+                  {curPd && <p><span className="text-muted-foreground">Pratyantardasha:</span> <span className="font-medium">{curPd.planet}</span> <span className="text-xs text-muted-foreground">({curPd.period})</span></p>}
+                  {curYogini && <p><span className="text-muted-foreground">Yogini Dasha:</span> <span className="font-medium">{curYogini.yogini} / {curYogini.lord}</span> <span className="text-xs text-muted-foreground">({curYogini.period})</span></p>}
                 </CardContent>
               </Card>
             )}
