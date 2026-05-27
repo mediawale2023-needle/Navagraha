@@ -43,6 +43,7 @@ Search `server/routes.ts` + `client/src/pages` before building anything below.
 - **Offers/coupons** (`/api/coupons`, admin CRUD), **referrals** (`/api/referral`), **first-chat-free** (free minutes in billing loop).
 - **Astromall** store (`/store`), **paid reports** (`/reports`, async AI gen), **book a pooja** (`/pooja`) — all wallet checkout via `storage.debitWallet`.
   - Report `content` (JSONB) embeds structured chart data (birthDetails, planetaryPositions, houses, dashaTimeline) alongside AI narrative; `generateReport` in `aiAstrologerService.ts` derives these from the kundli. Client renders the North Indian chart + tables and offers **Download PDF** (`client/src/lib/reportPdf.ts`, lazy `jspdf`).
+  - **Complete Life Report** (premium ₹1499, category `life_complete`, seeded idempotently in `migrate.ts`): `generateLifeReport` runs ~11 parallel gpt-4o batches (every planet & house, yogas, doshas + live Saturn-transit Sade Sati, life domains, dasha life-map, remedies) → ~50 sections / 50+ pages. Order route dispatches on `category === 'life_complete'`. PDF adds a Contents page when sections > 12.
 - **Live streaming** viewer (`/live`, `/live/:id`) — chat (polling) + paid gifting.
 - Reviews, scheduled calls, notifications (in-app + **FCM push** `pushService.ts`).
 

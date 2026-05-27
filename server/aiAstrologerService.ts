@@ -13,6 +13,7 @@
 
 import OpenAI from "openai";
 import type { Kundli } from "@shared/schema";
+import { getKundli } from "./astroEngine/index.js";
 
 // Lazy-init so the server starts without the key (degraded mode)
 let _client: OpenAI | null = null;
@@ -356,6 +357,110 @@ export async function generateReport(
   return {
     ...narrative,
     remedies: dedupeRemedies([...(narrative.remedies || []), ...chartRemedies]),
+    ...structured,
+    generatedAt: new Date().toISOString(),
+  };
+}
+
+// ─── Complete Life Report (premium, 50+ pages) ────────────────────────────────
+
+// Each batch is one focused gpt-4o call; run in parallel they assemble into a
+// ~50-section, 50+ page report grounded in the actual chart.
+const LIFE_REPORT_BATCHES: { focus: string; sections: string[] }[] = [
+  { focus: "the native's core identity and nature", sections: ["Executive Summary", "Personality & Temperament", "Mind & Emotional Nature", "Physical Constitution & Appearance", "Core Strengths & Talents", "Challenges & Karmic Lessons"] },
+  { focus: "the Sun, Moon and Mars in this chart (placement, dignity, aspects, effects)", sections: ["Sun — Soul, Ego & Authority", "Moon — Mind, Emotions & Mother", "Mars — Energy, Courage & Drive"] },
+  { focus: "Mercury, Jupiter and Venus (placement, dignity, aspects, effects)", sections: ["Mercury — Intellect & Communication", "Jupiter — Wisdom, Fortune & Dharma", "Venus — Love, Beauty & Comforts"] },
+  { focus: "Saturn, Rahu and Ketu (placement, dignity, aspects, effects)", sections: ["Saturn — Discipline, Karma & Delay", "Rahu — Ambition, Illusion & Obsession", "Ketu — Detachment & Liberation"] },
+  { focus: "houses 1 to 6 of the chart, with their lords and occupants", sections: ["1st House — Self, Body & Vitality", "2nd House — Wealth, Speech & Family", "3rd House — Courage, Siblings & Effort", "4th House — Home, Mother & Happiness", "5th House — Intelligence, Children & Romance", "6th House — Health, Debts & Enemies"] },
+  { focus: "houses 7 to 12 of the chart, with their lords and occupants", sections: ["7th House — Marriage & Partnerships", "8th House — Longevity, Secrets & Transformation", "9th House — Fortune, Father & Dharma", "10th House — Career, Status & Karma", "11th House — Gains, Networks & Desires", "12th House — Loss, Expenses, Foreign & Moksha"] },
+  { focus: "the yogas (planetary combinations) present in this chart and their results", sections: ["Raja Yogas & Power Combinations", "Dhana Yogas (Wealth)", "Other Significant Yogas"] },
+  { focus: "doshas and afflictions, including the current Saturn transit (Sade Sati / Dhaiya)", sections: ["Mangal Dosha (Manglik) Analysis", "Kaal Sarp & Pitru Dosha", "Sade Sati & Saturn's Current Influence"] },
+  { focus: "the major life domains based on the relevant houses, lords and dashas", sections: ["Career & Profession", "Wealth & Financial Outlook", "Marriage & Relationships", "Education & Learning", "Health & Longevity", "Spirituality & Life Purpose"] },
+  { focus: "the Vimshottari dasha life-map — predictions for the major planetary periods, anchored to today's date", sections: ["Dasha Life-Map Overview", "Current Mahadasha — Detailed Forecast", "Next Mahadasha — What to Expect", "Long-Term Dasha Outlook"] },
+  { focus: "personalised, practical remedies for this specific chart", sections: ["Gemstone Recommendations", "Mantras & Japa", "Charity, Fasting & Rituals", "Lifestyle & Conduct", "Lucky Factors (colours, numbers, days)"] },
+];
+
+async function currentTransitContext(): Promise<string> {
+  try {
+    const nk: any = await getKundli(new Date(), "12:00", 28.6139, 77.2090);
+    const positions: any[] = nk?.chartData?.planetaryPositions || [];
+    const sign = (p: string) => positions.find((x) => x.planet === p)?.sign || "—";
+    return `\nCurrent planetary transits (as of ${new Date().toDateString()}): Saturn in ${sign("Saturn")}, Jupiter in ${sign("Jupiter")}, Rahu in ${sign("Rahu")}, Ketu in ${sign("Ketu")}. Assess Sade Sati from Saturn's transit relative to the natal Moon sign.`;
+  } catch {
+    return "";
+  }
+}
+
+async function generateLifeBatch(
+  batch: { focus: string; sections: string[] },
+  chart: string,
+  transit: string,
+): Promise<{ heading: string; body: string }[]> {
+  const client = getClient();
+  const prompt = `You are a master Vedic astrologer (Jyotish) writing one part of a premium 50+ page "Complete Life Report" (Brihat Kundli). Focus on ${batch.focus}. Reference the EXACT chart data below — name specific planets, signs, houses, degrees, nakshatra and dasha periods. Be thorough, specific and personalised (never generic): write 2-4 rich paragraphs for EACH heading.
+
+Return ONLY valid JSON: {"sections":[{"heading":"<exact heading>","body":"<2-4 detailed paragraphs>"}]} — one object per heading, with headings EXACTLY and in this order: ${JSON.stringify(batch.sections)}.
+
+Birth chart:
+${chart}${transit}`;
+
+  const resp = await client.chat.completions.create({
+    model: "gpt-4o",
+    messages: [{ role: "user", content: prompt }],
+    response_format: { type: "json_object" },
+    max_tokens: 3000,
+  });
+  const parsed = JSON.parse(resp.choices[0]?.message?.content || "{}");
+  const arr: any[] = Array.isArray(parsed.sections) ? parsed.sections : [];
+  return batch.sections
+    .map((h, i) => {
+      const byHeading = arr.find((s) => typeof s?.heading === "string" && s.heading.trim().toLowerCase() === h.trim().toLowerCase());
+      const body = String((byHeading?.body ?? arr[i]?.body) || "").trim();
+      return { heading: h, body };
+    })
+    .filter((s) => s.body);
+}
+
+export async function generateLifeReport(kundli: Partial<Kundli>): Promise<GeneratedReport> {
+  const structured = deriveStructured(kundli);
+  const chartRemedies = extractChartRemedies(kundli);
+  const title = "Complete Life Report";
+
+  if (!process.env.OPENAI_API_KEY) {
+    const narrative = templatedNarrative(REPORT_FOCUS.life, structured);
+    return {
+      ...narrative,
+      title,
+      remedies: dedupeRemedies([...(narrative.remedies || []), ...chartRemedies]),
+      ...structured,
+      generatedAt: new Date().toISOString(),
+    };
+  }
+
+  const chart = chartSummary(kundli);
+  const transit = await currentTransitContext();
+
+  // Parallel batches; a failed batch degrades to empty (filtered out) rather than
+  // failing the whole report.
+  const results = await Promise.all(
+    LIFE_REPORT_BATCHES.map((batch) =>
+      generateLifeBatch(batch, chart, transit).catch((err) => {
+        console.error(`[life-report] batch "${batch.focus}" failed:`, err);
+        return [] as { heading: string; body: string }[];
+      }),
+    ),
+  );
+  const sections = results.flat();
+
+  const summary =
+    sections.find((s) => /summary/i.test(s.heading))?.body ||
+    `A complete Vedic life analysis prepared from your birth chart — Lagna ${structured.birthDetails.ascendant || "—"}, Moon ${structured.birthDetails.moonSign || "—"}, Sun ${structured.birthDetails.sunSign || "—"}.`;
+
+  return {
+    title,
+    summary,
+    sections,
+    remedies: dedupeRemedies(chartRemedies),
     ...structured,
     generatedAt: new Date().toISOString(),
   };

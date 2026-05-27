@@ -60,6 +60,7 @@ import {
   generatePostConsultFollowUp,
   matchAstrologerToChart,
   generateReport,
+  generateLifeReport,
   generateDailyHoroscope,
 } from "./aiAstrologerService";
 import { sendWelcomeEmail, sendPaymentReceipt, sendBookingConfirmation, sendConsultationSummary } from "./emailService";
@@ -1754,7 +1755,9 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
       // Generate asynchronously; client polls until status === 'ready'
       (async () => {
         try {
-          const content = await generateReport(reportType.category || 'life', kundli);
+          const content = reportType.category === 'life_complete'
+            ? await generateLifeReport(kundli)
+            : await generateReport(reportType.category || 'life', kundli);
           await storage.setReportOrderContent(order.id, content);
           await storage.createNotification({
             userId, type: 'system', title: 'Report Ready',
