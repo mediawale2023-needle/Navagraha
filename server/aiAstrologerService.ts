@@ -83,6 +83,11 @@ function chartSummary(kundli: Partial<Kundli>): string {
     .map((y) => `- ${y.name}${y.cancelled ? " (cancelled/bhanga)" : ""}: ${y.description}`)
     .join("\n");
 
+  const funcRemedies: any[] = (kundli as any).chartData?.functionalRemedies || [];
+  const remedyLines = funcRemedies
+    .map((r) => `- ${r.action} ${r.focus}: ${r.gemstone ? `gemstone ${r.gemstone}; ` : ""}${r.donation ? `donate ${r.donation}; ` : ""}mantra "${r.mantra}" (${r.japaCount}x) on ${r.day}; worship ${r.deity}. ${r.reason}`)
+    .join("\n");
+
   const bhava: any = (kundli as any).chartData?.bhava || {};
   const lordLines = Array.isArray(bhava.houseLords)
     ? bhava.houseLords.map((h: any) => `- House ${h.house} (${h.sign}) lord ${h.lord} sits in house ${h.lordHouse} (${h.lordSign})`).join("\n")
@@ -130,6 +135,9 @@ Dasha Timeline:
 ${dashaLines}
 
 Doshas: ${doshaList}
+
+Ascendant-specific Remedies (functional — prefer these over generic advice):
+${remedyLines || "Not available"}
 `.trim();
 }
 

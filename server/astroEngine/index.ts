@@ -15,6 +15,7 @@ import { computeAshtakavarga } from './ashtakavarga.js';
 import { computeDignities } from './dignity.js';
 import { computeBhava } from './bhava.js';
 import { detectYogas } from './yogas.js';
+import { computeRemedies } from './remedies.js';
 import { hasMangalDosha, hasKaalSarpDosha, hasPitraDosha } from './doshas.js';
 import { ashtakootMatch }      from './matching.js';
 import { calculateNumerology } from './numerology.js';
@@ -52,6 +53,7 @@ export interface NativeKundliResult {
     };
     yoginiDasha?: Array<{ yogini: string; lord: string; period: string; status: string; startDate: string; endDate: string }>;
     yogas?: Array<{ name: string; category: string; planets: string[]; cancelled?: boolean; description: string }>;
+    functionalRemedies?: Array<{ focus: string; action: string; gemstone?: string; mantra: string; japaCount: number; donation?: string; day: string; deity: string; reason: string }>;
   };
   dashas:   Array<{ planet: string; period: string; status: string; startDate: string; endDate: string }>;
   doshas:   { mangalDosha: boolean; kaalSarpDosha: boolean; pitruDosha: boolean };
@@ -232,6 +234,9 @@ export async function getKundli(
   const moonSignIdx = Math.floor(((sidereal['Moon'] ?? 0) % 360) / 30) % 12;
   const yogas = detectYogas(sidereal, avSignIndex.Ascendant, moonSignIdx, dignities, bhava.houseLords);
 
+  // ─── Ascendant-specific (functional) remedies ─────────────────
+  const functionalRemedies = computeRemedies(dignities, bhava.houseLords);
+
   // Vimshottari Dasha (+ Yogini cross-confirming dasha)
   const dashas = calculateDashas(sidereal['Moon'], birthUTC);
   const yoginiDasha = calculateYoginiDasha(sidereal['Moon'], birthUTC);
@@ -262,6 +267,7 @@ export async function getKundli(
       bhava,
       yoginiDasha,
       yogas,
+      functionalRemedies,
     },
     dashas: dashas.map(d => ({
       planet:      d.planet,

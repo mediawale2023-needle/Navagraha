@@ -452,6 +452,29 @@ export default function KundliView() {
               </Card>
             )}
 
+            {chartData?.functionalRemedies?.length > 0 && (
+              <Card className="mt-4">
+                <CardHeader>
+                  <CardTitle className="text-base">Personalised Remedies</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-2">
+                  {chartData.functionalRemedies.map((r: any, i: number) => (
+                    <div key={i} className="rounded-lg border border-border/40 p-2.5">
+                      <div className="flex items-center gap-2">
+                        <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${r.action === 'Strengthen' ? 'bg-green-600/15 text-green-700' : 'bg-amber-500/15 text-amber-700'}`}>{r.action}</span>
+                        <span className="font-semibold text-sm text-foreground">{r.focus}</span>
+                        {r.gemstone && <span className="text-xs text-muted-foreground">· {r.gemstone}</span>}
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {r.donation ? `Donate ${r.donation}. ` : ''}Chant <span className="italic">{r.mantra}</span> ({r.japaCount.toLocaleString()}×) on {r.day}; worship {r.deity}.
+                      </p>
+                      <p className="text-[11px] text-muted-foreground/80 mt-0.5">{r.reason}</p>
+                    </div>
+                  ))}
+                </CardContent>
+              </Card>
+            )}
+
             {chartData?.yogas?.length > 0 && (
               <Card className="mt-4">
                 <CardHeader>
