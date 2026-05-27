@@ -10,6 +10,7 @@ import Landing from "@/pages/Landing";
 import Home from "@/pages/Home";
 import KundliNew from "@/pages/KundliNew";
 import KundliView from "@/pages/KundliView";
+import MyCharts from "@/pages/MyCharts";
 import Matchmaking from "@/pages/Matchmaking";
 import Prashna from "@/pages/Prashna";
 import PatternMatcher from "@/pages/PatternMatcher";
@@ -105,6 +106,7 @@ function Router() {
       <Route path="/astrologers" component={Astrologers} />
       <Route path="/kundli/matchmaking" component={Matchmaking} />
       <Route path="/prashna" component={Prashna} />
+      <Route path="/kundli" component={MyCharts} />
       <Route path="/kundli/new" component={KundliNew} />
       <Route path="/kundli/:id" component={KundliView} />
       <Route path="/numerology" component={Numerology} />

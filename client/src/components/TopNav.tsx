@@ -15,7 +15,7 @@ const NAV_LINKS = [
   { label: "Astromall", path: "/store" },
   { label: "Reports", path: "/reports" },
   { label: "Pooja", path: "/pooja" },
-  { label: "Charts", path: "/kundli/new" },
+  { label: "Charts", path: "/kundli" },
 ];
 
 export default function TopNav() {

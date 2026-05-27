@@ -33,7 +33,7 @@ Search `server/routes.ts` + `client/src/pages` before building anything below.
 
 **User**
 - Auth: Google OAuth + email/password (`server/auth.ts`). NOT Replit OIDC.
-- Kundli generate/view, matchmaking, numerology, prashna, synastry, remedies (`/kundli/*`, `Matchmaking`, `Numerology`, `Prashna`, `Remedies.tsx`).
+- Kundli **list** (`/kundli`, `MyCharts.tsx` — saved charts + "generate new"; this is the Charts nav target), generate (`/kundli/new`), view (`/kundli/:id`), matchmaking, numerology, prashna, synastry, remedies (`Matchmaking`, `Numerology`, `Prashna`, `Remedies.tsx`).
 - Horoscope (`/horoscope`), **Panchang** (`/panchang`, `server/astroEngine/panchang.ts`, `GET /api/panchang`).
   - **Personalised daily horoscope**: `GET /api/horoscope/personal` (`generateDailyHoroscope` in `aiAstrologerService.ts`) derives a per-user daily card from the most recent chart's dasha, cached once/day per user in `dailyHoroscopes`. Shown atop the Horoscope page.
 - AI Astrologer chat (`/ai-astrologer`, `runCouncil`) — pick a saved chart **or enter birth details** (computed in-memory, not saved; `birthDetails` on `POST /api/ai/chat`), **per-chart conversation threads** (session per chart in localStorage), **multi-language** replies (language directive injected into the council synthesizer/ethicist), life-area quick-question chips. `runCouncil` re-derives the running dasha from today's date and injects it + today as authoritative facts.
