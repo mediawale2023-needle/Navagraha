@@ -1,6 +1,5 @@
 import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { Sparkles, Filter, CheckCircle, Bell, BellOff, Clock, Calendar } from 'lucide-react';
+import { Sparkles, Filter, Calendar } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -12,8 +11,6 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { PriorityRemedyCard } from '@/components/PriorityRemedyCard';
-import { BottomNav } from '@/components/BottomNav';
-import { LoadingSpinner } from '@/components/LoadingSpinner';
 
 interface Remedy {
   id: string;
@@ -119,17 +116,16 @@ export default function Remedies() {
   const totalCount = remedies.length;
 
   return (
-    <div className="min-h-screen bg-background pb-20">
-      {/* Header */}
-      <div className="sticky top-0 z-40 bg-card/95 backdrop-blur-md border-b border-border">
+    <div className="yantra-shell min-h-screen pb-20">
+      <div className="sticky top-0 z-40 border-b border-border bg-card/95 backdrop-blur-md">
         <div className="max-w-3xl mx-auto px-4 py-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-full bg-nava-lavender flex items-center justify-center">
-                <Sparkles className="w-4 h-4 text-nava-royal-purple" />
+              <div className="flex h-8 w-8 items-center justify-center rounded-[8px] bg-primary/20">
+                <Sparkles className="w-4 h-4 text-[var(--primary-border)]" />
               </div>
               <div>
-                <h1 className="font-semibold text-foreground">Recommended Remedies</h1>
+                <h1 className="font-display text-foreground">Recommended Remedies</h1>
                 <p className="text-xs text-muted-foreground">
                   {completedCount} of {totalCount} completed this month
                 </p>
@@ -141,17 +137,17 @@ export default function Remedies() {
 
       <div className="max-w-3xl mx-auto px-4 py-6">
         {/* Progress Card */}
-        <Card className="card-clean mb-6 bg-gradient-to-r from-nava-lavender/50 to-nava-lavender/30 border-nava-royal-purple/20">
+        <Card className="card-clean mb-6 border-primary/30 bg-primary/10">
           <CardContent className="p-5">
             <div className="flex items-center justify-between mb-3">
-              <h3 className="font-semibold text-foreground">Monthly Progress</h3>
-              <Badge className="bg-nava-royal-purple">
+              <h3 className="font-display text-foreground">Monthly Progress</h3>
+              <Badge className="bg-nava-navy text-primary">
                 {Math.round((completedCount / totalCount) * 100)}% Complete
               </Badge>
             </div>
             <div className="w-full bg-muted rounded-full h-2 mb-2">
               <div
-                className="bg-nava-royal-purple h-2 rounded-full transition-all duration-300"
+                className="h-2 rounded-full bg-[var(--primary-border)] transition-all duration-300"
                 style={{ width: `${(completedCount / totalCount) * 100}%` }}
               />
             </div>
@@ -165,7 +161,7 @@ export default function Remedies() {
         <div className="flex items-center gap-2 mb-4">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm" className="gap-2">
+              <Button variant="outline" size="sm" className="gap-2 rounded-[9px]">
                 <Filter className="w-4 h-4" />
                 {filterPriority === 'all' ? 'All Priorities' : filterPriority.charAt(0).toUpperCase() + filterPriority.slice(1)}
               </Button>
@@ -180,7 +176,7 @@ export default function Remedies() {
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm" className="gap-2">
+              <Button variant="outline" size="sm" className="gap-2 rounded-[9px]">
                 <Calendar className="w-4 h-4" />
                 {filterCategory === 'all' ? 'All Types' : filterCategory}
               </Button>
@@ -198,14 +194,14 @@ export default function Remedies() {
 
         {/* Remedies List */}
         <Tabs defaultValue="all" className="mb-6">
-          <TabsList className="grid w-full grid-cols-3 bg-muted">
-            <TabsTrigger value="all" className="data-[state=active]:bg-nava-royal-purple data-[state=active]:text-white">
+          <TabsList className="grid w-full grid-cols-3 bg-muted p-1">
+            <TabsTrigger value="all" className="rounded-[6px] data-[state=active]:bg-nava-navy data-[state=active]:text-primary">
               All
             </TabsTrigger>
-            <TabsTrigger value="pending" className="data-[state=active]:bg-nava-royal-purple data-[state=active]:text-white">
+            <TabsTrigger value="pending" className="rounded-[6px] data-[state=active]:bg-nava-navy data-[state=active]:text-primary">
               Pending
             </TabsTrigger>
-            <TabsTrigger value="completed" className="data-[state=active]:bg-nava-royal-purple data-[state=active]:text-white">
+            <TabsTrigger value="completed" className="rounded-[6px] data-[state=active]:bg-nava-navy data-[state=active]:text-primary">
               Completed
             </TabsTrigger>
           </TabsList>
@@ -273,15 +269,15 @@ export default function Remedies() {
         </Tabs>
 
         {/* Info Card */}
-        <Card className="card-clean bg-amber-50 border-amber-200">
+        <Card className="card-clean border-border bg-card">
           <CardContent className="p-4">
             <div className="flex items-start gap-3">
-              <div className="w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center flex-shrink-0">
-                <Sparkles className="w-4 h-4 text-amber-600" />
+              <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-[8px] bg-primary/20">
+                <Sparkles className="w-4 h-4 text-[var(--primary-border)]" />
               </div>
               <div>
-                <h4 className="font-semibold text-amber-800 text-sm">About Remedies</h4>
-                <p className="text-xs text-amber-700 mt-1">
+                <h4 className="font-display text-sm text-foreground">About Remedies</h4>
+                <p className="mt-1 text-xs text-muted-foreground">
                   Vedic remedies (upayas) help reduce malefic planetary effects and enhance benefic influences.
                   Consistency matters more than complexity — start with one simple remedy daily.
                 </p>
@@ -290,8 +286,6 @@ export default function Remedies() {
           </CardContent>
         </Card>
       </div>
-
-      <BottomNav />
     </div>
   );
 }

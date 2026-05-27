@@ -13,7 +13,6 @@ import { apiRequest } from '@/lib/queryClient';
 import { ArrowLeft, Calendar, Clock, User, Loader2, Sparkles, Check, Sunrise, Info } from 'lucide-react';
 import { Link } from 'wouter';
 import { PlacesAutocomplete } from '@/components/PlacesAutocomplete';
-import { BottomNav } from '@/components/BottomNav';
 import { TrustBadge } from '@/components/TrustBadge';
 
 const kundliFormSchema = z.object({
@@ -105,23 +104,22 @@ export default function KundliNew() {
   const stepLabels = ['Personal', 'Date & Time', 'Location'];
 
   return (
-    <div className="min-h-screen bg-background pb-20">
-      {/* Header */}
-      <div className="border-b border-border px-4 py-4 bg-card">
+    <div className="yantra-shell min-h-screen pb-20">
+      <div className="border-b border-border bg-card px-4 py-4">
         <div className="max-w-3xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-3">
             <Link href="/">
-              <button className="p-2 rounded-lg hover:bg-muted transition-colors">
+              <button className="flex h-9 w-9 items-center justify-center rounded-[8px] border border-border bg-background transition-colors hover:bg-muted">
                 <ArrowLeft className="w-5 h-5 text-foreground" />
               </button>
             </Link>
-            <h1 className="font-semibold text-lg text-foreground">Generate Kundli</h1>
+            <h1 className="font-display text-xl text-foreground">Generate Kundli</h1>
           </div>
           <div className="flex items-center gap-2">
-            <div className="w-7 h-7 bg-nava-lavender rounded-lg flex items-center justify-center">
-              <Sparkles className="w-4 h-4 text-nava-royal-purple" />
+            <div className="flex h-8 w-8 items-center justify-center rounded-[8px] bg-primary/20">
+              <Sparkles className="w-4 h-4 text-[var(--primary-border)]" />
             </div>
-            <span className="font-semibold text-lg text-foreground">Navagraha</span>
+            <span className="font-display text-lg text-foreground">Navagraha</span>
           </div>
         </div>
       </div>
@@ -132,9 +130,9 @@ export default function KundliNew() {
           {[1, 2, 3].map((s) => (
             <div key={s} className="flex items-center">
               <div className="flex flex-col items-center">
-                <div className={`w-10 h-10 rounded-full flex items-center justify-center font-semibold transition-all ${
+                <div className={`flex h-10 w-10 items-center justify-center rounded-[6px] font-semibold transition-all ${
                   s === step
-                    ? 'bg-nava-royal-purple text-white ring-2 ring-nava-royal-purple ring-offset-2'
+                    ? 'bg-nava-navy text-primary ring-2 ring-nava-navy ring-offset-2 ring-offset-background'
                     : s < step
                       ? 'bg-green-600 text-white'
                       : 'bg-muted text-muted-foreground'
@@ -142,7 +140,7 @@ export default function KundliNew() {
                   {s < step ? <Check className="w-5 h-5" /> : s}
                 </div>
                 <span className={`text-xs mt-1.5 font-medium ${
-                  s === step ? 'text-nava-royal-purple' : s < step ? 'text-green-600' : 'text-muted-foreground'
+                  s === step ? 'text-[var(--primary-border)]' : s < step ? 'text-green-600' : 'text-muted-foreground'
                 }`}>
                   {stepLabels[s - 1]}
                 </span>
@@ -157,10 +155,10 @@ export default function KundliNew() {
         </div>
 
         {/* Form Card */}
-        <div className="bg-card border border-border rounded-xl p-6 mb-6">
+        <div className="yantra-card mb-6 p-6">
           <div className="mb-6">
             <div className="flex items-center justify-between mb-2">
-              <h2 className="font-semibold text-xl text-foreground">
+              <h2 className="font-display text-2xl text-foreground">
                 {step === 1 ? 'Personal Details' : step === 2 ? 'Birth Date & Time' : 'Birth Place'}
               </h2>
               <TrustBadge variant="calculated" />
@@ -190,7 +188,7 @@ export default function KundliNew() {
                             <User className="absolute left-3 top-3 w-5 h-5 text-muted-foreground" />
                             <Input
                               placeholder="Enter your full name"
-                              className="pl-10 bg-input-background"
+                              className="bg-input-background pl-10 rounded-[10px]"
                               {...field}
                             />
                           </div>
@@ -208,7 +206,7 @@ export default function KundliNew() {
                         <FormLabel>Gender</FormLabel>
                         <Select onValueChange={field.onChange} defaultValue={field.value}>
                           <FormControl>
-                            <SelectTrigger className="bg-input-background">
+                            <SelectTrigger className="bg-input-background rounded-[10px]">
                               <SelectValue placeholder="Select gender" />
                             </SelectTrigger>
                           </FormControl>
@@ -226,7 +224,7 @@ export default function KundliNew() {
                   <Button
                     type="button"
                     onClick={nextStep}
-                    className="w-full bg-nava-royal-purple hover:bg-nava-royal-purple/90 text-white"
+                    className="w-full rounded-[9px] bg-primary text-primary-foreground hover:bg-primary/90"
                   >
                     Continue →
                   </Button>
@@ -247,7 +245,7 @@ export default function KundliNew() {
                             <Calendar className="absolute left-3 top-3 w-5 h-5 text-muted-foreground" />
                             <Input
                               type="date"
-                              className="pl-10 bg-input-background"
+                              className="bg-input-background pl-10 rounded-[10px]"
                               {...field}
                             />
                           </div>
@@ -268,7 +266,7 @@ export default function KundliNew() {
                             <Clock className="absolute left-3 top-3 w-5 h-5 text-muted-foreground" />
                             <Input
                               type="time"
-                              className="pl-10 bg-input-background"
+                              className="bg-input-background pl-10 rounded-[10px]"
                               {...field}
                             />
                           </div>
@@ -278,7 +276,7 @@ export default function KundliNew() {
                           <button
                             type="button"
                             onClick={handleSunriseClick}
-                            className="mt-2 inline-flex items-center gap-2 text-sm text-nava-royal-purple hover:underline"
+                            className="mt-2 inline-flex items-center gap-2 border-b border-foreground pb-0.5 text-sm font-semibold text-foreground"
                           >
                             <Sunrise className="w-4 h-4" />
                             Don't know exact time? Use sunrise (6:00 AM)
@@ -288,14 +286,14 @@ export default function KundliNew() {
                     )}
                   />
 
-                  <div className="bg-nava-lavender/50 border border-nava-royal-purple/20 rounded-lg p-4">
+                  <div className="rounded-[10px] border border-primary/25 bg-primary/10 p-4">
                     <div className="flex items-start gap-3">
-                      <Info className="w-5 h-5 text-nava-royal-purple flex-shrink-0 mt-0.5" />
+                      <Info className="mt-0.5 h-5 w-5 flex-shrink-0 text-[var(--primary-border)]" />
                       <div>
-                        <p className="text-sm text-nava-royal-purple font-medium">
+                        <p className="text-sm font-semibold text-[var(--primary-border)]">
                           Why birth time matters
                         </p>
-                        <p className="text-xs text-nava-royal-purple/80 mt-1">
+                        <p className="mt-1 text-xs text-[var(--primary-border)]/80">
                           Exact birth time affects Moon sign and house positions.
                           Even 4 minutes can change your Ascendant.
                         </p>
@@ -308,14 +306,14 @@ export default function KundliNew() {
                       type="button"
                       variant="outline"
                       onClick={() => setStep(1)}
-                      className="flex-1"
+                      className="flex-1 rounded-[9px]"
                     >
                       ← Back
                     </Button>
                     <Button
                       type="button"
                       onClick={nextStep}
-                      className="flex-1 bg-nava-royal-purple hover:bg-nava-royal-purple/90 text-white"
+                      className="flex-1 rounded-[9px] bg-primary text-primary-foreground hover:bg-primary/90"
                     >
                       Continue →
                     </Button>
@@ -340,7 +338,7 @@ export default function KundliNew() {
                               setCoordinates({ lat: place.lat, lng: place.lng });
                             }}
                             placeholder="City, State, Country"
-                            className="bg-input-background"
+                            className="bg-input-background rounded-[10px]"
                           />
                         </FormControl>
                         <FormMessage />
@@ -348,14 +346,14 @@ export default function KundliNew() {
                     )}
                   />
 
-                  <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+                  <div className="rounded-[10px] border border-border bg-card p-4">
                     <div className="flex items-start gap-3">
-                      <Info className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+                      <Info className="mt-0.5 h-5 w-5 flex-shrink-0 text-[var(--primary-border)]" />
                       <div>
-                        <p className="text-sm text-amber-800 font-medium">
+                        <p className="text-sm font-semibold text-foreground">
                           Accuracy Note
                         </p>
-                        <p className="text-xs text-amber-700 mt-1">
+                        <p className="mt-1 text-xs text-muted-foreground">
                           Accurate birth details are essential for precise astrological calculations.
                           Please verify all information before generating your chart.
                         </p>
@@ -368,13 +366,13 @@ export default function KundliNew() {
                       type="button"
                       variant="outline"
                       onClick={() => setStep(2)}
-                      className="flex-1"
+                      className="flex-1 rounded-[9px]"
                     >
                       ← Back
                     </Button>
                     <Button
                       type="submit"
-                      className="flex-1 bg-nava-royal-purple hover:bg-nava-royal-purple/90 text-white"
+                      className="flex-1 rounded-[9px] bg-primary text-primary-foreground hover:bg-primary/90"
                       disabled={mutation.isPending}
                     >
                       {mutation.isPending ? (
@@ -408,7 +406,6 @@ export default function KundliNew() {
         </div>
       </div>
 
-      <BottomNav />
     </div>
   );
 }
