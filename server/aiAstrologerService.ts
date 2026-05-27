@@ -68,6 +68,12 @@ function chartSummary(kundli: Partial<Kundli>): string {
     .map((p) => `- ${p.planet}: ${p.sign} (D9 House ${p.house})`)
     .join("\n");
 
+  const dasamsaPos: any[] = (kundli as any).chartData?.dasamsa?.planetaryPositions || [];
+  const dasamsaLines = dasamsaPos
+    .filter((p) => p.planet !== "Ascendant")
+    .map((p) => `- ${p.planet}: ${p.sign} (D10 House ${p.house})`)
+    .join("\n");
+
   const savByHouse: number[] = (kundli as any).chartData?.ashtakavarga?.savByHouse || [];
   const savLine = savByHouse.length === 12
     ? savByHouse.map((b, i) => `H${i + 1}:${b}`).join("  ")
@@ -113,6 +119,9 @@ ${posLines || "Not available"}
 
 Navamsa Positions (D9 — marriage, dharma, true strength):
 ${navLines || "Not available"}
+
+Dasamsa Positions (D10 — career & profession):
+${dasamsaLines || "Not available"}
 
 Yogas detected (note any cancellation/bhanga):
 ${yogaLines || "None detected"}

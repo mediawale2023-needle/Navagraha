@@ -73,6 +73,30 @@ export function navamsaDegree(lon: number): number {
   return ((l % (30 / 9)) / (30 / 9)) * 30;
 }
 
+/**
+ * Dasamsa (D10) sign index — career & profession. Each 3° amsa; odd signs count
+ * from the sign itself, even signs from the 9th sign from it.
+ */
+export function dasamsaSign(lon: number): number {
+  const l = ((lon % 360) + 360) % 360;
+  const signIdx = Math.floor(l / 30) % 12;
+  const k = Math.min(9, Math.floor((l % 30) / 3)); // 0..9
+  const oddSign = signIdx % 2 === 0; // index 0 (Aries) = 1st sign = odd
+  const start = oddSign ? signIdx : (signIdx + 8) % 12;
+  return (start + k) % 12;
+}
+
+/**
+ * Shashtiamsa (D60) sign index — past-life karma; the finest division and the
+ * most birth-time sensitive (each amsa is 0.5° ≈ 2 minutes of birth time).
+ */
+export function shashtiamsaSign(lon: number): number {
+  const l = ((lon % 360) + 360) % 360;
+  const signIdx = Math.floor(l / 30) % 12;
+  const deg = l % 30;
+  return (signIdx + Math.floor(deg * 2)) % 12;
+}
+
 // ─── Nakshatras ───────────────────────────────────────────────────────────────
 
 export interface NakshatraData {

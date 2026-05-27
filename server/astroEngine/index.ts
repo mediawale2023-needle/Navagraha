@@ -8,7 +8,7 @@ import { julianDay, toSidereal, lahiriAyanamsa } from './core.js';
 import { allPlanetPositions, ascendant }          from './planets.js';
 import {
   SIGNS, signFromLon, degreeInSign, nakshatraFromLon, houseFromLon, signOfHouse, getRemedies,
-  navamsaSign, navamsaDegree,
+  navamsaSign, navamsaDegree, dasamsaSign, shashtiamsaSign,
 } from './vedic.js';
 import { calculateDashas, calculateYoginiDasha } from './dasha.js';
 import { computeAshtakavarga } from './ashtakavarga.js';
@@ -35,6 +35,14 @@ export interface NativeKundliResult {
     houses:             Array<{ house: number; sign: string; planets: string[] }>;
     planetaryPositions: Array<{ planet: string; sign: string; degree: number; house: number; isRetrograde: boolean }>;
     navamsa?: {
+      houses:             Array<{ house: number; sign: string; planets: string[] }>;
+      planetaryPositions: Array<{ planet: string; sign: string; degree: number; house: number; isRetrograde: boolean }>;
+    };
+    dasamsa?: {
+      houses:             Array<{ house: number; sign: string; planets: string[] }>;
+      planetaryPositions: Array<{ planet: string; sign: string; degree: number; house: number; isRetrograde: boolean }>;
+    };
+    shashtiamsa?: {
       houses:             Array<{ house: number; sign: string; planets: string[] }>;
       planetaryPositions: Array<{ planet: string; sign: string; degree: number; house: number; isRetrograde: boolean }>;
     };
@@ -209,6 +217,28 @@ export async function getKundli(
     };
   });
 
+  // ─── Divisional charts D10 (career) & D60 (karma) ─────────────
+  const buildVarga = (signFn: (lon: number) => number) => {
+    const ascV = signFn(ascSidereal);
+    const positions = PLANET_NAMES.map(name => {
+      const vs = signFn(sidereal[name] ?? 0);
+      return {
+        planet:       name,
+        sign:         SIGNS[vs],
+        degree:       0,
+        house:        ((vs - ascV + 12) % 12) + 1,
+        isRetrograde: tropical[name]?.isRetrograde ?? false,
+      };
+    });
+    const housesV = Array.from({ length: 12 }, (_, i) => {
+      const s = (ascV + i) % 12;
+      return { house: i + 1, sign: SIGNS[s], planets: positions.filter(p => p.house === i + 1).map(p => p.planet) };
+    });
+    return { houses: housesV, planetaryPositions: [{ planet: 'Ascendant', sign: SIGNS[ascV], degree: 0, house: 1, isRetrograde: false }, ...positions] };
+  };
+  const dasamsa = buildVarga(dasamsaSign);
+  const shashtiamsa = buildVarga(shashtiamsaSign);
+
   // ─── Ashtakavarga (BAV + SAV) ─────────────────────────────────
   const avSignIndex: Record<string, number> = { Ascendant: Math.floor((ascSidereal % 360) / 30) % 12 };
   for (const p of ['Sun', 'Moon', 'Mars', 'Mercury', 'Jupiter', 'Venus', 'Saturn']) {
@@ -262,6 +292,8 @@ export async function getKundli(
         houses: navamsaHouses,
         planetaryPositions: [navAscEntry, ...navamsaPositions],
       },
+      dasamsa,
+      shashtiamsa,
       ashtakavarga,
       dignities,
       bhava,

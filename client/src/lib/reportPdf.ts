@@ -29,6 +29,7 @@ export interface ReportContent {
     houses?: { house: number; sign?: string }[];
     planetaryPositions?: ChartPlanetPos[];
     navamsa?: { houses?: { house: number; sign?: string }[]; planetaryPositions?: ChartPlanetPos[] };
+    dasamsa?: { houses?: { house: number; sign?: string }[]; planetaryPositions?: ChartPlanetPos[] };
     ashtakavarga?: { savByHouse?: number[] };
   };
   dashaTimeline?: {
@@ -141,6 +142,12 @@ export async function downloadReportPdf(content: ReportContent) {
     heading("Navamsa Chart (D9)");
     ensure(96);
     drawChart(doc, content.chartData.navamsa, (PW - 90) / 2, y, 90);
+    y += 96;
+  }
+  if (content.chartData?.dasamsa?.planetaryPositions?.length) {
+    heading("Dasamsa Chart (D10 — Career)");
+    ensure(96);
+    drawChart(doc, content.chartData.dasamsa, (PW - 90) / 2, y, 90);
     y += 96;
   }
 

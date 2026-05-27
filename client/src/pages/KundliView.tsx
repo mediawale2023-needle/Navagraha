@@ -397,6 +397,20 @@ export default function KundliView() {
                       <NorthIndianChartEnhanced chartData={chartData.navamsa} />
                     </div>
                   )}
+                  {chartData?.dasamsa?.planetaryPositions && (
+                    <div className="w-full pt-4 mt-2 border-t border-border/40">
+                      <h3 className="text-sm font-semibold text-nava-royal-purple text-center mb-1">Dasamsa (D10)</h3>
+                      <p className="text-xs text-muted-foreground text-center mb-3">Career & profession</p>
+                      <NorthIndianChartEnhanced chartData={chartData.dasamsa} />
+                    </div>
+                  )}
+                  {chartData?.shashtiamsa?.planetaryPositions && (
+                    <div className="w-full pt-4 mt-2 border-t border-border/40">
+                      <h3 className="text-sm font-semibold text-nava-royal-purple text-center mb-1">Shashtiamsa (D60)</h3>
+                      <p className="text-xs text-muted-foreground text-center mb-3">Past-life karma — accurate only with an exact birth time</p>
+                      <NorthIndianChartEnhanced chartData={chartData.shashtiamsa} />
+                    </div>
+                  )}
                 </div>
               </CardContent>
             </Card>

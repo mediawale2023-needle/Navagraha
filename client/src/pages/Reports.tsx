@@ -329,6 +329,12 @@ export default function Reports() {
                   <NorthIndianChartEnhanced chartData={viewing.content.chartData.navamsa} />
                 </div>
               )}
+              {viewing.content.chartData?.dasamsa?.planetaryPositions && (
+                <div>
+                  <h3 className="font-semibold text-nava-royal-purple mb-2">Dasamsa (D10) — Career</h3>
+                  <NorthIndianChartEnhanced chartData={viewing.content.chartData.dasamsa} />
+                </div>
+              )}
 
               {/* Planetary positions */}
               {viewing.content.planetaryPositions && viewing.content.planetaryPositions.length > 0 && (
