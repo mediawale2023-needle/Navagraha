@@ -30,8 +30,15 @@ export interface UserContext {
  */
 export async function runCouncil(context: UserContext): Promise<string> {
   const today = new Date().toISOString().split('T')[0];
+
+  // Recompute the running periods from TODAY (not the stored status, which is
+  // frozen at chart-generation time) so the council can't anchor to a stale year.
+  const currentPeriod = deriveCurrentPeriod(context.chartData?.dashas, today);
+  const currentPeriodLine = currentPeriod
+    ? ` As of today the running Mahadasha is ${currentPeriod.maha}${currentPeriod.antar ? ` and the running Antardasha is ${currentPeriod.antar}` : ''}${currentPeriod.period ? ` (${currentPeriod.period})` : ''} — treat this as authoritative and do not contradict it.`
+    : '';
   const temporalInjector = (prompt: string) =>
-    `GLOBAL DIRECTIVE: The exact current date is ${today}. All 'current' Dasha and Transit analysis MUST be relative to today. Do not hallucinate historical dates as the present.\n\n${prompt}`;
+    `GLOBAL DIRECTIVE: Today's exact date is ${today} (YYYY-MM-DD); treat this as the present moment.${currentPeriodLine} All 'current' Dasha and Transit analysis MUST be relative to ${today}. Never describe a past year as the present, and never call a period that has already begun 'upcoming'.\n\n${prompt}`;
 
   // Only the final reading is translated; the internal council reasons in English.
   const lang = context.language && context.language.trim().toLowerCase() !== 'english' ? context.language.trim() : null;
@@ -88,6 +95,10 @@ export async function runCouncil(context: UserContext): Promise<string> {
   console.log('[Orchestrator] Council computations complete. Synthesizing...');
 
   const synthesisPayload = `
+### Authoritative Temporal Facts (DO NOT contradict):
+- Today's date: ${today}
+${currentPeriod ? `- Running Mahadasha: ${currentPeriod.maha}\n- Running Antardasha: ${currentPeriod.antar || '—'}${currentPeriod.period ? `\n- Mahadasha period: ${currentPeriod.period}` : ''}` : '- (Dasha periods unavailable)'}
+
 ### User Query:
 ${context.currentQuery}
 
@@ -113,6 +124,24 @@ Speak directly to the person — no "ifs", no "coulds". The math is already comp
 
   return finalReading;
 
+}
+
+/**
+ * Determine the running Mahadasha/Antardasha as of `today` (YYYY-MM-DD) from a
+ * dasha timeline, by date range rather than the stored `status` (which is frozen
+ * when the chart is generated and goes stale over time).
+ */
+function deriveCurrentPeriod(
+  dashas: any,
+  today: string,
+): { maha: string; antar?: string; period?: string } | null {
+  if (!Array.isArray(dashas)) return null;
+  const inRange = (d: any) => d?.startDate && d?.endDate && d.startDate <= today && today < d.endDate;
+  const md = dashas.find(inRange) || dashas.find((d: any) => d?.status === 'current');
+  if (!md) return null;
+  const antars = Array.isArray(md.antardashas) ? md.antardashas : [];
+  const ad = antars.find(inRange) || antars.find((a: any) => a?.status === 'current');
+  return { maha: md.planet, antar: ad?.planet, period: md.period };
 }
 
 /**
