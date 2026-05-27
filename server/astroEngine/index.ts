@@ -12,6 +12,7 @@ import {
 } from './vedic.js';
 import { calculateDashas }     from './dasha.js';
 import { computeAshtakavarga } from './ashtakavarga.js';
+import { computeDignities } from './dignity.js';
 import { hasMangalDosha, hasKaalSarpDosha, hasPitraDosha } from './doshas.js';
 import { ashtakootMatch }      from './matching.js';
 import { calculateNumerology } from './numerology.js';
@@ -40,6 +41,7 @@ export interface NativeKundliResult {
       sav: number[];                  // per sign (0=Aries)
       savByHouse: number[];           // index 0 = 1st house (Lagna sign)
     };
+    dignities?: Array<{ planet: string; sign: string; degree: number; dignity: string; retrograde: boolean; combust: boolean; planetaryWar?: string; avastha: string; neechaBhanga?: boolean }>;
   };
   dashas:   Array<{ planet: string; period: string; status: string; startDate: string; endDate: string }>;
   doshas:   { mangalDosha: boolean; kaalSarpDosha: boolean; pitruDosha: boolean };
@@ -208,6 +210,11 @@ export async function getKundli(
     savByHouse: Array.from({ length: 12 }, (_, h) => av.sav[(avSignIndex.Ascendant + h) % 12]),
   };
 
+  // ─── Planetary dignity & avastha ──────────────────────────────
+  const retroMap: Record<string, boolean> = {};
+  for (const [name, pos] of Object.entries(tropical)) retroMap[name] = (pos as any).isRetrograde ?? false;
+  const dignities = computeDignities(sidereal, avSignIndex.Ascendant, retroMap);
+
   // Vimshottari Dasha
   const dashas = calculateDashas(sidereal['Moon'], birthUTC);
 
@@ -233,6 +240,7 @@ export async function getKundli(
         planetaryPositions: [navAscEntry, ...navamsaPositions],
       },
       ashtakavarga,
+      dignities,
     },
     dashas: dashas.map(d => ({
       planet:      d.planet,

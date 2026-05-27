@@ -60,6 +60,11 @@ function chartSummary(kundli: Partial<Kundli>): string {
     ? savByHouse.map((b, i) => `H${i + 1}:${b}`).join("  ")
     : "";
 
+  const dignities: any[] = (kundli as any).chartData?.dignities || [];
+  const dignityLines = dignities
+    .map((p) => `- ${p.planet}: ${p.dignity}${p.neechaBhanga ? " (Neecha Bhanga — cancellation)" : ""}${p.retrograde ? ", retrograde" : ""}${p.combust ? ", combust" : ""}${p.planetaryWar ? `, in planetary war with ${p.planetaryWar}` : ""} — ${p.avastha}`)
+    .join("\n");
+
   return `
 Name: ${birthDetails.name || "Unknown"}
 Date of Birth: ${birthDetails.dateOfBirth || "Unknown"}
@@ -74,6 +79,9 @@ ${posLines || "Not available"}
 
 Navamsa Positions (D9 — marriage, dharma, true strength):
 ${navLines || "Not available"}
+
+Planetary Dignity & State (what each planet can deliver):
+${dignityLines || "Not available"}
 
 Sarvashtakavarga (SAV) bindus by house (higher = stronger; >30 strong, <25 weak; total 337):
 ${savLine || "Not available"}

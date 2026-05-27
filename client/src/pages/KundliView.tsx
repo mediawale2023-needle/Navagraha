@@ -448,6 +448,40 @@ export default function KundliView() {
               </Card>
             )}
 
+            {chartData?.dignities?.length > 0 && (
+              <Card className="mt-4">
+                <CardHeader>
+                  <CardTitle className="text-base">Planetary Dignity &amp; State</CardTitle>
+                </CardHeader>
+                <CardContent className="overflow-x-auto">
+                  <table className="w-full text-xs border-collapse">
+                    <thead>
+                      <tr className="bg-nava-lavender/40 text-left">
+                        <th className="p-1.5 font-medium">Planet</th>
+                        <th className="p-1.5 font-medium">Sign</th>
+                        <th className="p-1.5 font-medium">Dignity</th>
+                        <th className="p-1.5 font-medium">State</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {chartData.dignities.map((p: any) => (
+                        <tr key={p.planet} className="border-b border-border/40">
+                          <td className="p-1.5 font-medium">{p.planet}</td>
+                          <td className="p-1.5">{p.sign}</td>
+                          <td className={`p-1.5 ${p.dignity === 'Exalted' || p.dignity === 'Own sign' || p.dignity === 'Moolatrikona' ? 'text-green-700' : p.dignity === 'Debilitated' ? 'text-red-700' : ''}`}>
+                            {p.dignity}{p.neechaBhanga ? ' (cancelled)' : ''}
+                          </td>
+                          <td className="p-1.5 text-muted-foreground">
+                            {[p.retrograde ? 'R' : '', p.combust ? 'Combust' : '', p.planetaryWar ? `War:${p.planetaryWar}` : '', p.avastha?.split(' ')[0]].filter(Boolean).join(', ')}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </CardContent>
+              </Card>
+            )}
+
             {transits && (
               <Card className="mt-4">
                 <CardHeader>
