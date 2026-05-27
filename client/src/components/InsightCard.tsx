@@ -34,7 +34,7 @@ export function InsightCard({
 
   const priorityColors = {
     high: 'border-l-nava-burgundy border-l-4',
-    medium: 'border-l-nava-royal-purple border-l-4',
+    medium: 'border-l-[var(--primary-border)] border-l-4',
     low: 'border-l-nava-deep-green border-l-4',
   };
 
@@ -51,27 +51,26 @@ export function InsightCard({
 
   return (
     <div
-      className={`bg-card border border-border rounded-xl p-4 transition-all duration-200 hover:shadow-md ${priorityColors[priority]}`}
+      className={`yantra-card p-4 ${priorityColors[priority]}`}
     >
       <div className="flex items-start gap-3">
-        {/* Icon */}
-        <div className="w-10 h-10 rounded-full bg-nava-lavender flex items-center justify-center flex-shrink-0">
-          {icon || <Sparkles className="w-5 h-5 text-nava-royal-purple" />}
+        <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-[8px] bg-primary/15">
+          {icon || <Sparkles className="w-5 h-5 text-[var(--primary-border)]" />}
         </div>
 
         {/* Content */}
         <div className="flex-1 min-w-0">
           <div className="flex items-start justify-between gap-2">
             <div>
-              <h3 className="font-semibold text-foreground text-base">
+              <h3 className="font-display text-base text-foreground">
                 {title}
               </h3>
               <span
-                className={`inline-block mt-1 px-2 py-0.5 rounded-full text-xs font-medium ${
+                className={`mt-1 inline-block rounded-[6px] px-2 py-0.5 text-xs font-medium ${
                   priority === 'high'
                     ? 'bg-red-50 text-red-700'
                     : priority === 'medium'
-                    ? 'bg-nava-lavender text-nava-royal-purple'
+                    ? 'bg-primary/15 text-[var(--primary-border)]'
                     : 'bg-green-50 text-green-700'
                 }`}
               >
@@ -107,7 +106,7 @@ export function InsightCard({
               </p>
               <button
                 onClick={() => setExpanded(false)}
-                className="mt-3 text-nava-royal-purple text-sm font-medium hover:underline"
+                className="mt-3 border-b border-foreground pb-0.5 text-sm font-medium text-foreground"
               >
                 Show Less
               </button>

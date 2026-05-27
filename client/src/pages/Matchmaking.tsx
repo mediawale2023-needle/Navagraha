@@ -13,7 +13,6 @@ import { Progress } from '@/components/ui/progress';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest } from '@/lib/queryClient';
 import { ArrowLeft, Heart, Loader2 } from 'lucide-react';
-import { BottomNav } from '@/components/BottomNav';
 import { PlacesAutocomplete } from '@/components/PlacesAutocomplete';
 
 const matchmakingSchema = z.object({
@@ -83,18 +82,17 @@ export default function Matchmaking() {
   ];
 
   return (
-    <div className="min-h-screen bg-background text-foreground pb-20">
-      {/* Header */}
-      <div className="border-b border-foreground/5 px-4 pt-12 pb-8">
+    <div className="yantra-shell min-h-screen pb-20 text-foreground">
+      <div className="border-b border-border px-4 pt-12 pb-8">
         <div className="max-w-5xl mx-auto">
           <Link href="/">
-            <button className="mb-4 p-2 rounded-lg hover:bg-foreground/5 transition-colors" data-testid="button-back">
+            <button className="mb-4 flex h-9 w-9 items-center justify-center rounded-[8px] border border-border bg-card transition-colors hover:bg-muted" data-testid="button-back">
               <ArrowLeft className="w-5 h-5 text-foreground" />
             </button>
           </Link>
           <div className="text-center">
             <Heart className="w-14 h-14 text-[var(--magenta)] mx-auto mb-3" fill="currentColor" />
-            <h1 className="font-serif text-3xl font-bold text-foreground mb-1">
+            <h1 className="font-display text-4xl text-foreground mb-1">
               Kundli Milan
             </h1>
             <p className="text-foreground/80 text-base">
@@ -110,9 +108,9 @@ export default function Matchmaking() {
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {/* Person 1 */}
-                <Card className="glass-card overflow-hidden">
-                  <CardHeader className="bg-[var(--magenta)]/5 border-b border-foreground/5">
-                    <CardTitle className="text-foreground">Person 1 Details</CardTitle>
+                <Card className="yantra-card overflow-hidden">
+                  <CardHeader className="border-b border-border bg-primary/10">
+                    <CardTitle className="font-display text-foreground">Person 1 Details</CardTitle>
                     <CardDescription>Enter first person's birth information</CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-4 pt-4">
@@ -123,7 +121,7 @@ export default function Matchmaking() {
                         <FormItem>
                           <FormLabel>Name</FormLabel>
                           <FormControl>
-                            <Input placeholder="Full name" {...field} data-testid="input-person1-name" />
+                            <Input className="rounded-[10px]" placeholder="Full name" {...field} data-testid="input-person1-name" />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
@@ -138,7 +136,7 @@ export default function Matchmaking() {
                           <FormLabel>Gender</FormLabel>
                           <Select onValueChange={field.onChange} defaultValue={field.value}>
                             <FormControl>
-                              <SelectTrigger data-testid="select-person1-gender">
+                              <SelectTrigger className="rounded-[10px]" data-testid="select-person1-gender">
                                 <SelectValue placeholder="Select gender" />
                               </SelectTrigger>
                             </FormControl>
@@ -160,7 +158,7 @@ export default function Matchmaking() {
                         <FormItem>
                           <FormLabel>Date of Birth</FormLabel>
                           <FormControl>
-                            <Input type="date" {...field} data-testid="input-person1-date" />
+                            <Input className="rounded-[10px]" type="date" {...field} data-testid="input-person1-date" />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
@@ -174,7 +172,7 @@ export default function Matchmaking() {
                         <FormItem>
                           <FormLabel>Time of Birth</FormLabel>
                           <FormControl>
-                            <Input type="time" {...field} data-testid="input-person1-time" />
+                            <Input className="rounded-[10px]" type="time" {...field} data-testid="input-person1-time" />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
@@ -203,9 +201,9 @@ export default function Matchmaking() {
                 </Card>
 
                 {/* Person 2 */}
-                <Card className="glass-card overflow-hidden">
-                  <CardHeader className="bg-indigo-50 border-b border-indigo-100">
-                    <CardTitle className="text-foreground">Person 2 Details</CardTitle>
+                <Card className="yantra-card overflow-hidden">
+                  <CardHeader className="border-b border-border bg-card">
+                    <CardTitle className="font-display text-foreground">Person 2 Details</CardTitle>
                     <CardDescription>Enter second person's birth information</CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-4 pt-4">
@@ -216,7 +214,7 @@ export default function Matchmaking() {
                         <FormItem>
                           <FormLabel>Name</FormLabel>
                           <FormControl>
-                            <Input placeholder="Full name" {...field} data-testid="input-person2-name" />
+                            <Input className="rounded-[10px]" placeholder="Full name" {...field} data-testid="input-person2-name" />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
@@ -231,7 +229,7 @@ export default function Matchmaking() {
                           <FormLabel>Gender</FormLabel>
                           <Select onValueChange={field.onChange} defaultValue={field.value}>
                             <FormControl>
-                              <SelectTrigger data-testid="select-person2-gender">
+                              <SelectTrigger className="rounded-[10px]" data-testid="select-person2-gender">
                                 <SelectValue placeholder="Select gender" />
                               </SelectTrigger>
                             </FormControl>
@@ -253,7 +251,7 @@ export default function Matchmaking() {
                         <FormItem>
                           <FormLabel>Date of Birth</FormLabel>
                           <FormControl>
-                            <Input type="date" {...field} data-testid="input-person2-date" />
+                            <Input className="rounded-[10px]" type="date" {...field} data-testid="input-person2-date" />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
@@ -267,7 +265,7 @@ export default function Matchmaking() {
                         <FormItem>
                           <FormLabel>Time of Birth</FormLabel>
                           <FormControl>
-                            <Input type="time" {...field} data-testid="input-person2-time" />
+                            <Input className="rounded-[10px]" type="time" {...field} data-testid="input-person2-time" />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
@@ -299,7 +297,7 @@ export default function Matchmaking() {
               <Button
                 type="submit"
                 size="lg"
-                className="w-full gradient-primary hover:opacity-90 text-white"
+                className="w-full rounded-[9px] bg-primary text-primary-foreground hover:bg-primary/90"
                 disabled={mutation.isPending}
                 data-testid="button-calculate-compatibility"
               >
@@ -320,19 +318,19 @@ export default function Matchmaking() {
         ) : (
           <div className="space-y-6">
             {/* Overall Score */}
-            <Card className="glass-card overflow-hidden border-0">
+            <Card className="yantra-card overflow-hidden border-0">
               <CardContent className="p-0">
-                <div className="bg-gradient-to-br from-orange-600 to-orange-500 p-8 text-center">
-                  <h2 className="font-serif text-2xl font-semibold mb-2 text-white">Compatibility Score</h2>
-                  <p className="text-white/80 mb-4" data-testid="text-person-names">
+                <div className="bg-primary p-8 text-center text-[var(--nava-navy)]">
+                  <h2 className="font-display text-3xl mb-2">Compatibility Score</h2>
+                  <p className="mb-4 text-[var(--nava-navy)]/70" data-testid="text-person-names">
                     {result.person1 || 'Person 1'} & {result.person2 || 'Person 2'}
                   </p>
-                  <div className="w-32 h-32 mx-auto rounded-full bg-white/5/20 flex items-center justify-center mb-3">
-                    <span className="text-6xl font-bold text-white" data-testid="text-compatibility-score">
+                  <div className="mx-auto mb-3 flex h-32 w-32 items-center justify-center rounded-[8px] bg-nava-navy">
+                    <span className="font-display text-6xl text-primary" data-testid="text-compatibility-score">
                       {result.totalScore || 78}%
                     </span>
                   </div>
-                  <p className="text-lg text-white/90">
+                  <p className="text-lg">
                     {result.totalScore >= 70 ? 'Excellent Match!' :
                       result.totalScore >= 50 ? 'Good Match' : 'Fair Match'}
                   </p>
@@ -341,9 +339,9 @@ export default function Matchmaking() {
             </Card>
 
             {/* Detailed Breakdown */}
-            <Card className="glass-card">
+            <Card className="yantra-card">
               <CardHeader>
-                <CardTitle className="text-foreground">Compatibility Breakdown</CardTitle>
+                <CardTitle className="font-display text-foreground">Compatibility Breakdown</CardTitle>
                 <CardDescription>Detailed analysis across different aspects</CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
@@ -358,7 +356,7 @@ export default function Matchmaking() {
                       <span className="font-medium text-foreground">{item.label}</span>
                       <span className="text-2xl font-bold text-foreground">{item.score}%</span>
                     </div>
-                    <div className="h-3 w-full bg-gray-100 rounded-full overflow-hidden">
+                    <div className="h-3 w-full overflow-hidden rounded-full bg-muted">
                       <div
                         className={`h-full rounded-full ${compatibilityColors[i]} transition-all duration-500`}
                         style={{ width: `${item.score}%` }}
@@ -370,13 +368,13 @@ export default function Matchmaking() {
             </Card>
 
             {/* Recommendations */}
-            <Card className="glass-card">
+            <Card className="yantra-card">
               <CardHeader>
-                <CardTitle className="text-foreground">Astrological Insights</CardTitle>
+                <CardTitle className="font-display text-foreground">Astrological Insights</CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
-                  <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
+                  <div className="rounded-[10px] border border-green-200 bg-green-50 p-4">
                     <h4 className="font-semibold mb-2 text-green-700">Strengths</h4>
                     <ul className="text-sm text-muted-foreground space-y-1 list-disc list-inside">
                       <li>Strong emotional connection</li>
@@ -385,8 +383,8 @@ export default function Matchmaking() {
                     </ul>
                   </div>
 
-                  <div className="p-4 bg-amber-50 border border-amber-200 rounded-lg">
-                    <h4 className="font-semibold mb-2 text-amber-700">Areas to Work On</h4>
+                  <div className="rounded-[10px] border border-primary/30 bg-primary/10 p-4">
+                    <h4 className="mb-2 font-semibold text-[var(--primary-border)]">Areas to Work On</h4>
                     <ul className="text-sm text-muted-foreground space-y-1 list-disc list-inside">
                       <li>Communication during stressful times</li>
                       <li>Financial planning requires attention</li>
@@ -399,7 +397,7 @@ export default function Matchmaking() {
             <div className="flex gap-4">
               <Button
                 variant="outline"
-                className="flex-1"
+                className="flex-1 rounded-[9px]"
                 onClick={() => {
                   setResult(null);
                   form.reset({
@@ -419,14 +417,13 @@ export default function Matchmaking() {
               >
                 New Calculation
               </Button>
-              <Button className="flex-1 gradient-primary hover:opacity-90 text-white" data-testid="button-download-report">
+              <Button className="flex-1 rounded-[9px] bg-nava-navy text-primary hover:bg-nava-navy/90" data-testid="button-download-report">
                 Download Report
               </Button>
             </div>
           </div>
         )}
       </div>
-      <BottomNav />
     </div>
   );
 }

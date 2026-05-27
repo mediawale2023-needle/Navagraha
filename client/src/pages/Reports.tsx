@@ -116,33 +116,33 @@ export default function Reports() {
   const typeById = (id: string) => types?.find((t) => t.id === id);
 
   return (
-    <div className="min-h-screen bg-background text-foreground pb-24 md:pb-8">
-      <div className="sticky top-0 z-50 bg-background/95 backdrop-blur-md border-b border-border/30">
+    <div className="yantra-shell min-h-screen pb-24 text-foreground md:pb-8">
+      <div className="sticky top-0 z-50 border-b border-border bg-background/95 backdrop-blur-md">
         <div className="w-full max-w-7xl mx-auto px-4 md:px-8 lg:px-12 py-3 flex items-center gap-3">
-          <Link href="/"><button className="p-1.5 rounded-lg hover:bg-muted" data-testid="button-back"><ArrowLeft className="w-5 h-5" /></button></Link>
-          <h1 className="font-bold text-lg flex items-center gap-2"><FileText className="w-5 h-5 text-nava-royal-purple" /> Astrology Reports</h1>
+          <Link href="/"><button className="flex h-9 w-9 items-center justify-center rounded-[8px] border border-border bg-card hover:bg-muted" data-testid="button-back"><ArrowLeft className="w-5 h-5" /></button></Link>
+          <h1 className="font-display text-xl flex items-center gap-2"><FileText className="w-5 h-5 text-[var(--primary-border)]" /> Astrology Reports</h1>
         </div>
       </div>
 
       <div className="w-full max-w-7xl mx-auto px-4 md:px-8 lg:px-12 py-6">
         <div className="flex gap-2 mb-6">
-          <Button variant={tab === 'browse' ? 'default' : 'outline'} className="rounded-xl" onClick={() => setTab('browse')} data-testid="tab-browse">Browse</Button>
-          <Button variant={tab === 'mine' ? 'default' : 'outline'} className="rounded-xl" onClick={() => setTab('mine')} data-testid="tab-mine">My Reports</Button>
+          <Button variant={tab === 'browse' ? 'default' : 'outline'} className={`rounded-[9px] ${tab === 'browse' ? 'bg-nava-navy text-primary hover:bg-nava-navy/90' : ''}`} onClick={() => setTab('browse')} data-testid="tab-browse">Browse</Button>
+          <Button variant={tab === 'mine' ? 'default' : 'outline'} className={`rounded-[9px] ${tab === 'mine' ? 'bg-nava-navy text-primary hover:bg-nava-navy/90' : ''}`} onClick={() => setTab('mine')} data-testid="tab-mine">My Reports</Button>
         </div>
 
         {tab === 'browse' && (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {types?.map((t) => (
-              <Card key={t.id} className="border-border/50 shadow-sm flex flex-col" data-testid={`report-${t.slug}`}>
+              <Card key={t.id} className="yantra-card flex flex-col" data-testid={`report-${t.slug}`}>
                 <CardContent className="p-5 flex flex-col flex-1">
-                  <div className="w-10 h-10 rounded-xl bg-nava-lavender/50 flex items-center justify-center mb-3">
-                    <Sparkles className="w-5 h-5 text-nava-royal-purple" />
+                  <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-[8px] bg-primary/20">
+                    <Sparkles className="w-5 h-5 text-[var(--primary-border)]" />
                   </div>
-                  <p className="font-semibold">{t.name}</p>
+                  <p className="font-display text-lg">{t.name}</p>
                   <p className="text-sm text-muted-foreground mt-1 flex-1">{t.description}</p>
                   <div className="flex items-center justify-between mt-4">
                     <span className="text-lg font-bold">₹{parseFloat(t.price).toFixed(0)}</span>
-                    <Button size="sm" className="rounded-lg bg-nava-royal-purple hover:bg-nava-royal-purple/90 text-white" onClick={() => openOrder(t)} data-testid={`button-order-${t.slug}`}>
+                    <Button size="sm" className="rounded-[9px] bg-primary text-primary-foreground hover:bg-primary/90" onClick={() => openOrder(t)} data-testid={`button-order-${t.slug}`}>
                       Get Report
                     </Button>
                   </div>
@@ -163,10 +163,10 @@ export default function Reports() {
             {myReports?.map((r) => {
               const t = typeById(r.reportTypeId);
               return (
-                <Card key={r.id} className="border-border/50 shadow-sm" data-testid={`my-report-${r.id}`}>
+                <Card key={r.id} className="yantra-card" data-testid={`my-report-${r.id}`}>
                   <CardContent className="p-4 flex items-center justify-between">
                     <div>
-                      <p className="font-semibold">{r.content?.title || t?.name || 'Report'}</p>
+                      <p className="font-display text-lg">{r.content?.title || t?.name || 'Report'}</p>
                       {(r.content?.birthDetails?.name || r.subjectName) && (
                         <p className="text-xs text-foreground/80">
                           {r.content?.birthDetails?.name || r.subjectName}
@@ -177,7 +177,7 @@ export default function Reports() {
                       <p className="text-xs text-muted-foreground">{new Date(r.createdAt).toLocaleDateString()} · ₹{parseFloat(r.amount).toFixed(0)}</p>
                     </div>
                     {r.status === 'ready' ? (
-                      <Button size="sm" className="rounded-lg" onClick={() => setViewing(r)} data-testid={`button-view-${r.id}`}>
+                      <Button size="sm" className="rounded-[9px]" onClick={() => setViewing(r)} data-testid={`button-view-${r.id}`}>
                         <CheckCircle2 className="w-4 h-4 mr-1 text-emerald-600" /> View
                       </Button>
                     ) : r.status === 'failed' ? (
@@ -204,7 +204,7 @@ export default function Reports() {
             <Button
               type="button"
               variant={orderMode === 'saved' ? 'default' : 'outline'}
-              className="rounded-lg"
+              className={`rounded-[9px] ${orderMode === 'saved' ? 'bg-nava-navy text-primary hover:bg-nava-navy/90' : ''}`}
               disabled={!kundlis || kundlis.length === 0}
               onClick={() => setOrderMode('saved')}
               data-testid="mode-saved"
@@ -214,7 +214,7 @@ export default function Reports() {
             <Button
               type="button"
               variant={orderMode === 'details' ? 'default' : 'outline'}
-              className="rounded-lg"
+              className={`rounded-[9px] ${orderMode === 'details' ? 'bg-nava-navy text-primary hover:bg-nava-navy/90' : ''}`}
               onClick={() => setOrderMode('details')}
               data-testid="mode-details"
             >
@@ -226,33 +226,33 @@ export default function Reports() {
             <div className="space-y-2">
               <label className="text-sm font-medium">Select birth chart</label>
               {kundlis && kundlis.length > 0 ? (
-                <select className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm" value={kundliId} onChange={(e) => setKundliId(e.target.value)} data-testid="select-kundli">
+                <select className="w-full rounded-[10px] border border-border bg-background px-3 py-2 text-sm" value={kundliId} onChange={(e) => setKundliId(e.target.value)} data-testid="select-kundli">
                   <option value="">Most recent chart</option>
                   {kundlis.map((k) => <option key={k.id} value={k.id}>{k.name}</option>)}
                 </select>
               ) : (
-                <p className="text-sm text-muted-foreground">No saved chart. Switch to <span className="font-medium text-nava-royal-purple">Enter birth details</span>.</p>
+                <p className="text-sm text-muted-foreground">No saved chart. Switch to <span className="font-medium text-[var(--primary-border)]">Enter birth details</span>.</p>
               )}
             </div>
           ) : (
             <div className="space-y-3">
               <div>
                 <label className="text-sm font-medium">Full name</label>
-                <Input className="mt-1" placeholder="Full name" value={birth.name} onChange={(e) => setBirth({ ...birth, name: e.target.value })} data-testid="input-bd-name" />
+                <Input className="mt-1 rounded-[10px]" placeholder="Full name" value={birth.name} onChange={(e) => setBirth({ ...birth, name: e.target.value })} data-testid="input-bd-name" />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="text-sm font-medium">Date of birth</label>
-                  <Input type="date" className="mt-1" value={birth.dateOfBirth} onChange={(e) => setBirth({ ...birth, dateOfBirth: e.target.value })} data-testid="input-bd-date" />
+                  <Input type="date" className="mt-1 rounded-[10px]" value={birth.dateOfBirth} onChange={(e) => setBirth({ ...birth, dateOfBirth: e.target.value })} data-testid="input-bd-date" />
                 </div>
                 <div>
                   <label className="text-sm font-medium">Time of birth</label>
-                  <Input type="time" className="mt-1" value={birth.timeOfBirth} onChange={(e) => setBirth({ ...birth, timeOfBirth: e.target.value })} data-testid="input-bd-time" />
+                  <Input type="time" className="mt-1 rounded-[10px]" value={birth.timeOfBirth} onChange={(e) => setBirth({ ...birth, timeOfBirth: e.target.value })} data-testid="input-bd-time" />
                 </div>
               </div>
               <div>
                 <label className="text-sm font-medium">Gender</label>
-                <select className="w-full mt-1 rounded-xl border border-border bg-background px-3 py-2 text-sm" value={birth.gender} onChange={(e) => setBirth({ ...birth, gender: e.target.value })} data-testid="select-bd-gender">
+                <select className="w-full mt-1 rounded-[10px] border border-border bg-background px-3 py-2 text-sm" value={birth.gender} onChange={(e) => setBirth({ ...birth, gender: e.target.value })} data-testid="select-bd-gender">
                   <option value="male">Male</option>
                   <option value="female">Female</option>
                   <option value="other">Other</option>
@@ -274,14 +274,14 @@ export default function Reports() {
           )}
 
           <Button
-            className="w-full bg-nava-royal-purple hover:bg-nava-royal-purple/90 text-white"
+            className="w-full rounded-[9px] bg-primary text-primary-foreground hover:bg-primary/90"
             disabled={orderReport.isPending || (orderMode === 'saved' ? (!kundlis || kundlis.length === 0) : !birthValid)}
             onClick={() => orderReport.mutate()}
             data-testid="button-confirm-order"
           >
             {orderReport.isPending ? 'Generating…' : `Pay ₹${selected ? parseFloat(selected.price).toFixed(0) : ''} from Wallet`}
           </Button>
-          <p className="text-[11px] text-center text-muted-foreground">Paid from your wallet. <Link href="/wallet"><span className="text-nava-royal-purple font-medium">Recharge</span></Link> if needed.</p>
+          <p className="text-[11px] text-center text-muted-foreground">Paid from your wallet. <Link href="/wallet"><span className="font-medium text-[var(--primary-border)]">Recharge</span></Link> if needed.</p>
         </DialogContent>
       </Dialog>
 
@@ -295,7 +295,7 @@ export default function Reports() {
             <div className="space-y-5">
               <Button
                 size="sm"
-                className="rounded-lg bg-nava-royal-purple hover:bg-nava-royal-purple/90 text-white"
+                className="rounded-[9px] bg-primary text-primary-foreground hover:bg-primary/90"
                 disabled={downloading}
                 onClick={() => handleDownload(viewing.content)}
                 data-testid="button-download-pdf"
@@ -319,7 +319,7 @@ export default function Reports() {
               {/* Kundli chart */}
               {viewing.content.chartData?.planetaryPositions && (
                 <div>
-                  <h3 className="font-semibold text-nava-royal-purple mb-2">Birth Chart</h3>
+                  <h3 className="mb-2 font-display text-[var(--primary-border)]">Birth Chart</h3>
                   <NorthIndianChartEnhanced chartData={viewing.content.chartData} />
                 </div>
               )}
@@ -327,11 +327,11 @@ export default function Reports() {
               {/* Planetary positions */}
               {viewing.content.planetaryPositions && viewing.content.planetaryPositions.length > 0 && (
                 <div>
-                  <h3 className="font-semibold text-nava-royal-purple mb-2">Planetary Positions</h3>
+                  <h3 className="mb-2 font-display text-[var(--primary-border)]">Planetary Positions</h3>
                   <div className="overflow-x-auto">
                     <table className="w-full text-sm border-collapse">
                       <thead>
-                        <tr className="bg-nava-lavender/40 text-left">
+                        <tr className="bg-primary/10 text-left">
                           <th className="p-2 font-medium">Planet</th>
                           <th className="p-2 font-medium">Sign</th>
                           <th className="p-2 font-medium">House</th>
@@ -356,11 +356,11 @@ export default function Reports() {
               {/* Dasha timeline */}
               {viewing.content.dashaTimeline && viewing.content.dashaTimeline.length > 0 && (
                 <div>
-                  <h3 className="font-semibold text-nava-royal-purple mb-2">Vimshottari Dasha Timeline</h3>
+                  <h3 className="mb-2 font-display text-[var(--primary-border)]">Vimshottari Dasha Timeline</h3>
                   <div className="overflow-x-auto">
                     <table className="w-full text-sm border-collapse">
                       <thead>
-                        <tr className="bg-nava-lavender/40 text-left">
+                        <tr className="bg-primary/10 text-left">
                           <th className="p-2 font-medium">Mahadasha</th>
                           <th className="p-2 font-medium">Period</th>
                           <th className="p-2 font-medium">Status</th>
@@ -368,7 +368,7 @@ export default function Reports() {
                       </thead>
                       <tbody>
                         {viewing.content.dashaTimeline.map((d, i) => (
-                          <tr key={i} className={`border-b border-border/40 ${d.status === 'current' ? 'bg-nava-lavender/30 font-medium' : ''}`}>
+                          <tr key={i} className={`border-b border-border/40 ${d.status === 'current' ? 'bg-primary/10 font-medium' : ''}`}>
                             <td className="p-2">{d.planet}</td>
                             <td className="p-2">{d.period || '—'}</td>
                             <td className="p-2 capitalize">{d.status || '—'}</td>
@@ -384,13 +384,13 @@ export default function Reports() {
               {viewing.content.summary && <p className="text-sm text-muted-foreground italic">{viewing.content.summary}</p>}
               {viewing.content.sections?.map((s, i) => (
                 <div key={i}>
-                  <h3 className="font-semibold text-nava-royal-purple">{s.heading}</h3>
+                  <h3 className="font-display text-[var(--primary-border)]">{s.heading}</h3>
                   <p className="text-sm whitespace-pre-line mt-1">{s.body}</p>
                 </div>
               ))}
               {viewing.content.remedies && viewing.content.remedies.length > 0 && (
                 <div>
-                  <h3 className="font-semibold text-nava-royal-purple">Recommended Remedies</h3>
+                  <h3 className="font-display text-[var(--primary-border)]">Recommended Remedies</h3>
                   <ul className="list-disc list-inside text-sm mt-1 space-y-1">
                     {viewing.content.remedies.map((r, i) => <li key={i}>{r}</li>)}
                   </ul>

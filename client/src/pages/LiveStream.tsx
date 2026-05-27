@@ -131,15 +131,15 @@ export default function LiveStream() {
   }
 
   return (
-    <div className="min-h-screen bg-black text-white flex flex-col">
+    <div className="min-h-screen flex flex-col bg-nava-navy text-white">
       {/* Video stage */}
-      <div className="relative flex-1 min-h-[55vh] bg-gradient-to-br from-nava-royal-purple/40 to-black">
+      <div className="relative flex-1 min-h-[55vh] bg-gradient-to-br from-primary/30 to-black">
         <div ref={videoRef} className="absolute inset-0" />
         {!videoReady && (
           <div className="absolute inset-0 flex flex-col items-center justify-center">
-            <Avatar className="w-24 h-24 ring-4 ring-white/30 mb-3">
+            <Avatar className="mb-3 h-24 w-24 rounded-[8px] ring-4 ring-white/30">
               <AvatarImage src={data.astrologer?.profileImageUrl || undefined} />
-              <AvatarFallback className="text-3xl">{data.astrologer?.name?.[0] || 'A'}</AvatarFallback>
+              <AvatarFallback className="font-display text-3xl bg-primary text-primary-foreground">{data.astrologer?.name?.[0] || 'A'}</AvatarFallback>
             </Avatar>
             <p className="font-semibold">{data.astrologer?.name}</p>
             <p className="text-xs text-white/70 mt-1 flex items-center gap-1">
@@ -163,7 +163,7 @@ export default function LiveStream() {
       {/* Chat + gifts */}
       <div className="bg-background text-foreground rounded-t-2xl -mt-4 relative z-10 flex flex-col" style={{ height: '42vh' }}>
         <div className="px-4 pt-3 pb-2">
-          <p className="font-semibold text-sm">{data.astrologer?.name}</p>
+          <p className="font-display text-base">{data.astrologer?.name}</p>
           <p className="text-xs text-muted-foreground line-clamp-1">{data.stream.title}</p>
         </div>
 
@@ -171,14 +171,14 @@ export default function LiveStream() {
           {messages?.map((m) => (
             <div key={m.id} className="text-sm" data-testid={`msg-${m.id}`}>
               {m.type === 'gift' ? (
-                <span className="inline-block px-2 py-1 rounded-lg bg-nava-amber/20 text-nava-amber font-medium text-xs">
+                <span className="inline-block rounded-[8px] bg-primary/15 px-2 py-1 text-xs font-medium text-[var(--primary-border)]">
                   {m.senderName} {m.message}
                 </span>
               ) : m.type === 'join' ? (
                 <span className="text-xs text-muted-foreground">{m.senderName} joined</span>
               ) : (
                 <span>
-                  <span className={`font-semibold ${m.senderType === 'astrologer' ? 'text-nava-royal-purple' : 'text-foreground'}`}>{m.senderName}: </span>
+                  <span className={`font-semibold ${m.senderType === 'astrologer' ? 'text-[var(--primary-border)]' : 'text-foreground'}`}>{m.senderName}: </span>
                   <span className="text-muted-foreground">{m.message}</span>
                 </span>
               )}
@@ -189,7 +189,7 @@ export default function LiveStream() {
         {showGifts && (
           <div className="grid grid-cols-3 gap-2 p-3 border-t border-border">
             {data.gifts.map((g) => (
-              <button key={g.id} onClick={() => sendGift(g)} className="flex flex-col items-center gap-1 p-2 rounded-xl border border-border hover:bg-muted" data-testid={`gift-${g.id}`}>
+              <button key={g.id} onClick={() => sendGift(g)} className="flex flex-col items-center gap-1 rounded-[10px] border border-border p-2 hover:bg-muted" data-testid={`gift-${g.id}`}>
                 <span className="text-2xl">{g.emoji}</span>
                 <span className="text-[11px] font-medium">{g.name}</span>
                 <span className="text-[10px] text-muted-foreground">₹{g.amount}</span>
@@ -204,13 +204,13 @@ export default function LiveStream() {
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && sendMessage()}
-            className="flex-1 rounded-full"
+            className="flex-1 rounded-[999px]"
             data-testid="input-chat"
           />
-          <button onClick={() => setShowGifts((s) => !s)} className="w-10 h-10 rounded-full bg-nava-amber/20 flex items-center justify-center text-nava-amber shrink-0" data-testid="button-gifts">
+          <button onClick={() => setShowGifts((s) => !s)} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[8px] bg-primary/20 text-[var(--primary-border)]" data-testid="button-gifts">
             <Gift className="w-5 h-5" />
           </button>
-          <button onClick={sendMessage} className="w-10 h-10 rounded-full bg-nava-royal-purple flex items-center justify-center text-white shrink-0" data-testid="button-send">
+          <button onClick={sendMessage} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[8px] bg-nava-navy text-primary" data-testid="button-send">
             <Send className="w-4 h-4" />
           </button>
         </div>

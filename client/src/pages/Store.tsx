@@ -95,15 +95,15 @@ export default function Store() {
   if (isLoading) return <LoadingSpinner />;
 
   return (
-    <div className="min-h-screen bg-background text-foreground pb-24 md:pb-8">
-      <div className="sticky top-0 z-50 bg-background/95 backdrop-blur-md border-b border-border/30">
+    <div className="yantra-shell min-h-screen pb-24 text-foreground md:pb-8">
+      <div className="sticky top-0 z-50 border-b border-border bg-background/95 backdrop-blur-md">
         <div className="w-full max-w-7xl mx-auto px-4 md:px-8 lg:px-12 py-3 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <Link href="/"><button className="p-1.5 rounded-lg hover:bg-muted" data-testid="button-back"><ArrowLeft className="w-5 h-5" /></button></Link>
-            <h1 className="font-bold text-lg flex items-center gap-2"><ShoppingBag className="w-5 h-5 text-nava-royal-purple" /> Astromall</h1>
+            <Link href="/"><button className="flex h-9 w-9 items-center justify-center rounded-[8px] border border-border bg-card hover:bg-muted" data-testid="button-back"><ArrowLeft className="w-5 h-5" /></button></Link>
+            <h1 className="font-display text-xl flex items-center gap-2"><ShoppingBag className="w-5 h-5 text-[var(--primary-border)]" /> Astromall</h1>
           </div>
           {cartCount > 0 && (
-            <Button onClick={() => setCheckoutOpen(true)} className="bg-nava-royal-purple hover:bg-nava-royal-purple/90 text-white rounded-xl gap-2" data-testid="button-open-cart">
+            <Button onClick={() => setCheckoutOpen(true)} className="gap-2 rounded-[9px] bg-primary text-primary-foreground hover:bg-primary/90" data-testid="button-open-cart">
               <ShoppingCart className="w-4 h-4" /> {cartCount} · ₹{cartTotal.toFixed(0)}
             </Button>
           )}
@@ -113,8 +113,8 @@ export default function Store() {
       <div className="w-full max-w-7xl mx-auto px-4 md:px-8 lg:px-12 py-6">
         {/* Tabs */}
         <div className="flex gap-2 mb-6">
-          <Button variant={tab === 'shop' ? 'default' : 'outline'} className="rounded-xl" onClick={() => setTab('shop')} data-testid="tab-shop">Shop</Button>
-          <Button variant={tab === 'orders' ? 'default' : 'outline'} className="rounded-xl" onClick={() => setTab('orders')} data-testid="tab-orders">My Orders</Button>
+          <Button variant={tab === 'shop' ? 'default' : 'outline'} className={`rounded-[9px] ${tab === 'shop' ? 'bg-nava-navy text-primary hover:bg-nava-navy/90' : ''}`} onClick={() => setTab('shop')} data-testid="tab-shop">Shop</Button>
+          <Button variant={tab === 'orders' ? 'default' : 'outline'} className={`rounded-[9px] ${tab === 'orders' ? 'bg-nava-navy text-primary hover:bg-nava-navy/90' : ''}`} onClick={() => setTab('orders')} data-testid="tab-orders">My Orders</Button>
         </div>
 
         {tab === 'shop' && (
@@ -124,9 +124,9 @@ export default function Store() {
               const price = parseFloat(p.price);
               const off = mrp && mrp > price ? Math.round(((mrp - price) / mrp) * 100) : 0;
               return (
-                <Card key={p.id} className="overflow-hidden border-border/50 shadow-sm flex flex-col" data-testid={`product-${p.slug}`}>
-                  <div className="aspect-square bg-gradient-to-br from-nava-lavender/40 to-nava-amber/20 flex items-center justify-center">
-                    {p.imageUrl ? <img src={p.imageUrl} alt={p.name} className="w-full h-full object-cover" /> : <Package className="w-12 h-12 text-nava-royal-purple/40" />}
+                <Card key={p.id} className="yantra-card flex flex-col overflow-hidden" data-testid={`product-${p.slug}`}>
+                  <div className="aspect-square bg-gradient-to-br from-primary/10 to-background flex items-center justify-center">
+                    {p.imageUrl ? <img src={p.imageUrl} alt={p.name} className="w-full h-full object-cover" /> : <Package className="w-12 h-12 text-[var(--primary-border)]/40" />}
                   </div>
                   <CardContent className="p-3 flex flex-col flex-1">
                     <Badge variant="outline" className="text-[10px] w-fit mb-1">{CATEGORY_LABELS[p.category] || p.category}</Badge>
@@ -137,7 +137,7 @@ export default function Store() {
                       {mrp && mrp > price && <span className="text-xs text-muted-foreground line-through">₹{mrp.toFixed(0)}</span>}
                       {off > 0 && <span className="text-[10px] font-bold text-emerald-600">{off}% off</span>}
                     </div>
-                    <Button size="sm" className="mt-2 rounded-lg bg-nava-royal-purple hover:bg-nava-royal-purple/90 text-white" onClick={() => addToCart(p)} data-testid={`button-add-${p.slug}`}>
+                    <Button size="sm" className="mt-2 rounded-[9px] bg-primary text-primary-foreground hover:bg-primary/90" onClick={() => addToCart(p)} data-testid={`button-add-${p.slug}`}>
                       Add to Cart
                     </Button>
                   </CardContent>
@@ -156,7 +156,7 @@ export default function Store() {
               </div>
             )}
             {orders?.map((o) => (
-              <Card key={o.id} className="border-border/50 shadow-sm" data-testid={`order-${o.id}`}>
+              <Card key={o.id} className="yantra-card" data-testid={`order-${o.id}`}>
                 <CardContent className="p-4">
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-xs text-muted-foreground">{new Date(o.createdAt).toLocaleDateString()}</span>
@@ -203,19 +203,19 @@ export default function Store() {
 
             <div className="pt-2 space-y-2">
               <p className="text-sm font-medium">Shipping details</p>
-              <Input placeholder="Full name" value={shipping.name} onChange={(e) => setShipping({ ...shipping, name: e.target.value })} data-testid="input-ship-name" />
-              <Input placeholder="Phone number" value={shipping.phone} onChange={(e) => setShipping({ ...shipping, phone: e.target.value })} data-testid="input-ship-phone" />
-              <Textarea placeholder="Address" value={shipping.address} onChange={(e) => setShipping({ ...shipping, address: e.target.value })} data-testid="input-ship-address" />
+              <Input className="rounded-[10px]" placeholder="Full name" value={shipping.name} onChange={(e) => setShipping({ ...shipping, name: e.target.value })} data-testid="input-ship-name" />
+              <Input className="rounded-[10px]" placeholder="Phone number" value={shipping.phone} onChange={(e) => setShipping({ ...shipping, phone: e.target.value })} data-testid="input-ship-phone" />
+              <Textarea className="rounded-[10px]" placeholder="Address" value={shipping.address} onChange={(e) => setShipping({ ...shipping, address: e.target.value })} data-testid="input-ship-address" />
               <div className="grid grid-cols-3 gap-2">
-                <Input placeholder="City" value={shipping.city} onChange={(e) => setShipping({ ...shipping, city: e.target.value })} />
-                <Input placeholder="State" value={shipping.state} onChange={(e) => setShipping({ ...shipping, state: e.target.value })} />
-                <Input placeholder="Pincode" value={shipping.pincode} onChange={(e) => setShipping({ ...shipping, pincode: e.target.value })} data-testid="input-ship-pincode" />
+                <Input className="rounded-[10px]" placeholder="City" value={shipping.city} onChange={(e) => setShipping({ ...shipping, city: e.target.value })} />
+                <Input className="rounded-[10px]" placeholder="State" value={shipping.state} onChange={(e) => setShipping({ ...shipping, state: e.target.value })} />
+                <Input className="rounded-[10px]" placeholder="Pincode" value={shipping.pincode} onChange={(e) => setShipping({ ...shipping, pincode: e.target.value })} data-testid="input-ship-pincode" />
               </div>
             </div>
           </div>
           <DialogFooter>
             <Button
-              className="w-full bg-nava-royal-purple hover:bg-nava-royal-purple/90 text-white"
+              className="w-full rounded-[9px] bg-primary text-primary-foreground hover:bg-primary/90"
               disabled={placeOrder.isPending || cart.length === 0}
               onClick={() => placeOrder.mutate()}
               data-testid="button-place-order"
@@ -223,7 +223,7 @@ export default function Store() {
               {placeOrder.isPending ? 'Placing…' : `Pay ₹${cartTotal.toFixed(0)} from Wallet`}
             </Button>
           </DialogFooter>
-          <p className="text-[11px] text-center text-muted-foreground">Paid from your Navagraha wallet. <Link href="/wallet"><span className="text-nava-royal-purple font-medium">Recharge</span></Link> if needed.</p>
+          <p className="text-[11px] text-center text-muted-foreground">Paid from your Navagraha wallet. <Link href="/wallet"><span className="font-medium text-[var(--primary-border)]">Recharge</span></Link> if needed.</p>
         </DialogContent>
       </Dialog>
     </div>

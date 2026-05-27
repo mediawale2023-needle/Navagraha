@@ -5,7 +5,6 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent } from '@/components/ui/card';
-import { BottomNav } from '@/components/BottomNav';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest } from '@/lib/queryClient';
 import {
@@ -100,19 +99,18 @@ export default function Numerology() {
   };
 
   return (
-    <div className="min-h-screen bg-background text-white pb-20 md:pb-0">
-      {/* Header */}
-      <div className="sticky top-0 z-50 border-b border-white/5 ">
+    <div className="yantra-shell min-h-screen pb-20 text-foreground md:pb-0">
+      <div className="sticky top-0 z-50 border-b border-border bg-background/95 backdrop-blur-md">
         <div className="max-w-4xl mx-auto px-4 py-3">
           <div className="flex items-center gap-3">
             <Link href="/">
-              <button className="p-2 rounded-xl hover:bg-white/5/10">
-                <ArrowLeft className="w-5 h-5 text-white" />
+              <button className="flex h-9 w-9 items-center justify-center rounded-[8px] border border-border bg-card hover:bg-muted">
+                <ArrowLeft className="w-5 h-5 text-foreground" />
               </button>
             </Link>
             <div>
-              <h1 className="font-bold text-lg text-white">Numerology</h1>
-              <p className="text-xs text-white/60">Discover the power of your numbers</p>
+              <h1 className="font-display text-xl text-foreground">Numerology</h1>
+              <p className="text-xs text-muted-foreground">Discover the power of your numbers</p>
             </div>
           </div>
         </div>
@@ -121,51 +119,51 @@ export default function Numerology() {
       <div className="max-w-4xl mx-auto px-4 py-6">
         {/* Hero */}
         {!result && (
-          <div className="bg-gradient-to-br from-[#7B2FBE] to-[#5B1F8E] rounded-2xl p-6 mb-6 text-center">
-            <Hash className="w-12 h-12 text-white mx-auto mb-3" />
-            <h2 className="text-xl font-bold text-white mb-2">Your Life by Numbers</h2>
-            <p className="text-sm text-white/70 max-w-sm mx-auto">
+          <div className="mb-6 rounded-[12px] border border-[var(--primary-border)] bg-primary p-6 text-center text-[var(--nava-navy)]">
+            <Hash className="mx-auto mb-3 h-12 w-12 text-[var(--nava-navy)]" />
+            <h2 className="font-display text-2xl mb-2">Your Life by Numbers</h2>
+            <p className="mx-auto max-w-sm text-sm text-[var(--nava-navy)]/70">
               Uncover your life path, destiny, soul urge, and personality numbers based on Pythagorean numerology.
             </p>
           </div>
         )}
 
         {/* Form */}
-        <Card className="mb-6  border-white/5">
+        <Card className="yantra-card mb-6">
           <CardContent className="p-5">
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <Label className="text-sm font-semibold text-white mb-1.5 block">First Name *</Label>
+                  <Label className="mb-1.5 block text-sm font-semibold text-foreground">First Name *</Label>
                   <Input
                     placeholder="e.g. Priya"
                     value={form.firstName}
                     onChange={e => setForm(f => ({ ...f, firstName: e.target.value }))}
-                    className="rounded-xl border-white/10 focus:border-orange-500 focus:ring-orange-500"
+                    className="rounded-[10px]"
                   />
                 </div>
                 <div>
-                  <Label className="text-sm font-semibold text-white mb-1.5 block">Last Name</Label>
+                  <Label className="mb-1.5 block text-sm font-semibold text-foreground">Last Name</Label>
                   <Input
                     placeholder="e.g. Sharma"
                     value={form.lastName}
                     onChange={e => setForm(f => ({ ...f, lastName: e.target.value }))}
-                    className="rounded-xl border-white/10 focus:border-orange-500 focus:ring-orange-500"
+                    className="rounded-[10px]"
                   />
                 </div>
               </div>
               <div>
-                <Label className="text-sm font-semibold text-white mb-1.5 block">Date of Birth *</Label>
+                <Label className="mb-1.5 block text-sm font-semibold text-foreground">Date of Birth *</Label>
                 <Input
                   type="date"
                   value={form.dateOfBirth}
                   onChange={e => setForm(f => ({ ...f, dateOfBirth: e.target.value }))}
-                  className="rounded-xl border-white/10 focus:border-orange-500 focus:ring-orange-500"
+                  className="rounded-[10px]"
                   max={new Date().toISOString().split('T')[0]}
                 />
               </div>
               <div>
-                <Label className="text-sm font-semibold text-white mb-2 block">System</Label>
+                <Label className="mb-2 block text-sm font-semibold text-foreground">System</Label>
                 <div className="grid grid-cols-2 gap-2">
                   {[
                     { value: 'pythagorean', label: 'Pythagorean', desc: 'Most popular Western system' },
@@ -176,12 +174,12 @@ export default function Numerology() {
                       type="button"
                       onClick={() => setForm(f => ({ ...f, system: sys.value }))}
                       className={`p-3 rounded-xl border-2 text-left transition-all ${form.system === sys.value
-                        ? 'border-orange-600 gradient-primary text-white'
-                        : 'border-white/10 bg-white/5 text-gray-400 hover:border-[var(--rose)]/30'
+                        ? 'border-[var(--primary-border)] bg-primary text-[var(--nava-navy)]'
+                        : 'border-border bg-card text-muted-foreground hover:border-[var(--primary-border)]/30'
                         }`}
                     >
-                      <div className={`font-semibold text-sm ${form.system === sys.value ? 'text-white' : 'text-white'}`}>{sys.label}</div>
-                      <div className={`text-xs mt-0.5 ${form.system === sys.value ? 'text-white/70' : 'text-gray-500'}`}>{sys.desc}</div>
+                      <div className="text-sm font-semibold text-foreground">{sys.label}</div>
+                      <div className={`mt-0.5 text-xs ${form.system === sys.value ? 'text-[var(--nava-navy)]/70' : 'text-muted-foreground'}`}>{sys.desc}</div>
                     </button>
                   ))}
                 </div>
@@ -189,7 +187,7 @@ export default function Numerology() {
               <Button
                 type="submit"
                 disabled={mutation.isPending}
-                className="w-full gradient-primary hover:opacity-90 text-white font-bold h-12 rounded-xl"
+                className="h-12 w-full rounded-[9px] bg-primary font-bold text-primary-foreground hover:bg-primary/90"
               >
                 {mutation.isPending ? (
                   <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Calculating...</>
@@ -205,13 +203,13 @@ export default function Numerology() {
         {result && (
           <div className="space-y-4">
             {/* Summary banner */}
-            <div className="bg-gradient-to-r from-gray-800 to-gray-900 rounded-2xl p-5 text-white text-center">
-              <p className="text-orange-400 text-sm font-semibold mb-1">Numerology Report for</p>
-              <h3 className="text-2xl font-bold mb-3">{result.name}</h3>
+            <div className="rounded-[12px] bg-nava-navy p-5 text-center text-primary">
+              <p className="mb-1 text-sm font-semibold text-primary/80">Numerology Report for</p>
+              <h3 className="font-display mb-3 text-3xl">{result.name}</h3>
               <div className="flex justify-center gap-6">
                 <div>
-                  <div className="text-4xl font-black text-orange-400">{result.lifePath}</div>
-                  <div className="text-xs text-gray-400 mt-0.5">Life Path</div>
+                  <div className="font-display text-4xl text-primary">{result.lifePath}</div>
+                  <div className="mt-0.5 text-xs text-primary/70">Life Path</div>
                 </div>
               </div>
             </div>
@@ -225,25 +223,25 @@ export default function Numerology() {
             </div>
 
             {/* What is life path */}
-            <Card className=" border-white/5">
+            <Card className="yantra-card">
               <CardContent className="p-5">
-                <h4 className="font-bold text-white mb-3 flex items-center gap-2">
-                  <Sparkles className="w-4 h-4 text-[var(--rose)]" /> Understanding Your Numbers
+                <h4 className="mb-3 flex items-center gap-2 font-display text-foreground">
+                  <Sparkles className="w-4 h-4 text-[var(--primary-border)]" /> Understanding Your Numbers
                 </h4>
-                <div className="space-y-3 text-sm text-gray-400">
-                  <div className="flex gap-2"><span className="font-semibold text-white min-w-[140px]">Life Path ({result.lifePath}):</span> Your core purpose and the journey you're destined to take in this lifetime.</div>
-                  <div className="flex gap-2"><span className="font-semibold text-white min-w-[140px]">Destiny ({result.destiny}):</span> What you're meant to accomplish and the role you play in the world.</div>
-                  <div className="flex gap-2"><span className="font-semibold text-white min-w-[140px]">Soul Urge ({result.soul}):</span> Your innermost desires, motivations, and what truly makes you happy.</div>
-                  <div className="flex gap-2"><span className="font-semibold text-white min-w-[140px]">Personality ({result.personality}):</span> How others perceive you and the face you show the world.</div>
-                  <div className="flex gap-2"><span className="font-semibold text-white min-w-[140px]">Birthday ({result.birthday}):</span> A special talent or gift bestowed upon you at birth.</div>
+                <div className="space-y-3 text-sm text-muted-foreground">
+                  <div className="flex gap-2"><span className="min-w-[140px] font-semibold text-foreground">Life Path ({result.lifePath}):</span> Your core purpose and the journey you're destined to take in this lifetime.</div>
+                  <div className="flex gap-2"><span className="min-w-[140px] font-semibold text-foreground">Destiny ({result.destiny}):</span> What you're meant to accomplish and the role you play in the world.</div>
+                  <div className="flex gap-2"><span className="min-w-[140px] font-semibold text-foreground">Soul Urge ({result.soul}):</span> Your innermost desires, motivations, and what truly makes you happy.</div>
+                  <div className="flex gap-2"><span className="min-w-[140px] font-semibold text-foreground">Personality ({result.personality}):</span> How others perceive you and the face you show the world.</div>
+                  <div className="flex gap-2"><span className="min-w-[140px] font-semibold text-foreground">Birthday ({result.birthday}):</span> A special talent or gift bestowed upon you at birth.</div>
                 </div>
               </CardContent>
             </Card>
 
-            <div className="bg-gradient-to-r from-[var(--rose)] to-[#7B2FBE] rounded-2xl p-4 text-center">
-              <p className="text-sm text-white/90 mb-3">Want a deeper numerology reading from an expert?</p>
+            <div className="rounded-[12px] bg-primary p-4 text-center text-[var(--nava-navy)]">
+              <p className="mb-3 text-sm text-[var(--nava-navy)]/85">Want a deeper numerology reading from an expert?</p>
               <Link href="/astrologers">
-                <Button className="bg-white/5 text-[var(--rose)] hover:bg-white/5/90 font-bold rounded-xl gap-2">
+                <Button className="gap-2 rounded-[9px] bg-nava-navy font-bold text-primary hover:bg-nava-navy/90">
                   Talk to an Astrologer <ChevronRight className="w-4 h-4" />
                 </Button>
               </Link>
@@ -251,7 +249,7 @@ export default function Numerology() {
 
             <Button
               variant="outline"
-              className="w-full border-white/10 rounded-xl"
+              className="w-full rounded-[9px]"
               onClick={() => { setResult(null); setForm({ firstName: '', lastName: '', dateOfBirth: '', system: 'pythagorean' }); }}
             >
               Calculate for Someone Else
@@ -259,8 +257,6 @@ export default function Numerology() {
           </div>
         )}
       </div>
-
-      <BottomNav />
     </div>
   );
 }

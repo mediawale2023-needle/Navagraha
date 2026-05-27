@@ -39,7 +39,7 @@ function PersonalDaily() {
   if (!isAuthenticated) return null;
   if (isLoading) {
     return (
-      <Card className="mb-6 border-nava-royal-purple/20">
+      <Card className="yantra-card mb-6 border-primary/25">
         <CardContent className="p-5 flex items-center gap-2 text-muted-foreground text-sm">
           <Loader2 className="w-4 h-4 animate-spin" /> Preparing your personalised day…
         </CardContent>
@@ -49,14 +49,14 @@ function PersonalDaily() {
   if (!data) return null;
   if (!data.hasChart) {
     return (
-      <Card className="mb-6 bg-nava-lavender/40 border-nava-royal-purple/20">
+      <Card className="mb-6 border-primary/25 bg-primary/10">
         <CardContent className="p-5 flex items-center justify-between gap-3">
           <div>
             <p className="font-semibold text-foreground">Get your personalised daily horoscope</p>
             <p className="text-sm text-muted-foreground">Generate your birth chart to unlock guidance tailored to you.</p>
           </div>
           <Link href="/kundli/new">
-            <Button className="bg-nava-royal-purple hover:bg-nava-royal-purple/90 text-white rounded-full shrink-0">Create Kundli</Button>
+            <Button className="shrink-0 rounded-[9px] bg-primary text-primary-foreground hover:bg-primary/90">Create Kundli</Button>
           </Link>
         </CardContent>
       </Card>
@@ -71,10 +71,10 @@ function PersonalDaily() {
     { Icon: Star, label: "Finance", v: c.finance },
   ];
   return (
-    <Card className="mb-6 border-nava-royal-purple/20">
+    <Card className="yantra-card mb-6 border-primary/25">
       <CardContent className="p-5">
         <div className="flex items-center justify-between mb-1">
-          <span className="text-xs font-semibold text-nava-royal-purple uppercase tracking-wider">
+          <span className="yantra-eyebrow text-[var(--primary-border)]">
             Your Day{data.person ? ` · ${data.person}` : ""}
           </span>
           <div className="flex items-center gap-0.5">
@@ -89,7 +89,7 @@ function PersonalDaily() {
           {areas.map(({ Icon, label, v }) =>
             v ? (
               <div key={label} className="bg-muted/40 rounded-xl p-3">
-                <div className="flex items-center gap-1.5 text-xs font-semibold text-nava-royal-purple mb-1">
+                <div className="mb-1 flex items-center gap-1.5 text-xs font-semibold text-[var(--primary-border)]">
                   <Icon className="w-3.5 h-3.5" /> {label}
                 </div>
                 <p className="text-xs text-foreground/80 leading-relaxed">{v}</p>
@@ -98,7 +98,7 @@ function PersonalDaily() {
           )}
         </div>
         <div className="flex flex-wrap items-center gap-2 mt-4">
-          {c.luckyColor && <Badge className="bg-nava-teal/10 text-nava-teal border-0">Lucky colour: {c.luckyColor}</Badge>}
+          {c.luckyColor && <Badge className="bg-primary/15 text-[var(--primary-border)] border-0">Lucky colour: {c.luckyColor}</Badge>}
           {c.luckyNumber != null && <Badge className="bg-nava-magenta/10 text-nava-magenta border-0">Lucky number: {c.luckyNumber}</Badge>}
         </div>
         {c.advice && <p className="text-sm italic text-muted-foreground mt-3">Today's tip — {c.advice}</p>}
@@ -144,7 +144,7 @@ function HoroscopeDetail({ sign }: { sign: (typeof ZODIAC_SIGNS)[0] }) {
   });
 
   return (
-    <div className="min-h-screen bg-background px-4 md:px-8 lg:px-12 py-6 w-full max-w-7xl mx-auto pb-24 md:pb-8">
+      <div className="yantra-shell min-h-screen w-full max-w-7xl px-4 py-6 pb-24 md:px-8 md:pb-8 lg:px-12 mx-auto">
       {/* Back */}
       <Link href="/horoscope">
         <Button variant="ghost" size="sm" className="mb-4 text-muted-foreground -ml-2">
@@ -153,13 +153,13 @@ function HoroscopeDetail({ sign }: { sign: (typeof ZODIAC_SIGNS)[0] }) {
       </Link>
 
       {/* Sign header */}
-      <div className={`rounded-3xl p-6 mb-6 ${sign.bg}`}>
+        <div className={`rounded-[12px] border border-[var(--primary-border)] p-6 mb-6 ${sign.bg}`}>
         <div className="flex items-center gap-4">
           <div className="w-16 h-16 rounded-2xl bg-white/20 flex items-center justify-center text-4xl">
             {sign.emoji}
           </div>
           <div>
-            <h1 className="text-2xl font-bold text-white">{sign.name}</h1>
+            <h1 className="font-display text-3xl text-white">{sign.name}</h1>
             <p className="text-white/80 text-sm">{sign.englishName} | {sign.dates}</p>
           </div>
         </div>
@@ -167,9 +167,9 @@ function HoroscopeDetail({ sign }: { sign: (typeof ZODIAC_SIGNS)[0] }) {
 
       {/* Period tabs */}
       <Tabs value={period} onValueChange={(v) => setPeriod(v as Period)} className="mb-4">
-        <TabsList className="grid grid-cols-4 bg-card border border-border">
+        <TabsList className="grid grid-cols-4 border border-border bg-card p-1">
           {(["today", "tomorrow", "weekly", "monthly"] as Period[]).map((p) => (
-            <TabsTrigger key={p} value={p} className="capitalize text-xs data-[state=active]:bg-nava-teal data-[state=active]:text-white">
+            <TabsTrigger key={p} value={p} className="capitalize rounded-[6px] text-xs data-[state=active]:bg-nava-navy data-[state=active]:text-primary">
               {p}
             </TabsTrigger>
           ))}
@@ -179,16 +179,16 @@ function HoroscopeDetail({ sign }: { sign: (typeof ZODIAC_SIGNS)[0] }) {
       {/* Prediction */}
       {isLoading ? (
         <div className="flex items-center justify-center py-16">
-          <Loader2 className="w-8 h-8 animate-spin text-nava-teal" />
+          <Loader2 className="h-8 w-8 animate-spin text-[var(--primary-border)]" />
         </div>
       ) : error ? (
         <p className="text-center text-destructive py-8">Failed to load horoscope. Please try again.</p>
       ) : data ? (
-        <Card className="bg-card border-border/50 shadow-sm">
+        <Card className="yantra-card">
           <CardContent className="p-5">
             <div className="flex items-center gap-2 mb-4">
               <Star className="w-4 h-4 fill-nava-amber text-nava-amber" />
-              <span className="text-nava-amber text-sm font-semibold capitalize">
+              <span className="text-[var(--primary-border)] text-sm font-semibold capitalize">
                 {period === "today" ? "Today's" : period === "tomorrow" ? "Tomorrow's" : period === "weekly" ? "This Week's" : "This Month's"}{" "}
                 Prediction
               </span>
@@ -202,7 +202,7 @@ function HoroscopeDetail({ sign }: { sign: (typeof ZODIAC_SIGNS)[0] }) {
                 { icon: TrendingUp, label: 'Career', stars: 3, color: 'text-nava-amber' },
                 { icon: Activity, label: 'Health', stars: 4, color: 'text-nava-teal' },
               ].map(({ icon: Icon, label, stars, color }) => (
-                <div key={label} className="bg-background rounded-xl p-3 text-center">
+                <div key={label} className="rounded-[8px] bg-background p-3 text-center">
                   <Icon className={`w-4 h-4 ${color} mx-auto mb-2`} />
                   <p className="text-[10px] font-semibold text-muted-foreground mb-2">{label}</p>
                   <div className="flex gap-0.5 justify-center">
@@ -219,12 +219,12 @@ function HoroscopeDetail({ sign }: { sign: (typeof ZODIAC_SIGNS)[0] }) {
                 <p className="text-xs text-muted-foreground uppercase tracking-wider mb-3">Lucky Today</p>
                 <div className="flex flex-wrap gap-2">
                   {data.lucky.number && (
-                    <Badge className="bg-nava-amber/20 text-nava-amber border-nava-amber/30 text-xs">
+                    <Badge className="bg-primary/15 text-[var(--primary-border)] border-primary/30 text-xs">
                       Number: {data.lucky.number}
                     </Badge>
                   )}
                   {data.lucky.color && (
-                    <Badge className="bg-nava-teal/20 text-nava-teal border-nava-teal/30 text-xs">
+                    <Badge className="bg-primary/15 text-[var(--primary-border)] border-primary/30 text-xs">
                       Color: {data.lucky.color}
                     </Badge>
                   )}
@@ -240,16 +240,16 @@ function HoroscopeDetail({ sign }: { sign: (typeof ZODIAC_SIGNS)[0] }) {
 
 function SignGrid({ onSelect }: { onSelect: (sign: (typeof ZODIAC_SIGNS)[0]) => void }) {
   return (
-    <div className="min-h-screen bg-background px-4 md:px-8 lg:px-12 py-6 w-full max-w-7xl mx-auto pb-24 md:pb-8">
+    <div className="yantra-shell min-h-screen w-full max-w-7xl px-4 py-6 pb-24 md:px-8 md:pb-8 lg:px-12 mx-auto">
       {/* Header */}
       <div className="flex items-center gap-3 mb-6">
         <Link href="/">
-          <button className="p-1.5 rounded-lg hover:bg-muted">
+          <button className="flex h-9 w-9 items-center justify-center rounded-[8px] border border-border bg-card hover:bg-muted">
             <ArrowLeft className="w-5 h-5 text-foreground" />
           </button>
         </Link>
         <div>
-          <h1 className="text-xl font-bold text-foreground">Daily Horoscope</h1>
+            <h1 className="font-display text-2xl text-foreground">Daily Horoscope</h1>
           <p className="text-sm text-muted-foreground">Know your Rashi predictions</p>
         </div>
       </div>
@@ -263,7 +263,7 @@ function SignGrid({ onSelect }: { onSelect: (sign: (typeof ZODIAC_SIGNS)[0]) => 
           <button
             key={sign.id}
             onClick={() => onSelect(sign)}
-            className={`aspect-square rounded-2xl flex flex-col items-center justify-center gap-1 transition-all ${sign.bg} hover:scale-105 hover:shadow-lg relative group`}
+            className={`relative aspect-square rounded-[10px] flex flex-col items-center justify-center gap-1 transition-all ${sign.bg} hover:scale-105 hover:shadow-lg group`}
           >
             <span className="text-2xl sm:text-3xl drop-shadow-sm">{sign.emoji}</span>
             <span className="text-[10px] sm:text-xs font-bold text-white">{sign.name}</span>

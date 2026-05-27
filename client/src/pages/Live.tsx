@@ -25,11 +25,11 @@ export default function Live() {
   if (isLoading) return <LoadingSpinner />;
 
   return (
-    <div className="min-h-screen bg-background text-foreground pb-24 md:pb-8">
-      <div className="sticky top-0 z-50 bg-background/95 backdrop-blur-md border-b border-border/30">
+    <div className="yantra-shell min-h-screen pb-24 text-foreground md:pb-8">
+      <div className="sticky top-0 z-50 border-b border-border bg-background/95 backdrop-blur-md">
         <div className="w-full max-w-7xl mx-auto px-4 md:px-8 lg:px-12 py-3 flex items-center gap-3">
-          <Link href="/"><button className="p-1.5 rounded-lg hover:bg-muted" data-testid="button-back"><ArrowLeft className="w-5 h-5" /></button></Link>
-          <h1 className="font-bold text-lg flex items-center gap-2">
+          <Link href="/"><button className="flex h-9 w-9 items-center justify-center rounded-[8px] border border-border bg-card hover:bg-muted" data-testid="button-back"><ArrowLeft className="w-5 h-5" /></button></Link>
+          <h1 className="font-display text-xl flex items-center gap-2">
             <Radio className="w-5 h-5 text-red-500" /> Live Now
           </h1>
         </div>
@@ -47,14 +47,14 @@ export default function Live() {
             {streams.map((s) => (
               <Card
                 key={s.id}
-                className="overflow-hidden border-border/50 shadow-sm cursor-pointer hover:shadow-md transition-shadow"
+                className="yantra-card cursor-pointer overflow-hidden transition-shadow"
                 onClick={() => setLocation(`/live/${s.id}`)}
                 data-testid={`stream-${s.id}`}
               >
-                <div className="relative aspect-[4/5] bg-gradient-to-br from-nava-royal-purple/30 to-nava-amber/20 flex items-center justify-center">
-                  <Avatar className="w-20 h-20 ring-4 ring-white/40">
+                <div className="relative aspect-[4/5] bg-gradient-to-br from-primary/40 to-background flex items-center justify-center">
+                  <Avatar className="h-20 w-20 rounded-[8px] ring-4 ring-white/40">
                     <AvatarImage src={s.astrologerImage} />
-                    <AvatarFallback className="text-2xl">{s.astrologerName?.[0] || 'A'}</AvatarFallback>
+                    <AvatarFallback className="font-display text-2xl bg-nava-navy text-primary">{s.astrologerName?.[0] || 'A'}</AvatarFallback>
                   </Avatar>
                   <Badge className="absolute top-2 left-2 bg-red-500 text-white border-0 gap-1 animate-pulse">
                     <Radio className="w-3 h-3" /> LIVE
@@ -64,7 +64,7 @@ export default function Live() {
                   </Badge>
                 </div>
                 <CardContent className="p-3">
-                  <p className="text-sm font-semibold leading-tight line-clamp-1">{s.astrologerName}</p>
+                  <p className="font-display text-base leading-tight line-clamp-1">{s.astrologerName}</p>
                   <p className="text-xs text-muted-foreground line-clamp-2 mt-0.5">{s.title}</p>
                 </CardContent>
               </Card>
