@@ -39,10 +39,9 @@ export function DailyGuidanceCard({
   oneAction = 'Have that difficult conversation today — diplomatic energy supports resolution.',
 }: DailyGuidanceCardProps) {
   return (
-    <div className="bg-card border border-border rounded-xl p-5">
-      {/* Title */}
+    <div className="yantra-card p-5">
       <div className="mb-4">
-        <h3 className="font-semibold text-foreground text-lg mb-1">
+        <h3 className="font-display text-lg text-foreground mb-1">
           Today's Cosmic Weather
         </h3>
         <p className="text-sm text-muted-foreground">
@@ -52,8 +51,8 @@ export function DailyGuidanceCard({
 
       {/* Planetary Positions */}
       <div className="grid grid-cols-3 gap-3 mb-4">
-        <div className="bg-muted rounded-lg p-3 text-center">
-          <Moon className="w-4 h-4 mx-auto mb-1 text-nava-royal-purple" />
+        <div className="rounded-[8px] bg-muted p-3 text-center">
+          <Moon className="mx-auto mb-1 h-4 w-4 text-[var(--primary-border)]" />
           <p className="text-xs text-muted-foreground">Moon</p>
           <p className="font-semibold text-foreground text-sm">
             {moonSign}
@@ -62,7 +61,7 @@ export function DailyGuidanceCard({
             {getHouseName(moonHouse)} House
           </p>
         </div>
-        <div className="bg-muted rounded-lg p-3 text-center">
+        <div className="rounded-[8px] bg-muted p-3 text-center">
           <Sun className="w-4 h-4 mx-auto mb-1 text-nava-burnt-orange" />
           <p className="text-xs text-muted-foreground">Sun</p>
           <p className="font-semibold text-foreground text-sm">
@@ -72,7 +71,7 @@ export function DailyGuidanceCard({
             {getHouseName(sunHouse)} House
           </p>
         </div>
-        <div className="bg-muted rounded-lg p-3 text-center">
+        <div className="rounded-[8px] bg-muted p-3 text-center">
           <Star className="w-4 h-4 mx-auto mb-1 text-nava-burgundy" />
           <p className="text-xs text-muted-foreground">Mars</p>
           <p className="font-semibold text-foreground text-sm">
@@ -95,7 +94,7 @@ export function DailyGuidanceCard({
             {goodFor.map((item, index) => (
               <li
                 key={index}
-                className="text-sm text-foreground bg-green-50 px-2 py-1 rounded"
+                className="rounded-[6px] bg-green-50 px-2 py-1 text-sm text-foreground"
               >
                 {item}
               </li>
@@ -111,7 +110,7 @@ export function DailyGuidanceCard({
             {avoid.map((item, index) => (
               <li
                 key={index}
-                className="text-sm text-foreground bg-red-50 px-2 py-1 rounded"
+                className="rounded-[6px] bg-red-50 px-2 py-1 text-sm text-foreground"
               >
                 {item}
               </li>
@@ -122,15 +121,15 @@ export function DailyGuidanceCard({
 
       {/* Best Time */}
       {bestTime && (
-        <div className="bg-nava-lavender rounded-lg p-3 mb-4">
+        <div className="mb-4 rounded-[10px] bg-primary/10 p-3">
           <div className="flex items-center gap-2 mb-1">
-            <Clock className="w-4 h-4 text-nava-royal-purple" />
-            <span className="text-sm font-medium text-nava-royal-purple">
+            <Clock className="h-4 w-4 text-[var(--primary-border)]" />
+            <span className="text-sm font-medium text-[var(--primary-border)]">
               Best Time Today
             </span>
           </div>
-          <p className="text-sm text-nava-royal-purple">{bestTime}</p>
-          <p className="text-xs text-nava-royal-purple/80 mt-1">
+          <p className="text-sm text-[var(--primary-border)]">{bestTime}</p>
+          <p className="mt-1 text-xs text-[var(--primary-border)]/80">
             (Moon-Venus aspect supports important conversations)
           </p>
         </div>

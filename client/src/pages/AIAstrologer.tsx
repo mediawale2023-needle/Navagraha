@@ -403,7 +403,7 @@ export default function AIAstrologer() {
                   </Badge>
                 )}
                 {selectedKundli.moonSign && (
-                  <Badge className="bg-nava-teal/10 text-nava-teal border-0 text-xs">
+                  <Badge className="bg-primary/15 text-[var(--primary-border)] border-0 text-xs">
                     Moon: {selectedKundli.moonSign}
                   </Badge>
                 )}
@@ -423,7 +423,7 @@ export default function AIAstrologer() {
                   Generate your Kundli for personalized AI readings
                 </p>
                 <Link href="/kundli/new">
-                  <Button size="sm" className="bg-nava-amber hover:bg-nava-amber/90 text-white rounded-full gap-1 shrink-0">
+                  <Button size="sm" className="shrink-0 gap-1 rounded-[9px] bg-primary text-primary-foreground hover:bg-primary/90">
                     <Plus className="w-3.5 h-3.5" />
                     Create Kundli
                   </Button>
@@ -437,14 +437,14 @@ export default function AIAstrologer() {
         {!detailsMode && selectedKundliId !== "none" && (currentMahadasha || currentAntardasha) && (
           <Card className="mb-4 bg-card border-border/50 shadow-sm">
             <CardContent className="p-4">
-              <h3 className="text-xs font-semibold text-nava-teal uppercase tracking-wider mb-3">
+              <h3 className="yantra-eyebrow text-[var(--primary-border)] mb-3">
                 Current Planetary Periods
               </h3>
               <div className="space-y-2">
                 {currentMahadasha && (
-                  <div className="flex items-center justify-between bg-nava-teal/5 border border-nava-teal/20 rounded-xl px-4 py-2.5">
+                  <div className="flex items-center justify-between rounded-[10px] border border-primary/25 bg-primary/10 px-4 py-2.5">
                     <div>
-                      <span className="text-[10px] font-semibold text-nava-teal uppercase tracking-wider">Mahadasha</span>
+                      <span className="text-[10px] font-semibold uppercase tracking-wider text-[var(--primary-border)]">Mahadasha</span>
                       <p className="font-bold text-foreground text-sm">{currentMahadasha.planet}</p>
                     </div>
                     <span className="text-xs text-muted-foreground">{currentMahadasha.period}</span>
@@ -466,10 +466,10 @@ export default function AIAstrologer() {
 
         {/* Full Interpretation Panel */}
         {showInterpretation && interpretation && (
-          <Card className="mb-4 bg-nava-amber/5 border-nava-amber/20">
+          <Card className="mb-4 border-primary/25 bg-primary/10">
             <CardContent className="p-5">
               <div className="flex items-center justify-between mb-4">
-                <h2 className="text-base font-bold text-nava-amber">
+                <h2 className="font-display text-base text-[var(--primary-border)]">
                   Your Complete Vedic Reading
                 </h2>
                 <Button
@@ -496,7 +496,7 @@ export default function AIAstrologer() {
                 ].map(({ label, value }) =>
                   value ? (
                     <div key={label}>
-                      <h3 className="text-xs font-semibold text-nava-teal uppercase tracking-wider mb-1">
+                      <h3 className="mb-1 text-xs font-semibold uppercase tracking-wider text-[var(--primary-border)]">
                         {label}
                       </h3>
                       <p className="text-foreground text-sm leading-relaxed">
@@ -512,14 +512,14 @@ export default function AIAstrologer() {
 
                 {interpretation.luckyFactors && (
                   <div>
-                    <h3 className="text-xs font-semibold text-nava-teal uppercase tracking-wider mb-2">
+                    <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-[var(--primary-border)]">
                       Lucky Factors
                     </h3>
                     <div className="flex flex-wrap gap-2">
                       <Badge className="bg-nava-amber/10 text-nava-amber border-0">
                         Number: {interpretation.luckyFactors.number}
                       </Badge>
-                      <Badge className="bg-nava-teal/10 text-nava-teal border-0">
+                      <Badge className="bg-primary/15 text-[var(--primary-border)] border-0">
                         Color: {interpretation.luckyFactors.color}
                       </Badge>
                       <Badge className="bg-nava-magenta/10 text-nava-magenta border-0">
@@ -537,8 +537,8 @@ export default function AIAstrologer() {
         <div className="flex-1 overflow-y-auto space-y-4 mb-4 min-h-[300px]">
           {messages.length === 0 && (
             <div className="text-center py-8">
-              <div className="w-16 h-16 rounded-full bg-nava-amber/10 flex items-center justify-center mx-auto mb-4">
-                <Sparkles className="w-8 h-8 text-nava-amber" />
+              <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-[8px] bg-primary/20">
+                <Sparkles className="w-8 h-8 text-[var(--primary-border)]" />
               </div>
               <p className="text-muted-foreground mb-6 text-sm">
                 Ask Jyotish AI anything about Vedic astrology,
@@ -565,19 +565,19 @@ export default function AIAstrologer() {
               className={`flex gap-3 ${msg.role === "user" ? "justify-end" : "justify-start"}`}
             >
               {msg.role === "assistant" && (
-                <div className="w-8 h-8 rounded-full bg-nava-amber flex items-center justify-center flex-shrink-0 mt-1">
+                <div className="mt-1 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-[8px] bg-primary">
                   <Sparkles className="w-4 h-4 text-white" />
                 </div>
               )}
               <div
                 className={`max-w-[85%] rounded-2xl px-4 py-3 text-sm leading-relaxed ${
                   msg.role === "user"
-                    ? "bg-nava-teal text-white ml-8"
+                    ? "bg-nava-navy text-primary ml-8"
                     : "bg-card border border-border/50 text-foreground"
                 }`}
               >
                 {msg.role === "assistant" ? (
-                  <div className="prose prose-sm dark:prose-invert max-w-none prose-headings:text-nava-amber prose-a:text-nava-teal prose-strong:text-foreground prose-p:leading-relaxed text-foreground">
+                  <div className="prose prose-sm dark:prose-invert max-w-none prose-headings:text-[var(--primary-border)] prose-a:text-[var(--primary-border)] prose-strong:text-foreground prose-p:leading-relaxed text-foreground">
                     <ReactMarkdown>
                       {msg.content}
                     </ReactMarkdown>
@@ -587,8 +587,8 @@ export default function AIAstrologer() {
                 )}
               </div>
               {msg.role === "user" && (
-                <div className="w-8 h-8 rounded-full bg-nava-teal flex items-center justify-center flex-shrink-0 mt-1">
-                  <span className="text-xs font-bold text-white">U</span>
+                <div className="mt-1 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-[8px] bg-nava-navy">
+                  <span className="text-xs font-bold text-primary">U</span>
                 </div>
               )}
             </div>
@@ -596,7 +596,7 @@ export default function AIAstrologer() {
 
           {chatMutation.isPending && (
             <div className="flex gap-3 justify-start">
-              <div className="w-8 h-8 rounded-full bg-nava-amber flex items-center justify-center flex-shrink-0 mt-1">
+              <div className="mt-1 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-[8px] bg-primary">
                 <Sparkles className="w-4 h-4 text-white animate-pulse" />
               </div>
               <div className="bg-card border border-border/50 rounded-2xl px-4 py-3 flex items-center gap-3">
@@ -606,7 +606,7 @@ export default function AIAstrologer() {
                   <div className="absolute inset-0 animate-spin" style={{ animationDuration: "1.4s" }}>
                     <span className="absolute -top-[3px] left-1/2 -translate-x-1/2 w-2.5 h-2.5 rounded-full bg-nava-amber shadow-sm" />
                   </div>
-                  <span className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-2 h-2 rounded-full bg-nava-royal-purple" />
+                  <span className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-2 h-2 rounded-full bg-[var(--primary-border)]" />
                 </div>
                 <span className="text-sm text-muted-foreground">{THINKING_STEPS[thinkingStep]}</span>
               </div>
@@ -625,7 +625,7 @@ export default function AIAstrologer() {
                 key={a.label}
                 onClick={() => sendMessage(a.q)}
                 disabled={chatMutation.isPending}
-                className="shrink-0 text-xs font-medium text-nava-royal-purple bg-nava-lavender/50 hover:bg-nava-lavender border border-nava-royal-purple/20 rounded-full px-3 py-1.5 transition-colors disabled:opacity-50"
+                className="shrink-0 rounded-[999px] border border-primary/25 bg-primary/10 px-3 py-1.5 text-xs font-medium text-[var(--primary-border)] transition-colors hover:bg-primary/15 disabled:opacity-50"
                 data-testid={`chip-${a.label.toLowerCase().replace(/\s+/g, '-')}`}
               >
                 {a.label}
@@ -644,7 +644,7 @@ export default function AIAstrologer() {
             <Button
               onClick={() => sendMessage()}
               disabled={!input.trim() || chatMutation.isPending}
-              className="bg-nava-teal hover:bg-nava-teal/90 text-white h-12 px-4 rounded-xl"
+              className="h-12 rounded-[9px] bg-primary px-4 text-primary-foreground hover:bg-primary/90"
             >
               <Send className="w-4 h-4" />
             </Button>

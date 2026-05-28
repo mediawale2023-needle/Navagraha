@@ -56,28 +56,25 @@ export default function Home() {
   }
 
   return (
-    <div className="min-h-screen bg-background font-sans relative overflow-x-hidden">
-      {/* Content */}
-      <div className="relative pb-24 md:pb-8 w-full max-w-7xl mx-auto">
-        {/* Header */}
-        <header className="pt-5 pb-3 px-4 md:px-8 lg:px-12">
-          <div className="flex items-center justify-between mb-5">
+    <div className="yantra-shell min-h-screen font-sans relative overflow-x-hidden">
+      <div className="relative mx-auto w-full max-w-7xl pb-24 md:pb-8">
+        <header className="px-4 pb-3 pt-5 md:px-8 lg:px-12">
+          <div className="mb-5 flex items-center justify-between">
             <div className="md:hidden">
-              <h1 className="font-semibold text-2xl text-foreground tracking-tight">
+              <h1 className="font-display text-2xl text-foreground tracking-tight">
                 Navagraha
               </h1>
-              <div className="flex items-center gap-1.5 text-nava-royal-purple font-medium text-xs">
+              <div className="flex items-center gap-1.5 text-[var(--primary-border)] font-medium text-xs">
                 <Sparkles className="w-3 h-3" />
-                <span>Ancient Wisdom, Clear Guidance</span>
+                <span>Nine Celestial Powers</span>
               </div>
             </div>
 
-            {/* Profile Dropdown */}
             <div className="flex items-center gap-3">
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <button className="w-10 h-10 rounded-full bg-nava-lavender flex items-center justify-center hover:bg-nava-lavender/80 transition-colors">
-                    <User className="w-5 h-5 text-nava-royal-purple" />
+                  <button className="flex h-10 w-10 items-center justify-center rounded-[8px] border border-border bg-card transition-colors hover:bg-muted">
+                    <User className="w-5 h-5 text-foreground" />
                   </button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-48 bg-card border-border">
@@ -111,23 +108,23 @@ export default function Home() {
           <div className="grid gap-4 lg:grid-cols-[minmax(0,1.5fr)_320px] lg:items-stretch">
             <GreetingCard
               userName={user?.firstName ? user.firstName.split(' ')[0] : 'Seeker'}
-              subtitle="How can the stars guide you today?"
-              className="h-full rounded-2xl p-5"
+              subtitle="Saturn turns benefic on Thursday. Move on the conversation you&apos;ve been postponing."
+              className="h-full"
             />
-            <div className="rounded-2xl border border-border bg-card p-5 shadow-sm">
+            <div className="yantra-card h-full p-5">
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">Wallet</p>
-                  <p className="mt-2 text-3xl font-bold text-foreground">₹{balance.toFixed(0)}</p>
+                  <p className="yantra-eyebrow">Wallet</p>
+                  <p className="font-display mt-2 text-3xl text-foreground">₹{balance.toFixed(0)}</p>
                   <p className="mt-1 text-sm text-muted-foreground">Ready for chats, calls, and reports</p>
                 </div>
-                <div className="rounded-2xl bg-nava-lavender p-3">
-                  <Wallet className="w-5 h-5 text-nava-royal-purple" />
+                <div className="rounded-[8px] bg-primary/20 p-3">
+                  <Wallet className="w-5 h-5 text-[var(--primary-border)]" />
                 </div>
               </div>
               <button
                 onClick={() => setLocation('/wallet')}
-                className="mt-4 inline-flex items-center gap-2 text-sm font-semibold text-nava-royal-purple"
+                className="mt-4 inline-flex items-center gap-2 border-b border-foreground pb-0.5 text-sm font-semibold text-foreground"
               >
                 Add money
                 <ArrowRight className="w-4 h-4" />
@@ -139,32 +136,32 @@ export default function Home() {
         <div className="px-4 md:px-8 lg:px-12">
           <div className="grid gap-4 xl:grid-cols-[minmax(0,1.55fr)_minmax(280px,0.9fr)]">
             <HeroBanner
-              title={cmsBanner?.title}
-              subtitle={cmsBanner?.subtitle ?? undefined}
-              cta={cmsBanner?.cta ?? undefined}
+              title={cmsBanner?.title || 'Your cosmic blueprint awaits.'}
+              subtitle={cmsBanner?.subtitle ?? 'Kundli, personalised guidance, and expert consultations.'}
+              cta={cmsBanner?.cta ?? 'Generate kundli'}
               href={cmsBanner?.href ?? undefined}
-              className="h-full rounded-[1.75rem] p-6"
+              className="h-full"
             />
-            <div className="rounded-[1.75rem] border border-border bg-card p-5 shadow-sm">
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">Today</p>
-              <h2 className="mt-2 text-xl font-bold text-foreground">Move with clarity</h2>
+            <div className="yantra-card-dark p-5">
+              <p className="yantra-eyebrow text-primary/75">Today&apos;s dasha</p>
+              <h2 className="font-display mt-2 text-2xl text-primary">Mars</h2>
               <p className="mt-2 text-sm text-muted-foreground">
-                Your strongest next step is a quick reading, a fresh chart, or a scheduled expert session.
+                Mahadasha in motion. Good for courage, work, and clear action. Avoid impulsive decisions.
               </p>
               <div className="mt-4 grid grid-cols-2 gap-3">
                 <button
                   onClick={() => setLocation('/kundli/new')}
-                  className="rounded-2xl bg-muted px-4 py-4 text-left transition-colors hover:bg-accent"
+                  className="rounded-[9px] bg-primary px-4 py-4 text-left text-primary-foreground transition-colors hover:opacity-90"
                 >
-                  <p className="text-sm font-semibold text-foreground">Create chart</p>
-                  <p className="mt-1 text-xs text-muted-foreground">Get your kundli</p>
+                  <p className="font-display text-sm">Create chart</p>
+                  <p className="mt-1 text-xs text-primary-foreground/75">Get your kundli</p>
                 </button>
                 <button
                   onClick={() => setLocation('/astrologers')}
-                  className="rounded-2xl bg-muted px-4 py-4 text-left transition-colors hover:bg-accent"
+                  className="rounded-[9px] border border-primary/40 bg-transparent px-4 py-4 text-left transition-colors hover:bg-white/5"
                 >
-                  <p className="text-sm font-semibold text-foreground">Talk live</p>
-                  <p className="mt-1 text-xs text-muted-foreground">Browse astrologers</p>
+                  <p className="font-display text-sm text-primary">Talk live</p>
+                  <p className="mt-1 text-xs text-primary/70">Browse astrologers</p>
                 </button>
               </div>
             </div>
@@ -174,7 +171,7 @@ export default function Home() {
         {/* Quick Actions - 2x2 Grid */}
         <section className="mb-7 pt-1">
           <div className="px-4 md:px-8 lg:px-12">
-            <SectionHeader title="Quick Actions" showViewAll={false} />
+            <SectionHeader title="Connect" showViewAll={false} />
           </div>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3 px-4 md:px-8 lg:px-12 xl:grid-cols-4">
             {cmsServices.length > 0 ? (
@@ -260,15 +257,15 @@ export default function Home() {
                 />
               </div>
             </div>
-            <div className="rounded-[1.75rem] border border-nava-royal-purple/15 bg-gradient-to-br from-card via-card to-nava-lavender/35 p-6 shadow-sm">
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">Today&apos;s Guidance</p>
-              <h3 className="mt-2 text-xl font-bold text-foreground">A grounded day for action</h3>
+            <div className="yantra-card p-6">
+              <p className="yantra-eyebrow">Today&apos;s Guidance</p>
+              <h3 className="font-display mt-2 text-xl text-foreground">A grounded day for action</h3>
               <p className="mt-3 text-sm text-muted-foreground">
                 Generate your kundli to unlock chart-specific guidance, stronger remedies, and better astrologer matching.
               </p>
               <button
                 onClick={() => setLocation('/kundli/new')}
-                className="mt-5 inline-flex items-center gap-2 rounded-full bg-nava-royal-purple px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-nava-royal-purple/90"
+                className="mt-5 inline-flex items-center gap-2 rounded-[9px] bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground transition-colors hover:opacity-90"
               >
                 Create Your Chart
                 <ArrowRight className="w-4 h-4" />
@@ -282,7 +279,7 @@ export default function Home() {
           <div className="px-4 md:px-8 lg:px-12">
             <SectionHeader
               title="Online Astrologers"
-              subtitle="Connect instantly with experts"
+              subtitle="Trusted experts, vetted and verified"
               viewAllLink="/astrologers"
             />
           </div>

@@ -24,24 +24,32 @@ export function QuickActionCard({
 }: QuickActionCardProps) {
   const colorVariants = {
     purple: {
-      bg: 'bg-nava-lavender',
-      iconBg: 'bg-nava-royal-purple',
+      bg: 'bg-[var(--nava-teal)]',
+      iconBg: 'bg-white/15',
       iconColor: 'text-white',
+      text: 'text-white',
+      label: 'Live',
     },
     green: {
-      bg: 'bg-green-50',
-      iconBg: 'bg-nava-deep-green',
+      bg: 'bg-[var(--nava-magenta)]',
+      iconBg: 'bg-white/15',
       iconColor: 'text-white',
+      text: 'text-white',
+      label: 'Instant',
     },
     orange: {
-      bg: 'bg-orange-50',
-      iconBg: 'bg-nava-burnt-orange',
-      iconColor: 'text-white',
+      bg: 'bg-primary',
+      iconBg: 'bg-black/10',
+      iconColor: 'text-[var(--nava-navy)]',
+      text: 'text-[var(--nava-navy)]',
+      label: 'Free',
     },
     navy: {
-      bg: 'bg-slate-50',
-      iconBg: 'bg-nava-navy',
-      iconColor: 'text-white',
+      bg: 'bg-[var(--nava-navy)]',
+      iconBg: 'bg-white/10',
+      iconColor: 'text-primary',
+      text: 'text-primary',
+      label: 'Schedule',
     },
   };
 
@@ -50,14 +58,15 @@ export function QuickActionCard({
   return (
     <button
       onClick={onClick}
-      className={`${variant.bg} rounded-xl p-4 text-left transition-all duration-200 hover:shadow-md hover:scale-[1.02] active:scale-[0.98] ${className}`}
+      className={`${variant.bg} ${variant.text} rounded-[10px] p-4 text-left transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md active:scale-[0.98] ${className}`}
     >
       <div
-        className={`${variant.iconBg} w-10 h-10 rounded-lg flex items-center justify-center mb-3`}
+        className={`${variant.iconBg} mb-4 flex h-10 w-10 items-center justify-center rounded-[8px]`}
       >
         <Icon className={`w-5 h-5 ${variant.iconColor}`} />
       </div>
-      <h3 className="font-semibold text-foreground text-sm">{title}</h3>
+      <p className="text-[0.6rem] font-bold uppercase tracking-[0.18em] opacity-70">{variant.label}</p>
+      <h3 className="font-display mt-1 text-base leading-tight">{title}</h3>
     </button>
   );
 }

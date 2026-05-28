@@ -73,10 +73,10 @@ function ReferralCard() {
   };
 
   return (
-    <Card className="mb-6 bg-card border-border/50 shadow-sm">
+    <Card className="yantra-card mb-6">
       <CardHeader className="pb-3">
-        <CardTitle className="text-base flex items-center gap-2">
-          <Gift className="w-4 h-4 text-nava-amber" /> Refer &amp; Earn
+        <CardTitle className="flex items-center gap-2 text-base font-display">
+          <Gift className="w-4 h-4 text-[var(--primary-border)]" /> Refer &amp; Earn
         </CardTitle>
         <CardDescription>
           Invite friends — they get ₹{referral?.refereeReward ?? 25} on their first recharge and you earn ₹{referral?.referrerReward ?? 75}.
@@ -85,13 +85,13 @@ function ReferralCard() {
       <CardContent className="pt-0 space-y-4">
         {referral?.code && (
           <div className="flex items-center gap-2">
-            <div className="flex-1 px-4 py-3 rounded-xl border-2 border-dashed border-nava-amber/60 bg-nava-amber/5 text-center font-mono font-bold tracking-widest text-foreground" data-testid="text-referral-code">
+            <div className="flex-1 rounded-[10px] border-2 border-dashed border-primary/60 bg-primary/10 px-4 py-3 text-center font-mono font-bold tracking-widest text-foreground" data-testid="text-referral-code">
               {referral.code}
             </div>
             <Button variant="outline" size="icon" onClick={copyCode} className="rounded-xl h-12 w-12" data-testid="button-copy-code">
               {copied ? <Check className="w-4 h-4 text-emerald-600" /> : <Copy className="w-4 h-4" />}
             </Button>
-            <Button onClick={share} className="bg-nava-teal hover:bg-nava-teal/90 text-white rounded-xl h-12" data-testid="button-share-code">
+            <Button onClick={share} className="h-12 rounded-[9px] bg-primary text-primary-foreground hover:bg-primary/90" data-testid="button-share-code">
               Share
             </Button>
           </div>
@@ -152,17 +152,16 @@ export default function Profile() {
   }
 
   return (
-    <div className="min-h-screen bg-background pb-24 md:pb-8">
-      {/* Header */}
-      <div className="sticky top-0 z-50 bg-background/95 backdrop-blur-md border-b border-border/30">
+      <div className="yantra-shell min-h-screen pb-24 md:pb-8">
+      <div className="sticky top-0 z-50 border-b border-border bg-background/95 backdrop-blur-md">
         <div className="w-full max-w-7xl mx-auto px-4 md:px-8 lg:px-12 py-3">
           <div className="flex items-center gap-3">
             <Link href="/">
-              <button className="p-1.5 rounded-lg hover:bg-muted" data-testid="button-back">
+              <button className="flex h-9 w-9 items-center justify-center rounded-[8px] border border-border bg-card hover:bg-muted" data-testid="button-back">
                 <ArrowLeft className="w-5 h-5 text-foreground" />
               </button>
             </Link>
-            <h1 className="font-bold text-lg text-foreground">My Profile</h1>
+            <h1 className="font-display text-xl text-foreground">My Profile</h1>
           </div>
         </div>
       </div>
@@ -170,20 +169,20 @@ export default function Profile() {
       <div className="w-full max-w-7xl mx-auto px-4 md:px-8 lg:px-12 py-6">
 
         {/* Profile Info Card */}
-        <Card className="mb-6 bg-card border-border/50 shadow-sm">
+        <Card className="mb-6 overflow-hidden border-[var(--primary-border)] bg-primary">
           <CardContent className="p-5">
             <div className="flex items-center gap-4 mb-5">
-              <div className="w-20 h-20 rounded-full p-1 bg-gradient-to-br from-nava-teal/30 to-nava-amber/30">
-                <Avatar className="w-full h-full border-2 border-card">
+              <div className="w-20 h-20 rounded-[8px] border-4 border-background bg-card">
+                <Avatar className="h-full w-full rounded-[6px]">
                   <AvatarImage src={user?.profileImageUrl || undefined} alt={user?.firstName || 'User'} className="object-cover" />
-                  <AvatarFallback className="bg-nava-navy text-white font-bold text-2xl">
+                  <AvatarFallback className="bg-nava-navy font-display text-2xl text-primary">
                     {user?.firstName?.charAt(0) || user?.email?.charAt(0)?.toUpperCase() || 'U'}
                   </AvatarFallback>
                 </Avatar>
               </div>
 
               <div className="flex-1">
-                <h2 className="text-xl font-bold text-foreground mb-1">
+                <h2 className="font-display text-2xl text-foreground mb-1">
                   {user?.firstName || user?.lastName
                     ? `${user.firstName || ''} ${user.lastName || ''}`.trim()
                     : 'Anonymous User'}
@@ -197,7 +196,7 @@ export default function Profile() {
               </div>
             </div>
 
-            <Button variant="outline" className="w-full rounded-full border-border" data-testid="button-edit-profile">
+            <Button variant="secondary" className="w-full rounded-[9px] bg-nava-navy text-primary hover:bg-nava-navy/95" data-testid="button-edit-profile">
               Edit Profile
             </Button>
           </CardContent>
@@ -205,25 +204,25 @@ export default function Profile() {
 
         {/* Stats Row */}
         <div className="grid grid-cols-3 gap-3 mb-6">
-          <div className="bg-card rounded-2xl p-4 text-center border border-border/50 shadow-sm">
-            <div className="w-10 h-10 rounded-full bg-nava-teal/10 flex items-center justify-center mx-auto mb-2">
-              <Sparkles className="w-5 h-5 text-nava-teal" />
+          <div className="yantra-card rounded-[12px] p-4 text-center">
+            <div className="mx-auto mb-2 flex h-10 w-10 items-center justify-center rounded-[6px] bg-primary/20">
+              <Sparkles className="w-5 h-5 text-[var(--primary-border)]" />
             </div>
             <div className="text-2xl font-bold text-foreground">{kundlis?.length || 0}</div>
             <div className="text-xs text-muted-foreground">Kundlis</div>
           </div>
 
-          <div className="bg-card rounded-2xl p-4 text-center border border-border/50 shadow-sm">
-            <div className="w-10 h-10 rounded-full bg-nava-magenta/10 flex items-center justify-center mx-auto mb-2">
+          <div className="yantra-card rounded-[12px] p-4 text-center">
+            <div className="mx-auto mb-2 flex h-10 w-10 items-center justify-center rounded-[6px] bg-nava-magenta/10">
               <User className="w-5 h-5 text-nava-magenta" />
             </div>
             <div className="text-2xl font-bold text-foreground">0</div>
             <div className="text-xs text-muted-foreground">Consults</div>
           </div>
 
-          <div className="bg-card rounded-2xl p-4 text-center border border-border/50 shadow-sm">
-            <div className="w-10 h-10 rounded-full bg-nava-amber/10 flex items-center justify-center mx-auto mb-2">
-              <Calendar className="w-5 h-5 text-nava-amber" />
+          <div className="yantra-card rounded-[12px] p-4 text-center">
+            <div className="mx-auto mb-2 flex h-10 w-10 items-center justify-center rounded-[6px] bg-primary/15">
+              <Calendar className="w-5 h-5 text-[var(--primary-border)]" />
             </div>
             <div className="text-2xl font-bold text-foreground">
               {user?.createdAt
@@ -239,16 +238,16 @@ export default function Profile() {
 
         {/* Birth Details Card */}
         {(user?.dateOfBirth || user?.timeOfBirth || user?.placeOfBirth) && (
-          <Card className="mb-6 bg-card border-border/50 shadow-sm">
+          <Card className="yantra-card mb-6">
             <CardHeader className="pb-3">
-              <CardTitle className="text-base">Birth Details</CardTitle>
+              <CardTitle className="font-display text-base">Birth Details</CardTitle>
             </CardHeader>
             <CardContent className="pt-0">
               <div className="space-y-3">
                 {user.dateOfBirth && (
                   <div className="flex items-center gap-3">
-                    <div className="w-9 h-9 rounded-full bg-nava-teal/10 flex items-center justify-center">
-                      <Calendar className="w-4 h-4 text-nava-teal" />
+                    <div className="flex h-9 w-9 items-center justify-center rounded-[6px] bg-primary/15">
+                      <Calendar className="w-4 h-4 text-[var(--primary-border)]" />
                     </div>
                     <div>
                       <div className="text-xs text-muted-foreground">Date of Birth</div>
@@ -261,8 +260,8 @@ export default function Profile() {
 
                 {user.timeOfBirth && (
                   <div className="flex items-center gap-3">
-                    <div className="w-9 h-9 rounded-full bg-nava-amber/10 flex items-center justify-center">
-                      <Clock className="w-4 h-4 text-nava-amber" />
+                    <div className="flex h-9 w-9 items-center justify-center rounded-[6px] bg-primary/15">
+                      <Clock className="w-4 h-4 text-[var(--primary-border)]" />
                     </div>
                     <div>
                       <div className="text-xs text-muted-foreground">Time of Birth</div>
@@ -273,7 +272,7 @@ export default function Profile() {
 
                 {user.placeOfBirth && (
                   <div className="flex items-center gap-3">
-                    <div className="w-9 h-9 rounded-full bg-nava-magenta/10 flex items-center justify-center">
+                    <div className="flex h-9 w-9 items-center justify-center rounded-[6px] bg-nava-magenta/10">
                       <MapPin className="w-4 h-4 text-nava-magenta" />
                     </div>
                     <div>
@@ -288,12 +287,12 @@ export default function Profile() {
         )}
 
         {/* Saved Kundlis */}
-        <Card className="bg-card border-border/50 shadow-sm">
+        <Card className="yantra-card">
           <CardHeader className="pb-3">
             <div className="flex items-center justify-between">
-              <CardTitle className="text-base">My Kundlis</CardTitle>
+              <CardTitle className="font-display text-base">My Kundlis</CardTitle>
               <Link href="/kundli/new">
-                <Button size="sm" className="bg-nava-teal hover:bg-nava-teal/90 text-white rounded-full" data-testid="button-new-kundli">
+                <Button size="sm" className="rounded-[9px] bg-primary text-primary-foreground hover:bg-primary/90" data-testid="button-new-kundli">
                   <Sparkles className="w-3.5 h-3.5 mr-1.5" />
                   Generate New
                 </Button>
@@ -311,12 +310,12 @@ export default function Profile() {
                   return (
                     <Link key={kundli.id} href={`/kundli/${kundli.id}`}>
                       <div
-                        className="p-4 bg-background rounded-xl hover:bg-muted transition-colors cursor-pointer"
+                        className="cursor-pointer rounded-[10px] bg-background p-4 transition-colors hover:bg-muted"
                         data-testid={`kundli-${kundli.id}`}
                       >
                         <div className="flex items-start justify-between gap-3">
                           <div className="flex-1">
-                            <h3 className="font-semibold text-sm text-foreground mb-1.5">
+                            <h3 className="font-display mb-1.5 text-base text-foreground">
                               {kundli.name}
                             </h3>
                             <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
@@ -332,7 +331,7 @@ export default function Profile() {
                           </div>
                           <div className="flex flex-wrap gap-1.5">
                             {kundli.zodiacSign && (
-                              <Badge className="bg-nava-teal/10 text-nava-teal border-0 text-xs">{kundli.zodiacSign}</Badge>
+                              <Badge className="border-0 bg-primary/15 text-[var(--primary-border)] text-xs">{kundli.zodiacSign}</Badge>
                             )}
                           </div>
                         </div>
@@ -343,15 +342,15 @@ export default function Profile() {
               </div>
             ) : (
               <div className="text-center py-8">
-                <div className="w-14 h-14 rounded-full bg-nava-teal/10 flex items-center justify-center mx-auto mb-3">
-                  <Sparkles className="w-7 h-7 text-nava-teal" />
+                <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-[8px] bg-primary/20">
+                  <Sparkles className="w-7 h-7 text-[var(--primary-border)]" />
                 </div>
                 <p className="text-muted-foreground text-sm mb-1">No kundlis generated yet</p>
                 <p className="text-xs text-muted-foreground mb-4">
                   Generate your first birth chart to get started
                 </p>
                 <Link href="/kundli/new">
-                  <Button className="bg-nava-teal hover:bg-nava-teal/90 text-white rounded-full">
+                  <Button className="rounded-[9px] bg-primary text-primary-foreground hover:bg-primary/90">
                     <Sparkles className="w-4 h-4 mr-2" />
                     Generate Kundli
                   </Button>

@@ -232,32 +232,33 @@ export default function Wallet() {
   const balance = parseFloat(wallet?.balance || '0');
 
   return (
-    <div className="min-h-screen bg-background text-foreground pb-24 md:pb-8">
-      {/* Header */}
-      <div className="sticky top-0 z-50 bg-background/95 backdrop-blur-md border-b border-border/30">
+    <div className="yantra-shell min-h-screen pb-24 text-foreground md:pb-8">
+      <div className="sticky top-0 z-50 border-b border-border bg-background/95 backdrop-blur-md">
         <div className="w-full max-w-7xl mx-auto px-4 md:px-8 lg:px-12 py-3">
           <div className="flex items-center gap-3">
             <Link href="/">
-              <button className="p-1.5 rounded-lg hover:bg-muted" data-testid="button-back">
+              <button className="flex h-9 w-9 items-center justify-center rounded-[8px] border border-border bg-card hover:bg-muted" data-testid="button-back">
                 <ArrowLeft className="w-5 h-5 text-foreground" />
               </button>
             </Link>
-            <h1 className="font-bold text-lg text-foreground">My Wallet</h1>
+            <h1 className="font-display text-xl text-foreground">My Wallet</h1>
           </div>
         </div>
       </div>
 
       <div className="w-full max-w-7xl mx-auto px-4 md:px-8 lg:px-12 py-6">
         {/* Balance Card */}
-        <div className="bg-nava-teal rounded-3xl p-6 mb-6 shadow-md">
+        <div className="mb-6 rounded-[12px] border border-[var(--primary-border)] bg-primary p-6 shadow-md">
           <div className="flex items-center gap-3 mb-2">
-            <WalletIcon className="w-6 h-6 text-white" />
-            <span className="text-sm text-white/90 font-medium">Available Balance</span>
+            <div className="flex h-10 w-10 items-center justify-center rounded-[8px] bg-nava-navy">
+              <WalletIcon className="w-5 h-5 text-primary" />
+            </div>
+            <span className="text-sm font-medium text-[var(--nava-navy)]/90">Available Balance</span>
           </div>
-          <div className="text-4xl font-bold text-white mb-1" data-testid="text-balance">
+          <div className="mb-1 font-display text-4xl text-[var(--nava-navy)]" data-testid="text-balance">
             ₹{balance.toFixed(2)}
           </div>
-          <p className="text-sm text-white/80">
+          <p className="text-sm text-[var(--nava-navy)]/75">
             {balance < 100
               ? 'Low balance - recharge to continue consultations'
               : `Approx. ${Math.floor(balance / 25)} minutes of consultation time`}
@@ -265,9 +266,9 @@ export default function Wallet() {
         </div>
 
         {/* Recharge Section */}
-        <Card className="mb-6 bg-card border-border/50 shadow-sm">
+        <Card className="yantra-card mb-6">
           <CardHeader className="pb-3">
-            <CardTitle className="text-base">Add Money</CardTitle>
+            <CardTitle className="font-display text-base">Add Money</CardTitle>
             <CardDescription>Choose a recharge pack or enter a custom amount</CardDescription>
           </CardHeader>
           <CardContent>
@@ -283,16 +284,16 @@ export default function Wallet() {
                         setSelectedPack(pack);
                         handlePayment(pack.amount, pack.id, pack.bonus);
                       }}
-                      className={`relative p-4 rounded-xl border-2 text-left transition-all hover:border-nava-amber ${pack.popular ? 'border-nava-amber bg-nava-amber/5' : 'border-border'
+                      className={`relative rounded-[10px] border-2 p-4 text-left transition-all hover:border-[var(--primary-border)] ${pack.popular ? 'border-[var(--primary-border)] bg-primary/10' : 'border-border bg-card'
                         }`}
                       data-testid={`button-pack-${pack.id}`}
                     >
                       {pack.popular && (
-                        <span className="absolute -top-2 left-1/2 -translate-x-1/2 bg-nava-amber text-nava-navy text-[10px] font-bold px-2 py-0.5 rounded-full">
+                        <span className="absolute -top-2 left-1/2 -translate-x-1/2 rounded-[6px] bg-nava-navy px-2 py-0.5 text-[10px] font-bold text-primary">
                           Popular
                         </span>
                       )}
-                      <div className="text-xl font-bold text-foreground">₹{pack.amount}</div>
+                      <div className="font-display text-xl text-foreground">₹{pack.amount}</div>
                       {pack.bonus > 0 && (
                         <div className="text-xs text-emerald-600 font-semibold">+ ₹{pack.bonus} bonus</div>
                       )}
@@ -312,7 +313,7 @@ export default function Wallet() {
                   <Button
                     key={amount}
                     variant="outline"
-                    className="h-12 text-sm font-semibold rounded-xl"
+                    className="h-12 rounded-[9px] text-sm font-semibold"
                     onClick={() => handlePayment(amount)}
                     data-testid={`button-add-${amount}`}
                   >
@@ -329,14 +330,14 @@ export default function Wallet() {
                 placeholder="Enter custom amount (min ₹10)"
                 value={customAmount}
                 onChange={(e) => setCustomAmount(e.target.value)}
-                className="flex-1 rounded-xl"
+                className="flex-1 rounded-[10px]"
                 min="10"
                 data-testid="input-custom-amount"
               />
               <Button
                 onClick={handleCustomPayment}
                 disabled={!customAmount || Number(customAmount) < 10}
-                className="bg-nava-teal hover:bg-nava-teal/90 text-white rounded-xl px-6"
+                className="rounded-[9px] bg-primary px-6 text-primary-foreground hover:bg-primary/90"
                 data-testid="button-add-custom"
               >
                 Pay
@@ -350,14 +351,14 @@ export default function Wallet() {
                   placeholder="Have a coupon code?"
                   value={couponCode}
                   onChange={(e) => { setCouponCode(e.target.value.toUpperCase()); setCouponState(null); }}
-                  className="flex-1 rounded-xl uppercase"
+                  className="flex-1 rounded-[10px] uppercase"
                   data-testid="input-coupon"
                 />
                 <Button
                   variant="outline"
                   onClick={validateCoupon}
                   disabled={!couponCode.trim() || validatingCoupon}
-                  className="rounded-xl px-6"
+                  className="rounded-[9px] px-6"
                   data-testid="button-apply-coupon"
                 >
                   {validatingCoupon ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Apply'}
@@ -379,14 +380,14 @@ export default function Wallet() {
                     <button
                       key={offer.code}
                       onClick={() => { setCouponCode(offer.code); setCouponState(null); }}
-                      className="w-full flex items-center justify-between gap-3 p-3 rounded-xl border border-dashed border-nava-amber/60 bg-nava-amber/5 text-left hover:bg-nava-amber/10 transition-colors"
+                      className="flex w-full items-center justify-between gap-3 rounded-[10px] border border-dashed border-primary/60 bg-primary/10 p-3 text-left transition-colors hover:bg-primary/15"
                       data-testid={`offer-${offer.code}`}
                     >
                       <div>
                         <div className="text-sm font-bold text-foreground">{offer.code}</div>
                         <div className="text-xs text-muted-foreground">{offer.description}</div>
                       </div>
-                      <Badge variant="outline" className="border-nava-amber text-nava-amber shrink-0">Tap to use</Badge>
+                      <Badge variant="outline" className="shrink-0 border-[var(--primary-border)] text-[var(--primary-border)]">Tap to use</Badge>
                     </button>
                   ))}
                 </div>
@@ -402,9 +403,9 @@ export default function Wallet() {
         </Card>
 
         {/* Transaction History */}
-        <Card className="bg-card border-border/50 shadow-sm">
+        <Card className="yantra-card">
           <CardHeader className="pb-3">
-            <CardTitle className="text-base">Transaction History</CardTitle>
+            <CardTitle className="font-display text-base">Transaction History</CardTitle>
           </CardHeader>
           <CardContent>
             {transactionsLoading ? (
@@ -419,14 +420,14 @@ export default function Wallet() {
                   return (
                     <div
                       key={transaction.id}
-                      className="flex items-center justify-between p-3 bg-background rounded-xl"
+                      className="flex items-center justify-between rounded-[10px] bg-background p-3"
                       data-testid={`transaction-${transaction.id}`}
                     >
                       <div className="flex items-center gap-3">
-                        <div className={`w-9 h-9 rounded-full flex items-center justify-center ${isPending ? 'bg-nava-amber/10' : isCredit ? 'bg-emerald-500/10' : 'bg-nava-magenta/10'
+                        <div className={`flex h-9 w-9 items-center justify-center rounded-[6px] ${isPending ? 'bg-primary/15' : isCredit ? 'bg-emerald-500/10' : 'bg-nava-magenta/10'
                           }`}>
                           {isPending ? (
-                            <Loader2 className="w-4 h-4 text-nava-amber animate-spin" />
+                            <Loader2 className="h-4 w-4 animate-spin text-[var(--primary-border)]" />
                           ) : isCredit ? (
                             <ArrowDownLeft className="w-4 h-4 text-emerald-600" />
                           ) : (
@@ -459,8 +460,8 @@ export default function Wallet() {
               </div>
             ) : (
               <div className="text-center py-8">
-                <div className="w-14 h-14 rounded-full bg-nava-teal/10 flex items-center justify-center mx-auto mb-3">
-                  <WalletIcon className="w-7 h-7 text-nava-teal" />
+                  <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-[8px] bg-primary/20">
+                  <WalletIcon className="w-7 h-7 text-[var(--primary-border)]" />
                 </div>
                 <p className="text-muted-foreground text-sm">No transactions yet</p>
                 <p className="text-xs text-muted-foreground mt-1">Recharge your wallet to get started</p>

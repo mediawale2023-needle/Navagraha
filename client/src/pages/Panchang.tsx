@@ -40,20 +40,20 @@ export default function Panchang() {
   );
 
   return (
-    <div className="min-h-screen bg-background text-foreground pb-24 md:pb-8">
-      <div className="sticky top-0 z-50 bg-background/95 backdrop-blur-md border-b border-border/30">
+    <div className="yantra-shell min-h-screen pb-24 text-foreground md:pb-8">
+      <div className="sticky top-0 z-50 border-b border-border bg-background/95 backdrop-blur-md">
         <div className="w-full max-w-3xl mx-auto px-4 md:px-8 py-3 flex items-center gap-3">
-          <Link href="/"><button className="p-1.5 rounded-lg hover:bg-muted" data-testid="button-back"><ArrowLeft className="w-5 h-5" /></button></Link>
-          <h1 className="font-bold text-lg flex items-center gap-2"><CalendarDays className="w-5 h-5 text-nava-royal-purple" /> Panchang</h1>
+          <Link href="/"><button className="flex h-9 w-9 items-center justify-center rounded-[8px] border border-border bg-card hover:bg-muted" data-testid="button-back"><ArrowLeft className="w-5 h-5" /></button></Link>
+          <h1 className="font-display text-xl flex items-center gap-2"><CalendarDays className="w-5 h-5 text-[var(--primary-border)]" /> Panchang</h1>
         </div>
       </div>
 
       <div className="w-full max-w-3xl mx-auto px-4 md:px-8 py-6 space-y-4">
-        <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="rounded-xl max-w-xs" data-testid="input-date" />
+        <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="max-w-xs rounded-[10px]" data-testid="input-date" />
 
         {isLoading || !data ? <LoadingSpinner /> : (
           <>
-            <Card className="border-border/50 shadow-sm">
+            <Card className="yantra-card">
               <CardContent className="p-5">
                 <div className="flex items-center justify-between mb-2">
                   <p className="font-semibold text-lg">{data.vara}</p>
@@ -67,21 +67,21 @@ export default function Panchang() {
             </Card>
 
             <div className="grid grid-cols-2 gap-3">
-              <Card className="border-border/50 shadow-sm">
+              <Card className="yantra-card">
                 <CardContent className="p-4 flex items-center gap-3">
                   <Sun className="w-6 h-6 text-nava-amber" />
                   <div><div className="text-xs text-muted-foreground">Sunrise</div><div className="font-semibold">{data.sunrise}</div></div>
                 </CardContent>
               </Card>
-              <Card className="border-border/50 shadow-sm">
+              <Card className="yantra-card">
                 <CardContent className="p-4 flex items-center gap-3">
-                  <Moon className="w-6 h-6 text-nava-royal-purple" />
+                  <Moon className="w-6 h-6 text-[var(--primary-border)]" />
                   <div><div className="text-xs text-muted-foreground">Sunset</div><div className="font-semibold">{data.sunset}</div></div>
                 </CardContent>
               </Card>
             </div>
 
-            <Card className="border-border/50 shadow-sm">
+            <Card className="yantra-card">
               <CardContent className="p-5">
                 <p className="font-semibold mb-1 flex items-center gap-2"><Clock className="w-4 h-4 text-red-500" /> Inauspicious Timings</p>
                 <Limb label="Rahu Kaal" value={`${data.rahuKaal.start} – ${data.rahuKaal.end}`} />

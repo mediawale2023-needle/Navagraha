@@ -287,29 +287,28 @@ export default function Chat() {
   const pricePerMin = Number(astrologer.pricePerMinute) || 25;
 
   return (
-    <div className="h-screen flex flex-col bg-background">
-      {/* Header */}
-      <div className="sticky top-0 z-50 border-b border-foreground/5 ">
+    <div className="yantra-shell flex h-screen flex-col">
+      <div className="sticky top-0 z-50 border-b border-nava-navy bg-nava-navy text-primary">
         <div className="max-w-4xl mx-auto px-4 py-3">
           <div className="flex items-center justify-between gap-4">
             <div className="flex items-center gap-3 flex-1 min-w-0">
               <Link href="/astrologers">
-                <button className="p-2 rounded-xl hover:bg-foreground/5" data-testid="button-back">
-                  <ArrowLeft className="w-5 h-5 text-foreground" />
+                <button className="rounded-[8px] bg-white/10 p-2 hover:bg-white/15" data-testid="button-back">
+                  <ArrowLeft className="w-5 h-5 text-primary" />
                 </button>
               </Link>
-              <Avatar className="w-12 h-12 flex-shrink-0">
+              <Avatar className="h-12 w-12 flex-shrink-0 rounded-[6px] border border-primary/40">
                 <AvatarImage src={astrologer.profileImageUrl || undefined} alt={astrologer.name} />
-                <AvatarFallback className="gradient-primary text-white font-bold">
+                <AvatarFallback className="bg-primary font-display text-primary-foreground">
                   {astrologer.name.charAt(0)}
                 </AvatarFallback>
               </Avatar>
               <div className="flex-1 min-w-0">
-                <h3 className="font-bold text-lg text-foreground truncate">{astrologer.name}</h3>
+                <h3 className="font-display truncate text-lg text-primary">{astrologer.name}</h3>
                 <div className="flex items-center gap-2 text-sm">
                   <div className="flex items-center gap-1">
                     <div className={`w-2 h-2 rounded-full ${astrologer.isOnline ? 'bg-green-600 animate-pulse' : 'bg-foreground/10'}`} />
-                    <span className="text-xs text-foreground/70 font-medium">
+                    <span className="text-xs font-medium text-primary/70">
                       {astrologer.availability === 'busy' ? 'In a session' : astrologer.isOnline ? 'Online' : 'Offline'}
                     </span>
                   </div>
@@ -323,13 +322,13 @@ export default function Chat() {
             </div>
             <div className="flex items-center gap-2">
               <Link href={`/call/${astrologerId}?type=voice`}>
-                <button className="p-2 rounded-xl bg-foreground/5 hover:bg-foreground/10" data-testid="button-voice-call">
-                  <Phone className="w-5 h-5 text-foreground" />
+                <button className="rounded-[8px] bg-white/10 p-2 hover:bg-white/15" data-testid="button-voice-call">
+                  <Phone className="w-5 h-5 text-primary" />
                 </button>
               </Link>
               <Link href={`/call/${astrologerId}?type=video`}>
-                <button className="p-2 rounded-xl bg-foreground/5 hover:bg-foreground/10" data-testid="button-video-call">
-                  <Video className="w-5 h-5 text-foreground" />
+                <button className="rounded-[8px] bg-white/10 p-2 hover:bg-white/15" data-testid="button-video-call">
+                  <Video className="w-5 h-5 text-primary" />
                 </button>
               </Link>
             </div>
@@ -339,7 +338,7 @@ export default function Chat() {
 
       {/* Session Info Banner */}
       {sessionActive ? (
-        <div className={`border-b px-4 py-2 ${lowBalance ? 'bg-red-50 border-red-200' : 'bg-primary/10 border-primary/20'}`}>
+        <div className={`border-b px-4 py-2 ${lowBalance ? 'border-red-200 bg-red-50' : 'border-primary/30 bg-primary/15'}`}>
           <div className="max-w-4xl mx-auto flex items-center justify-between text-sm">
             <div className="flex items-center gap-2">
               {lowBalance && <AlertTriangle className="w-4 h-4 text-red-500" />}
@@ -364,15 +363,16 @@ export default function Chat() {
           </div>
         </div>
       ) : (
-        <div className="bg-amber-50 border-b border-amber-200 px-4 py-2">
+        <div className="border-b border-primary/30 bg-primary/15 px-4 py-2">
           <div className="max-w-4xl mx-auto flex items-center justify-between text-sm">
-            <span className="text-amber-700">
+            <span className="text-[var(--primary-border)]">
               ₹{pricePerMin}/min • Balance: ₹{currentBalance?.toFixed(2) || walletData?.balance || '0.00'}
             </span>
             <Button
               size="sm"
               onClick={() => startSessionMutation.mutate()}
               disabled={startSessionMutation.isPending || !astrologer.isOnline}
+              className="rounded-[9px] bg-nava-navy text-primary hover:bg-nava-navy/90"
             >
               {startSessionMutation.isPending ? <LoadingSpinner size="sm" /> : 'Start Paid Session'}
             </Button>
@@ -401,7 +401,7 @@ export default function Chat() {
               return (
                 <div key={msg.id || index} className={`flex ${isUser ? 'justify-end' : 'justify-start'}`} data-testid={`message-${index}`}>
                   <div className={`max-w-md md:max-w-lg ${isUser ? 'order-1' : 'order-2'}`}>
-                    <div className={`rounded-2xl px-4 py-3 ${isUser ? 'bg-primary text-primary-foreground' : 'bg-card border border-border'}`}>
+                    <div className={`rounded-[12px] px-4 py-3 ${isUser ? 'bg-primary text-primary-foreground' : 'border border-border bg-card'}`}>
                       <p className={isUser ? 'text-primary-foreground' : 'text-card-foreground'}>{msg.message}</p>
                     </div>
                     <div className={`text-xs text-muted-foreground mt-1 px-2 ${isUser ? 'text-right' : 'text-left'}`}>{time}</div>
@@ -427,7 +427,7 @@ export default function Chat() {
           {/* AI Astrologer Council Thinking State */}
           {sendMessageMutation.isPending && astrologerId === 'ai-astrologer' && (
             <div className="flex justify-start my-4" data-testid="ai-thinking">
-              <div className="bg-amber-900/10 border border-amber-500/30 rounded-2xl px-5 py-4 max-w-md md:max-w-lg">
+              <div className="max-w-md rounded-[12px] border border-primary/30 bg-primary/10 px-5 py-4 md:max-w-lg">
                 <div className="text-sm font-semibold text-amber-600 flex items-center gap-3 mb-3">
                   <LoadingSpinner size="sm" /> 
                   Super-Astrologer Council thinking...
@@ -448,20 +448,21 @@ export default function Chat() {
       </div>
 
       {/* Input Area */}
-      <div className="sticky bottom-0 bg-card/95 backdrop-blur-md border-t border-card-border px-4 py-4">
+      <div className="sticky bottom-0 border-t border-border bg-card/95 px-4 py-4 backdrop-blur-md">
         <form onSubmit={handleSendMessage} className="max-w-4xl mx-auto">
           <div className="flex gap-3">
             <Input
               value={message}
               onChange={(e) => setMessage(e.target.value)}
               placeholder={sessionActive ? 'Type your message...' : 'Start a session to send messages...'}
-              className="flex-1"
+              className="flex-1 rounded-[10px] border-border bg-background"
               disabled={sendMessageMutation.isPending}
               data-testid="input-message"
             />
             <Button
               type="submit"
               disabled={!message.trim() || sendMessageMutation.isPending}
+              className="rounded-[9px] bg-nava-navy text-primary hover:bg-nava-navy/90"
               data-testid="button-send"
             >
               <Send className="w-5 h-5" />

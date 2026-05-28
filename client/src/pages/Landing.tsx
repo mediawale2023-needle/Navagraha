@@ -54,25 +54,25 @@ export default function Landing() {
   });
 
   return (
-    <div className="min-h-screen bg-background text-foreground overflow-hidden font-sans">
+    <div className="yantra-shell min-h-screen overflow-hidden text-foreground font-sans">
 
       {/* ─── Header ────────────────────────────────────────────── */}
       <motion.header
         initial={{ y: -20, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         transition={{ duration: 0.6 }}
-        className="fixed top-0 inset-x-0 z-50 px-4 pt-4 pb-3 bg-background/80 backdrop-blur-md border-b border-border/30"
+        className="fixed inset-x-0 top-0 z-50 border-b border-border bg-background/80 px-4 pt-4 pb-3 backdrop-blur-md"
       >
         <div className="max-w-6xl mx-auto flex items-center justify-between gap-3">
           <div className="flex items-center gap-2">
-            <div className="w-9 h-9 rounded-xl bg-nava-magenta flex items-center justify-center">
-              <Sparkles className="w-5 h-5 text-white" />
+            <div className="flex h-9 w-9 items-center justify-center rounded-[8px] bg-primary/20">
+              <Sparkles className="w-5 h-5 text-[var(--primary-border)]" />
             </div>
-            <span className="font-bold text-lg text-foreground">Navagraha</span>
+            <span className="font-display text-lg text-foreground">Navagraha</span>
           </div>
           <div className="flex items-center gap-2">
             <Button
-              className="bg-nava-teal hover:bg-nava-teal/90 text-white font-semibold rounded-full px-5 h-9"
+              className="h-9 rounded-[9px] bg-primary px-5 font-semibold text-primary-foreground hover:bg-primary/90"
               onClick={() => setAuthOpen(true)}
             >
               Sign In
@@ -93,13 +93,13 @@ export default function Landing() {
             className="flex items-center justify-between mb-4"
           >
             <div>
-              <h1 className="font-bold text-2xl text-foreground">Navagraha</h1>
-              <div className="flex items-center gap-1.5 text-nava-teal font-medium text-xs">
-                <Sparkles className="w-3 h-3 fill-nava-amber text-nava-amber" />
+              <h1 className="font-display text-3xl text-foreground">Navagraha</h1>
+              <div className="flex items-center gap-1.5 text-[var(--primary-border)] font-medium text-xs">
+                <Sparkles className="w-3 h-3 text-[var(--primary-border)]" />
                 <span>Nine Celestial Powers</span>
               </div>
             </div>
-            <div className="w-12 h-12 rounded-full bg-nava-amber/20 flex items-center justify-center">
+            <div className="flex h-12 w-12 items-center justify-center rounded-[8px] bg-primary/20">
               <img 
                 src="https://em-content.zobj.net/source/apple/391/ringed-planet_1fa90.png" 
                 alt="Saturn" 
@@ -113,10 +113,12 @@ export default function Landing() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.2 }}
-            className="bg-card rounded-2xl p-5 shadow-sm border border-border/50 mb-5"
+            className="yantra-card mb-5 p-5"
           >
-            <h2 className="font-bold text-xl text-foreground mb-1">
-              Namaste, Seeker 🙏
+            <h2 className="font-display text-[1.9rem] leading-[1.05] text-foreground mb-1">
+              Seeker,
+              <br />
+              the stars are listening.
             </h2>
             <p className="text-muted-foreground text-sm">
               How can the stars guide you today?
@@ -128,12 +130,14 @@ export default function Landing() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.3 }}
-            className="relative overflow-hidden rounded-3xl bg-nava-magenta p-6 mb-5 cursor-pointer shadow-md"
+            className="gradient-spiritual relative mb-5 cursor-pointer overflow-hidden rounded-[12px] border border-[var(--primary-border)] p-6 shadow-md"
             onClick={() => setAuthOpen(true)}
           >
-            {/* Background decorative circles */}
-            <div className="absolute -left-8 top-1/2 -translate-y-1/2 w-24 h-24 border-[20px] border-white/10 rounded-full" />
-            <div className="absolute -right-6 -bottom-6 w-28 h-28 border-[24px] border-white/10 rounded-full" />
+            <svg aria-hidden="true" className="absolute -right-6 -top-6 h-36 w-36 opacity-25" viewBox="0 0 160 160" fill="none">
+              <rect x="10" y="10" width="140" height="140" transform="rotate(45 80 80)" stroke="currentColor" strokeWidth="1.4" />
+              <rect x="34" y="34" width="92" height="92" transform="rotate(45 80 80)" stroke="currentColor" strokeWidth="1.4" />
+              <circle cx="80" cy="80" r="18" stroke="currentColor" strokeWidth="1.4" />
+            </svg>
 
             <div className="relative z-10 text-center flex flex-col items-center">
               <div className="flex gap-2 justify-center mb-3">
@@ -142,10 +146,10 @@ export default function Landing() {
                 <Sparkles className="w-4 h-4 text-white/70" />
               </div>
               
-              <h3 className="text-white font-bold text-xl mb-2">First Consultation Free</h3>
-              <p className="text-white/90 text-sm font-medium mb-4">Connect with expert astrologers</p>
+              <h3 className="font-display text-[var(--nava-navy)] text-2xl mb-2">First Consultation Free</h3>
+              <p className="text-[var(--nava-navy)]/80 text-sm font-medium mb-4">Connect with expert astrologers</p>
               
-              <button className="bg-nava-amber hover:bg-nava-amber/90 text-nava-navy font-bold rounded-full px-6 py-2.5 transition-all hover:scale-105 shadow-md">
+              <button className="rounded-[9px] bg-nava-navy px-6 py-2.5 font-bold text-primary transition-all hover:scale-105 shadow-md">
                 Talk to Astrologer
               </button>
             </div>
@@ -157,7 +161,7 @@ export default function Landing() {
             transition={{ duration: 0.5, delay: 0.4 }}
             className="grid grid-cols-2 gap-3"
           >
-            <div className="rounded-2xl border border-border/60 bg-card p-4 shadow-sm">
+            <div className="yantra-card p-4">
               <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">Live</p>
               <div className="mt-2 flex items-center gap-2">
                 <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
@@ -166,15 +170,15 @@ export default function Landing() {
               <p className="mt-1 text-sm text-muted-foreground">Astrologers available right now</p>
             </div>
             <div
-              className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 shadow-sm cursor-pointer hover:bg-emerald-100 transition-colors"
+              className="yantra-card cursor-pointer border-primary/30 bg-primary/10 p-4 transition-colors hover:bg-primary/15"
               onClick={() => setAuthOpen(true)}
             >
-              <div className="flex items-center gap-2 text-emerald-700">
+              <div className="flex items-center gap-2 text-[var(--primary-border)]">
                 <Gift className="w-4 h-4" />
                 <p className="text-xs font-semibold uppercase tracking-[0.18em]">Bonus</p>
               </div>
-              <p className="mt-2 text-lg font-bold text-emerald-800">Up to 25% extra</p>
-              <p className="mt-1 text-sm text-emerald-700">On your first wallet recharge</p>
+              <p className="mt-2 font-display text-lg text-foreground">Up to 25% extra</p>
+              <p className="mt-1 text-sm text-muted-foreground">On your first wallet recharge</p>
             </div>
           </motion.div>
           </div>
@@ -185,20 +189,20 @@ export default function Landing() {
             transition={{ duration: 0.55, delay: 0.2 }}
             className="space-y-4"
           >
-            <div className="rounded-3xl border border-border/60 bg-card p-5 shadow-sm">
+            <div className="yantra-card p-5">
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">Start Here</p>
                   <h3 className="mt-2 text-xl font-bold text-foreground">Get answers in minutes</h3>
                 </div>
-                <div className="rounded-2xl bg-nava-lavender p-3">
-                  <Sparkles className="w-5 h-5 text-nava-royal-purple" />
+                <div className="rounded-[8px] bg-primary/20 p-3">
+                  <Sparkles className="w-5 h-5 text-[var(--primary-border)]" />
                 </div>
               </div>
               <div className="mt-4 grid grid-cols-2 gap-3">
                 {CATEGORIES.slice(0, 4).map(({ label, href, icon: Icon, color }) => (
                   <Link key={label} href={href}>
-                    <button className={`w-full rounded-2xl p-4 text-left text-white shadow-sm transition-transform hover:-translate-y-0.5 ${color}`}>
+                    <button className={`w-full rounded-[10px] p-4 text-left shadow-sm transition-transform hover:-translate-y-0.5 ${color} ${color === 'bg-nava-amber' ? 'text-[var(--nava-navy)]' : 'text-white'}`}>
                       <Icon className="w-5 h-5 mb-3" />
                       <span className="block text-sm font-semibold leading-snug whitespace-pre-line">{label}</span>
                     </button>
@@ -207,13 +211,13 @@ export default function Landing() {
               </div>
             </div>
 
-            <div className="rounded-3xl border border-border/60 bg-card p-5 shadow-sm">
+            <div className="yantra-card p-5">
               <div className="flex items-center justify-between mb-4">
                 <div>
-                  <h3 className="text-lg font-bold text-foreground">Trusted Experts</h3>
+                  <h3 className="font-display text-lg text-foreground">Trusted Experts</h3>
                   <p className="text-sm text-muted-foreground">Shortlist before you sign in</p>
                 </div>
-                <Link href="/astrologers" className="text-sm font-semibold text-nava-teal">Browse</Link>
+                <Link href="/astrologers" className="border-b border-foreground pb-0.5 text-sm font-semibold text-foreground">Browse</Link>
               </div>
               <div className="space-y-3">
                 {featuredAstrologers.map((astrologer) => (
@@ -232,7 +236,7 @@ export default function Landing() {
                       <p className="truncate text-xs text-muted-foreground">{astrologer.specializations?.[0] || 'Vedic Astrology'}</p>
                     </div>
                     <div className="text-right">
-                      <p className="text-sm font-bold text-nava-teal">₹{astrologer.pricePerMinute || '25'}</p>
+                      <p className="font-display text-sm text-[var(--primary-border)]">₹{astrologer.pricePerMinute || '25'}</p>
                       <p className="text-xs text-muted-foreground">per min</p>
                     </div>
                   </div>
@@ -259,7 +263,7 @@ export default function Landing() {
                   <button
                     className={`w-full aspect-square rounded-2xl flex flex-col items-center justify-center gap-2 ${color} hover:opacity-90 transition-opacity shadow-sm`}
                   >
-                    <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-[8px] bg-white/20">
                       <Icon className="w-5 h-5 text-white" />
                     </div>
                     <span className="text-[11px] font-semibold text-white text-center leading-tight whitespace-pre-line">
@@ -282,7 +286,7 @@ export default function Landing() {
               <p className="text-sm text-muted-foreground">Connect instantly with experts</p>
             </div>
             <Link href="/astrologers">
-              <button className="text-nava-teal font-semibold text-sm flex items-center gap-1">
+              <button className="flex items-center gap-1 border-b border-foreground pb-0.5 text-sm font-semibold text-foreground">
                 View All <ChevronRight className="w-4 h-4" />
               </button>
             </Link>
@@ -312,7 +316,7 @@ export default function Landing() {
                     <h3 className="font-bold text-sm text-foreground truncate">{astrologer?.name || 'Astrologer Name'}</h3>
                     {astrologer?.isVerified && <CheckCircle2 className="w-3.5 h-3.5 text-nava-amber shrink-0" />}
                   </div>
-                  <p className="text-xs text-nava-teal font-medium mb-1">
+                  <p className="mb-1 text-xs font-medium text-muted-foreground">
                     {astrologer?.specializations?.[0] || 'Vedic Astrology'}
                   </p>
                   <div className="flex items-center gap-2 text-xs text-muted-foreground">
@@ -327,12 +331,12 @@ export default function Landing() {
 
                 <div className="text-right shrink-0">
                   <div className="mb-2">
-                    <span className="font-bold text-nava-teal">₹{astrologer?.pricePerMinute || '25'}</span>
+                    <span className="font-display text-[var(--primary-border)]">₹{astrologer?.pricePerMinute || '25'}</span>
                     <span className="text-xs text-muted-foreground">/min</span>
                   </div>
                   <Button
                     size="sm"
-                    className="bg-nava-teal hover:bg-nava-teal/90 text-white font-semibold rounded-full px-4 h-8"
+                    className="h-8 rounded-[9px] bg-primary px-4 font-semibold text-primary-foreground hover:bg-primary/90"
                     onClick={() => setAuthOpen(true)}
                   >
                     Connect
@@ -361,7 +365,7 @@ export default function Landing() {
             </p>
             <Button
               size="lg"
-              className="bg-nava-magenta hover:bg-nava-magenta/90 text-white font-bold rounded-full px-8 h-12"
+              className="h-12 rounded-[9px] bg-nava-navy px-8 font-bold text-primary hover:bg-nava-navy/90"
               onClick={() => setAuthOpen(true)}
             >
               Start Your Journey
@@ -415,7 +419,7 @@ export default function Landing() {
             </div>
 
             <Button
-              className="w-full bg-nava-teal hover:bg-nava-teal/90 text-white font-semibold rounded-xl h-11"
+              className="h-11 w-full rounded-[9px] bg-primary font-semibold text-primary-foreground hover:bg-primary/90"
               onClick={() => authMutation.mutate()}
               disabled={authMutation.isPending || !email || !password}
             >
@@ -440,7 +444,7 @@ export default function Landing() {
             <p className="text-center text-sm text-muted-foreground">
               {authMode === 'login' ? "Don't have an account? " : 'Already have an account? '}
               <button
-                className="text-nava-teal font-semibold hover:underline"
+                className="border-b border-foreground pb-0.5 font-semibold text-foreground"
                 onClick={() => setAuthMode(authMode === 'login' ? 'register' : 'login')}
               >
                 {authMode === 'login' ? 'Sign up' : 'Sign in'}
@@ -455,8 +459,8 @@ export default function Landing() {
         <div className="max-w-lg mx-auto">
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-lg bg-nava-magenta flex items-center justify-center">
-                <Sparkles className="w-4 h-4 text-white" />
+              <div className="flex h-8 w-8 items-center justify-center rounded-[8px] bg-primary/20">
+                <Sparkles className="w-4 h-4 text-[var(--primary-border)]" />
               </div>
               <span className="font-bold text-foreground">Navagraha</span>
             </div>

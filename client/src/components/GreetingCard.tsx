@@ -1,5 +1,4 @@
 import React from 'react';
-import { Sparkles } from 'lucide-react';
 
 interface GreetingCardProps {
   userName?: string;
@@ -19,11 +18,13 @@ export function GreetingCard({
   className = '',
 }: GreetingCardProps) {
   return (
-    <div className={`bg-card border border-border rounded-xl p-4 ${className}`}>
-      <h1 className="font-semibold text-foreground text-xl mb-1">
-        Namaste, {userName} 🙏
+    <div className={`yantra-card p-5 ${className}`}>
+      <p className="yantra-eyebrow">नमस्ते · Today&apos;s reading</p>
+      <h1 className="font-display mt-3 text-[1.95rem] leading-[1.05] text-foreground">
+        {userName},<br />
+        the stars are listening.
       </h1>
-      <p className="text-sm text-muted-foreground">{subtitle}</p>
+      <p className="mt-3 max-w-xl text-sm text-muted-foreground">{subtitle}</p>
     </div>
   );
 }

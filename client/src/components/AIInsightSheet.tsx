@@ -56,13 +56,13 @@ export function AIInsightSheet({
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
         side="bottom"
-        className="h-[60vh] sm:h-[500px] bg-card border-t border-border"
+        className="h-[60vh] border-t border-border bg-card sm:h-[500px]"
       >
         <SheetHeader className="mb-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-full bg-nava-lavender flex items-center justify-center">
-                <Sparkles className="w-4 h-4 text-nava-royal-purple" />
+              <div className="flex h-8 w-8 items-center justify-center rounded-[8px] bg-primary/20">
+                <Sparkles className="w-4 h-4 text-[var(--primary-border)]" />
               </div>
               <div>
                 <SheetTitle className="text-left">
@@ -81,14 +81,14 @@ export function AIInsightSheet({
 
         {/* Base Insight */}
         <div className="overflow-y-auto h-full pb-20">
-          <div className="bg-nava-lavender/50 rounded-xl p-4 mb-4 border border-nava-royal-purple/20">
+          <div className="mb-4 rounded-[10px] border border-primary/25 bg-primary/10 p-4">
             <p className="text-foreground leading-relaxed">{baseInsight}</p>
           </div>
 
           {/* Confidence Indicator */}
           <div className="flex items-center gap-2 mb-4 text-xs text-muted-foreground">
             <span className="inline-flex items-center gap-1">
-              <Sparkles className="w-3.5 h-3.5 text-nava-royal-purple" />
+              <Sparkles className="w-3.5 h-3.5 text-[var(--primary-border)]" />
               Based on 3 strong indicators
             </span>
             <span>•</span>
@@ -107,7 +107,7 @@ export function AIInsightSheet({
                   variant="outline"
                   size="sm"
                   onClick={() => handleQuestionClick(question)}
-                  className="text-xs min-h-8 bg-card hover:bg-nava-lavender/50 hover:border-nava-royal-purple/30"
+                  className="min-h-8 bg-card text-xs hover:border-primary/30 hover:bg-primary/10"
                 >
                   <MessageCircle className="w-3.5 h-3.5 mr-1" />
                   {question}
@@ -125,7 +125,7 @@ export function AIInsightSheet({
               <input
                 type="text"
                 placeholder="Type your question..."
-                className="flex-1 min-h-9 px-3 rounded-md border border-border bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-nava-royal-purple"
+                className="min-h-9 flex-1 rounded-[9px] border border-border bg-background px-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-[var(--primary-border)]"
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' && e.currentTarget.value.trim()) {
                     handleQuestionClick(e.currentTarget.value);
@@ -135,7 +135,7 @@ export function AIInsightSheet({
               />
               <Button
                 size="sm"
-                className="bg-nava-royal-purple hover:bg-nava-royal-purple/90 min-h-9"
+                className="min-h-9 rounded-[9px] bg-primary text-primary-foreground hover:bg-primary/90"
               >
                 Ask
               </Button>

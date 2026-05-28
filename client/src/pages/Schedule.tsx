@@ -2,7 +2,6 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link, useLocation } from 'wouter';
 import { Button } from '@/components/ui/button';
-import { BottomNav } from '@/components/BottomNav';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -79,17 +78,16 @@ export default function Schedule() {
   const typeIcon = (t: string) => t === 'voice' ? <Phone className="w-4 h-4" /> : t === 'video' ? <Video className="w-4 h-4" /> : <MessageCircle className="w-4 h-4" />;
 
   return (
-    <div className="min-h-screen bg-background pb-20 md:pb-0">
-      {/* Header */}
-      <div className="sticky top-0 z-50 border-b border-foreground/5 ">
+    <div className="yantra-shell min-h-screen pb-20 md:pb-0">
+      <div className="sticky top-0 z-50 border-b border-border bg-background/95 backdrop-blur-md">
         <div className="max-w-4xl mx-auto px-4 py-3">
           <div className="flex items-center gap-3">
             <Link href="/astrologers">
-              <button className="p-2 rounded-xl hover:bg-foreground/5">
+              <button className="flex h-9 w-9 items-center justify-center rounded-[8px] border border-border bg-card hover:bg-muted">
                 <ArrowLeft className="w-5 h-5 text-foreground" />
               </button>
             </Link>
-            <h1 className="font-bold text-lg text-foreground">Book Appointment</h1>
+            <h1 className="font-display text-xl text-foreground">Book Appointment</h1>
           </div>
         </div>
       </div>
@@ -99,9 +97,9 @@ export default function Schedule() {
 
         <div className="grid md:grid-cols-2 gap-8">
           {/* Booking Form */}
-          <Card>
+          <Card className="yantra-card">
             <CardHeader>
-              <CardTitle>New Appointment</CardTitle>
+              <CardTitle className="font-display">New Appointment</CardTitle>
               <CardDescription>Choose your astrologer and preferred time</CardDescription>
             </CardHeader>
             <CardContent className="space-y-5">
@@ -109,7 +107,7 @@ export default function Schedule() {
               <div>
                 <Label>Select Astrologer</Label>
                 <Select value={selectedAstrologerId} onValueChange={setSelectedAstrologerId}>
-                  <SelectTrigger className="mt-1">
+                  <SelectTrigger className="mt-1 rounded-[10px]">
                     <SelectValue placeholder="Choose an astrologer..." />
                   </SelectTrigger>
                   <SelectContent>
@@ -128,13 +126,13 @@ export default function Schedule() {
 
               {/* Selected astrologer preview */}
               {selectedAstrologer && (
-                <div className="p-3 bg-amber-50 rounded-lg flex items-center gap-3">
-                  <Avatar className="w-10 h-10">
+                <div className="flex items-center gap-3 rounded-[10px] border border-border bg-card p-3">
+                  <Avatar className="h-10 w-10 rounded-[6px]">
                     <AvatarImage src={selectedAstrologer.profileImageUrl || undefined} />
-                    <AvatarFallback>{selectedAstrologer.name.charAt(0)}</AvatarFallback>
+                    <AvatarFallback className="bg-nava-navy font-display text-primary">{selectedAstrologer.name.charAt(0)}</AvatarFallback>
                   </Avatar>
                   <div>
-                    <p className="font-medium text-sm">{selectedAstrologer.name}</p>
+                    <p className="font-display text-base">{selectedAstrologer.name}</p>
                     <p className="text-xs text-muted-foreground">
                       {selectedAstrologer.specializations?.slice(0, 2).join(', ')} • {selectedAstrologer.experience}yr exp
                     </p>
@@ -150,7 +148,7 @@ export default function Schedule() {
                   min={minDateTime}
                   value={scheduledAt}
                   onChange={e => setScheduledAt(e.target.value)}
-                  className="mt-1"
+                  className="mt-1 rounded-[10px]"
                 />
               </div>
 
@@ -169,7 +167,7 @@ export default function Schedule() {
                       size="sm"
                       variant={type === opt.value ? 'default' : 'outline'}
                       onClick={() => setType(opt.value)}
-                      className="gap-1"
+                      className={`gap-1 rounded-[9px] ${type === opt.value ? 'bg-nava-navy text-primary hover:bg-nava-navy/90' : ''}`}
                     >
                       {opt.icon} {opt.label}
                     </Button>
@@ -181,7 +179,7 @@ export default function Schedule() {
               <div>
                 <Label>Duration</Label>
                 <Select value={durationMinutes} onValueChange={setDurationMinutes}>
-                  <SelectTrigger className="mt-1">
+                  <SelectTrigger className="mt-1 rounded-[10px]">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -206,24 +204,24 @@ export default function Schedule() {
                   value={notes}
                   onChange={e => setNotes(e.target.value)}
                   placeholder="What would you like to discuss? e.g., career, marriage, health..."
-                  className="mt-1"
+                  className="mt-1 rounded-[10px]"
                   rows={3}
                 />
               </div>
 
               {/* Cost Preview */}
               {estimatedCost > 0 && (
-                <div className="p-3 bg-green-50 rounded-lg text-sm">
+                <div className="rounded-[10px] bg-primary/10 p-3 text-sm">
                   <div className="flex justify-between items-center">
                     <span className="text-muted-foreground">Estimated cost</span>
-                    <span className="text-xl font-bold text-green-700">₹{estimatedCost.toFixed(0)}</span>
+                    <span className="font-display text-xl text-[var(--primary-border)]">₹{estimatedCost.toFixed(0)}</span>
                   </div>
                   <p className="text-xs text-muted-foreground mt-1">Charged from your wallet at session end</p>
                 </div>
               )}
 
               <Button
-                className="w-full"
+                className="w-full rounded-[9px] bg-primary text-primary-foreground hover:bg-primary/90"
                 onClick={() => bookMutation.mutate()}
                 disabled={!selectedAstrologerId || !scheduledAt || bookMutation.isPending}
               >
@@ -236,11 +234,11 @@ export default function Schedule() {
 
           {/* My Bookings */}
           <div>
-            <h2 className="text-xl font-semibold mb-4">My Appointments</h2>
+            <h2 className="mb-4 font-display text-2xl">My Appointments</h2>
             {isLoading ? (
               <LoadingSpinner />
             ) : !mySchedule || mySchedule.length === 0 ? (
-              <Card>
+              <Card className="yantra-card">
                 <CardContent className="py-12 text-center">
                   <Calendar className="w-12 h-12 text-muted-foreground mx-auto mb-3 opacity-40" />
                   <p className="text-muted-foreground">No appointments yet</p>
@@ -252,13 +250,13 @@ export default function Schedule() {
                   const scheduledDate = new Date(s.scheduledAt);
                   const isPast = scheduledDate < new Date();
                   return (
-                    <Card key={s.id} className={isPast ? 'opacity-60' : ''}>
+                    <Card key={s.id} className={`yantra-card ${isPast ? 'opacity-60' : ''}`}>
                       <CardContent className="p-4">
                         <div className="flex items-start justify-between">
                           <div className="flex items-center gap-2">
                             {typeIcon(s.type)}
                             <div>
-                              <p className="font-medium capitalize">{s.type} Consultation</p>
+                              <p className="font-display capitalize">{s.type} Consultation</p>
                               <p className="text-sm text-muted-foreground">
                                 <Calendar className="w-3 h-3 inline mr-1" />
                                 {scheduledDate.toLocaleDateString()}
@@ -282,7 +280,7 @@ export default function Schedule() {
                               <Button
                                 variant="ghost"
                                 size="icon"
-                                className="mt-1 text-red-500 hover:text-red-700 w-6 h-6"
+                                className="mt-1 h-6 w-6 text-red-500 hover:text-red-700"
                                 onClick={() => cancelMutation.mutate(s.id)}
                                 disabled={cancelMutation.isPending}
                               >
@@ -300,7 +298,6 @@ export default function Schedule() {
           </div>
         </div>
       </div>
-      <BottomNav />
     </div>
   );
 }

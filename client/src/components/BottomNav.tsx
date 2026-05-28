@@ -30,8 +30,8 @@ const NAV_ITEMS = [
     path: "/astrologers",
     isCenter: true,
     icon: (_active: boolean) => (
-      <div className="w-14 h-14 rounded-full bg-nava-royal-purple flex items-center justify-center -mt-7 shadow-lg ring-4 ring-background">
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <div className="flex h-14 w-14 -mt-7 items-center justify-center rounded-[6px] bg-primary shadow-lg ring-4 ring-nava-navy">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#1A1A2E" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
           <circle cx="9" cy="7" r="4" />
           <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
@@ -67,8 +67,8 @@ export default function BottomNav() {
   const [location, setLocation] = useLocation();
 
   return (
-    <nav className="md:hidden fixed bottom-6 left-4 right-4 rounded-2xl bg-card/95 backdrop-blur-xl z-50 overflow-hidden shadow-lg border border-border pb-safe">
-      <div className="flex items-center justify-around h-16 px-2 relative">
+    <nav className="fixed bottom-0 left-0 right-0 z-50 border-t border-nava-navy bg-nava-navy pb-safe md:hidden" data-testid="bottom-nav">
+      <div className="relative flex h-[74px] items-center justify-around px-2">
         {NAV_ITEMS.map((item, i) => {
           const isActive = location === item.path;
           return (
@@ -78,21 +78,21 @@ export default function BottomNav() {
               className={`flex flex-col items-center justify-center gap-0.5 transition-all duration-200 ${
                 item.isCenter
                   ? "relative"
-                  : `min-w-[56px] py-1 ${isActive ? "text-nava-royal-purple" : "text-muted-foreground hover:text-foreground"}`
+                  : `min-w-[56px] py-1 ${isActive ? "text-primary" : "text-white/55 hover:text-white"}`
               }`}
             >
               {item.icon(isActive)}
               {item.label && (
                 <span
                   className={`text-[10px] font-semibold transition-colors ${
-                    isActive ? "text-nava-royal-purple" : "text-muted-foreground"
+                    isActive ? "text-primary" : "text-white/55"
                   }`}
                 >
                   {item.label}
                 </span>
               )}
               {isActive && !item.isCenter && (
-                <div className="absolute -top-0.5 w-5 h-0.5 rounded-full bg-nava-royal-purple" />
+                <div className="absolute top-0 h-0.5 w-5 rounded-full bg-primary" />
               )}
             </button>
           );

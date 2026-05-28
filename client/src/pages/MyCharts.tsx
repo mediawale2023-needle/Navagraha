@@ -21,22 +21,21 @@ export default function MyCharts() {
   const { data: kundlis = [], isLoading } = useQuery<Kundli[]>({ queryKey: ["/api/kundli"] });
 
   return (
-    <div className="min-h-screen bg-background px-4 md:px-8 lg:px-12 py-6 w-full max-w-7xl mx-auto pb-24 md:pb-8">
-      {/* Header */}
+    <div className="yantra-shell min-h-screen w-full max-w-7xl px-4 py-6 pb-24 md:px-8 md:pb-8 lg:px-12 mx-auto">
       <div className="flex items-center justify-between gap-3 mb-6">
         <div className="flex items-center gap-3">
           <Link href="/">
-            <button className="p-1.5 rounded-lg hover:bg-muted" data-testid="button-back">
+            <button className="flex h-9 w-9 items-center justify-center rounded-[8px] border border-border bg-card hover:bg-muted" data-testid="button-back">
               <ArrowLeft className="w-5 h-5 text-foreground" />
             </button>
           </Link>
           <div>
-            <h1 className="text-xl font-bold text-foreground">My Charts</h1>
+            <h1 className="font-display text-2xl text-foreground">My Charts</h1>
             <p className="text-sm text-muted-foreground">Your saved birth charts</p>
           </div>
         </div>
         <Button
-          className="bg-nava-royal-purple hover:bg-nava-royal-purple/90 text-white rounded-full gap-1 shrink-0"
+          className="shrink-0 gap-1 rounded-[9px] bg-primary text-primary-foreground hover:bg-primary/90"
           onClick={() => setLocation("/kundli/new")}
           data-testid="button-generate-new"
         >
@@ -47,17 +46,17 @@ export default function MyCharts() {
       {isLoading ? (
         <LoadingSpinner />
       ) : kundlis.length === 0 ? (
-        <Card className="border-border/50">
+        <Card className="yantra-card">
           <CardContent className="p-8 text-center">
-            <div className="w-14 h-14 rounded-2xl bg-nava-lavender/60 flex items-center justify-center mx-auto mb-4">
-              <Sparkles className="w-7 h-7 text-nava-royal-purple" />
+            <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-[8px] bg-primary/20">
+              <Sparkles className="w-7 h-7 text-[var(--primary-border)]" />
             </div>
             <p className="font-semibold text-foreground">No saved charts yet</p>
             <p className="text-sm text-muted-foreground mt-1 mb-5">
               Generate your first birth chart to unlock readings, reports and AI guidance.
             </p>
             <Button
-              className="bg-nava-royal-purple hover:bg-nava-royal-purple/90 text-white rounded-full gap-1"
+              className="gap-1 rounded-[9px] bg-primary text-primary-foreground hover:bg-primary/90"
               onClick={() => setLocation("/kundli/new")}
               data-testid="button-generate-first"
             >
@@ -69,10 +68,10 @@ export default function MyCharts() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
           {kundlis.map((k) => (
             <Link key={k.id} href={`/kundli/${k.id}`}>
-              <Card className="border-border/50 shadow-sm hover:shadow-md transition-shadow cursor-pointer" data-testid={`chart-${k.id}`}>
+              <Card className="yantra-card cursor-pointer transition-shadow" data-testid={`chart-${k.id}`}>
                 <CardContent className="p-4">
                   <div className="flex items-start justify-between gap-2">
-                    <p className="font-semibold text-foreground">{k.name}</p>
+                    <p className="font-display text-lg text-foreground">{k.name}</p>
                     <ChevronRight className="w-4 h-4 text-muted-foreground mt-1 shrink-0" />
                   </div>
                   {(k.dateOfBirth || k.placeOfBirth) && (
@@ -90,9 +89,9 @@ export default function MyCharts() {
                     </div>
                   )}
                   <div className="mt-3 flex flex-wrap gap-1.5">
-                    {k.zodiacSign && <Badge className="bg-nava-amber/10 text-nava-amber border-0 text-xs">Sun: {k.zodiacSign}</Badge>}
-                    {k.moonSign && <Badge className="bg-nava-teal/10 text-nava-teal border-0 text-xs">Moon: {k.moonSign}</Badge>}
-                    {k.ascendant && <Badge className="bg-nava-magenta/10 text-nava-magenta border-0 text-xs">Asc: {k.ascendant}</Badge>}
+                    {k.zodiacSign && <Badge className="border-0 bg-primary/15 text-[var(--primary-border)] text-xs">Sun: {k.zodiacSign}</Badge>}
+                    {k.moonSign && <Badge className="border-0 bg-nava-teal/10 text-nava-teal text-xs">Moon: {k.moonSign}</Badge>}
+                    {k.ascendant && <Badge className="border-0 bg-nava-magenta/10 text-nava-magenta text-xs">Asc: {k.ascendant}</Badge>}
                   </div>
                 </CardContent>
               </Card>

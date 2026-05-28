@@ -61,9 +61,9 @@ export function PriorityRemedyCard({
     consult: {
       stars: '☆☆☆',
       label: 'Consult Astrologer',
-      color: 'text-nava-royal-purple',
-      bgColor: 'bg-nava-lavender',
-      borderColor: 'border-nava-royal-purple/20',
+      color: 'text-[var(--primary-border)]',
+      bgColor: 'bg-primary/10',
+      borderColor: 'border-primary/25',
     },
   };
 
@@ -71,7 +71,7 @@ export function PriorityRemedyCard({
 
   return (
     <div
-      className={`bg-card border ${config.borderColor} rounded-xl p-4 transition-all duration-200 hover:shadow-md ${
+      className={`yantra-card ${config.borderColor} p-4 ${
         isCompleted ? 'opacity-75' : ''
       }`}
     >
@@ -87,7 +87,7 @@ export function PriorityRemedyCard({
             </span>
           </div>
           <h3
-            className={`font-semibold text-foreground ${
+            className={`font-display text-foreground ${
               isCompleted ? 'line-through text-muted-foreground' : ''
             }`}
           >
@@ -118,7 +118,7 @@ export function PriorityRemedyCard({
 
       {/* Items Needed */}
       {itemsNeeded && itemsNeeded.length > 0 && (
-        <div className={`${config.bgColor} rounded-lg p-3 mb-4`}>
+        <div className={`${config.bgColor} mb-4 rounded-[10px] p-3`}>
           <p className="text-xs font-medium text-foreground mb-2">
             Items Needed:
           </p>
@@ -136,7 +136,7 @@ export function PriorityRemedyCard({
           variant="outline"
           size="sm"
           onClick={onViewDetails}
-          className="flex-1 text-xs min-h-8"
+          className="min-h-8 flex-1 rounded-[9px] text-xs"
         >
           View Full Procedure
         </Button>
@@ -147,7 +147,7 @@ export function PriorityRemedyCard({
             onClick={onToggleReminder}
             className={`min-h-8 ${
               hasReminder
-                ? 'text-nava-royal-purple bg-nava-lavender'
+                ? 'bg-primary/15 text-[var(--primary-border)]'
                 : 'text-muted-foreground'
             }`}
           >
@@ -165,7 +165,7 @@ export function PriorityRemedyCard({
             className={`min-h-8 ${
               isCompleted
                 ? 'bg-green-600 hover:bg-green-700'
-                : 'bg-nava-royal-purple hover:bg-nava-royal-purple/90'
+                : 'bg-nava-navy text-primary hover:bg-nava-navy/90'
             }`}
           >
             {isCompleted ? 'Completed' : 'Mark Done'}

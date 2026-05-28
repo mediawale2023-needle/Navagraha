@@ -22,13 +22,13 @@ export default function TopNav() {
   const [location] = useLocation();
 
   return (
-    <nav className="hidden md:flex sticky top-0 z-50 bg-background/95 backdrop-blur-md border-b border-border items-center justify-between px-8 lg:px-12 h-16">
+    <nav className="sticky top-0 z-50 hidden h-16 items-center justify-between border-b border-border bg-background/95 px-8 backdrop-blur-md md:flex lg:px-12">
       {/* Brand */}
       <div className="flex items-center gap-2 shrink-0">
-        <span className="font-semibold text-lg text-foreground">Navagraha</span>
-        <div className="flex items-center gap-1 text-nava-royal-purple text-xs font-medium">
+        <span className="font-display text-lg text-foreground">Navagraha</span>
+        <div className="flex items-center gap-1 text-xs font-medium text-[var(--primary-border)]">
           <Sparkles className="w-3 h-3" />
-          <span>Ancient Wisdom, Clear Guidance</span>
+          <span>Nine Celestial Powers</span>
         </div>
       </div>
 
@@ -39,7 +39,7 @@ export default function TopNav() {
             <span
               className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors cursor-pointer ${
                 location === item.path
-                  ? "bg-nava-lavender text-nava-royal-purple"
+                  ? "bg-nava-navy text-primary"
                   : "text-muted-foreground hover:text-foreground hover:bg-muted"
               }`}
             >
@@ -54,8 +54,8 @@ export default function TopNav() {
         {/* Profile Dropdown */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <button className="w-9 h-9 rounded-full bg-nava-lavender flex items-center justify-center hover:bg-nava-lavender/80 transition-colors">
-              <User className="w-4 h-4 text-nava-royal-purple" />
+            <button className="flex h-9 w-9 items-center justify-center rounded-[8px] border border-border bg-card transition-colors hover:bg-muted">
+              <User className="w-4 h-4 text-foreground" />
             </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-48 bg-card border-border">
@@ -83,7 +83,7 @@ export default function TopNav() {
 
         {/* Wallet Button - Desktop */}
         <Link href="/wallet">
-          <span className="hidden lg:flex items-center gap-1.5 bg-nava-royal-purple rounded-full px-3 py-1.5 hover:bg-nava-royal-purple/90 transition-colors shadow-sm text-xs font-semibold text-white cursor-pointer">
+          <span className="hidden cursor-pointer items-center gap-1.5 rounded-[9px] bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground shadow-sm transition-colors hover:opacity-90 lg:flex">
             <Wallet className="w-3.5 h-3.5" />
             Wallet
           </span>
