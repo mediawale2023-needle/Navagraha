@@ -103,7 +103,7 @@ export function NorthIndianChartEnhanced({ chartData, onPlanetClick }: { chartDa
             const abbr = PLANET_ABBR[p.planet] ?? (p.planet === 'Ascendant' ? 'Asc' : p.planet.slice(0, 2));
             const color = PLANET_COLORS[abbr] || '#1A1A2E';
             const retro = p.isRetrograde ? '®' : '';
-            const label = `${abbr}-${p.degree}°${retro}`;
+            const label = p.degree ? `${abbr}-${p.degree}°${retro}` : `${abbr}${retro}`;
             return (
               <text
                 key={`${h}-${p.planet}`}

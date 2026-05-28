@@ -12,6 +12,7 @@ import {
   astrologerEarnings,
   payoutRequests,
   aiChatMessages,
+  userMemories,
   coupons,
   couponRedemptions,
   referrals,
@@ -67,6 +68,7 @@ import {
   type AstrologerEarning,
   type PayoutRequest,
   type AiChatMessage,
+  type UserMemory,
   type InsertAiChatMessage,
   predictionFeedbacks,
   type PredictionFeedback,
@@ -744,6 +746,26 @@ export class DatabaseStorage implements IStorage {
   async saveAiChatMessage(data: InsertAiChatMessage): Promise<AiChatMessage> {
     const [msg] = await db.insert(aiChatMessages).values(data).returning();
     return msg;
+  }
+
+  // ─── Long-term user memory ─────────────────────────────────
+  async addUserMemory(data: { userId: string; kind?: string; content: string; sourceSessionId?: string }): Promise<UserMemory> {
+    const [row] = await db.insert(userMemories).values({
+      userId: data.userId,
+      kind: data.kind || "fact",
+      content: data.content,
+      sourceSessionId: data.sourceSessionId,
+    }).returning();
+    return row;
+  }
+
+  async getUserMemories(userId: string, limit = 40): Promise<UserMemory[]> {
+    return await db
+      .select()
+      .from(userMemories)
+      .where(eq(userMemories.userId, userId))
+      .orderBy(desc(userMemories.createdAt))
+      .limit(limit);
   }
 
   async getAiChatHistory(userId: string, sessionId: string): Promise<AiChatMessage[]> {

@@ -13,7 +13,10 @@
 
 import OpenAI from "openai";
 import type { Kundli } from "@shared/schema";
-import { getKundli } from "./astroEngine/index.js";
+import { getKundli, getTransits, transitSummary } from "./astroEngine/index.js";
+
+// Shared prediction discipline + ethics for all paid-report generation.
+const REPORT_DISCIPLINE = `Discipline: a yoga/placement is only a promise — tie predictions to the activating dasha + transit and at least two confirmations (Navamsa/Dasamsa, Ashtakavarga, house lord, karaka); weigh planetary strength (a weak/debilitated/combust planet under-delivers; note Neecha-bhanga and yoga cancellation). Give realistic timing windows. Ethics: never predict death or end of longevity; never frighten; pair every difficulty with a remedy and hope; respect the person's free will and effort; recommend only justified remedies, never push gemstones.`;
 
 // Lazy-init so the server starts without the key (degraded mode)
 let _client: OpenAI | null = null;
@@ -39,15 +42,71 @@ function chartSummary(kundli: Partial<Kundli>): string {
 
   const currentMd = dashaTimeline.find((d) => d.status === "current");
   const upcoming = dashaTimeline.filter((d) => d.status === "upcoming").slice(0, 3);
+
+  // Running Pratyantardasha (finer timing) + cross-confirming Yogini dasha.
+  const rawDashas: any[] = Array.isArray((kundli as any).dashas) ? (kundli as any).dashas : [];
+  const curMdRaw = rawDashas.find((d) => d.status === "current");
+  const curAdRaw = curMdRaw?.antardashas?.find((a: any) => a.status === "current");
+  const curPdRaw = curAdRaw?.pratyantardashas?.find((p: any) => p.status === "current");
+  const pratyantarLine = curPdRaw ? `Current Pratyantardasha: ${curPdRaw.planet} (${curPdRaw.period})` : "";
+  const yogini: any[] = (kundli as any).chartData?.yoginiDasha || [];
+  const curYogini = yogini.find((y) => y.status === "current");
+  const yoginiLine = curYogini ? `Yogini Dasha (cross-check): ${curYogini.yogini} / ${curYogini.lord} (${curYogini.period})` : "";
+
   const dashaLines = [
     currentMd
       ? `Current Mahadasha: ${currentMd.planet} (${currentMd.period})${currentMd.currentAntardasha ? `, Antardasha ${currentMd.currentAntardasha.planet} (${currentMd.currentAntardasha.period})` : ""}`
       : "Current Mahadasha: not available",
+    pratyantarLine,
+    yoginiLine,
     ...upcoming.map((d) => `Upcoming Mahadasha: ${d.planet} (${d.period})`),
-  ].join("\n");
+  ].filter(Boolean).join("\n");
 
   const doshas = ((kundli as any).doshas || {}) as Record<string, unknown>;
   const doshaList = Object.entries(doshas).filter(([, v]) => v).map(([k]) => k).join(", ") || "None detected";
+
+  const navPositions: any[] = (kundli as any).chartData?.navamsa?.planetaryPositions || [];
+  const navLines = navPositions
+    .filter((p) => p.planet !== "Ascendant")
+    .map((p) => `- ${p.planet}: ${p.sign} (D9 House ${p.house})`)
+    .join("\n");
+
+  const dasamsaPos: any[] = (kundli as any).chartData?.dasamsa?.planetaryPositions || [];
+  const dasamsaLines = dasamsaPos
+    .filter((p) => p.planet !== "Ascendant")
+    .map((p) => `- ${p.planet}: ${p.sign} (D10 House ${p.house})`)
+    .join("\n");
+
+  const savByHouse: number[] = (kundli as any).chartData?.ashtakavarga?.savByHouse || [];
+  const savLine = savByHouse.length === 12
+    ? savByHouse.map((b, i) => `H${i + 1}:${b}`).join("  ")
+    : "";
+
+  const dignities: any[] = (kundli as any).chartData?.dignities || [];
+  const dignityLines = dignities
+    .map((p) => `- ${p.planet}: ${p.dignity}${p.neechaBhanga ? " (Neecha Bhanga — cancellation)" : ""}${p.retrograde ? ", retrograde" : ""}${p.combust ? ", combust" : ""}${p.planetaryWar ? `, in planetary war with ${p.planetaryWar}` : ""} — ${p.avastha}`)
+    .join("\n");
+
+  const yogasArr: any[] = (kundli as any).chartData?.yogas || [];
+  const yogaLines = yogasArr
+    .map((y) => `- ${y.name}${y.cancelled ? " (cancelled/bhanga)" : ""}: ${y.description}`)
+    .join("\n");
+
+  const funcRemedies: any[] = (kundli as any).chartData?.functionalRemedies || [];
+  const remedyLines = funcRemedies
+    .map((r) => `- ${r.action} ${r.focus}: ${r.gemstone ? `gemstone ${r.gemstone}; ` : ""}${r.donation ? `donate ${r.donation}; ` : ""}mantra "${r.mantra}" (${r.japaCount}x) on ${r.day}; worship ${r.deity}. ${r.reason}`)
+    .join("\n");
+
+  const bhava: any = (kundli as any).chartData?.bhava || {};
+  const lordLines = Array.isArray(bhava.houseLords)
+    ? bhava.houseLords.map((h: any) => `- House ${h.house} (${h.sign}) lord ${h.lord} sits in house ${h.lordHouse} (${h.lordSign})`).join("\n")
+    : "";
+  const aspectLines = Array.isArray(bhava.aspects)
+    ? bhava.aspects.map((a: any) => `- ${a.planet} aspects houses ${a.aspectsHouses.join(", ")}${a.aspectsPlanets.length ? ` (planets: ${a.aspectsPlanets.join(", ")})` : ""}`).join("\n")
+    : "";
+  const chalitShifts = Array.isArray(bhava.chalit)
+    ? bhava.chalit.filter((c: any) => c.shifted).map((c: any) => `${c.planet}: Rasi H${c.rasiHouse} → Chalit H${c.chalitHouse}`).join("; ")
+    : "";
 
   return `
 Name: ${birthDetails.name || "Unknown"}
@@ -58,13 +117,39 @@ Ascendant (Lagna): ${birthDetails.ascendant || "Unknown"}
 Moon Sign (Rashi): ${birthDetails.moonSign || "Unknown"}
 Sun Sign: ${birthDetails.sunSign || "Unknown"}
 
-Planetary Positions:
+Planetary Positions (D1 Rasi):
 ${posLines || "Not available"}
+
+Navamsa Positions (D9 — marriage, dharma, true strength):
+${navLines || "Not available"}
+
+Dasamsa Positions (D10 — career & profession):
+${dasamsaLines || "Not available"}
+
+Yogas detected (note any cancellation/bhanga):
+${yogaLines || "None detected"}
+
+Planetary Dignity & State (what each planet can deliver):
+${dignityLines || "Not available"}
+
+House Lords (Bhavesh placements):
+${lordLines || "Not available"}
+
+Graha Drishti (aspects):
+${aspectLines || "Not available"}
+
+Bhava Chalit shifts (planets near a sign edge): ${chalitShifts || "none"}
+
+Sarvashtakavarga (SAV) bindus by house (higher = stronger; >30 strong, <25 weak; total 337):
+${savLine || "Not available"}
 
 Dasha Timeline:
 ${dashaLines}
 
 Doshas: ${doshaList}
+
+Ascendant-specific Remedies (functional — prefer these over generic advice):
+${remedyLines || "Not available"}
 `.trim();
 }
 
@@ -307,6 +392,8 @@ async function aiNarrative(meta: ReportMeta, kundli: Partial<Kundli>): Promise<R
 
 Use the EXACT planetary positions, houses and Vimshottari dasha timeline below. Reference specific planets, signs, houses and dasha periods by name throughout your analysis. Avoid generic statements that could apply to anyone.
 
+${REPORT_DISCIPLINE}
+
 Return ONLY valid JSON with this exact shape:
 {
   "title": "${meta.title}",
@@ -399,6 +486,8 @@ async function generateLifeBatch(
   const client = getClient();
   const prompt = `You are a master Vedic astrologer (Jyotish) writing one part of a premium 50+ page "Complete Life Report" (Brihat Kundli). Focus on ${batch.focus}. Reference the EXACT chart data below — name specific planets, signs, houses, degrees, nakshatra and dasha periods. Be thorough, specific and personalised (never generic): write 2-4 rich paragraphs for EACH heading.
 
+${REPORT_DISCIPLINE}
+
 Return ONLY valid JSON: {"sections":[{"heading":"<exact heading>","body":"<2-4 detailed paragraphs>"}]} — one object per heading, with headings EXACTLY and in this order: ${JSON.stringify(batch.sections)}.
 
 Birth chart:
@@ -438,7 +527,9 @@ export async function generateLifeReport(kundli: Partial<Kundli>): Promise<Gener
   }
 
   const chart = chartSummary(kundli);
-  const transit = await currentTransitContext();
+  const transit = (kundli.moonSign && kundli.ascendant)
+    ? "\n\n" + transitSummary(getTransits(kundli.moonSign, kundli.ascendant, (kundli as any).chartData?.ashtakavarga?.sav))
+    : await currentTransitContext();
 
   // Parallel batches; a failed batch degrades to empty (filtered out) rather than
   // failing the whole report.
@@ -464,6 +555,41 @@ export async function generateLifeReport(kundli: Partial<Kundli>): Promise<Gener
     ...structured,
     generatedAt: new Date().toISOString(),
   };
+}
+
+// ─── Long-term memory extraction ──────────────────────────────────────────────
+
+export interface ExtractedMemory { kind: string; content: string; }
+
+// Pull durable personal facts/goals/events out of a chat message so future
+// readings can reference them. Cheap model; degrades to [] without a key.
+export async function extractMemories(userMessage: string): Promise<ExtractedMemory[]> {
+  if (!process.env.OPENAI_API_KEY) return [];
+  try {
+    const client = getClient();
+    const prompt = `From this user's message to an astrologer, extract only DURABLE personal facts worth remembering long-term: name, relationships/marital status, profession, location, concrete goals, major life events, and stated preferences. Ignore the astrology question itself, greetings, and anything transient. If nothing durable, return an empty array.
+
+Return ONLY JSON: {"memories":[{"kind":"fact|goal|event|preference","content":"<concise third-person statement>"}]}
+
+User message: ${userMessage}`;
+    const resp = await client.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [{ role: "user", content: prompt }],
+      response_format: { type: "json_object" },
+      max_tokens: 400,
+    });
+    const parsed = JSON.parse(resp.choices[0]?.message?.content || "{}");
+    const arr: any[] = Array.isArray(parsed.memories) ? parsed.memories : [];
+    return arr
+      .filter((m) => m && typeof m.content === "string" && m.content.trim())
+      .slice(0, 6)
+      .map((m) => ({
+        kind: ["fact", "goal", "event", "preference"].includes(m.kind) ? m.kind : "fact",
+        content: String(m.content).trim(),
+      }));
+  } catch {
+    return [];
+  }
 }
 
 // ─── Personalised Daily Horoscope ─────────────────────────────────────────────

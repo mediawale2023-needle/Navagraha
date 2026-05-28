@@ -319,8 +319,20 @@ export default function Reports() {
               {/* Kundli chart */}
               {viewing.content.chartData?.planetaryPositions && (
                 <div>
-                  <h3 className="mb-2 font-display text-[var(--primary-border)]">Birth Chart</h3>
+                  <h3 className="mb-2 font-display text-[var(--primary-border)]">Birth Chart (D1)</h3>
                   <NorthIndianChartEnhanced chartData={viewing.content.chartData} />
+                </div>
+              )}
+              {viewing.content.chartData?.navamsa?.planetaryPositions && (
+                <div>
+                  <h3 className="font-semibold text-nava-royal-purple mb-2">Navamsa (D9)</h3>
+                  <NorthIndianChartEnhanced chartData={viewing.content.chartData.navamsa} />
+                </div>
+              )}
+              {viewing.content.chartData?.dasamsa?.planetaryPositions && (
+                <div>
+                  <h3 className="font-semibold text-nava-royal-purple mb-2">Dasamsa (D10) — Career</h3>
+                  <NorthIndianChartEnhanced chartData={viewing.content.chartData.dasamsa} />
                 </div>
               )}
 
@@ -376,6 +388,21 @@ export default function Reports() {
                         ))}
                       </tbody>
                     </table>
+                  </div>
+                </div>
+              )}
+
+              {/* Ashtakavarga (SAV by house) */}
+              {viewing.content.chartData?.ashtakavarga?.savByHouse?.length === 12 && (
+                <div>
+                  <h3 className="font-semibold text-nava-royal-purple mb-2">Ashtakavarga — House Strength (SAV)</h3>
+                  <div className="grid grid-cols-6 gap-1.5">
+                    {viewing.content.chartData.ashtakavarga.savByHouse.map((b: number, i: number) => (
+                      <div key={i} className={`rounded-lg p-2 text-center ${b >= 30 ? 'bg-green-600/15 text-green-700' : b < 25 ? 'bg-red-600/10 text-red-700' : 'bg-muted text-foreground'}`}>
+                        <div className="text-[10px] text-muted-foreground">H{i + 1}</div>
+                        <div className="text-sm font-bold">{b}</div>
+                      </div>
+                    ))}
                   </div>
                 </div>
               )}

@@ -687,6 +687,19 @@ export const insertAiChatMessageSchema = createInsertSchema(aiChatMessages).omit
 export type InsertAiChatMessage = z.infer<typeof insertAiChatMessageSchema>;
 export type AiChatMessage = typeof aiChatMessages.$inferSelect;
 
+// Long-term per-user memory: durable facts/goals/events the AI extracts from
+// conversations, retrieved into future readings so it "remembers" the user.
+export const userMemories = pgTable("user_memories", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").references(() => users.id).notNull(),
+  kind: varchar("kind").notNull().default("fact"), // fact | goal | event | preference
+  content: text("content").notNull(),
+  sourceSessionId: varchar("source_session_id"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export type UserMemory = typeof userMemories.$inferSelect;
+
 // ─── Phase 3, Sprint 4: Bayesian Feedback Loop ─────────────────────────────
 
 export const predictionFeedbacks = pgTable("prediction_feedbacks", {

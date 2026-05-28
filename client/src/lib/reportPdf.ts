@@ -25,7 +25,13 @@ export interface ReportContent {
     sunSign?: string;
   };
   planetaryPositions?: { planet: string; sign?: string; house?: number; degree?: number; retrograde?: boolean }[];
-  chartData?: { houses?: { house: number; sign?: string }[]; planetaryPositions?: ChartPlanetPos[] };
+  chartData?: {
+    houses?: { house: number; sign?: string }[];
+    planetaryPositions?: ChartPlanetPos[];
+    navamsa?: { houses?: { house: number; sign?: string }[]; planetaryPositions?: ChartPlanetPos[] };
+    dasamsa?: { houses?: { house: number; sign?: string }[]; planetaryPositions?: ChartPlanetPos[] };
+    ashtakavarga?: { savByHouse?: number[] };
+  };
   dashaTimeline?: {
     planet: string;
     period?: string;
@@ -125,11 +131,23 @@ export async function downloadReportPdf(content: ReportContent) {
     });
   }
 
-  // ── Chart ────────────────────────────────────────────────────
+  // ── Charts (D1 + D9) ─────────────────────────────────────────
   if (content.chartData?.planetaryPositions?.length) {
-    heading("Birth Chart (North Indian)");
+    heading("Birth Chart — Rasi (D1)");
     ensure(96);
     drawChart(doc, content.chartData, (PW - 90) / 2, y, 90);
+    y += 96;
+  }
+  if (content.chartData?.navamsa?.planetaryPositions?.length) {
+    heading("Navamsa Chart (D9)");
+    ensure(96);
+    drawChart(doc, content.chartData.navamsa, (PW - 90) / 2, y, 90);
+    y += 96;
+  }
+  if (content.chartData?.dasamsa?.planetaryPositions?.length) {
+    heading("Dasamsa Chart (D10 — Career)");
+    ensure(96);
+    drawChart(doc, content.chartData.dasamsa, (PW - 90) / 2, y, 90);
     y += 96;
   }
 
@@ -163,6 +181,19 @@ export async function downloadReportPdf(content: ReportContent) {
       [35, 50, 30, 65],
       rows,
       (i) => content.dashaTimeline![i].status === "current",
+    );
+  }
+
+  // ── Ashtakavarga (SAV) ───────────────────────────────────────
+  if (content.chartData?.ashtakavarga?.savByHouse?.length === 12) {
+    heading("Ashtakavarga — House Strength (SAV)");
+    const rows = content.chartData.ashtakavarga.savByHouse.map((b, i) => [
+      `House ${i + 1}`,
+      String(b),
+      b >= 30 ? "Strong" : b < 25 ? "Weak" : "Moderate",
+    ]);
+    y = drawTable(doc, M, y, ["House", "SAV Bindus", "Strength"], [55, 45, 55], rows, (i) =>
+      (content.chartData!.ashtakavarga!.savByHouse![i]) >= 30,
     );
   }
 

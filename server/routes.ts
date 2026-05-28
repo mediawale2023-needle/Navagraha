@@ -29,12 +29,15 @@ import {
   getKundliMatching,
   getNativeHoroscope,
   getNumerology,
+  getTransits,
+  transitSummary,
 } from "./astroEngine/index.js";
 import {
   callPrashnaEngine,
   callSynastryEngine,
   callRemediationEngine,
 } from "./astroEngineClient";
+import { resolveBirthCoords } from "./geocode";
 import { computePanchang } from "./astroEngine/panchang";
 import {
   createRazorpayOrder,
@@ -62,6 +65,7 @@ import {
   generateReport,
   generateLifeReport,
   generateDailyHoroscope,
+  extractMemories,
 } from "./aiAstrologerService";
 import { sendWelcomeEmail, sendPaymentReceipt, sendBookingConfirmation, sendConsultationSummary } from "./emailService";
 import crypto from "crypto";
@@ -199,8 +203,14 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
     try {
       const userId = req.user?.id || req.session?.userId || null;
       const dateOfBirth = new Date(req.body.dateOfBirth);
-      const lat = req.body.latitude ? parseFloat(req.body.latitude) : 28.6139;
-      const lon = req.body.longitude ? parseFloat(req.body.longitude) : 77.2090;
+
+      // Never fabricate a location — a wrong Ascendant ruins every prediction.
+      const coords = await resolveBirthCoords(req.body.latitude, req.body.longitude, req.body.placeOfBirth);
+      if (!coords) {
+        return res.status(400).json({ message: "Please pick your exact birth place from the suggestions. An approximate location produces a wrong Ascendant and unreliable predictions." });
+      }
+      const lat = coords.lat;
+      const lon = coords.lng;
 
       const nk = await getKundli(dateOfBirth, req.body.timeOfBirth, lat, lon);
       const kundliData = {
@@ -249,6 +259,19 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
       if (!kundli) return res.status(404).json({ message: "Kundli not found" });
       res.json(kundli);
     } catch { res.status(500).json({ message: "Failed to fetch kundli" }); }
+  });
+
+  // Current transits (Gochar) + Sade Sati for a saved chart.
+  app.get('/api/kundli/:id/transits', async (req, res) => {
+    try {
+      const kundli = await storage.getKundliById(req.params.id);
+      if (!kundli || !kundli.moonSign || !kundli.ascendant) return res.status(404).json({ message: "Kundli not found" });
+      const sav = (kundli.chartData as any)?.ashtakavarga?.sav;
+      res.json(getTransits(kundli.moonSign, kundli.ascendant, sav));
+    } catch (err) {
+      console.error('Transit error:', err);
+      res.status(500).json({ message: "Failed to compute transits" });
+    }
   });
 
   // ─── Horoscope ────────────────────────────────────────────
@@ -1716,9 +1739,11 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
       }
       if (!kundli && birthDetails?.dateOfBirth && birthDetails?.timeOfBirth) {
         const dob = new Date(birthDetails.dateOfBirth);
-        const lat = birthDetails.latitude ? parseFloat(String(birthDetails.latitude)) : 28.6139;
-        const lon = birthDetails.longitude ? parseFloat(String(birthDetails.longitude)) : 77.2090;
-        const nk = await getKundli(dob, birthDetails.timeOfBirth, lat, lon);
+        const coords = await resolveBirthCoords(birthDetails.latitude, birthDetails.longitude, birthDetails.placeOfBirth);
+        if (!coords) {
+          return res.status(400).json({ message: "Please pick an exact birth place for the report — an approximate location gives a wrong Ascendant." });
+        }
+        const nk = await getKundli(dob, birthDetails.timeOfBirth, coords.lat, coords.lng);
         kundli = {
           name: birthDetails.name,
           dateOfBirth: dob,
@@ -2085,9 +2110,11 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
       if (kundli && kundli.userId !== user.id) kundli = null;
       if (!kundli && birthDetails?.dateOfBirth && birthDetails?.timeOfBirth) {
         const dob = new Date(birthDetails.dateOfBirth);
-        const lat = birthDetails.latitude ? parseFloat(String(birthDetails.latitude)) : 28.6139;
-        const lon = birthDetails.longitude ? parseFloat(String(birthDetails.longitude)) : 77.2090;
-        const nk = await getKundli(dob, birthDetails.timeOfBirth, lat, lon);
+        const coords = await resolveBirthCoords(birthDetails.latitude, birthDetails.longitude, birthDetails.placeOfBirth);
+        if (!coords) {
+          return res.status(400).json({ message: "Please enter an exact birth place so I can calculate the Ascendant accurately." });
+        }
+        const nk = await getKundli(dob, birthDetails.timeOfBirth, coords.lat, coords.lng);
         kundli = {
           name: birthDetails.name,
           dateOfBirth: dob,
@@ -2119,6 +2146,36 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
         };
       }
 
+      // Long-term memory: what we've learned about this user before.
+      const memories = await storage.getUserMemories(user.id, 30)
+        .then((rows) => rows.map((r) => r.content))
+        .catch(() => [] as string[]);
+
+      // Current transits (Gochar) for the bound chart.
+      let transits: string | undefined;
+      if (kundli?.moonSign && kundli?.ascendant) {
+        try {
+          transits = transitSummary(getTransits(kundli.moonSign, kundli.ascendant, (kundli.chartData as any)?.ashtakavarga?.sav));
+        } catch (err) {
+          console.error('[chat] transit computation failed:', err);
+        }
+      }
+
+      // Closed feedback loop: this user's verified past events + system accuracy.
+      let verifiedEvents: string[] = [];
+      let accuracyNote: string | undefined;
+      try {
+        const fb = await storage.getPredictionFeedbacksByUser(user.id);
+        verifiedEvents = fb
+          .filter((f: any) => f.wasAccurate)
+          .map((f: any) => `${f.predictionCategory}${f.actualOccurrenceDate ? ` around ${new Date(f.actualOccurrenceDate).toISOString().slice(0, 7)}` : ''} (confirmed via ${f.dashaSystemUsed})`)
+          .slice(0, 20);
+        const stats = await storage.getPatternStatistics();
+        if (stats?.total > 0) accuracyNote = `Verified prediction accuracy so far: ${stats.accuracy}% over ${stats.total} confirmed predictions — calibrate confidence accordingly.`;
+      } catch (err) {
+        console.error('[chat] feedback load failed:', err);
+      }
+
       // Prepare context for Orchestrator
       const context: UserContext = {
         birthDetails: {
@@ -2129,6 +2186,10 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
         chartData,
         profession: 'User',
         language,
+        memories,
+        transits,
+        verifiedEvents,
+        accuracyNote,
         currentQuery: message
       };
 
@@ -2142,6 +2203,19 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
         role: 'assistant',
         content: aiResponseText
       });
+
+      // Extract durable facts from this message into long-term memory (async).
+      extractMemories(message)
+        .then(async (mems) => {
+          if (!mems.length) return;
+          const existing = (await storage.getUserMemories(user.id, 200)).map((m) => m.content.toLowerCase());
+          for (const m of mems) {
+            if (!existing.includes(m.content.toLowerCase())) {
+              await storage.addUserMemory({ userId: user.id, kind: m.kind, content: m.content, sourceSessionId: activeSessionId });
+            }
+          }
+        })
+        .catch((err) => console.error('[memory] extraction failed:', err));
 
       res.json({
         sessionId: activeSessionId,

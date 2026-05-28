@@ -210,6 +210,16 @@ CREATE TABLE IF NOT EXISTS ai_chat_messages (
 );
 CREATE INDEX IF NOT EXISTS idx_ai_chat_user_session ON ai_chat_messages (user_id, session_id);
 
+CREATE TABLE IF NOT EXISTS user_memories (
+  id varchar PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id varchar NOT NULL REFERENCES users(id),
+  kind varchar NOT NULL DEFAULT 'fact',
+  content text NOT NULL,
+  source_session_id varchar,
+  created_at timestamp DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_user_memories_user ON user_memories (user_id);
+
 CREATE TABLE IF NOT EXISTS prediction_feedbacks (
   id serial PRIMARY KEY,
   user_id varchar NOT NULL REFERENCES users(id),

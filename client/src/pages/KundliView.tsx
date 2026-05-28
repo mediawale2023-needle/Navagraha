@@ -25,6 +25,13 @@ import { AIInsightSheet } from '@/components/AIInsightSheet';
 
 const PDF_PRICE = 10;
 
+type TransitData = {
+  date: string;
+  planets: Array<{ planet: string; sign: string; houseFromMoon: number; houseFromLagna: number; sav: number | null; retrograde: boolean }>;
+  sadeSati: { active: boolean; phase: string; saturnSign: string; houseFromMoon: number; note: string; sinceApprox?: string; untilApprox?: string };
+  jupiter: { sign: string; houseFromMoon: number; favourable: boolean };
+};
+
 type PdfModal = 'confirm' | 'insufficient' | null;
 
 function ConfirmModal({ open, balance, isFree, onConfirm, onCancel, loading }: { open: boolean; balance: number; isFree: boolean; onConfirm: () => void; onCancel: () => void; loading: boolean }) {
@@ -181,6 +188,11 @@ export default function KundliView() {
 
   const kundli = isPreview ? guestKundli : fetchedKundli;
 
+  const { data: transits } = useQuery<TransitData>({
+    queryKey: ['/api/kundli', kundliId, 'transits'],
+    enabled: !!kundliId && !isPreview,
+  });
+
   useEffect(() => {
     if (kundli) {
       const dashas = (kundli.dashas as any[]) || [];
@@ -209,6 +221,10 @@ export default function KundliView() {
 
   const birthDate = new Date(kundli.dateOfBirth);
   const chartData = kundli.chartData as any;
+  const curMd = (kundli.dashas as any[] | undefined)?.find((d: any) => d.status === 'current');
+  const curAd = curMd?.antardashas?.find((a: any) => a.status === 'current');
+  const curPd = curAd?.pratyantardashas?.find((p: any) => p.status === 'current');
+  const curYogini = (chartData?.yoginiDasha as any[] | undefined)?.find((y: any) => y.status === 'current');
   const dashas = (kundli.dashas as any[]) || [];
   const doshas = (kundli.doshas as any) || {};
   const remedies = (kundli.remedies as any[]) || [];
@@ -371,9 +387,250 @@ export default function KundliView() {
                     <div className="text-center text-muted-foreground">South Indian chart coming soon</div>
                   )}
                   <p className="text-xs text-muted-foreground text-center">Tap any planet for detailed insights</p>
+
+                  {chartData?.navamsa?.planetaryPositions && (
+                    <div className="w-full pt-4 mt-2 border-t border-border/40">
+                      <h3 className="text-sm font-semibold text-nava-royal-purple text-center mb-1">Navamsa (D9)</h3>
+                      <p className="text-xs text-muted-foreground text-center mb-3">Marriage, dharma & true planetary strength</p>
+                      <NorthIndianChartEnhanced chartData={chartData.navamsa} />
+                    </div>
+                  )}
+                  {chartData?.dasamsa?.planetaryPositions && (
+                    <div className="w-full pt-4 mt-2 border-t border-border/40">
+                      <h3 className="text-sm font-semibold text-nava-royal-purple text-center mb-1">Dasamsa (D10)</h3>
+                      <p className="text-xs text-muted-foreground text-center mb-3">Career & profession</p>
+                      <NorthIndianChartEnhanced chartData={chartData.dasamsa} />
+                    </div>
+                  )}
+                  {chartData?.shashtiamsa?.planetaryPositions && (
+                    <div className="w-full pt-4 mt-2 border-t border-border/40">
+                      <h3 className="text-sm font-semibold text-nava-royal-purple text-center mb-1">Shashtiamsa (D60)</h3>
+                      <p className="text-xs text-muted-foreground text-center mb-3">Past-life karma — accurate only with an exact birth time</p>
+                      <NorthIndianChartEnhanced chartData={chartData.shashtiamsa} />
+                    </div>
+                  )}
                 </div>
               </CardContent>
             </Card>
+
+            {chartData?.ashtakavarga?.savByHouse && (
+              <Card className="mt-4">
+                <CardHeader>
+                  <CardTitle className="text-base">Ashtakavarga</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div>
+                    <p className="text-xs font-semibold text-nava-royal-purple mb-2">Sarvashtakavarga (SAV) — strength by house</p>
+                    <div className="grid grid-cols-6 gap-1.5">
+                      {chartData.ashtakavarga.savByHouse.map((b: number, i: number) => (
+                        <div key={i} className={`rounded-lg p-2 text-center ${b >= 30 ? 'bg-green-600/15 text-green-700' : b < 25 ? 'bg-red-600/10 text-red-700' : 'bg-muted text-foreground'}`}>
+                          <div className="text-[10px] text-muted-foreground">H{i + 1}</div>
+                          <div className="text-sm font-bold">{b}</div>
+                        </div>
+                      ))}
+                    </div>
+                    <p className="text-[11px] text-muted-foreground mt-1.5">Higher bindus = stronger house. Total across all houses = 337.</p>
+                  </div>
+
+                  {chartData.ashtakavarga.bav && (
+                    <div className="overflow-x-auto">
+                      <p className="text-xs font-semibold text-nava-royal-purple mb-2">Bhinnashtakavarga (BAV) — by sign</p>
+                      <table className="w-full text-xs border-collapse">
+                        <thead>
+                          <tr className="bg-nava-lavender/40">
+                            <th className="p-1.5 text-left font-medium">Planet</th>
+                            {['Ar','Ta','Ge','Cn','Le','Vi','Li','Sc','Sg','Cp','Aq','Pi'].map((s) => (
+                              <th key={s} className="p-1.5 font-medium">{s}</th>
+                            ))}
+                            <th className="p-1.5 font-medium">Σ</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {['Sun','Moon','Mars','Mercury','Jupiter','Venus','Saturn'].map((pl) => {
+                            const row: number[] = chartData.ashtakavarga.bav[pl] || [];
+                            return (
+                              <tr key={pl} className="border-b border-border/40">
+                                <td className="p-1.5 font-medium">{pl}</td>
+                                {row.map((v, i) => <td key={i} className="p-1.5 text-center">{v}</td>)}
+                                <td className="p-1.5 text-center font-semibold">{row.reduce((a, b) => a + b, 0)}</td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+
+            {chartData?.functionalRemedies?.length > 0 && (
+              <Card className="mt-4">
+                <CardHeader>
+                  <CardTitle className="text-base">Personalised Remedies</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-2">
+                  {chartData.functionalRemedies.map((r: any, i: number) => (
+                    <div key={i} className="rounded-lg border border-border/40 p-2.5">
+                      <div className="flex items-center gap-2">
+                        <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${r.action === 'Strengthen' ? 'bg-green-600/15 text-green-700' : 'bg-amber-500/15 text-amber-700'}`}>{r.action}</span>
+                        <span className="font-semibold text-sm text-foreground">{r.focus}</span>
+                        {r.gemstone && <span className="text-xs text-muted-foreground">· {r.gemstone}</span>}
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {r.donation ? `Donate ${r.donation}. ` : ''}Chant <span className="italic">{r.mantra}</span> ({r.japaCount.toLocaleString()}×) on {r.day}; worship {r.deity}.
+                      </p>
+                      <p className="text-[11px] text-muted-foreground/80 mt-0.5">{r.reason}</p>
+                    </div>
+                  ))}
+                </CardContent>
+              </Card>
+            )}
+
+            {chartData?.yogas?.length > 0 && (
+              <Card className="mt-4">
+                <CardHeader>
+                  <CardTitle className="text-base">Yogas</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-2">
+                  {chartData.yogas.map((y: any, i: number) => (
+                    <div key={i} className="rounded-lg border border-border/40 p-2.5">
+                      <div className="flex items-center gap-2">
+                        <span className="font-semibold text-sm text-foreground">{y.name}</span>
+                        <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-nava-lavender/60 text-nava-royal-purple">{y.category}</span>
+                        {y.cancelled && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-red-600/10 text-red-700">cancelled</span>}
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-1">{y.description}</p>
+                    </div>
+                  ))}
+                </CardContent>
+              </Card>
+            )}
+
+            {chartData?.dignities?.length > 0 && (
+              <Card className="mt-4">
+                <CardHeader>
+                  <CardTitle className="text-base">Planetary Dignity &amp; State</CardTitle>
+                </CardHeader>
+                <CardContent className="overflow-x-auto">
+                  <table className="w-full text-xs border-collapse">
+                    <thead>
+                      <tr className="bg-nava-lavender/40 text-left">
+                        <th className="p-1.5 font-medium">Planet</th>
+                        <th className="p-1.5 font-medium">Sign</th>
+                        <th className="p-1.5 font-medium">Dignity</th>
+                        <th className="p-1.5 font-medium">State</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {chartData.dignities.map((p: any) => (
+                        <tr key={p.planet} className="border-b border-border/40">
+                          <td className="p-1.5 font-medium">{p.planet}</td>
+                          <td className="p-1.5">{p.sign}</td>
+                          <td className={`p-1.5 ${p.dignity === 'Exalted' || p.dignity === 'Own sign' || p.dignity === 'Moolatrikona' ? 'text-green-700' : p.dignity === 'Debilitated' ? 'text-red-700' : ''}`}>
+                            {p.dignity}{p.neechaBhanga ? ' (cancelled)' : ''}
+                          </td>
+                          <td className="p-1.5 text-muted-foreground">
+                            {[p.retrograde ? 'R' : '', p.combust ? 'Combust' : '', p.planetaryWar ? `War:${p.planetaryWar}` : '', p.avastha?.split(' ')[0]].filter(Boolean).join(', ')}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </CardContent>
+              </Card>
+            )}
+
+            {chartData?.bhava?.houseLords?.length > 0 && (
+              <Card className="mt-4">
+                <CardHeader>
+                  <CardTitle className="text-base">Houses &amp; Lords</CardTitle>
+                </CardHeader>
+                <CardContent className="overflow-x-auto">
+                  <table className="w-full text-xs border-collapse">
+                    <thead>
+                      <tr className="bg-nava-lavender/40 text-left">
+                        <th className="p-1.5 font-medium">House</th>
+                        <th className="p-1.5 font-medium">Sign</th>
+                        <th className="p-1.5 font-medium">Lord</th>
+                        <th className="p-1.5 font-medium">Lord placed in</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {chartData.bhava.houseLords.map((h: any) => (
+                        <tr key={h.house} className="border-b border-border/40">
+                          <td className="p-1.5 font-medium">{h.house}</td>
+                          <td className="p-1.5">{h.sign}</td>
+                          <td className="p-1.5">{h.lord}</td>
+                          <td className="p-1.5">House {h.lordHouse} ({h.lordSign})</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </CardContent>
+              </Card>
+            )}
+
+            {(curMd || curYogini) && (
+              <Card className="mt-4">
+                <CardHeader>
+                  <CardTitle className="text-base">Current Periods</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-1.5 text-sm">
+                  {curMd && <p><span className="text-muted-foreground">Mahadasha:</span> <span className="font-medium">{curMd.planet}</span> <span className="text-xs text-muted-foreground">({curMd.period})</span></p>}
+                  {curAd && <p><span className="text-muted-foreground">Antardasha:</span> <span className="font-medium">{curAd.planet}</span> <span className="text-xs text-muted-foreground">({curAd.period})</span></p>}
+                  {curPd && <p><span className="text-muted-foreground">Pratyantardasha:</span> <span className="font-medium">{curPd.planet}</span> <span className="text-xs text-muted-foreground">({curPd.period})</span></p>}
+                  {curYogini && <p><span className="text-muted-foreground">Yogini Dasha:</span> <span className="font-medium">{curYogini.yogini} / {curYogini.lord}</span> <span className="text-xs text-muted-foreground">({curYogini.period})</span></p>}
+                </CardContent>
+              </Card>
+            )}
+
+            {transits && (
+              <Card className="mt-4">
+                <CardHeader>
+                  <CardTitle className="text-base">Current Transits (Gochar)</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className={`rounded-xl p-3 ${transits.sadeSati.active ? 'bg-amber-500/10 border border-amber-500/30' : 'bg-muted'}`}>
+                    <p className="text-sm font-semibold text-foreground">
+                      Sade Sati: {transits.sadeSati.active ? 'Active' : 'Not active'}
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-0.5">{transits.sadeSati.phase}</p>
+                    {transits.sadeSati.note && <p className="text-xs text-muted-foreground">{transits.sadeSati.note}</p>}
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Saturn in {transits.sadeSati.saturnSign}
+                      {transits.sadeSati.sinceApprox ? ` (~${transits.sadeSati.sinceApprox} – ${transits.sadeSati.untilApprox})` : ''}
+                    </p>
+                  </div>
+
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-xs border-collapse">
+                      <thead>
+                        <tr className="bg-nava-lavender/40 text-left">
+                          <th className="p-1.5 font-medium">Planet</th>
+                          <th className="p-1.5 font-medium">Sign</th>
+                          <th className="p-1.5 font-medium">From Moon</th>
+                          <th className="p-1.5 font-medium">From Lagna</th>
+                          <th className="p-1.5 font-medium">SAV</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {transits.planets.map((p) => (
+                          <tr key={p.planet} className="border-b border-border/40">
+                            <td className="p-1.5">{p.planet}{p.retrograde ? ' (R)' : ''}</td>
+                            <td className="p-1.5">{p.sign}</td>
+                            <td className="p-1.5 text-center">{p.houseFromMoon}</td>
+                            <td className="p-1.5 text-center">{p.houseFromLagna}</td>
+                            <td className="p-1.5 text-center">{p.sav ?? '—'}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                  <p className="text-[11px] text-muted-foreground">As of {transits.date}. Houses counted from natal Moon and Lagna; SAV = bindus of the transited sign.</p>
+                </CardContent>
+              </Card>
+            )}
           </TabsContent>
 
           {/* Insights */}
