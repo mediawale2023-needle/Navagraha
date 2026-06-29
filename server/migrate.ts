@@ -474,6 +474,46 @@ ALTER TABLE astrologers ADD COLUMN IF NOT EXISTS aadhaar_last4 varchar;
 ALTER TABLE astrologers ADD COLUMN IF NOT EXISTS kyc_notes text;
 ALTER TABLE astrologers ADD COLUMN IF NOT EXISTS kyc_submitted_at timestamp;
 ALTER TABLE astrologers ADD COLUMN IF NOT EXISTS kyc_reviewed_at timestamp;
+
+-- ─── Jyotish AI Reading (admin-only professional tool) ─────────────────────
+CREATE TABLE IF NOT EXISTS jyotish_client_profiles (
+  id varchar PRIMARY KEY DEFAULT gen_random_uuid(),
+  created_by_user_id varchar NOT NULL REFERENCES users(id),
+  name varchar NOT NULL,
+  gender varchar,
+  date_of_birth timestamp NOT NULL,
+  time_of_birth varchar NOT NULL,
+  place_of_birth varchar NOT NULL,
+  latitude decimal(10, 7) NOT NULL,
+  longitude decimal(10, 7) NOT NULL,
+  notes text,
+  created_at timestamp DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_jyotish_profiles_creator ON jyotish_client_profiles (created_by_user_id);
+
+CREATE TABLE IF NOT EXISTS jyotish_readings (
+  id varchar PRIMARY KEY DEFAULT gen_random_uuid(),
+  profile_id varchar NOT NULL REFERENCES jyotish_client_profiles(id),
+  chart_data jsonb NOT NULL,
+  parashar_reading text,
+  kn_rao_reading text,
+  kamakhya_reading text,
+  language varchar DEFAULT 'English',
+  status varchar DEFAULT 'ready',
+  created_at timestamp DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_jyotish_readings_profile ON jyotish_readings (profile_id);
+
+CREATE TABLE IF NOT EXISTS jyotish_session_queries (
+  id varchar PRIMARY KEY DEFAULT gen_random_uuid(),
+  profile_id varchar NOT NULL REFERENCES jyotish_client_profiles(id),
+  reading_id varchar REFERENCES jyotish_readings(id),
+  tradition varchar NOT NULL DEFAULT 'Parashar',
+  question text NOT NULL,
+  answer text,
+  created_at timestamp DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_jyotish_queries_profile ON jyotish_session_queries (profile_id, created_at);
 `;
 
 const SEED_STORE_SQL = `

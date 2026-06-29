@@ -29,6 +29,15 @@ import {
   streamMessages,
   astrologerFollows,
   consultationQueue,
+  jyotishClientProfiles,
+  jyotishReadings,
+  jyotishSessionQueries,
+  type JyotishClientProfile,
+  type InsertJyotishClientProfile,
+  type JyotishReading,
+  type InsertJyotishReading,
+  type JyotishSessionQuery,
+  type InsertJyotishSessionQuery,
   type Coupon,
   type InsertCoupon,
   type CouponRedemption,
@@ -1480,6 +1489,74 @@ export class DatabaseStorage implements IStorage {
       .where(eq(astrologers.id, astrologerId))
       .returning();
     return row;
+  }
+
+  // ─── Jyotish AI Reading (admin-only professional tool) ──────
+  async createJyotishProfile(data: InsertJyotishClientProfile): Promise<JyotishClientProfile> {
+    const [row] = await db.insert(jyotishClientProfiles).values(data).returning();
+    return row;
+  }
+
+  async getJyotishProfiles(createdByUserId: string): Promise<JyotishClientProfile[]> {
+    return await db
+      .select()
+      .from(jyotishClientProfiles)
+      .where(eq(jyotishClientProfiles.createdByUserId, createdByUserId))
+      .orderBy(desc(jyotishClientProfiles.createdAt));
+  }
+
+  async getJyotishProfileById(id: string): Promise<JyotishClientProfile | undefined> {
+    const [row] = await db.select().from(jyotishClientProfiles).where(eq(jyotishClientProfiles.id, id));
+    return row;
+  }
+
+  async createJyotishReading(data: InsertJyotishReading): Promise<JyotishReading> {
+    const [row] = await db.insert(jyotishReadings).values(data).returning();
+    return row;
+  }
+
+  async updateJyotishReading(id: string, data: Partial<InsertJyotishReading>): Promise<JyotishReading> {
+    const [row] = await db
+      .update(jyotishReadings)
+      .set(data)
+      .where(eq(jyotishReadings.id, id))
+      .returning();
+    return row;
+  }
+
+  async getJyotishReadingById(id: string): Promise<JyotishReading | undefined> {
+    const [row] = await db.select().from(jyotishReadings).where(eq(jyotishReadings.id, id));
+    return row;
+  }
+
+  async listJyotishReadingsForProfile(profileId: string): Promise<JyotishReading[]> {
+    return await db
+      .select()
+      .from(jyotishReadings)
+      .where(eq(jyotishReadings.profileId, profileId))
+      .orderBy(desc(jyotishReadings.createdAt));
+  }
+
+  async createJyotishSessionQuery(data: InsertJyotishSessionQuery): Promise<JyotishSessionQuery> {
+    const [row] = await db.insert(jyotishSessionQueries).values(data).returning();
+    return row;
+  }
+
+  async updateJyotishSessionQueryAnswer(id: string, answer: string): Promise<JyotishSessionQuery> {
+    const [row] = await db
+      .update(jyotishSessionQueries)
+      .set({ answer })
+      .where(eq(jyotishSessionQueries.id, id))
+      .returning();
+    return row;
+  }
+
+  async listJyotishSessionQueries(profileId: string): Promise<JyotishSessionQuery[]> {
+    return await db
+      .select()
+      .from(jyotishSessionQueries)
+      .where(eq(jyotishSessionQueries.profileId, profileId))
+      .orderBy(desc(jyotishSessionQueries.createdAt));
   }
 }
 

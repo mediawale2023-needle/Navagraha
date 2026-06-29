@@ -8,10 +8,11 @@ import { LoadingSpinner } from '@/components/LoadingSpinner';
 import {
   Users, Star, BookOpen, IndianRupee, Activity, Wifi, WifiOff,
   ChevronUp, ChevronDown, Plus, Trash2, Eye, EyeOff, Pencil, X, Check,
-  LayoutDashboard, FileText, Package,
+  LayoutDashboard, FileText, Package, Sparkles,
 } from 'lucide-react';
 import { apiRequest } from '@/lib/queryClient';
 import { useToast } from "@/hooks/use-toast";
+import JyotishReading from './admin/JyotishReading';
 
 /* ═══════════════════════════════════════════════════════ */
 /*  Types                                                 */
@@ -463,7 +464,7 @@ export default function AdminDashboard() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const [search, setSearch] = useState('');
-  const [activeTab, setActiveTab] = useState<'overview' | 'content' | 'ops'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'content' | 'ops' | 'jyotish'>('overview');
 
   const { data: stats, isLoading: statsLoading } = useQuery<AdminStats>({
     queryKey: ['/api/admin/stats'],
@@ -538,6 +539,16 @@ export default function AdminDashboard() {
             data-testid="tab-ops"
           >
             <Package className="w-4 h-4" /> Operations
+          </button>
+          <button
+            onClick={() => setActiveTab('jyotish')}
+            className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 ${activeTab === 'jyotish'
+                ? 'border-primary text-primary'
+                : 'border-transparent text-muted-foreground hover:text-foreground'
+              }`}
+            data-testid="tab-jyotish"
+          >
+            <Sparkles className="w-4 h-4" /> Jyotish AI Reading
           </button>
         </div>
       </div>
@@ -628,6 +639,8 @@ export default function AdminDashboard() {
         {activeTab === 'content' && <ContentEditor />}
 
         {activeTab === 'ops' && <AdminOps />}
+
+        {activeTab === 'jyotish' && <JyotishReading />}
 
       </div>
     </div>

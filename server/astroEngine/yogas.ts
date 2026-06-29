@@ -101,6 +101,25 @@ export function detectYogas(
     }
   }
 
+  // Vipreeta Raja Yoga — a dusthana (6th/8th/12th) lord placed in ANOTHER
+  // dusthana house. Three named variants: Harsha (6th lord), Sarala (8th lord),
+  // Vimala (12th lord). Loss-house lord weakening another loss-house paradoxically
+  // strengthens the native (loss negating loss).
+  const DUSTHANA = [6, 8, 12];
+  const VIPREETA_NAME: Record<number, string> = { 6: 'Harsha', 8: 'Sarala', 12: 'Vimala' };
+  for (const dh of DUSTHANA) {
+    const lord = lordByHouse[dh];
+    const lordHouse = lordHouseByHouse[dh];
+    if (lord && DUSTHANA.includes(lordHouse) && lordHouse !== dh) {
+      yogas.push({
+        name: `${VIPREETA_NAME[dh]} Vipreeta Raja Yoga`,
+        category: 'Raja',
+        planets: [lord],
+        description: `${dh}th lord (${lord}) sits in the ${lordHouse}th (also a dusthana) — Vipreeta Raja Yoga: setbacks convert into unexpected gains, often after the difficulty has already run its course.`,
+      });
+    }
+  }
+
   // Kemadruma — Moon isolated (no planet in 2nd/12th from Moon, none conjunct).
   const occ = (h: number) => PLANETS.some((p) => p !== 'Moon' && p !== 'Sun' && houseM[p] === h);
   const conjMoon = PLANETS.some((p) => p !== 'Moon' && sign[p] === sign['Moon']);

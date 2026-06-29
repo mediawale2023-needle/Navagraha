@@ -67,6 +67,9 @@ import {
   generateDailyHoroscope,
   extractMemories,
 } from "./aiAstrologerService";
+import { computeJyotishChart } from "./astroEngine/jyotishEngine.js";
+import { streamTraditionReading, answerSessionQuery, type Tradition } from "./jyotishAiService.js";
+import { insertJyotishClientProfileSchema } from "@shared/schema";
 import { sendWelcomeEmail, sendPaymentReceipt, sendBookingConfirmation, sendConsultationSummary } from "./emailService";
 import crypto from "crypto";
 
@@ -2517,6 +2520,191 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
       }
       res.json({ success: true });
     } catch { res.status(500).json({ message: 'Failed to reorder' }); }
+  });
+
+  // ─── Admin: Jyotish AI Reading (admin-only professional tool) ──
+  const READING_COLUMN: Record<Tradition, 'parasharReading' | 'knRaoReading' | 'kamakhyaReading'> = {
+    parashar: 'parasharReading',
+    kn_rao: 'knRaoReading',
+    kamakhya: 'kamakhyaReading',
+  };
+  const TRADITION_ENUM = z.enum(['parashar', 'kn_rao', 'kamakhya']);
+
+  function jyotishProfileInfo(profile: { name: string; gender?: string | null; dateOfBirth: Date; timeOfBirth: string; placeOfBirth: string }) {
+    return {
+      name: profile.name,
+      gender: profile.gender,
+      dateOfBirth: new Date(profile.dateOfBirth).toISOString().slice(0, 10),
+      timeOfBirth: profile.timeOfBirth,
+      placeOfBirth: profile.placeOfBirth,
+    };
+  }
+
+  app.post('/api/admin/jyotish/profiles', isAdmin, adminLimiter, async (req, res) => {
+    try {
+      const body = insertJyotishClientProfileSchema.omit({ createdByUserId: true }).parse(req.body);
+      const profile = await storage.createJyotishProfile({ ...body, createdByUserId: (req.user as any).id });
+      res.json(profile);
+    } catch (err: any) {
+      if (err instanceof z.ZodError) return res.status(400).json({ message: 'Invalid profile data', errors: err.errors });
+      console.error('Create jyotish profile error:', err);
+      res.status(500).json({ message: 'Failed to create profile' });
+    }
+  });
+
+  app.get('/api/admin/jyotish/profiles', isAdmin, adminLimiter, async (req, res) => {
+    try {
+      res.json(await storage.getJyotishProfiles((req.user as any).id));
+    } catch { res.status(500).json({ message: 'Failed to fetch profiles' }); }
+  });
+
+  app.get('/api/admin/jyotish/profiles/:id', isAdmin, adminLimiter, async (req, res) => {
+    try {
+      const profile = await storage.getJyotishProfileById(req.params.id);
+      if (!profile) return res.status(404).json({ message: 'Profile not found' });
+      res.json(profile);
+    } catch { res.status(500).json({ message: 'Failed to fetch profile' }); }
+  });
+
+  // Deterministic chart only (no AI) — fast, used for Chart Summary / Dashas / Yogas & Doshas tabs.
+  app.post('/api/admin/jyotish/profiles/:id/chart', isAdmin, adminLimiter, async (req, res) => {
+    try {
+      const profile = await storage.getJyotishProfileById(req.params.id);
+      if (!profile) return res.status(404).json({ message: 'Profile not found' });
+      const chart = computeJyotishChart(profile.dateOfBirth, profile.timeOfBirth, Number(profile.latitude), Number(profile.longitude));
+      res.json(chart);
+    } catch (err) {
+      console.error('Compute jyotish chart error:', err);
+      res.status(500).json({ message: 'Failed to compute chart' });
+    }
+  });
+
+  // Create a saved reading snapshot (computes & persists chartData; tradition texts filled in later via /generate).
+  app.post('/api/admin/jyotish/profiles/:id/readings', isAdmin, adminLimiter, async (req, res) => {
+    try {
+      const profile = await storage.getJyotishProfileById(req.params.id);
+      if (!profile) return res.status(404).json({ message: 'Profile not found' });
+      const language = typeof req.body?.language === 'string' ? req.body.language : 'English';
+      const chart = computeJyotishChart(profile.dateOfBirth, profile.timeOfBirth, Number(profile.latitude), Number(profile.longitude));
+      const reading = await storage.createJyotishReading({
+        profileId: profile.id,
+        chartData: chart.chartData,
+        language,
+        status: 'generating',
+      });
+      res.json(reading);
+    } catch (err) {
+      console.error('Create jyotish reading error:', err);
+      res.status(500).json({ message: 'Failed to create reading' });
+    }
+  });
+
+  app.get('/api/admin/jyotish/profiles/:id/readings', isAdmin, adminLimiter, async (req, res) => {
+    try {
+      res.json(await storage.listJyotishReadingsForProfile(req.params.id));
+    } catch { res.status(500).json({ message: 'Failed to fetch readings' }); }
+  });
+
+  app.get('/api/admin/jyotish/readings/:id', isAdmin, adminLimiter, async (req, res) => {
+    try {
+      const reading = await storage.getJyotishReadingById(req.params.id);
+      if (!reading) return res.status(404).json({ message: 'Reading not found' });
+      res.json(reading);
+    } catch { res.status(500).json({ message: 'Failed to fetch reading' }); }
+  });
+
+  // Streams the AI narrative for one tradition, word-by-word, as a plain chunked
+  // text/plain response (client reads via fetch()'s ReadableStream — no SSE
+  // needed for a same-origin POST). Persists the full text once streaming ends.
+  app.post('/api/admin/jyotish/readings/:id/generate', isAdmin, adminLimiter, async (req, res) => {
+    let tradition: Tradition;
+    try {
+      tradition = TRADITION_ENUM.parse(req.body?.tradition);
+    } catch {
+      return res.status(400).json({ message: 'tradition must be one of parashar | kn_rao | kamakhya' });
+    }
+    try {
+      const reading = await storage.getJyotishReadingById(req.params.id);
+      if (!reading) return res.status(404).json({ message: 'Reading not found' });
+      const profile = await storage.getJyotishProfileById(reading.profileId);
+      if (!profile) return res.status(404).json({ message: 'Profile not found' });
+
+      res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+      res.setHeader('Cache-Control', 'no-cache');
+      (res as any).flushHeaders?.();
+
+      const full = await streamTraditionReading(
+        tradition,
+        jyotishProfileInfo(profile),
+        reading.chartData as any,
+        (delta) => res.write(delta),
+        reading.language || 'English',
+      );
+      await storage.updateJyotishReading(reading.id, { [READING_COLUMN[tradition]]: full, status: 'ready' } as any);
+      res.end();
+    } catch (err: any) {
+      console.error('Generate jyotish reading error:', err);
+      if (!res.headersSent) {
+        if (err.message?.includes('OPENAI_API_KEY')) return res.status(503).json({ message: 'AI features not configured. Set OPENAI_API_KEY.' });
+        return res.status(500).json({ message: 'Failed to generate reading' });
+      }
+      res.end();
+    }
+  });
+
+  // Quick mid-session Q&A ("session query box") — streamed the same way, logged for the record.
+  app.post('/api/admin/jyotish/session-queries', isAdmin, adminLimiter, async (req, res) => {
+    const { profileId, readingId, question, language } = req.body || {};
+    let tradition: Tradition;
+    try {
+      tradition = TRADITION_ENUM.parse(req.body?.tradition);
+    } catch {
+      return res.status(400).json({ message: 'tradition must be one of parashar | kn_rao | kamakhya' });
+    }
+    if (!profileId || typeof question !== 'string' || !question.trim()) {
+      return res.status(400).json({ message: 'profileId and question are required' });
+    }
+    try {
+      const profile = await storage.getJyotishProfileById(profileId);
+      if (!profile) return res.status(404).json({ message: 'Profile not found' });
+
+      let chartData: any;
+      if (readingId) {
+        const reading = await storage.getJyotishReadingById(readingId);
+        chartData = reading?.chartData;
+      }
+      if (!chartData) {
+        chartData = computeJyotishChart(profile.dateOfBirth, profile.timeOfBirth, Number(profile.latitude), Number(profile.longitude)).chartData;
+      }
+
+      res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+      res.setHeader('Cache-Control', 'no-cache');
+      (res as any).flushHeaders?.();
+
+      const answer = await answerSessionQuery(
+        tradition,
+        jyotishProfileInfo(profile),
+        chartData,
+        question,
+        (delta) => res.write(delta),
+        language,
+      );
+      await storage.createJyotishSessionQuery({ profileId, readingId: readingId || undefined, tradition, question, answer });
+      res.end();
+    } catch (err: any) {
+      console.error('Jyotish session query error:', err);
+      if (!res.headersSent) {
+        if (err.message?.includes('OPENAI_API_KEY')) return res.status(503).json({ message: 'AI features not configured. Set OPENAI_API_KEY.' });
+        return res.status(500).json({ message: 'Failed to answer query' });
+      }
+      res.end();
+    }
+  });
+
+  app.get('/api/admin/jyotish/profiles/:id/session-queries', isAdmin, adminLimiter, async (req, res) => {
+    try {
+      res.json(await storage.listJyotishSessionQueries(req.params.id));
+    } catch { res.status(500).json({ message: 'Failed to fetch session queries' }); }
   });
 
   return existingServer ?? createServer(app);

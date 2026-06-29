@@ -730,3 +730,82 @@ export const predictionFeedbacksRelations = relations(predictionFeedbacks, ({ on
 
 export type PredictionFeedback = typeof predictionFeedbacks.$inferSelect;
 export type InsertPredictionFeedback = z.infer<typeof insertPredictionFeedbackSchema>;
+
+// ─── Jyotish AI Reading (admin-only professional tool) ─────────────────────
+// Used by the astrologer-admin during live client sessions: a saved client
+// profile + the precise (Swiss Ephemeris) chart computation + AI narrative
+// readings in three traditions. Deliberately separate from `kundlis` (the
+// consumer-facing saved-chart feature) since this is an internal admin tool
+// with its own birth-data intake and a different, more exhaustive computation
+// payload (Jaimini Chara Dasha, Mahavidya mapping, gemstone contraindications,
+// etc. — see server/jyotishEngine.ts).
+
+export const jyotishClientProfiles = pgTable("jyotish_client_profiles", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  createdByUserId: varchar("created_by_user_id").references(() => users.id).notNull(),
+  name: varchar("name").notNull(),
+  gender: varchar("gender"),
+  dateOfBirth: timestamp("date_of_birth").notNull(),
+  timeOfBirth: varchar("time_of_birth").notNull(),
+  placeOfBirth: varchar("place_of_birth").notNull(),
+  latitude: decimal("latitude", { precision: 10, scale: 7 }).notNull(),
+  longitude: decimal("longitude", { precision: 10, scale: 7 }).notNull(),
+  notes: text("notes"), // free-form astrologer notes about the client
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertJyotishClientProfileSchema = createInsertSchema(jyotishClientProfiles).omit({
+  id: true,
+  createdAt: true,
+}).extend({
+  dateOfBirth: z.union([z.date(), z.string().transform((str) => new Date(str))]),
+  latitude: z.union([z.string(), z.number().transform((num) => num.toString())]),
+  longitude: z.union([z.string(), z.number().transform((num) => num.toString())]),
+});
+
+export type InsertJyotishClientProfile = z.infer<typeof insertJyotishClientProfileSchema>;
+export type JyotishClientProfile = typeof jyotishClientProfiles.$inferSelect;
+
+export const jyotishReadings = pgTable("jyotish_readings", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  profileId: varchar("profile_id").references(() => jyotishClientProfiles.id).notNull(),
+  // Full deterministic computation: sidereal positions, dashas (Vimshottari +
+  // Pratyantardasha + Yogini + Jaimini Chara), bhava, dignities, yogas,
+  // doshas, navamsa/dasamsa, ashtakavarga, Char Karakas, Karakamsha, Ishta
+  // Devata, Mahavidya mapping, gemstone contraindications, remedies.
+  chartData: jsonb("chart_data").notNull(),
+  parasharReading: text("parashar_reading"),
+  knRaoReading: text("kn_rao_reading"),
+  kamakhyaReading: text("kamakhya_reading"),
+  language: varchar("language").default("English"),
+  status: varchar("status").default("ready"), // generating | ready | failed
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertJyotishReadingSchema = createInsertSchema(jyotishReadings).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type InsertJyotishReading = z.infer<typeof insertJyotishReadingSchema>;
+export type JyotishReading = typeof jyotishReadings.$inferSelect;
+
+// Ad-hoc Q&A logged during a live session (the "session query box") — kept
+// even without a saved reading so a quick mid-call lookup is never lost.
+export const jyotishSessionQueries = pgTable("jyotish_session_queries", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  profileId: varchar("profile_id").references(() => jyotishClientProfiles.id).notNull(),
+  readingId: varchar("reading_id").references(() => jyotishReadings.id),
+  tradition: varchar("tradition").notNull().default("Parashar"), // Parashar | K.N. Rao | Kamakhya Tantric
+  question: text("question").notNull(),
+  answer: text("answer"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertJyotishSessionQuerySchema = createInsertSchema(jyotishSessionQueries).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type InsertJyotishSessionQuery = z.infer<typeof insertJyotishSessionQuerySchema>;
+export type JyotishSessionQuery = typeof jyotishSessionQueries.$inferSelect;
