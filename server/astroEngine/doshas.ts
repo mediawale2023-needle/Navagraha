@@ -76,3 +76,25 @@ function angularDist(a: number, b: number): number {
   const d = Math.abs(((a - b + 540) % 360) - 180);
   return d;
 }
+
+// ─── Visha Yoga ───────────────────────────────────────────────────────────────
+
+/**
+ * Visha Yoga ("poison combination") — Moon and Saturn conjunct in the same
+ * sign, or in mutual opposition (7th from each other). Classically linked to
+ * mental distress / self-doubt unless the chart shows compensating strength
+ * (a strong Moon, benefic association, or a well-placed dasha lord) — always
+ * pair this with the chart's actual Moon dignity before describing severity.
+ */
+export function hasVishaYoga(moonLon: number, saturnLon: number): boolean {
+  const moonSign = Math.floor((((moonLon % 360) + 360) % 360) / 30);
+  const saturnSign = Math.floor((((saturnLon % 360) + 360) % 360) / 30);
+  return moonSign === saturnSign || ((moonSign - saturnSign + 12) % 12) === 6;
+}
+
+// ─── Note on Kuja Dosha ───────────────────────────────────────────────────────
+// "Kuja Dosha" and "Mangal Dosha" are the same affliction (Kuja = Sanskrit
+// name for Mars); see hasMangalDosha() above. Some schools additionally check
+// Mars's affliction from the Venus/7th-lord position (for marriage charts
+// specifically) rather than only from Lagna/Moon — note this nuance in the
+// AI reading rather than duplicating the detector.
