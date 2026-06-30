@@ -411,11 +411,10 @@ function RemediesTab({ chartData }: { chartData: any }) {
 /* ─── Streamed AI reading tab (shared by Parashar / K.N. Rao / Kamakhya) ─── */
 
 function ReadingTab({
-  tradition, reading, profileId, readingId, onReadingUpdate,
+  tradition, reading, readingId, onReadingUpdate,
 }: {
   tradition: Tradition;
   reading: JyotishReadingRow | null;
-  profileId: string;
   readingId: string | null;
   onReadingUpdate: (text: string) => void;
 }) {
@@ -555,8 +554,16 @@ function ProfileWorkspace({ profile }: { profile: JyotishProfile }) {
   const { toast } = useToast();
   const [chartData, setChartData] = useState<any>(null);
   const [readingId, setReadingId] = useState<string | null>(null);
-  const [reading, setReading] = useState<JyotishReadingRow | null>(null);
   const [computing, setComputing] = useState(false);
+
+  const { data: readings = [] } = useQuery<JyotishReadingRow[]>({
+    queryKey: [`/api/admin/jyotish/profiles/${profile.id}/readings`],
+    enabled: !!profile.id,
+  });
+
+  const reading = (readingId
+    ? readings.find((r) => r.id === readingId)
+    : readings[0]) || null;
 
   const computeChart = async () => {
     setComputing(true);
@@ -574,7 +581,6 @@ function ProfileWorkspace({ profile }: { profile: JyotishProfile }) {
     mutationFn: async () => apiRequest<JyotishReadingRow>('POST', `/api/admin/jyotish/profiles/${profile.id}/readings`, { language: 'English' }),
     onSuccess: (r) => {
       setReadingId(r.id);
-      setReading(r);
       setChartData(r.chartData);
       queryClient.invalidateQueries({ queryKey: [`/api/admin/jyotish/profiles/${profile.id}/readings`] });
     },
@@ -584,8 +590,19 @@ function ProfileWorkspace({ profile }: { profile: JyotishProfile }) {
   useEffect(() => {
     setChartData(null);
     setReadingId(null);
-    setReading(null);
   }, [profile.id]);
+
+  useEffect(() => {
+    if (!readingId && readings.length > 0) {
+      setReadingId(readings[0].id);
+    }
+  }, [readingId, readings]);
+
+  useEffect(() => {
+    if (reading?.chartData) {
+      setChartData(reading.chartData);
+    }
+  }, [reading?.chartData]);
 
   const updateReadingField = (tradition: Tradition, text: string) => {
     if (!reading) return;
@@ -632,13 +649,13 @@ function ProfileWorkspace({ profile }: { profile: JyotishProfile }) {
         <TabsContent value="dashas"><DashasTab chartData={chartData} /></TabsContent>
         <TabsContent value="yogas"><YogasDoshasTab chartData={chartData} /></TabsContent>
         <TabsContent value="parashar">
-          <ReadingTab tradition="parashar" reading={reading} profileId={profile.id} readingId={readingId} onReadingUpdate={(t) => updateReadingField('parashar', t)} />
+          <ReadingTab tradition="parashar" reading={reading} readingId={readingId} onReadingUpdate={(t) => updateReadingField('parashar', t)} />
         </TabsContent>
         <TabsContent value="kn_rao">
-          <ReadingTab tradition="kn_rao" reading={reading} profileId={profile.id} readingId={readingId} onReadingUpdate={(t) => updateReadingField('kn_rao', t)} />
+          <ReadingTab tradition="kn_rao" reading={reading} readingId={readingId} onReadingUpdate={(t) => updateReadingField('kn_rao', t)} />
         </TabsContent>
         <TabsContent value="kamakhya">
-          <ReadingTab tradition="kamakhya" reading={reading} profileId={profile.id} readingId={readingId} onReadingUpdate={(t) => updateReadingField('kamakhya', t)} />
+          <ReadingTab tradition="kamakhya" reading={reading} readingId={readingId} onReadingUpdate={(t) => updateReadingField('kamakhya', t)} />
         </TabsContent>
         <TabsContent value="remedies"><RemediesTab chartData={chartData} /></TabsContent>
       </Tabs>
