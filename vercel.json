@@ -1,0 +1,22 @@
+{
+  "framework": "vite",
+  "buildCommand": "npm run build",
+  "outputDirectory": "dist/public",
+  "routes": [
+    {
+      "src": "/api/(.*)",
+      "dest": "https://navagraha-e3e8.onrender.com/api/$1"
+    },
+    {
+      "src": "/metrics",
+      "dest": "https://navagraha-e3e8.onrender.com/metrics"
+    },
+    {
+      "handle": "filesystem"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "/index.html"
+    }
+  ]
+}
