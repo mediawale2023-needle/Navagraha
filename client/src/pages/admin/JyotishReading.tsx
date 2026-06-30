@@ -607,7 +607,12 @@ function ProfileWorkspace({ profile }: { profile: JyotishProfile }) {
   const updateReadingField = (tradition: Tradition, text: string) => {
     if (!reading) return;
     const column = tradition === 'parashar' ? 'parasharReading' : tradition === 'kn_rao' ? 'knRaoReading' : 'kamakhyaReading';
-    setReading({ ...reading, [column]: text });
+    queryClient.setQueryData<JyotishReadingRow[]>(
+      [`/api/admin/jyotish/profiles/${profile.id}/readings`],
+      (current = []) => current.map((row) => (
+        row.id === reading.id ? { ...row, [column]: text } : row
+      )),
+    );
   };
 
   return (
