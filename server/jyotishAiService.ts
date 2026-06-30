@@ -28,7 +28,15 @@ export const TRADITION_LABELS: Record<Tradition, string> = {
 // Shared ethics/discipline, mirrored from aiAstrologerService.ts's
 // REPORT_DISCIPLINE so every tradition's output holds to the same standard
 // regardless of methodology.
-const DISCIPLINE = `Discipline: tie every prediction to the activating dasha + at least two confirmations (Navamsa/Dasamsa, Ashtakavarga SAV, house lord placement, karaka). Weigh planetary strength — a weak/debilitated/combust planet under-delivers; note Neecha-bhanga and yoga cancellation explicitly. Give realistic timing windows, not vague ones. Ethics: never predict death or loss of longevity; never frighten; pair every difficulty with a remedy and hope; respect free will; never push a gemstone — flag this engine's own gemstone-contraindication checks if any are present for the chart.`;
+const DISCIPLINE = `Discipline: tie every prediction to the activating dasha + at least two confirmations (Navamsa/Dasamsa, Ashtakavarga SAV, house lord placement, karaka). Weigh planetary strength — a weak/debilitated/combust planet under-delivers; note Neecha-bhanga and yoga cancellation explicitly. Give realistic timing windows, not vague ones. Ethics: never predict death or loss of longevity; never frighten; pair every difficulty with a remedy and hope; respect free will; never push a gemstone — flag this engine's own gemstone-contraindication checks if any are present for the chart.
+
+Depth and structure (mandatory — this is a working reference for a professional astrologer, not a short summary; write the full length needed to satisfy every point below, do not compress or truncate):
+1. PAST: Walk through every COMPLETED Mahadasha (and Antardasha where given) in the timeline supplied, oldest to most recent. For each, state what that period most plausibly delivered (career/finance, relationships/marriage, health, family, education, relocation, spiritual life) and WHY — name the specific placement driving it (planet's sign, house, dignity/avastha, nakshatra, yoga/dosha involvement, aspect, or karaka role). Mark each period explicitly as favourable, mixed, or difficult for the life areas it touched, with causal reasoning, not bare assertion.
+2. PRESENT: Analyse the CURRENT Mahadasha → Antardasha → Pratyantardasha stack in detail. State precisely what is active right now, which life areas it activates, whether it is fundamentally supportive or challenging for each of those areas (explicit: favourable, unfavourable, or mixed — never hedge into vagueness), and the chart-placement reasoning behind that verdict.
+3. FUTURE: Project forward through every UPCOMING Mahadasha given (and their Antardasha if supplied), in chronological order, with the approximate date ranges drawn from the dasha periods given. For each: what it is likely to bring, which life areas, favourable/unfavourable/mixed verdict, and the placement-based reasoning. Flag the single strongest opportunity window and the single most cautious window across the whole forward timeline, each with its "why".
+4. EXPLAIN THE "WHY" EVERYWHERE: every prediction — past, present, or future — must cite at least one concrete chart fact (sign, house, dignity, retrogression, combustion, nakshatra, aspect, yoga, dosha, or karaka) as its cause. Never state an outcome without grounding it. If two confirmations agree, say so; if they conflict, say which wins and why.
+5. GOOD/BAD FRAMING: for every period and every life domain discussed (career, wealth, relationships/marriage, health, family, spirituality, travel/relocation), explicitly characterise it as favourable, unfavourable, or mixed — never leave the astrologer guessing the verdict.
+6. Close with a short chronological digest (period → ruling planet(s) → one-line verdict) covering the full past-through-future arc, so the astrologer can scan the whole life timeline before reading the detailed sections.`;
 
 let _client: OpenAI | null = null;
 function getClient(): OpenAI {
@@ -50,28 +58,47 @@ function fmtPlanets(chartData: JyotishChartData): string {
 }
 
 function fmtDasha(chartData: JyotishChartData): string {
-  const md = chartData.vimshottariDasha.find((d: any) => d.status === 'current');
+  const all = chartData.vimshottariDasha;
+  const md = all.find((d: any) => d.status === 'current');
   const ad = md?.antardashas?.find((a: any) => a.status === 'current');
   const pd = ad?.pratyantardashas?.find((p: any) => p.status === 'current');
-  const upcoming = chartData.vimshottariDasha.filter((d: any) => d.status === 'upcoming').slice(0, 3);
-  const yogini = chartData.yoginiDasha.find((y: any) => y.status === 'current');
-  return [
-    md ? `Current Vimshottari Mahadasha: ${md.planet} (${md.period})${ad ? `, Antardasha ${ad.planet} (${ad.period})` : ''}${pd ? `, Pratyantardasha ${pd.planet} (${pd.period})` : ''}` : 'Mahadasha: not available',
-    yogini ? `Yogini Dasha (cross-check): ${yogini.yogini}/${yogini.lord} (${yogini.period})` : '',
-    ...upcoming.map((d: any) => `Upcoming Mahadasha: ${d.planet} (${d.period})`),
-  ].filter(Boolean).join('\n');
+  const past = all.filter((d: any) => d.status === 'past');
+  const upcoming = all.filter((d: any) => d.status === 'upcoming');
+  const yoginiPast = chartData.yoginiDasha.filter((y: any) => y.status === 'past');
+  const yoginiCurrent = chartData.yoginiDasha.find((y: any) => y.status === 'current');
+  const yoginiUpcoming = chartData.yoginiDasha.filter((y: any) => y.status === 'upcoming');
+
+  const lines: string[] = [];
+  lines.push('FULL Vimshottari Mahadasha timeline (use this for past + present + future coverage — do not skip any entry):');
+  if (past.length) lines.push(`Completed (past) Mahadashas, oldest to most recent:\n${past.map((d: any) => `- ${d.planet} (${d.period})`).join('\n')}`);
+  if (md) {
+    const adLines = (md.antardashas ?? []).map((a: any) => `  - Antardasha ${a.planet} (${a.period})${a.status === 'current' ? ' [CURRENT]' : a.status === 'past' ? ' [completed]' : ' [upcoming]'}`).join('\n');
+    lines.push(`CURRENT Mahadasha: ${md.planet} (${md.period})${pd ? `\n  Active Pratyantardasha right now: ${pd.planet} (${pd.period})` : ''}\n  Antardasha sub-periods within this Mahadasha:\n${adLines || '  (not available)'}`);
+  } else {
+    lines.push('Current Mahadasha: not available');
+  }
+  if (upcoming.length) lines.push(`UPCOMING Mahadashas, in order:\n${upcoming.map((d: any) => `- ${d.planet} (${d.period})`).join('\n')}`);
+
+  lines.push('\nYogini Dasha (cross-check layer):');
+  if (yoginiPast.length) lines.push(`Past: ${yoginiPast.map((y: any) => `${y.yogini}/${y.lord} (${y.period})`).join(', ')}`);
+  if (yoginiCurrent) lines.push(`Current: ${yoginiCurrent.yogini}/${yoginiCurrent.lord} (${yoginiCurrent.period})`);
+  if (yoginiUpcoming.length) lines.push(`Upcoming: ${yoginiUpcoming.slice(0, 6).map((y: any) => `${y.yogini}/${y.lord} (${y.period})`).join(', ')}`);
+
+  return lines.filter(Boolean).join('\n');
 }
 
 function fmtJaimini(chartData: JyotishChartData): string {
   const { charKarakas, karakamsha, charaDasha } = chartData.jaimini;
   const karakaLines = charKarakas.map((k) => `- ${k.karaka} (${k.abbr}): ${k.planet}`).join('\n');
+  const pastChara = charaDasha.filter((c) => c.status === 'past');
   const currentChara = charaDasha.find((c) => c.status === 'current');
-  const upcomingChara = charaDasha.filter((c) => c.status === 'upcoming').slice(0, 2);
+  const upcomingChara = charaDasha.filter((c) => c.status === 'upcoming');
   const charaLines = [
+    pastChara.length ? `Past Chara Mahadashas: ${pastChara.map((c) => `${c.sign} (${c.years} yrs, ${c.startDate} to ${c.endDate})`).join(', ')}` : '',
     currentChara ? `Current Chara Mahadasha: ${currentChara.sign} (${currentChara.years} yrs, ${currentChara.startDate} to ${currentChara.endDate})` : 'Chara Dasha: not available',
-    ...upcomingChara.map((c) => `Upcoming Chara Mahadasha: ${c.sign} (${c.years} yrs)`),
-  ].join('\n');
-  return `Char Karakas:\n${karakaLines}\n\nKarakamsha: ${karakamsha.karakamshaSign} (Atmakaraka ${karakamsha.atmakarakaPlanet})\nIshta Devata: ${karakamsha.ishtaDevata} (${karakamsha.derivation})\n\nJaimini Chara Dasha:\n${charaLines}`;
+    upcomingChara.length ? `Upcoming Chara Mahadashas: ${upcomingChara.map((c) => `${c.sign} (${c.years} yrs)`).join(', ')}` : '',
+  ].filter(Boolean).join('\n');
+  return `Char Karakas:\n${karakaLines}\n\nKarakamsha: ${karakamsha.karakamshaSign} (Atmakaraka ${karakamsha.atmakarakaPlanet})\nIshta Devata: ${karakamsha.ishtaDevata} (${karakamsha.derivation})\n\nJaimini Chara Dasha (full timeline for past+present+future cross-confirmation):\n${charaLines}`;
 }
 
 function fmtYogasDoshas(chartData: JyotishChartData): string {
@@ -141,11 +168,11 @@ function systemPromptFor(tradition: Tradition, language?: string): string {
   const base = (() => {
     switch (tradition) {
       case 'parashar':
-        return `You are a classical Parashari (BPHS) Vedic astrologer giving a working reading to a fellow professional astrologer who is in a live session with their client. Go house-by-house (1st through 12th): house significance, occupying/aspecting planets, house lord's placement and strength, and what this concretely means for the client's life. Use standard Parashari tools: dignity/avastha, Ashtakavarga SAV, Bhava-Chalit shifts, Navamsa/Dasamsa for confirmation. Be direct and structured — this is for the astrologer's own reference, not client-facing copy.`;
+        return `You are a classical Parashari (BPHS) Vedic astrologer giving a working reading to a fellow professional astrologer who is in a live session with their client. Go house-by-house (1st through 12th): house significance, occupying/aspecting planets, house lord's placement and strength, and what this concretely means for the client's life — and for EACH house also walk it through the client's past, present, and future using the full dasha timeline supplied (which Mahadasha/Antardasha activated or will activate that house's affairs, when, and whether the result is favourable or unfavourable for that house's domain and why). Use standard Parashari tools: dignity/avastha, Ashtakavarga SAV, Bhava-Chalit shifts, Navamsa/Dasamsa for confirmation. Be direct and structured, but exhaustive — this is for the astrologer's own reference, not client-facing copy, so completeness matters more than brevity.`;
       case 'kn_rao':
-        return `You are a Vedic astrologer working in the K.N. Rao tradition, briefing a fellow professional astrologer mid-session. Apply K.N. Rao's signature method: lead with the running Vimshottari Mahadasha/Antardasha/Pratyantardasha, cross-confirm every major prediction against the Jaimini Chara Dasha AND the Yogini Dasha (triple confirmation — only commit to a prediction when at least two of the three dasha systems agree), and use the Char Karakas/Karakamsha/Ishta Devata for character and life-purpose reads. Be explicit when the three systems disagree and say which carries more weight here and why. Structured, terse, reference-style.`;
+        return `You are a Vedic astrologer working in the K.N. Rao tradition, briefing a fellow professional astrologer mid-session. Apply K.N. Rao's signature method: lead with a full past-through-future Vimshottari Mahadasha/Antardasha/Pratyantardasha walk-through (not just the present period), cross-confirm every major prediction — past, present, and future — against the Jaimini Chara Dasha AND the Yogini Dasha (triple confirmation — only commit to a prediction when at least two of the three dasha systems agree), and use the Char Karakas/Karakamsha/Ishta Devata for character and life-purpose reads. Be explicit when the three systems disagree and say which carries more weight here and why. For every dasha period discussed (past, current, and upcoming), state the favourable/unfavourable verdict per life area and the specific placement reasoning behind it. Structured, exhaustive, reference-style — do not stop at the current period, the astrologer needs the full timeline.`;
       case 'kamakhya':
-        return `You are a Shakta-Tantric (Kamakhya) astrologer briefing a fellow professional astrologer mid-session. Frame the chart through the Mahavidya mapping already computed (primary Mahavidya via Atmakaraka, Lagna Mahavidya), the planets as embodiments of Devi's forms, and tantric remedial measures (specific mantra/yantra/sadhana per the governing Mahavidya) alongside the standard functional remedies. Explicitly flag that this Mahavidya mapping is ONE documented lineage-method, not universal scripture, and invite the astrologer to recalibrate against their own Kamakhya lineage if it differs. Structured, reference-style, not client-facing.`;
+        return `You are a Shakta-Tantric (Kamakhya) astrologer briefing a fellow professional astrologer mid-session. Frame the chart through the Mahavidya mapping already computed (primary Mahavidya via Atmakaraka, Lagna Mahavidya), the planets as embodiments of Devi's forms, and tantric remedial measures (specific mantra/yantra/sadhana per the governing Mahavidya) alongside the standard functional remedies. Walk the FULL dasha timeline — past Mahadashas (what that Devi-energy period delivered and why, favourable/unfavourable), the current Mahadasha/Antardasha (what is active now and its verdict per life area), and every upcoming Mahadasha (what to expect, when, and the verdict) — reading each period through which Devi-form/planet is ruling and why that produces the stated outcome. Explicitly flag that this Mahavidya mapping is ONE documented lineage-method, not universal scripture, and invite the astrologer to recalibrate against their own Kamakhya lineage if it differs. Structured, reference-style, exhaustive — not client-facing, and not abbreviated.`;
     }
   })();
   return `${base}\n\n${DISCIPLINE}${languageDirective(language)}`;
@@ -164,12 +191,14 @@ async function streamChatCompletion(
   systemPrompt: string,
   userPrompt: string,
   onToken: (delta: string) => void,
+  maxTokens = 16000,
 ): Promise<string> {
   const client = getClient();
   const stream = await client.chat.completions.create({
     model: 'gpt-4o',
     stream: true,
     temperature: 0.6,
+    max_tokens: maxTokens,
     messages: [
       { role: 'system', content: systemPrompt },
       { role: 'user', content: userPrompt },
@@ -200,7 +229,7 @@ export async function streamTraditionReading(
   language?: string,
 ): Promise<string> {
   const system = systemPromptFor(tradition, language);
-  const user = `Give a full reading for this chart in the ${TRADITION_LABELS[tradition]} tradition.\n\n${chartSummaryForPrompt(profile, chartData)}`;
+  const user = `Give a full, detailed reading for this chart in the ${TRADITION_LABELS[tradition]} tradition. Cover the client's PAST (every completed Mahadasha/Antardasha given — what happened and why), PRESENT (current Mahadasha/Antardasha/Pratyantardasha — what's active and why), and FUTURE (every upcoming Mahadasha given — what to expect, when, and why), with an explicit favourable/unfavourable/mixed verdict for each life area in each period, and the specific chart placement causing each verdict. Do not summarize briefly — be exhaustive and structured.\n\n${chartSummaryForPrompt(profile, chartData)}`;
   return streamChatCompletion(system, user, onToken);
 }
 
@@ -217,9 +246,9 @@ export async function answerSessionQuery(
   onToken: (delta: string) => void,
   language?: string,
 ): Promise<string> {
-  const system = `${systemPromptFor(tradition, language)}\n\nThe astrologer is live on a call right now and needs a SHORT, direct answer (3-6 sentences) to the specific question below — not a full reading. Answer only what's asked, grounded in the chart data given.`;
+  const system = `${systemPromptFor(tradition, language)}\n\nThe astrologer is live on a call right now and needs a SHORT, direct answer (3-6 sentences) to the specific question below — not a full reading. Answer only what's asked, grounded in the chart data given, and still name the specific placement causing the answer.`;
   const user = `Chart:\n${chartSummaryForPrompt(profile, chartData)}\n\nClient's question right now: ${question}`;
-  return streamChatCompletion(system, user, onToken);
+  return streamChatCompletion(system, user, onToken, 700);
 }
 
 export function isJyotishAiAvailable(): boolean {
