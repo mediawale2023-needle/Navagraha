@@ -18,7 +18,6 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
-import { PlacesAutocomplete } from '@/components/PlacesAutocomplete';
 import { Plus, Sparkles, Send, User } from 'lucide-react';
 import { apiRequest } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
@@ -131,19 +130,10 @@ function NewProfileForm({ onCreated }: { onCreated: (p: JyotishProfile) => void 
         </div>
         <div>
           <label className="text-xs font-medium text-muted-foreground">Place of Birth *</label>
-          <PlacesAutocomplete
+          <Input
             value={form.placeOfBirth}
-            onChange={(value) => setForm((f) => ({ ...f, placeOfBirth: value }))}
-            onPlaceSelect={({ address, lat, lng }) =>
-              setForm((f) => ({
-                ...f,
-                placeOfBirth: address,
-                latitude: String(lat),
-                longitude: String(lng),
-              }))
-            }
+            onChange={(e) => setForm((f) => ({ ...f, placeOfBirth: e.target.value }))}
             placeholder="City, State, Country"
-            testId="input-jyotish-place-of-birth"
           />
         </div>
         <div className="grid grid-cols-2 gap-3">
