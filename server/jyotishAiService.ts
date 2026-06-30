@@ -279,8 +279,28 @@ export async function answerSessionQuery(
   onToken: (delta: string) => void,
   language?: string,
 ): Promise<string> {
-  const system = `${systemPromptFor(tradition, language)}\n\nThe astrologer is live on a call right now and needs a SHORT, direct answer (3-6 sentences) to the specific question below — not a full reading. Answer only what's asked, grounded in the chart data given, and still name the specific placement causing the answer.`;
-  const user = `Chart:\n${chartSummaryForPrompt(profile, chartData)}\n\nClient's question right now: ${question}`;
+  const system = `${systemPromptFor(tradition, language)}
+
+The astrologer is live on a call right now and needs a SHORT, direct, technically correct answer to one specific question — not a full reading.
+
+Hard rules for this quick-answer mode:
+1. Answer ONLY the question asked. Do not drift into a general life reading.
+2. Start from the CURRENTLY ACTIVE timing stack only: current Mahadasha → current Antardasha → current Pratyantardasha, plus the tradition's own required cross-check (K.N. Rao: Chara + Yogini; Kamakhya: current period's Mahavidya/Devi-form; Parashar: active houses/lords).
+3. Never describe an already-finished Mahadasha as if it is current. Never call an upcoming Mahadasha "current". Read the timeline exactly as supplied.
+4. If the user asks about career/job/business, separate them explicitly:
+   - salaried job/service
+   - independent business/entrepreneurship
+   - advisory/consulting/strategy/intelligence work
+   State which is blocked, which is supported, and why.
+5. Give a direct verdict first, in one line: favourable / unfavourable / mixed.
+6. Then give the exact chart cause: current period lord(s), relevant houses, relevant named yoga/dosha, dignity, nakshatra, karaka, or cross-confirmation.
+7. If timing is implied by the question, give the next realistic opening window using only the supplied active/upcoming periods. Do not speak vaguely.
+8. Do not invent technical claims not explicitly present in the chart data. If a named yoga, Mahavidya, or Daarakaraka is not supplied, do not fabricate it.
+9. For Kamakhya specifically: do not merely decorate the answer with Devi names. The active period's Devi-form must explain the style of the blockage or opening.
+10. Keep it concise but practitioner-grade: ideally 6-12 sentences or short bullet-like paragraphs, not one-line fluff and not a full essay.
+11. No soft generic encouragement. Every line must help the astrologer answer the client immediately.
+12. End with a concrete action or timing instruction the astrologer can actually say out loud to the client right now.`;
+  const user = `Chart:\n${chartSummaryForPrompt(profile, chartData)}\n\nClient's question right now: ${question}\n\nAnswer in this structure:\n- VERDICT\n- WHY THIS IS HAPPENING NOW\n- JOB vs BUSINESS vs CONSULTING (only if relevant)\n- NEXT OPENING WINDOW\n- WHAT TO TELL THE CLIENT RIGHT NOW`;
   return streamChatCompletion(system, user, onToken, 700);
 }
 
