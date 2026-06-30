@@ -31,8 +31,7 @@ export function PlacesAutocomplete({
   const onChangeRef = useRef(onChange);
   const onPlaceSelectRef = useRef(onPlaceSelect);
   const [scriptLoading, setScriptLoading] = useState(false);
-  // Track whether the value was set externally (e.g. form reset)
-  const lastExternalValue = useRef(value);
+  const [inputValue, setInputValue] = useState(value);
 
   onChangeRef.current = onChange;
   onPlaceSelectRef.current = onPlaceSelect;
@@ -56,7 +55,7 @@ export function PlacesAutocomplete({
         const address = place.formatted_address || place.name || '';
         const lat = place.geometry.location.lat();
         const lng = place.geometry.location.lng();
-        // Sync the uncontrolled input's value back to React state
+        setInputValue(address);
         onChangeRef.current(address);
         onPlaceSelectRef.current?.({ address, lat, lng });
       });
@@ -68,21 +67,11 @@ export function PlacesAutocomplete({
     }
   }, []);
 
-  // Sync external value changes (e.g. form reset) into the uncontrolled input
   useEffect(() => {
-    if (inputRef.current && value !== lastExternalValue.current) {
-      inputRef.current.value = value;
-      lastExternalValue.current = value;
+    if (value !== inputValue) {
+      setInputValue(value);
     }
-  }, [value]);
-
-  // Set the initial value on mount
-  useEffect(() => {
-    if (inputRef.current && value) {
-      inputRef.current.value = value;
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [value, inputValue]);
 
   useEffect(() => {
     if (!config?.googleMapsApiKey) return;
@@ -127,9 +116,9 @@ export function PlacesAutocomplete({
       {/* Uncontrolled input — Google's Autocomplete widget owns the DOM value */}
       <input
         ref={inputRef}
-        defaultValue={value}
+        value={inputValue}
         onChange={(e) => {
-          lastExternalValue.current = e.target.value;
+          setInputValue(e.target.value);
           onChange(e.target.value);
         }}
         placeholder={placeholder}
