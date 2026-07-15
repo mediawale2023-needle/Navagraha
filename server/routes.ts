@@ -2631,6 +2631,7 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
 
       res.setHeader('Content-Type', 'text/plain; charset=utf-8');
       res.setHeader('Cache-Control', 'no-cache');
+      res.setHeader('X-Accel-Buffering', 'no'); // bypass gzip + proxy buffering so chunks stream
       (res as any).flushHeaders?.();
 
       const full = await streamTraditionReading(
@@ -2679,6 +2680,7 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
 
       res.setHeader('Content-Type', 'text/plain; charset=utf-8');
       res.setHeader('Cache-Control', 'no-cache');
+      res.setHeader('X-Accel-Buffering', 'no'); // bypass gzip + proxy buffering so chunks stream
       (res as any).flushHeaders?.();
 
       const answer = await answerSessionQuery(

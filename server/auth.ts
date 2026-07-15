@@ -14,6 +14,7 @@ import passport from 'passport';
 import { Strategy as GoogleStrategy } from 'passport-google-oauth20';
 import session from 'express-session';
 import connectPg from 'connect-pg-simple';
+import crypto from 'crypto';
 import type { Express, RequestHandler } from 'express';
 import { storage } from './storage';
 import { getAdminEmails } from './adminAccess';
@@ -21,6 +22,16 @@ import { getAdminEmails } from './adminAccess';
 // ─── Session setup ────────────────────────────────────────────
 
 let sessionMiddleware: ReturnType<typeof session> | null = null;
+
+// Production refuses to boot without SESSION_SECRET (see index.ts). In dev,
+// fall back to an ephemeral random secret instead of passing undefined to
+// express-session (which throws — and that error used to be swallowed,
+// silently breaking every session-backed route).
+function getSessionSecret(): string {
+  if (process.env.SESSION_SECRET) return process.env.SESSION_SECRET;
+  console.warn('[auth] SESSION_SECRET not set — using an ephemeral secret. All sessions will be invalidated on restart.');
+  return crypto.randomBytes(32).toString('hex');
+}
 
 export interface SessionIdentity {
   userId?: string;
@@ -37,7 +48,7 @@ export function getSession() {
   if (!process.env.DATABASE_URL) {
     console.warn('[auth] DATABASE_URL not set — using MemoryStore for sessions. Sessions will be lost on restart.');
     sessionMiddleware = session({
-      secret: process.env.SESSION_SECRET || 'fallback-secret',
+      secret: getSessionSecret(),
       resave: false,
       saveUninitialized: false,
       cookie: {
@@ -60,7 +71,7 @@ export function getSession() {
   });
 
   sessionMiddleware = session({
-    secret: process.env.SESSION_SECRET!,
+    secret: getSessionSecret(),
     store: sessionStore,
     resave: false,
     saveUninitialized: false,

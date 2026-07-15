@@ -31,8 +31,11 @@ const astrologerClients = new Map<string, WSClient>();
 // Active billing timers: consultationId → NodeJS.Timeout
 const billingTimers = new Map<string, NodeJS.Timeout>();
 
+let wssInstance: WebSocketServer | null = null;
+
 export function setupWebSocket(server: Server) {
   const wss = new WebSocketServer({ server, path: "/ws" });
+  wssInstance = wss;
   const sessionMiddleware = getSession();
 
   wss.on("connection", (ws, req) => {
@@ -400,4 +403,32 @@ export function notifyAstrologer(astrologerId: string, data: object) {
 /** Get list of currently online astrologer IDs */
 export function getOnlineAstrologerIds(): string[] {
   return Array.from(astrologerClients.keys());
+}
+
+/**
+ * Graceful-shutdown hook: stop billing timers and close consultations in the
+ * DB (billing state doesn't survive a restart, so an "active" row would
+ * otherwise dangle forever), then disconnect all clients.
+ */
+export async function shutdownWebSocket() {
+  const activeConsultations = Array.from(billingTimers.keys());
+  billingTimers.forEach((timer) => clearInterval(timer));
+  billingTimers.clear();
+
+  await Promise.allSettled(
+    activeConsultations.map((consultationId) =>
+      storage.endConsultation(consultationId),
+    ),
+  );
+
+  if (wssInstance) {
+    wssInstance.clients.forEach((ws) => {
+      send(ws, { type: "session_ended", reason: "server_restart" });
+      ws.close();
+    });
+    wssInstance.close();
+    wssInstance = null;
+  }
+  userClients.clear();
+  astrologerClients.clear();
 }

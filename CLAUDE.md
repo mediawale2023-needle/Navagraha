@@ -66,7 +66,8 @@ users, astrologers, kundlis, wallets, transactions, chatMessages, consultations,
 
 - New DB field → edit `shared/schema.ts` AND add idempotent DDL (`ADD COLUMN IF NOT EXISTS` / `CREATE TABLE IF NOT EXISTS`) to `server/migrate.ts`. They must match.
 - Paid in-app purchases use `storage.debitWallet(userId, cost, desc)` (returns null on insufficient balance). Compute totals server-side; never trust client prices.
-- Third-party integrations (Razorpay, Agora, Firebase, OpenAI, Google Maps) must **degrade gracefully** when their env keys are absent — never crash boot.
+- Third-party integrations (Razorpay, Agora, Firebase, OpenAI, Google Maps) must **degrade gracefully** when their env keys are absent — never crash boot. Exception: in production the server **fails fast** without `DATABASE_URL`/`SESSION_SECRET` (validated in `server/index.ts`).
+- Production hardening lives in `server/index.ts`: security headers, gzip (streamed responses opt out via `X-Accel-Buffering: no`), `/metrics` guarded by `METRICS_TOKEN` when set, `/api-docs` off in production unless `ENABLE_API_DOCS=true`, graceful SIGTERM shutdown (ends active consultations via `shutdownWebSocket`).
 - Client data fetching: TanStack Query with the URL as `queryKey`; mutations via `apiRequest`.
 - Keep secrets out of logs and responses (astrologer `passwordHash`/`bankAccountNumber` are stripped from API output).
 - Comments: only explain non-obvious "why". No narration.

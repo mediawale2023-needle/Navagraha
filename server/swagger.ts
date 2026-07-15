@@ -23,6 +23,13 @@ const options = {
 export const swaggerSpec = swaggerJsdoc(options);
 
 export function setupSwagger(app: Express) {
+  // The docs enumerate every endpoint, so don't expose them publicly in
+  // production unless explicitly opted in via ENABLE_API_DOCS=true.
+  if (process.env.NODE_ENV === 'production' && process.env.ENABLE_API_DOCS !== 'true') {
+    console.log('[swagger] API docs disabled in production (set ENABLE_API_DOCS=true to enable)');
+    return;
+  }
+
   app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
     explorer: true,
     customCss: '.swagger-ui .topbar { display: none }',
