@@ -1,4 +1,5 @@
 import bcrypt from 'bcryptjs';
+import crypto from 'crypto';
 import { pool } from './db';
 import { storage } from './storage';
 
@@ -636,11 +637,62 @@ async function seedAdminUser(): Promise<void> {
   }
 }
 
+/** Verified Pro practice account — same login as marketplace, used on /astrologer/pro. */
+async function seedProAstrologer(): Promise<void> {
+  const email = (process.env.PRO_ASTROLOGER_EMAIL || 'pro@navagraha.app').trim().toLowerCase();
+  const password = process.env.PRO_ASTROLOGER_PASSWORD || 'ProDemo@2026';
+  const name = process.env.PRO_ASTROLOGER_NAME || 'Pro Demo Astrologer';
+
+  if (password.length < 8) {
+    console.warn('[seed] PRO_ASTROLOGER_PASSWORD must be at least 8 characters — skipping Pro bootstrap');
+    return;
+  }
+
+  const passwordHash = crypto.createHash('sha256').update(password).digest('hex');
+
+  try {
+    const existing = await storage.getAstrologerByEmail(email);
+    if (!existing) {
+      const created = await storage.createAstrologerWithPassword({
+        name,
+        email,
+        password,
+        phoneNumber: '+919999000001',
+      });
+      await storage.updateAstrologer(created.id, {
+        isVerified: true,
+        kycStatus: 'approved',
+        specializations: ['Vedic', 'Kundli', 'Career'],
+        experience: 10,
+        pricePerMinute: '25',
+        languages: ['English', 'Hindi'],
+        about: 'Seeded Navagraha Pro practice account for chart + AI co-pilot sessions.',
+      });
+      console.log(`[seed] created Pro astrologer ${email} (verified)`);
+      return;
+    }
+
+    const needsPassword = existing.passwordHash !== passwordHash;
+    const needsVerify = !existing.isVerified;
+    if (needsPassword || needsVerify) {
+      await storage.updateAstrologer(existing.id, {
+        ...(needsPassword ? { passwordHash } : {}),
+        isVerified: true,
+        kycStatus: existing.kycStatus === 'approved' ? existing.kycStatus : 'approved',
+      });
+      console.log(`[seed] synced Pro astrologer ${email}${needsPassword ? ' (password)' : ''}${needsVerify ? ' (verified)' : ''}`);
+    }
+  } catch (err) {
+    console.error('[seed] Pro astrologer bootstrap failed:', err);
+  }
+}
+
 export async function runMigrations(): Promise<void> {
   await pool.query(SCHEMA_SQL);
   await pool.query(SEED_HOMEPAGE_SQL);
   await pool.query(SEED_COUPONS_SQL);
   await pool.query(SEED_STORE_SQL);
   await seedAdminUser();
+  await seedProAstrologer();
   console.log('[migrate] Schema initialised successfully');
 }
