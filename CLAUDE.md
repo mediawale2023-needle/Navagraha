@@ -51,6 +51,7 @@ Search `server/routes.ts` + `client/src/pages` before building anything below.
 - Dashboard, online/offline toggle, consultations, schedule, earnings, payouts.
 - **KYC** submit + verified badge (`POST /api/astrologer/kyc`).
 - **Go Live** broadcaster studio (`/astrologer/live`, `LiveStudio.tsx`).
+- **Pro practice workspace** (`/astrologer/pro`, tab on `/astrologer/login`): private client CRM + Swiss chart + Parashar / K.N. Rao / Kamakhya AI co-pilot + session query box. Tenant APIs under `/api/astrologer/pro/*` (profiles scoped by `astrologerId`); Studio soft-caps AI at 80 credits/month (`proAiCreditsUsed`). Shared UI with admin Jyotish Reading via `apiBase` prop.
 
 **Admin** (`isAdmin` via `ADMIN_EMAILS`)
 - Dedicated login at `/admin/login` (`AdminLogin.tsx`) — email/password; on success probes `/api/admin/stats` to confirm whitelisting before routing to the dashboard. No separate admin account; admin = a user whose email is in `ADMIN_EMAILS`.
@@ -60,7 +61,7 @@ Search `server/routes.ts` + `client/src/pages` before building anything below.
 
 ## Data model (tables in `shared/schema.ts`)
 
-users, astrologers, kundlis, wallets, transactions, chatMessages, consultations, reviews, scheduledCalls, notifications, astrologerEarnings, payoutRequests, aiChatMessages, userMemories, predictionFeedbacks, homepageContent, **coupons, couponRedemptions, referrals, pushTokens, products, orders, orderItems, reportTypes, reportOrders, dailyHoroscopes, poojas, poojaBookings, liveStreams, streamMessages, astrologerFollows, consultationQueue**.
+users, astrologers, kundlis, wallets, transactions, chatMessages, consultations, reviews, scheduledCalls, notifications, astrologerEarnings, payoutRequests, aiChatMessages, userMemories, predictionFeedbacks, homepageContent, **coupons, couponRedemptions, referrals, pushTokens, products, orders, orderItems, reportTypes, reportOrders, dailyHoroscopes, poojas, poojaBookings, liveStreams, streamMessages, astrologerFollows, consultationQueue**, **jyotishClientProfiles** (admin `createdByUserId` or Pro `astrologerId`), **jyotishReadings**, **jyotishSessionQueries**.
 
 ## Conventions
 

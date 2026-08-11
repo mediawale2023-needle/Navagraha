@@ -1,5 +1,5 @@
 /**
- * Jyotish AI Reading — admin-only professional tool.
+ * Jyotish AI Reading — shared by Admin and Astrologer Pro.
  *
  * Save a client's birth data, compute a precise (Swiss Ephemeris) chart, and
  * generate AI narrative readings in three traditions (Parashar / K.N. Rao /
@@ -7,8 +7,12 @@
  * mid-call client questions. Streamed responses use a plain fetch() +
  * ReadableStream reader (not EventSource — the backend streams chunked
  * text/plain, see server/routes.ts).
+ *
+ * Pass `apiBase` to switch tenants:
+ *   Admin  → /api/admin/jyotish
+ *   Pro    → /api/astrologer/pro
  */
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, createContext, useContext } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -34,6 +38,9 @@ interface JyotishProfile {
   id: string;
   name: string;
   gender: string | null;
+  phone?: string | null;
+  tags?: string | null;
+  followUpAt?: string | null;
   dateOfBirth: string;
   timeOfBirth: string;
   placeOfBirth: string;
@@ -53,6 +60,13 @@ interface JyotishReadingRow {
   language: string;
   status: string;
   createdAt: string;
+}
+
+/* ─── API base (admin vs Pro) ───────────────────────────────────────────── */
+
+const JyotishApiContext = createContext('/api/admin/jyotish');
+function useJyotishApi() {
+  return useContext(JyotishApiContext);
 }
 
 /* ─── Streaming helper ──────────────────────────────────────────────────── */
@@ -86,18 +100,21 @@ async function streamPost(
 /* ─── New client profile form ──────────────────────────────────────────── */
 
 function NewProfileForm({ onCreated }: { onCreated: (p: JyotishProfile) => void }) {
+  const apiBase = useJyotishApi();
+  const queryClient = useQueryClient();
   const { toast } = useToast();
   const [form, setForm] = useState({
-    name: '', gender: '', dateOfBirth: '', timeOfBirth: '', placeOfBirth: '',
+    name: '', gender: '', phone: '', tags: '', dateOfBirth: '', timeOfBirth: '', placeOfBirth: '',
     latitude: '', longitude: '', notes: '',
   });
 
   const createMutation = useMutation({
-    mutationFn: async () => apiRequest<JyotishProfile>('POST', '/api/admin/jyotish/profiles', form),
+    mutationFn: async () => apiRequest<JyotishProfile>('POST', `${apiBase}/profiles`, form),
     onSuccess: (profile) => {
       toast({ title: 'Client profile saved' });
+      queryClient.invalidateQueries({ queryKey: [`${apiBase}/profiles`] });
       onCreated(profile);
-      setForm({ name: '', gender: '', dateOfBirth: '', timeOfBirth: '', placeOfBirth: '', latitude: '', longitude: '', notes: '' });
+      setForm({ name: '', gender: '', phone: '', tags: '', dateOfBirth: '', timeOfBirth: '', placeOfBirth: '', latitude: '', longitude: '', notes: '' });
     },
     onError: (e: any) => toast({ title: 'Failed to save profile', description: e.message, variant: 'destructive' }),
   });
@@ -116,6 +133,16 @@ function NewProfileForm({ onCreated }: { onCreated: (p: JyotishProfile) => void 
           <div>
             <label className="text-xs font-medium text-muted-foreground">Gender</label>
             <Input value={form.gender} onChange={(e) => setForm((f) => ({ ...f, gender: e.target.value }))} placeholder="Male / Female / Other" />
+          </div>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="text-xs font-medium text-muted-foreground">Phone / WhatsApp</label>
+            <Input value={form.phone} onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))} placeholder="+91…" />
+          </div>
+          <div>
+            <label className="text-xs font-medium text-muted-foreground">Tags</label>
+            <Input value={form.tags} onChange={(e) => setForm((f) => ({ ...f, tags: e.target.value }))} placeholder="marriage, career" />
           </div>
         </div>
         <div className="grid grid-cols-2 gap-3">
@@ -418,6 +445,7 @@ function ReadingTab({
   readingId: string | null;
   onReadingUpdate: (text: string) => void;
 }) {
+  const apiBase = useJyotishApi();
   const { toast } = useToast();
   const [streaming, setStreaming] = useState(false);
   const [liveText, setLiveText] = useState('');
@@ -431,7 +459,7 @@ function ReadingTab({
     setLiveText('');
     let acc = '';
     try {
-      await streamPost(`/api/admin/jyotish/readings/${readingId}/generate`, { tradition }, (delta) => {
+      await streamPost(`${apiBase}/readings/${readingId}/generate`, { tradition }, (delta) => {
         acc += delta;
         setLiveText(acc);
       });
@@ -461,6 +489,7 @@ function ReadingTab({
 /* ─── Session query box ─────────────────────────────────────────────────── */
 
 function SessionQueryBox({ profileId, readingId, defaultTradition }: { profileId: string; readingId: string | null; defaultTradition: Tradition }) {
+  const apiBase = useJyotishApi();
   const { toast } = useToast();
   const [question, setQuestion] = useState('');
   const [tradition, setTradition] = useState<Tradition>(defaultTradition);
@@ -470,7 +499,7 @@ function SessionQueryBox({ profileId, readingId, defaultTradition }: { profileId
   const bottomRef = useRef<HTMLDivElement>(null);
 
   const { data: history = [], refetch } = useQuery<any[]>({
-    queryKey: [`/api/admin/jyotish/profiles/${profileId}/session-queries`],
+    queryKey: [`${apiBase}/profiles/${profileId}/session-queries`],
   });
 
   const ask = async () => {
@@ -479,14 +508,15 @@ function SessionQueryBox({ profileId, readingId, defaultTradition }: { profileId
     setAnswer('');
     let acc = '';
     try {
-      await streamPost('/api/admin/jyotish/session-queries', { profileId, readingId, tradition, question, language }, (delta) => {
+      await streamPost(`${apiBase}/session-queries`, { profileId, readingId, tradition, question, language }, (delta) => {
         acc += delta;
         setAnswer(acc);
+        bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
       });
       setQuestion('');
       refetch();
     } catch (e: any) {
-      toast({ title: 'Failed to answer', description: e.message, variant: 'destructive' });
+      toast({ title: 'Query failed', description: e.message, variant: 'destructive' });
     } finally {
       setStreaming(false);
     }
@@ -550,6 +580,7 @@ function SessionQueryBox({ profileId, readingId, defaultTradition }: { profileId
 /* ─── Profile workspace (everything for one selected client) ────────────── */
 
 function ProfileWorkspace({ profile }: { profile: JyotishProfile }) {
+  const apiBase = useJyotishApi();
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const [chartData, setChartData] = useState<any>(null);
@@ -557,7 +588,7 @@ function ProfileWorkspace({ profile }: { profile: JyotishProfile }) {
   const [computing, setComputing] = useState(false);
 
   const { data: readings = [] } = useQuery<JyotishReadingRow[]>({
-    queryKey: [`/api/admin/jyotish/profiles/${profile.id}/readings`],
+    queryKey: [`${apiBase}/profiles/${profile.id}/readings`],
     enabled: !!profile.id,
   });
 
@@ -568,7 +599,7 @@ function ProfileWorkspace({ profile }: { profile: JyotishProfile }) {
   const computeChart = async () => {
     setComputing(true);
     try {
-      const data = await apiRequest<any>('POST', `/api/admin/jyotish/profiles/${profile.id}/chart`, {});
+      const data = await apiRequest<any>('POST', `${apiBase}/profiles/${profile.id}/chart`, {});
       setChartData(data.chartData);
     } catch (e: any) {
       toast({ title: 'Chart computation failed', description: e.message, variant: 'destructive' });
@@ -578,11 +609,11 @@ function ProfileWorkspace({ profile }: { profile: JyotishProfile }) {
   };
 
   const createReading = useMutation({
-    mutationFn: async () => apiRequest<JyotishReadingRow>('POST', `/api/admin/jyotish/profiles/${profile.id}/readings`, { language: 'English' }),
+    mutationFn: async () => apiRequest<JyotishReadingRow>('POST', `${apiBase}/profiles/${profile.id}/readings`, { language: 'English' }),
     onSuccess: (r) => {
       setReadingId(r.id);
       setChartData(r.chartData);
-      queryClient.invalidateQueries({ queryKey: [`/api/admin/jyotish/profiles/${profile.id}/readings`] });
+      queryClient.invalidateQueries({ queryKey: [`${apiBase}/profiles/${profile.id}/readings`] });
     },
     onError: (e: any) => toast({ title: 'Failed to start reading', description: e.message, variant: 'destructive' }),
   });
@@ -608,7 +639,7 @@ function ProfileWorkspace({ profile }: { profile: JyotishProfile }) {
     if (!reading) return;
     const column = tradition === 'parashar' ? 'parasharReading' : tradition === 'kn_rao' ? 'knRaoReading' : 'kamakhyaReading';
     queryClient.setQueryData<JyotishReadingRow[]>(
-      [`/api/admin/jyotish/profiles/${profile.id}/readings`],
+      [`${apiBase}/profiles/${profile.id}/readings`],
       (current = []) => current.map((row) => (
         row.id === reading.id ? { ...row, [column]: text } : row
       )),
@@ -672,58 +703,72 @@ function ProfileWorkspace({ profile }: { profile: JyotishProfile }) {
 
 /* ─── Main entry point ──────────────────────────────────────────────────── */
 
-export default function JyotishReading() {
+export default function JyotishReading({ apiBase = '/api/admin/jyotish' }: { apiBase?: string }) {
   const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null);
+  const [optimisticProfile, setOptimisticProfile] = useState<JyotishProfile | null>(null);
   const [showNewForm, setShowNewForm] = useState(false);
 
   const { data: profiles = [], isLoading } = useQuery<JyotishProfile[]>({
-    queryKey: ['/api/admin/jyotish/profiles'],
+    queryKey: [`${apiBase}/profiles`],
   });
 
-  const selected = profiles.find((p) => p.id === selectedProfileId) || null;
+  const selected =
+    profiles.find((p) => p.id === selectedProfileId)
+    || (optimisticProfile?.id === selectedProfileId ? optimisticProfile : null);
 
   if (isLoading) return <LoadingSpinner />;
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr] gap-6">
-      {/* Client list / sidebar */}
-      <div className="space-y-3">
-        <div className="flex items-center justify-between">
-          <h3 className="text-sm font-semibold">Clients</h3>
-          <Button size="sm" variant="outline" className="gap-1" onClick={() => { setShowNewForm((s) => !s); setSelectedProfileId(null); }}>
-            <Plus className="w-3.5 h-3.5" /> New
-          </Button>
-        </div>
-        {showNewForm && (
-          <NewProfileForm onCreated={(p) => { setShowNewForm(false); setSelectedProfileId(p.id); }} />
-        )}
-        <div className="space-y-1.5">
-          {profiles.length === 0 && !showNewForm && (
-            <p className="text-sm text-muted-foreground py-6 text-center">No clients yet. Click "New" to add one.</p>
-          )}
-          {profiles.map((p) => (
-            <button
-              key={p.id}
-              onClick={() => { setSelectedProfileId(p.id); setShowNewForm(false); }}
-              className={`w-full text-left border rounded-lg p-2.5 text-sm transition-colors ${selectedProfileId === p.id ? 'border-primary bg-primary/5' : 'border-border hover:bg-muted'}`}
-            >
-              <p className="font-medium">{p.name}</p>
-              <p className="text-xs text-muted-foreground">{new Date(p.dateOfBirth).toLocaleDateString()} · {p.placeOfBirth}</p>
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Workspace */}
-      <div>
-        {selected ? (
-          <ProfileWorkspace profile={selected} />
-        ) : (
-          <div className="flex items-center justify-center h-64 text-sm text-muted-foreground border border-dashed border-border rounded-lg">
-            Select a client, or create a new one, to begin a reading.
+    <JyotishApiContext.Provider value={apiBase}>
+      <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr] gap-6">
+        {/* Client list / sidebar */}
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-semibold">Clients</h3>
+            <Button size="sm" variant="outline" className="gap-1" onClick={() => { setShowNewForm((s) => !s); setSelectedProfileId(null); setOptimisticProfile(null); }}>
+              <Plus className="w-3.5 h-3.5" /> New
+            </Button>
           </div>
-        )}
+          {showNewForm && (
+            <NewProfileForm onCreated={(p) => {
+              setShowNewForm(false);
+              setOptimisticProfile(p);
+              setSelectedProfileId(p.id);
+            }} />
+          )}
+          <div className="space-y-1.5">
+            {profiles.length === 0 && !showNewForm && (
+              <p className="text-sm text-muted-foreground py-6 text-center">No clients yet. Click "New" to add one.</p>
+            )}
+            {profiles.map((p) => (
+              <button
+                key={p.id}
+                onClick={() => { setSelectedProfileId(p.id); setOptimisticProfile(null); setShowNewForm(false); }}
+                className={`w-full text-left border rounded-lg p-2.5 text-sm transition-colors ${selectedProfileId === p.id ? 'border-primary bg-primary/5' : 'border-border hover:bg-muted'}`}
+              >
+                <p className="font-medium">{p.name}</p>
+                <p className="text-xs text-muted-foreground">{new Date(p.dateOfBirth).toLocaleDateString()} · {p.placeOfBirth}</p>
+                {(p.phone || p.tags) && (
+                  <p className="text-[11px] text-muted-foreground mt-0.5 truncate">
+                    {[p.phone, p.tags].filter(Boolean).join(' · ')}
+                  </p>
+                )}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Workspace */}
+        <div>
+          {selected ? (
+            <ProfileWorkspace profile={selected} />
+          ) : (
+            <div className="flex items-center justify-center h-64 text-sm text-muted-foreground border border-dashed border-border rounded-lg">
+              Select a client, or create a new one, to begin a reading.
+            </div>
+          )}
+        </div>
       </div>
-    </div>
+    </JyotishApiContext.Provider>
   );
 }

@@ -1491,7 +1491,7 @@ export class DatabaseStorage implements IStorage {
     return row;
   }
 
-  // ─── Jyotish AI Reading (admin-only professional tool) ──────
+  // ─── Jyotish AI Reading (admin + Astrologer Pro) ────────────
   async createJyotishProfile(data: InsertJyotishClientProfile): Promise<JyotishClientProfile> {
     const [row] = await db.insert(jyotishClientProfiles).values(data).returning();
     return row;
@@ -1505,9 +1505,52 @@ export class DatabaseStorage implements IStorage {
       .orderBy(desc(jyotishClientProfiles.createdAt));
   }
 
+  async getJyotishProfilesByAstrologer(astrologerId: string): Promise<JyotishClientProfile[]> {
+    return await db
+      .select()
+      .from(jyotishClientProfiles)
+      .where(eq(jyotishClientProfiles.astrologerId, astrologerId))
+      .orderBy(desc(jyotishClientProfiles.createdAt));
+  }
+
   async getJyotishProfileById(id: string): Promise<JyotishClientProfile | undefined> {
     const [row] = await db.select().from(jyotishClientProfiles).where(eq(jyotishClientProfiles.id, id));
     return row;
+  }
+
+  /** Studio tier soft cap — resets calendar-monthly. Returns remaining credits. */
+  async consumeProAiCredit(astrologerId: string, cost = 1, monthlyLimit = 80): Promise<{ ok: boolean; used: number; limit: number }> {
+    const astro = await this.getAstrologerById(astrologerId);
+    if (!astro) return { ok: false, used: 0, limit: monthlyLimit };
+    const now = new Date();
+    let used = astro.proAiCreditsUsed ?? 0;
+    const resetAt = astro.proAiCreditsResetAt ? new Date(astro.proAiCreditsResetAt) : null;
+    const needsReset = !resetAt || resetAt.getUTCFullYear() !== now.getUTCFullYear() || resetAt.getUTCMonth() !== now.getUTCMonth();
+    if (needsReset) {
+      used = 0;
+    }
+    if (used + cost > monthlyLimit) {
+      return { ok: false, used, limit: monthlyLimit };
+    }
+    const nextUsed = used + cost;
+    await db
+      .update(astrologers)
+      .set({
+        proAiCreditsUsed: nextUsed,
+        proAiCreditsResetAt: needsReset ? now : (astro.proAiCreditsResetAt ?? now),
+      })
+      .where(eq(astrologers.id, astrologerId));
+    return { ok: true, used: nextUsed, limit: monthlyLimit };
+  }
+
+  async getProAiUsage(astrologerId: string, monthlyLimit = 80): Promise<{ used: number; limit: number; remaining: number }> {
+    const astro = await this.getAstrologerById(astrologerId);
+    const now = new Date();
+    let used = astro?.proAiCreditsUsed ?? 0;
+    const resetAt = astro?.proAiCreditsResetAt ? new Date(astro.proAiCreditsResetAt) : null;
+    const needsReset = !resetAt || resetAt.getUTCFullYear() !== now.getUTCFullYear() || resetAt.getUTCMonth() !== now.getUTCMonth();
+    if (needsReset) used = 0;
+    return { used, limit: monthlyLimit, remaining: Math.max(0, monthlyLimit - used) };
   }
 
   async createJyotishReading(data: InsertJyotishReading): Promise<JyotishReading> {
