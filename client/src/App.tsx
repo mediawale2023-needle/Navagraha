@@ -22,6 +22,7 @@ import CallRoom from "@/pages/CallRoom";
 import Schedule from "@/pages/Schedule";
 import AstrologerLogin from "@/pages/AstrologerLogin";
 import AstrologerDashboard from "@/pages/AstrologerDashboard";
+import AstrologerPro from "@/pages/AstrologerPro";
 import AdminLogin from "@/pages/AdminLogin";
 import AdminDashboard from "@/pages/AdminDashboard";
 import Numerology from "@/pages/Numerology";
@@ -95,6 +96,7 @@ function Router() {
       {/* Astrologer portal — always accessible */}
       <Route path="/astrologer/login" component={AstrologerLogin} />
       <Route path="/astrologer/dashboard" component={AstrologerDashboard} />
+      <Route path="/astrologer/pro" component={AstrologerPro} />
       <Route path="/astrologer/live" component={LiveStudio} />
 
       {/* Admin login — always accessible (works logged in or out) */}

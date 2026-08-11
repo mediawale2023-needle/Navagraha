@@ -475,12 +475,16 @@ ALTER TABLE astrologers ADD COLUMN IF NOT EXISTS kyc_notes text;
 ALTER TABLE astrologers ADD COLUMN IF NOT EXISTS kyc_submitted_at timestamp;
 ALTER TABLE astrologers ADD COLUMN IF NOT EXISTS kyc_reviewed_at timestamp;
 
--- ─── Jyotish AI Reading (admin-only professional tool) ─────────────────────
+-- ─── Jyotish AI Reading (admin + Astrologer Pro) ───────────────────────────
 CREATE TABLE IF NOT EXISTS jyotish_client_profiles (
   id varchar PRIMARY KEY DEFAULT gen_random_uuid(),
-  created_by_user_id varchar NOT NULL REFERENCES users(id),
+  created_by_user_id varchar REFERENCES users(id),
+  astrologer_id varchar REFERENCES astrologers(id),
   name varchar NOT NULL,
   gender varchar,
+  phone varchar,
+  tags varchar,
+  follow_up_at timestamp,
   date_of_birth timestamp NOT NULL,
   time_of_birth varchar NOT NULL,
   place_of_birth varchar NOT NULL,
@@ -490,6 +494,17 @@ CREATE TABLE IF NOT EXISTS jyotish_client_profiles (
   created_at timestamp DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS idx_jyotish_profiles_creator ON jyotish_client_profiles (created_by_user_id);
+CREATE INDEX IF NOT EXISTS idx_jyotish_profiles_astrologer ON jyotish_client_profiles (astrologer_id);
+
+-- Idempotent upgrades for existing installs
+ALTER TABLE jyotish_client_profiles ALTER COLUMN created_by_user_id DROP NOT NULL;
+ALTER TABLE jyotish_client_profiles ADD COLUMN IF NOT EXISTS astrologer_id varchar REFERENCES astrologers(id);
+ALTER TABLE jyotish_client_profiles ADD COLUMN IF NOT EXISTS phone varchar;
+ALTER TABLE jyotish_client_profiles ADD COLUMN IF NOT EXISTS tags varchar;
+ALTER TABLE jyotish_client_profiles ADD COLUMN IF NOT EXISTS follow_up_at timestamp;
+CREATE INDEX IF NOT EXISTS idx_jyotish_profiles_astrologer ON jyotish_client_profiles (astrologer_id);
+ALTER TABLE astrologers ADD COLUMN IF NOT EXISTS pro_ai_credits_used integer DEFAULT 0;
+ALTER TABLE astrologers ADD COLUMN IF NOT EXISTS pro_ai_credits_reset_at timestamp;
 
 CREATE TABLE IF NOT EXISTS jyotish_readings (
   id varchar PRIMARY KEY DEFAULT gen_random_uuid(),

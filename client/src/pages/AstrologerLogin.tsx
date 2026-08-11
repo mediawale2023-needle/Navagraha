@@ -1,46 +1,50 @@
 import { useState } from 'react';
 import { Link, useLocation } from 'wouter';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest } from '@/lib/queryClient';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
-import { Star, Eye, EyeOff, ArrowLeft, Phone } from 'lucide-react';
+import { Star, Eye, EyeOff, ArrowLeft, Sparkles } from 'lucide-react';
 
 export default function AstrologerLogin() {
   const [, navigate] = useLocation();
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [activeTab, setActiveTab] = useState('login');
 
-  // Login form
   const [loginEmail, setLoginEmail] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
 
-  // Register form
+  const [proEmail, setProEmail] = useState('');
+  const [proPassword, setProPassword] = useState('');
+
   const [regName, setRegName] = useState('');
   const [regEmail, setRegEmail] = useState('');
   const [regPhone, setRegPhone] = useState('');
   const [regPassword, setRegPassword] = useState('');
   const [regConfirm, setRegConfirm] = useState('');
 
-  const handleLogin = async (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent, destination: 'dashboard' | 'pro') => {
     e.preventDefault();
-    if (!loginEmail || !loginPassword) {
+    const email = destination === 'pro' ? proEmail : loginEmail;
+    const password = destination === 'pro' ? proPassword : loginPassword;
+    if (!email || !password) {
       toast({ title: 'Required', description: 'Email and password are required', variant: 'destructive' });
       return;
     }
     setIsLoading(true);
     try {
-      const data = await apiRequest('POST', '/api/astrologer/auth/login', {
-        email: loginEmail,
-        password: loginPassword,
+      const data = await apiRequest('POST', '/api/astrologer/auth/login', { email, password });
+      toast({
+        title: destination === 'pro' ? 'Welcome to Pro' : 'Welcome back!',
+        description: `Logged in as ${data.name}`,
       });
-      toast({ title: 'Welcome back!', description: `Logged in as ${data.name}` });
-      navigate('/astrologer/dashboard');
+      navigate(destination === 'pro' ? '/astrologer/pro' : '/astrologer/dashboard');
     } catch {
       toast({ title: 'Error', description: 'Login failed. Please try again.', variant: 'destructive' });
     } finally {
@@ -70,7 +74,10 @@ export default function AstrologerLogin() {
         phoneNumber: regPhone,
         password: regPassword,
       });
-      toast({ title: 'Account Created!', description: 'Your application has been submitted. Admin will review and approve your account within 24 hours.' });
+      toast({
+        title: 'Account Created!',
+        description: 'Your application has been submitted. Admin will review and approve your account within 24 hours.',
+      });
       navigate('/astrologer/dashboard');
     } catch {
       toast({ title: 'Error', description: 'Registration failed. Please try again.', variant: 'destructive' });
@@ -81,7 +88,6 @@ export default function AstrologerLogin() {
 
   return (
     <div className="min-h-screen bg-white/3 flex flex-col">
-      {/* Header */}
       <div className="bg-card border-b border-border px-4 py-3 flex items-center gap-3">
         <Link href="/">
           <button className="p-2 rounded-xl hover:bg-muted">
@@ -93,7 +99,6 @@ export default function AstrologerLogin() {
 
       <div className="flex-1 flex items-center justify-center px-4 py-8">
         <div className="w-full max-w-md">
-          {/* Logo */}
           <div className="text-center mb-8">
             <div className="flex items-center justify-center gap-2 mb-3">
               <div className="w-14 h-14 bg-nava-royal-purple rounded-2xl flex items-center justify-center mx-auto">
@@ -101,20 +106,26 @@ export default function AstrologerLogin() {
               </div>
             </div>
             <h2 className="text-2xl font-bold text-foreground">Astrologer Portal</h2>
-            <p className="text-gray-500 mt-1">Join our platform and start earning</p>
+            <p className="text-gray-500 mt-1">Marketplace earnings or Pro practice tools</p>
           </div>
 
           <Card>
             <CardContent className="pt-6">
-              <Tabs defaultValue="login">
-                <TabsList className="w-full mb-6">
-                  <TabsTrigger value="login" className="flex-1">Sign In</TabsTrigger>
-                  <TabsTrigger value="register" className="flex-1">Join Us</TabsTrigger>
+              <Tabs value={activeTab} onValueChange={setActiveTab}>
+                <TabsList className="w-full mb-6 grid grid-cols-3">
+                  <TabsTrigger value="login">Sign In</TabsTrigger>
+                  <TabsTrigger value="register">Join Us</TabsTrigger>
+                  <TabsTrigger value="pro" className="gap-1">
+                    <Sparkles className="w-3.5 h-3.5" />
+                    Pro
+                  </TabsTrigger>
                 </TabsList>
 
-                {/* Login Tab */}
                 <TabsContent value="login">
-                  <form onSubmit={handleLogin} className="space-y-4">
+                  <form onSubmit={(e) => handleLogin(e, 'dashboard')} className="space-y-4">
+                    <p className="text-sm text-muted-foreground">
+                      Sign in to your marketplace dashboard — go online, take chats, manage payouts.
+                    </p>
                     <div>
                       <Label htmlFor="login-email">Email</Label>
                       <Input
@@ -122,7 +133,7 @@ export default function AstrologerLogin() {
                         type="email"
                         placeholder="your@email.com"
                         value={loginEmail}
-                        onChange={e => setLoginEmail(e.target.value)}
+                        onChange={(e) => setLoginEmail(e.target.value)}
                         className="mt-1"
                         required
                       />
@@ -135,7 +146,7 @@ export default function AstrologerLogin() {
                           type={showPassword ? 'text' : 'password'}
                           placeholder="••••••••"
                           value={loginPassword}
-                          onChange={e => setLoginPassword(e.target.value)}
+                          onChange={(e) => setLoginPassword(e.target.value)}
                           required
                         />
                         <button
@@ -148,21 +159,27 @@ export default function AstrologerLogin() {
                       </div>
                     </div>
                     <Button type="submit" className="w-full" disabled={isLoading}>
-                      {isLoading ? <LoadingSpinner size="sm" /> : 'Sign In'}
+                      {isLoading ? <LoadingSpinner size="sm" /> : 'Sign In to Marketplace'}
                     </Button>
+                    <button
+                      type="button"
+                      className="w-full text-sm text-primary hover:underline"
+                      onClick={() => setActiveTab('pro')}
+                    >
+                      Looking for Pro practice tools? Open Pro →
+                    </button>
                   </form>
                 </TabsContent>
 
-                {/* Register Tab */}
                 <TabsContent value="register">
                   <form onSubmit={handleRegister} className="space-y-4">
                     <div>
                       <Label htmlFor="reg-name">Full Name</Label>
                       <Input
                         id="reg-name"
-                        placeholder="Pandit Ramesh Sharma"
+                        placeholder="Your name"
                         value={regName}
-                        onChange={e => setRegName(e.target.value)}
+                        onChange={(e) => setRegName(e.target.value)}
                         className="mt-1"
                         required
                       />
@@ -174,24 +191,21 @@ export default function AstrologerLogin() {
                         type="email"
                         placeholder="your@email.com"
                         value={regEmail}
-                        onChange={e => setRegEmail(e.target.value)}
+                        onChange={(e) => setRegEmail(e.target.value)}
                         className="mt-1"
                         required
                       />
                     </div>
                     <div>
-                      <Label htmlFor="reg-phone">Phone Number</Label>
-                      <div className="relative mt-1">
-                        <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                        <Input
-                          id="reg-phone"
-                          type="tel"
-                          placeholder="+91 98765 43210"
-                          value={regPhone}
-                          onChange={e => setRegPhone(e.target.value)}
-                          className="pl-9"
-                        />
-                      </div>
+                      <Label htmlFor="reg-phone">Phone</Label>
+                      <Input
+                        id="reg-phone"
+                        type="tel"
+                        placeholder="+91…"
+                        value={regPhone}
+                        onChange={(e) => setRegPhone(e.target.value)}
+                        className="mt-1"
+                      />
                     </div>
                     <div>
                       <Label htmlFor="reg-password">Password</Label>
@@ -201,7 +215,7 @@ export default function AstrologerLogin() {
                           type={showPassword ? 'text' : 'password'}
                           placeholder="Min 8 characters"
                           value={regPassword}
-                          onChange={e => setRegPassword(e.target.value)}
+                          onChange={(e) => setRegPassword(e.target.value)}
                           required
                         />
                         <button
@@ -220,7 +234,7 @@ export default function AstrologerLogin() {
                         type="password"
                         placeholder="••••••••"
                         value={regConfirm}
-                        onChange={e => setRegConfirm(e.target.value)}
+                        onChange={(e) => setRegConfirm(e.target.value)}
                         className="mt-1"
                         required
                       />
@@ -233,15 +247,77 @@ export default function AstrologerLogin() {
                     </p>
                   </form>
                 </TabsContent>
+
+                <TabsContent value="pro">
+                  <form onSubmit={(e) => handleLogin(e, 'pro')} className="space-y-4">
+                    <div className="rounded-xl border border-primary/20 bg-primary/5 p-4 space-y-2">
+                      <div className="flex items-center gap-2 font-semibold text-foreground">
+                        <Sparkles className="w-4 h-4 text-primary" />
+                        Navagraha Pro
+                      </div>
+                      <p className="text-sm text-muted-foreground">
+                        Practice OS for working Jyotishis — private client CRM, Swiss charts,
+                        and Parashar / K.N. Rao / Kamakhya AI co-pilot for live sessions.
+                      </p>
+                      <ul className="text-xs text-muted-foreground space-y-1 list-disc pl-4">
+                        <li>Your own client book (not marketplace seekers)</li>
+                        <li>Mid-session query box grounded in the chart</li>
+                        <li>Studio plan: 80 AI credits / month included</li>
+                      </ul>
+                    </div>
+                    <div>
+                      <Label htmlFor="pro-email">Astrologer email</Label>
+                      <Input
+                        id="pro-email"
+                        type="email"
+                        placeholder="your@email.com"
+                        value={proEmail}
+                        onChange={(e) => setProEmail(e.target.value)}
+                        className="mt-1"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="pro-password">Password</Label>
+                      <div className="relative mt-1">
+                        <Input
+                          id="pro-password"
+                          type={showPassword ? 'text' : 'password'}
+                          placeholder="••••••••"
+                          value={proPassword}
+                          onChange={(e) => setProPassword(e.target.value)}
+                          required
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowPassword(!showPassword)}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                        >
+                          {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        </button>
+                      </div>
+                    </div>
+                    <Button type="submit" className="w-full gap-2" disabled={isLoading}>
+                      {isLoading ? <LoadingSpinner size="sm" /> : (
+                        <>
+                          <Sparkles className="w-4 h-4" />
+                          Enter Pro Workspace
+                        </>
+                      )}
+                    </Button>
+                    <p className="text-xs text-center text-muted-foreground">
+                      Use the same astrologer account as the marketplace. New here? Join Us first.
+                    </p>
+                  </form>
+                </TabsContent>
               </Tabs>
             </CardContent>
           </Card>
 
-          {/* Benefits */}
           <div className="mt-8 grid grid-cols-3 gap-4 text-center">
             {[
               { label: '75%', sub: 'Earnings share' },
-              { label: '24/7', sub: 'Platform support' },
+              { label: 'Pro', sub: 'Practice tools' },
               { label: 'T+2', sub: 'Fast payouts' },
             ].map(({ label, sub }) => (
               <div key={sub} className="bg-nava-lavender/50 border border-border rounded-xl p-3 shadow-sm">

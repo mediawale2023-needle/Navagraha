@@ -2542,8 +2542,8 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
 
   app.post('/api/admin/jyotish/profiles', isAdmin, adminLimiter, async (req, res) => {
     try {
-      const body = insertJyotishClientProfileSchema.omit({ createdByUserId: true }).parse(req.body);
-      const profile = await storage.createJyotishProfile({ ...body, createdByUserId: (req.user as any).id });
+      const body = insertJyotishClientProfileSchema.omit({ createdByUserId: true, astrologerId: true }).parse(req.body);
+      const profile = await storage.createJyotishProfile({ ...body, createdByUserId: (req.user as any).id, astrologerId: null });
       res.json(profile);
     } catch (err: any) {
       if (err instanceof z.ZodError) return res.status(400).json({ message: 'Invalid profile data', errors: err.errors });
@@ -2704,6 +2704,212 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
   app.get('/api/admin/jyotish/profiles/:id/session-queries', isAdmin, adminLimiter, async (req, res) => {
     try {
       res.json(await storage.listJyotishSessionQueries(req.params.id));
+    } catch { res.status(500).json({ message: 'Failed to fetch session queries' }); }
+  });
+
+  // ─── Astrologer Pro: practice workspace (tenant = astrologer session) ──
+  const PRO_AI_MONTHLY_LIMIT = 80;
+
+  async function requireProProfile(req: any, profileId: string) {
+    const profile = await storage.getJyotishProfileById(profileId);
+    if (!profile || profile.astrologerId !== req.session.astrologerId) return null;
+    return profile;
+  }
+
+  app.get('/api/astrologer/pro/usage', isAstrologerAuthenticated, async (req: any, res) => {
+    try {
+      res.json(await storage.getProAiUsage(req.session.astrologerId, PRO_AI_MONTHLY_LIMIT));
+    } catch { res.status(500).json({ message: 'Failed to fetch Pro usage' }); }
+  });
+
+  app.post('/api/astrologer/pro/profiles', isAstrologerAuthenticated, async (req: any, res) => {
+    try {
+      const body = insertJyotishClientProfileSchema
+        .omit({ createdByUserId: true, astrologerId: true })
+        .parse(req.body);
+      const profile = await storage.createJyotishProfile({
+        ...body,
+        createdByUserId: null,
+        astrologerId: req.session.astrologerId,
+      });
+      res.json(profile);
+    } catch (err: any) {
+      if (err instanceof z.ZodError) return res.status(400).json({ message: 'Invalid profile data', errors: err.errors });
+      console.error('Pro create profile error:', err);
+      res.status(500).json({ message: 'Failed to create profile' });
+    }
+  });
+
+  app.get('/api/astrologer/pro/profiles', isAstrologerAuthenticated, async (req: any, res) => {
+    try {
+      res.json(await storage.getJyotishProfilesByAstrologer(req.session.astrologerId));
+    } catch { res.status(500).json({ message: 'Failed to fetch profiles' }); }
+  });
+
+  app.get('/api/astrologer/pro/profiles/:id', isAstrologerAuthenticated, async (req: any, res) => {
+    try {
+      const profile = await requireProProfile(req, req.params.id);
+      if (!profile) return res.status(404).json({ message: 'Profile not found' });
+      res.json(profile);
+    } catch { res.status(500).json({ message: 'Failed to fetch profile' }); }
+  });
+
+  app.post('/api/astrologer/pro/profiles/:id/chart', isAstrologerAuthenticated, async (req: any, res) => {
+    try {
+      const profile = await requireProProfile(req, req.params.id);
+      if (!profile) return res.status(404).json({ message: 'Profile not found' });
+      const chart = computeJyotishChart(profile.dateOfBirth, profile.timeOfBirth, Number(profile.latitude), Number(profile.longitude));
+      res.json(chart);
+    } catch (err) {
+      console.error('Pro compute chart error:', err);
+      res.status(500).json({ message: 'Failed to compute chart' });
+    }
+  });
+
+  app.post('/api/astrologer/pro/profiles/:id/readings', isAstrologerAuthenticated, async (req: any, res) => {
+    try {
+      const profile = await requireProProfile(req, req.params.id);
+      if (!profile) return res.status(404).json({ message: 'Profile not found' });
+      const language = typeof req.body?.language === 'string' ? req.body.language : 'English';
+      const chart = computeJyotishChart(profile.dateOfBirth, profile.timeOfBirth, Number(profile.latitude), Number(profile.longitude));
+      const reading = await storage.createJyotishReading({
+        profileId: profile.id,
+        chartData: chart.chartData,
+        language,
+        status: 'generating',
+      });
+      res.json(reading);
+    } catch (err) {
+      console.error('Pro create reading error:', err);
+      res.status(500).json({ message: 'Failed to create reading' });
+    }
+  });
+
+  app.get('/api/astrologer/pro/profiles/:id/readings', isAstrologerAuthenticated, async (req: any, res) => {
+    try {
+      const profile = await requireProProfile(req, req.params.id);
+      if (!profile) return res.status(404).json({ message: 'Profile not found' });
+      res.json(await storage.listJyotishReadingsForProfile(profile.id));
+    } catch { res.status(500).json({ message: 'Failed to fetch readings' }); }
+  });
+
+  app.get('/api/astrologer/pro/readings/:id', isAstrologerAuthenticated, async (req: any, res) => {
+    try {
+      const reading = await storage.getJyotishReadingById(req.params.id);
+      if (!reading) return res.status(404).json({ message: 'Reading not found' });
+      const profile = await requireProProfile(req, reading.profileId);
+      if (!profile) return res.status(404).json({ message: 'Reading not found' });
+      res.json(reading);
+    } catch { res.status(500).json({ message: 'Failed to fetch reading' }); }
+  });
+
+  app.post('/api/astrologer/pro/readings/:id/generate', isAstrologerAuthenticated, async (req: any, res) => {
+    let tradition: Tradition;
+    try {
+      tradition = TRADITION_ENUM.parse(req.body?.tradition);
+    } catch {
+      return res.status(400).json({ message: 'tradition must be one of parashar | kn_rao | kamakhya' });
+    }
+    try {
+      const reading = await storage.getJyotishReadingById(req.params.id);
+      if (!reading) return res.status(404).json({ message: 'Reading not found' });
+      const profile = await requireProProfile(req, reading.profileId);
+      if (!profile) return res.status(404).json({ message: 'Reading not found' });
+
+      const credit = await storage.consumeProAiCredit(req.session.astrologerId, 1, PRO_AI_MONTHLY_LIMIT);
+      if (!credit.ok) {
+        return res.status(402).json({
+          message: `Pro Studio AI limit reached (${credit.limit}/month). Upgrade or wait until next month.`,
+          used: credit.used,
+          limit: credit.limit,
+        });
+      }
+
+      res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+      res.setHeader('Cache-Control', 'no-cache');
+      (res as any).flushHeaders?.();
+
+      const full = await streamTraditionReading(
+        tradition,
+        jyotishProfileInfo(profile),
+        reading.chartData as any,
+        (delta) => res.write(delta),
+        reading.language || 'English',
+      );
+      await storage.updateJyotishReading(reading.id, { [READING_COLUMN[tradition]]: full, status: 'ready' } as any);
+      res.end();
+    } catch (err: any) {
+      console.error('Pro generate reading error:', err);
+      if (!res.headersSent) {
+        if (err.message?.includes('OPENAI_API_KEY')) return res.status(503).json({ message: 'AI features not configured. Set OPENAI_API_KEY.' });
+        return res.status(500).json({ message: 'Failed to generate reading' });
+      }
+      res.end();
+    }
+  });
+
+  app.post('/api/astrologer/pro/session-queries', isAstrologerAuthenticated, async (req: any, res) => {
+    const { profileId, readingId, question, language } = req.body || {};
+    let tradition: Tradition;
+    try {
+      tradition = TRADITION_ENUM.parse(req.body?.tradition);
+    } catch {
+      return res.status(400).json({ message: 'tradition must be one of parashar | kn_rao | kamakhya' });
+    }
+    if (!profileId || typeof question !== 'string' || !question.trim()) {
+      return res.status(400).json({ message: 'profileId and question are required' });
+    }
+    try {
+      const profile = await requireProProfile(req, profileId);
+      if (!profile) return res.status(404).json({ message: 'Profile not found' });
+
+      const credit = await storage.consumeProAiCredit(req.session.astrologerId, 1, PRO_AI_MONTHLY_LIMIT);
+      if (!credit.ok) {
+        return res.status(402).json({
+          message: `Pro Studio AI limit reached (${credit.limit}/month). Upgrade or wait until next month.`,
+          used: credit.used,
+          limit: credit.limit,
+        });
+      }
+
+      let chartData: any;
+      if (readingId) {
+        const reading = await storage.getJyotishReadingById(readingId);
+        chartData = reading?.chartData;
+      }
+      if (!chartData) {
+        chartData = computeJyotishChart(profile.dateOfBirth, profile.timeOfBirth, Number(profile.latitude), Number(profile.longitude)).chartData;
+      }
+
+      res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+      res.setHeader('Cache-Control', 'no-cache');
+      (res as any).flushHeaders?.();
+
+      const answer = await answerSessionQuery(
+        tradition,
+        jyotishProfileInfo(profile),
+        chartData,
+        question,
+        (delta) => res.write(delta),
+        language,
+      );
+      await storage.createJyotishSessionQuery({ profileId, readingId: readingId || undefined, tradition, question, answer });
+      res.end();
+    } catch (err: any) {
+      console.error('Pro session query error:', err);
+      if (!res.headersSent) {
+        if (err.message?.includes('OPENAI_API_KEY')) return res.status(503).json({ message: 'AI features not configured. Set OPENAI_API_KEY.' });
+        return res.status(500).json({ message: 'Failed to answer query' });
+      }
+      res.end();
+    }
+  });
+
+  app.get('/api/astrologer/pro/profiles/:id/session-queries', isAstrologerAuthenticated, async (req: any, res) => {
+    try {
+      const profile = await requireProProfile(req, req.params.id);
+      if (!profile) return res.status(404).json({ message: 'Profile not found' });
+      res.json(await storage.listJyotishSessionQueries(profile.id));
     } catch { res.status(500).json({ message: 'Failed to fetch session queries' }); }
   });
 

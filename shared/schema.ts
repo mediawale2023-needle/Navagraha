@@ -116,6 +116,9 @@ export const astrologers = pgTable("astrologers", {
   kycNotes: text("kyc_notes"),
   kycSubmittedAt: timestamp("kyc_submitted_at"),
   kycReviewedAt: timestamp("kyc_reviewed_at"),
+  // Astrologer Pro (practice SaaS) — soft AI usage meter for Studio tier
+  proAiCreditsUsed: integer("pro_ai_credits_used").default(0),
+  proAiCreditsResetAt: timestamp("pro_ai_credits_reset_at"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -731,20 +734,20 @@ export const predictionFeedbacksRelations = relations(predictionFeedbacks, ({ on
 export type PredictionFeedback = typeof predictionFeedbacks.$inferSelect;
 export type InsertPredictionFeedback = z.infer<typeof insertPredictionFeedbackSchema>;
 
-// ─── Jyotish AI Reading (admin-only professional tool) ─────────────────────
-// Used by the astrologer-admin during live client sessions: a saved client
-// profile + the precise (Swiss Ephemeris) chart computation + AI narrative
-// readings in three traditions. Deliberately separate from `kundlis` (the
-// consumer-facing saved-chart feature) since this is an internal admin tool
-// with its own birth-data intake and a different, more exhaustive computation
-// payload (Jaimini Chara Dasha, Mahavidya mapping, gemstone contraindications,
-// etc. — see server/jyotishEngine.ts).
+// ─── Jyotish AI Reading (admin + Astrologer Pro practice tool) ─────────────
+// Saved client profile + Swiss Ephemeris chart + AI narrative readings in three
+// traditions. Separate from consumer `kundlis`. Owned either by an admin user
+// (`createdByUserId`) or a marketplace astrologer on Pro (`astrologerId`).
 
 export const jyotishClientProfiles = pgTable("jyotish_client_profiles", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  createdByUserId: varchar("created_by_user_id").references(() => users.id).notNull(),
+  createdByUserId: varchar("created_by_user_id").references(() => users.id),
+  astrologerId: varchar("astrologer_id").references(() => astrologers.id),
   name: varchar("name").notNull(),
   gender: varchar("gender"),
+  phone: varchar("phone"),
+  tags: varchar("tags"), // comma-separated practice tags e.g. marriage,career
+  followUpAt: timestamp("follow_up_at"),
   dateOfBirth: timestamp("date_of_birth").notNull(),
   timeOfBirth: varchar("time_of_birth").notNull(),
   placeOfBirth: varchar("place_of_birth").notNull(),
@@ -761,6 +764,9 @@ export const insertJyotishClientProfileSchema = createInsertSchema(jyotishClient
   dateOfBirth: z.union([z.date(), z.string().transform((str) => new Date(str))]),
   latitude: z.union([z.string(), z.number().transform((num) => num.toString())]),
   longitude: z.union([z.string(), z.number().transform((num) => num.toString())]),
+  followUpAt: z.union([z.date(), z.string().transform((str) => new Date(str)), z.null()]).optional(),
+  createdByUserId: z.string().optional().nullable(),
+  astrologerId: z.string().optional().nullable(),
 });
 
 export type InsertJyotishClientProfile = z.infer<typeof insertJyotishClientProfileSchema>;
