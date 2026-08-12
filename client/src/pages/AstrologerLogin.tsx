@@ -278,10 +278,10 @@ export default function AstrologerLogin() {
                     </div>
                     <div>
                       <Label htmlFor="pro-email">Astrologer email</Label>
-                      <Input
+        <Input
                         id="pro-email"
                         type="email"
-                        placeholder="your@email.com"
+                        placeholder="pro@navagraha.app"
                         value={proEmail}
                         onChange={(e) => setProEmail(e.target.value)}
                         className="mt-1"
@@ -294,7 +294,7 @@ export default function AstrologerLogin() {
                         <Input
                           id="pro-password"
                           type={showPassword ? 'text' : 'password'}
-                          placeholder="••••••••"
+                          placeholder="ProDemo@2026"
                           value={proPassword}
                           onChange={(e) => setProPassword(e.target.value)}
                           required

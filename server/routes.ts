@@ -564,11 +564,15 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
         return res.status(403).json({ message: "Your account is pending admin approval. You'll receive an email once approved." });
       }
       req.session.astrologerId = astrologer.id;
+      await new Promise<void>((resolve, reject) => {
+        req.session.save((err: any) => (err ? reject(err) : resolve()));
+      });
       const { passwordHash: _ph, bankAccountNumber: _ban, bankIfsc: _bi, ...safe } = astrologer;
       res.json(safe);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Astrologer login error:", error);
-      res.status(500).json({ message: "Login failed" });
+      const detail = error?.message || "Login failed";
+      res.status(500).json({ message: detail.includes('does not exist') ? 'Database migration incomplete — redeploy after schema fix.' : 'Login failed' });
     }
   });
 
