@@ -495,9 +495,8 @@ CREATE TABLE IF NOT EXISTS jyotish_client_profiles (
   created_at timestamp DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS idx_jyotish_profiles_creator ON jyotish_client_profiles (created_by_user_id);
-CREATE INDEX IF NOT EXISTS idx_jyotish_profiles_astrologer ON jyotish_client_profiles (astrologer_id);
 
--- Idempotent upgrades for existing installs
+-- Idempotent upgrades for existing installs (must run BEFORE indexes on new columns)
 ALTER TABLE jyotish_client_profiles ALTER COLUMN created_by_user_id DROP NOT NULL;
 ALTER TABLE jyotish_client_profiles ADD COLUMN IF NOT EXISTS astrologer_id varchar REFERENCES astrologers(id);
 ALTER TABLE jyotish_client_profiles ADD COLUMN IF NOT EXISTS phone varchar;

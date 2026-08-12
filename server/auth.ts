@@ -17,6 +17,7 @@ import connectPg from 'connect-pg-simple';
 import type { Express, RequestHandler } from 'express';
 import { storage } from './storage';
 import { getAdminEmails } from './adminAccess';
+import { pool } from './db';
 
 // ─── Session setup ────────────────────────────────────────────
 
@@ -52,7 +53,8 @@ export function getSession() {
 
   const pgStore = connectPg(session);
   const sessionStore = new pgStore({
-    conString: process.env.DATABASE_URL,
+    // Reuse the app pool (includes Supabase/Neon TLS) instead of a bare conString.
+    pool,
     createTableIfMissing: true,
     ttl: sessionTtl,
     tableName: 'sessions',
