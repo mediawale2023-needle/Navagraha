@@ -45,8 +45,19 @@ export default function AstrologerLogin() {
         description: `Logged in as ${data.name}`,
       });
       navigate(destination === 'pro' ? '/astrologer/pro' : '/astrologer/dashboard');
-    } catch {
-      toast({ title: 'Error', description: 'Login failed. Please try again.', variant: 'destructive' });
+    } catch (err: any) {
+      const raw = String(err?.message || '');
+      let description = 'Login failed. Please try again.';
+      if (/503|502|Cannot POST|Failed to fetch|NetworkError/i.test(raw)) {
+        description = 'Server is unavailable (database not connected). Check Render DATABASE_URL, then retry.';
+      } else if (/403/.test(raw)) {
+        description = raw.replace(/^\d{3}:\s*/, '') || 'Account pending admin approval.';
+      } else if (/401/.test(raw)) {
+        description = 'Invalid email or password.';
+      } else if (raw) {
+        description = raw.replace(/^\d{3}:\s*/, '');
+      }
+      toast({ title: 'Error', description, variant: 'destructive' });
     } finally {
       setIsLoading(false);
     }

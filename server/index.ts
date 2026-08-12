@@ -76,11 +76,18 @@ app.get('/metrics', async (_req, res) => {
 
 app.get('/api/health', (_req, res) => {
   if (startupError) {
-    return res.status(500).json({ ok: false, ready: false, error: startupError });
+    return res.status(503).json({
+      ok: false,
+      ready: false,
+      error: startupError,
+      hint: startupError.includes('database') || startupError.includes('ENOTFOUND') || startupError.includes('tenant')
+        ? 'Update DATABASE_URL in Render to a live Postgres/Neon connection string, then redeploy.'
+        : undefined,
+    });
   }
 
   if (!startupReady) {
-    return res.status(503).json({ ok: false, ready: false });
+    return res.status(503).json({ ok: false, ready: false, status: 'starting' });
   }
 
   res.json({ ok: true, ready: true });
@@ -112,23 +119,25 @@ httpServer.listen({ port, host: "0.0.0.0", reusePort: true }, () => {
 
 // ── Now do everything else (routes, auth, websocket, vite, migrations) ──
 
-// Await DB connection properly before registering routes and auth (which use connect-pg-simple)
+// Await DB connection properly before registering routes and auth (which use connect-pg-simple).
+// On DB failure we keep the process alive so /api/health can report the real error instead of
+// crash-looping (Render would otherwise restart forever and login would show a generic failure).
 waitForDatabase()
   .then(async () => {
     try {
       await registerRoutes(app, httpServer);
     } catch (err) {
-      startupError = "route registration failed";
+      startupError = err instanceof Error ? `route registration failed: ${err.message}` : "route registration failed";
       console.error("[startup] registerRoutes failed:", err);
-      process.exit(1);
+      return;
     }
 
     try {
       setupWebSocket(httpServer);
     } catch (err) {
-      startupError = "websocket setup failed";
+      startupError = err instanceof Error ? `websocket setup failed: ${err.message}` : "websocket setup failed";
       console.error("[startup] WebSocket setup failed:", err);
-      process.exit(1);
+      return;
     }
 
     app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
@@ -145,12 +154,18 @@ waitForDatabase()
     }
 
     // Run DB migrations, then mark startup complete.
-    return runMigrations().then(() => {
+    try {
+      await runMigrations();
       startupReady = true;
-    });
+      startupError = null;
+      log("startup ready");
+    } catch (err) {
+      startupError = err instanceof Error ? err.message : "migration failed";
+      console.error("[startup/migrate] Migration failed:", err);
+    }
   })
   .catch((err) => {
     startupError = err instanceof Error ? err.message : "critical startup failure";
     console.error("[startup/migrate] Critical startup failure:", err);
-    process.exit(1);
+    // Do not process.exit — stay up so healthchecks expose the DB error to operators.
   });
