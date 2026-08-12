@@ -81,7 +81,7 @@ app.get('/api/health', (_req, res) => {
       ready: false,
       error: startupError,
       hint: startupError.includes('database') || startupError.includes('ENOTFOUND') || startupError.includes('tenant')
-        ? 'Update DATABASE_URL in Render to a live Postgres/Neon connection string, then redeploy.'
+        ? 'DATABASE_URL is invalid or still pointing at a deleted Neon host. Set it to your Supabase Postgres URI in Render, then redeploy.'
         : undefined,
     });
   }
