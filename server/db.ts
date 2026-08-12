@@ -7,12 +7,31 @@ if (!process.env.DATABASE_URL) {
   console.warn("[db] DATABASE_URL not set — database features will be unavailable");
 }
 
+/** Managed Postgres (Supabase / Neon / Render) usually requires TLS. */
+function poolSslOption(connectionString?: string): boolean | { rejectUnauthorized: boolean } | undefined {
+  if (!connectionString) return undefined;
+  const lower = connectionString.toLowerCase();
+  if (lower.includes('sslmode=disable')) return false;
+  if (
+    lower.includes('supabase.co') ||
+    lower.includes('supabase.com') ||
+    lower.includes('neon.tech') ||
+    lower.includes('sslmode=require') ||
+    lower.includes('sslmode=verify')
+  ) {
+    // Supabase pooler / Neon: encrypt without pinning a local CA bundle in the container.
+    return { rejectUnauthorized: false };
+  }
+  return undefined;
+}
+
 export const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   connectionTimeoutMillis: 5000,
+  ssl: poolSslOption(process.env.DATABASE_URL),
 });
 
-pool.on('error', (err, client) => {
+pool.on('error', (err, _client) => {
   console.error('[db] Unexpected error on idle client', err);
 });
 
