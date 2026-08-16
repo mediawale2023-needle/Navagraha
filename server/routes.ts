@@ -69,6 +69,12 @@ import {
 } from "./aiAstrologerService";
 import { computeJyotishChart } from "./astroEngine/jyotishEngine.js";
 import { streamTraditionReading, answerSessionQuery, type Tradition } from "./jyotishAiService.js";
+import {
+  extractPalmFromImage,
+  buildPalmTeaser,
+  buildFullPalmReading,
+  PALM_UNLOCK_PRICE_INR,
+} from "./palmistryService";
 import { insertJyotishClientProfileSchema } from "@shared/schema";
 import { sendWelcomeEmail, sendPaymentReceipt, sendBookingConfirmation, sendConsultationSummary } from "./emailService";
 import crypto from "crypto";
@@ -2915,6 +2921,190 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
       if (!profile) return res.status(404).json({ message: 'Profile not found' });
       res.json(await storage.listJyotishSessionQueries(profile.id));
     } catch { res.status(500).json({ message: 'Failed to fetch session queries' }); }
+  });
+
+  // ─── Consumer Palmistry (Vela-style funnel) ────────────────
+  const palmAnalyzeLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 12,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { message: 'Too many palm scans. Please wait and try again.' },
+  });
+
+  app.get('/api/palmistry/price', (_req, res) => {
+    res.json({ unlockPriceInr: PALM_UNLOCK_PRICE_INR, currency: 'INR' });
+  });
+
+  app.post('/api/palmistry/analyze', palmAnalyzeLimiter, async (req: any, res) => {
+    try {
+      const { imageBase64, mimeType, hand, language } = req.body || {};
+      if (!imageBase64 || typeof imageBase64 !== 'string') {
+        return res.status(400).json({ message: 'imageBase64 is required' });
+      }
+      // Rough size guard (~4MB decoded)
+      if (imageBase64.length > 5_500_000) {
+        return res.status(413).json({ message: 'Image too large. Use a clearer, smaller palm photo.' });
+      }
+      const mime = typeof mimeType === 'string' && mimeType.startsWith('image/') ? mimeType : 'image/jpeg';
+      const handHint = hand === 'right' ? 'right' : 'left';
+
+      const extract = await extractPalmFromImage({
+        imageBase64: imageBase64.replace(/^data:image\/\w+;base64,/, ''),
+        mimeType: mime,
+        handHint,
+      });
+      if (extract.confidence < 0.35 || extract.quality.blur === 'blurry' || extract.quality.framing === 'cropped') {
+        return res.status(422).json({
+          message: 'Palm not clear enough. Show all five fingers, use bright even light, and hold still.',
+          extract,
+        });
+      }
+
+      const teaser = buildPalmTeaser(extract);
+      const claimToken = crypto.randomBytes(24).toString('hex');
+      const userId = req.user?.id || req.session?.userId || null;
+      const row = await storage.createPalmReading({
+        userId: userId || null,
+        claimToken,
+        hand: extract.hand || handHint,
+        extract,
+        teaser,
+        reading: null,
+        language: typeof language === 'string' ? language : 'English',
+        status: 'analyzed',
+      });
+
+      res.json({
+        readingId: row.id,
+        claimToken,
+        hand: row.hand,
+        extract,
+        teaser,
+        unlockPriceInr: PALM_UNLOCK_PRICE_INR,
+        status: row.status,
+      });
+    } catch (err: any) {
+      console.error('Palm analyze error:', err?.message || err);
+      if (err?.message?.includes('OPENAI_API_KEY')) {
+        return res.status(503).json({ message: 'Palm reading is temporarily unavailable. Set OPENAI_API_KEY.' });
+      }
+      if (err?.name === 'ZodError') {
+        return res.status(502).json({ message: 'Could not map palm lines clearly. Please retake the photo.' });
+      }
+      res.status(500).json({ message: 'Palm analysis failed. Please retake with better light.' });
+    }
+  });
+
+  app.get('/api/palmistry/:id', async (req: any, res) => {
+    try {
+      const reading = await storage.getPalmReadingById(req.params.id);
+      if (!reading) return res.status(404).json({ message: 'Reading not found' });
+      const claimToken = String(req.query.claimToken || req.headers['x-palm-claim'] || '');
+      const userId = req.user?.id || req.session?.userId;
+      const allowed =
+        (claimToken && claimToken === reading.claimToken) ||
+        (userId && reading.userId === userId);
+      if (!allowed) return res.status(403).json({ message: 'Not allowed to view this reading' });
+
+      const payload: any = {
+        readingId: reading.id,
+        hand: reading.hand,
+        extract: reading.extract,
+        teaser: reading.teaser,
+        status: reading.status,
+        unlockPriceInr: PALM_UNLOCK_PRICE_INR,
+        unlocked: reading.status === 'unlocked',
+      };
+      if (reading.status === 'unlocked') {
+        payload.reading = reading.reading;
+        payload.unlockedAt = reading.unlockedAt;
+      }
+      res.json(payload);
+    } catch {
+      res.status(500).json({ message: 'Failed to fetch palm reading' });
+    }
+  });
+
+  app.post('/api/palmistry/:id/unlock', isAuthenticated, paymentLimiter, async (req: any, res) => {
+    try {
+      const userId = (req.user as any).id;
+      const reading = await storage.getPalmReadingById(req.params.id);
+      if (!reading) return res.status(404).json({ message: 'Reading not found' });
+
+      const claimToken = String(req.body?.claimToken || '');
+      if (reading.userId && reading.userId !== userId) {
+        return res.status(403).json({ message: 'This palm reading belongs to another account' });
+      }
+      if (!reading.userId && claimToken !== reading.claimToken) {
+        return res.status(403).json({ message: 'Invalid claim token' });
+      }
+      if (reading.status === 'unlocked' && reading.reading) {
+        return res.json({
+          readingId: reading.id,
+          status: 'unlocked',
+          reading: reading.reading,
+          unlockPriceInr: PALM_UNLOCK_PRICE_INR,
+          alreadyUnlocked: true,
+        });
+      }
+
+      const kundliId = typeof req.body?.kundliId === 'string' ? req.body.kundliId : reading.kundliId;
+      let chartContext: string | null = null;
+      if (kundliId) {
+        const kundli = await storage.getKundliById(kundliId);
+        if (kundli && kundli.userId === userId && kundli.chartData) {
+          const cd: any = kundli.chartData;
+          chartContext = [
+            `Lagna: ${cd?.ascendant?.sign || cd?.lagna || 'n/a'}`,
+            `Moon: ${cd?.moonSign || cd?.planets?.find?.((p: any) => p.planet === 'Moon')?.sign || 'n/a'}`,
+            `Name on chart: ${kundli.name || 'n/a'}`,
+          ].join('\n');
+        }
+      }
+
+      // Generate before debit so a model failure never charges the wallet.
+      const full = await buildFullPalmReading({
+        extract: reading.extract as any,
+        language: reading.language || 'English',
+        chartContext,
+      });
+
+      const debited = await storage.debitWallet(
+        userId,
+        PALM_UNLOCK_PRICE_INR,
+        `Palm reading unlock (${reading.id})`,
+      );
+      if (!debited) {
+        return res.status(402).json({
+          message: 'Insufficient wallet balance',
+          unlockPriceInr: PALM_UNLOCK_PRICE_INR,
+          rechargePath: '/wallet',
+        });
+      }
+
+      const updated = await storage.updatePalmReading(reading.id, {
+        userId,
+        kundliId: kundliId || null,
+        reading: full,
+        status: 'unlocked',
+        unlockedAt: new Date(),
+      });
+
+      res.json({
+        readingId: updated.id,
+        status: updated.status,
+        reading: updated.reading,
+        unlockPriceInr: PALM_UNLOCK_PRICE_INR,
+        balance: debited.balance,
+      });
+    } catch (err: any) {
+      console.error('Palm unlock error:', err?.message || err);
+      if (err?.message?.includes('OPENAI_API_KEY')) {
+        return res.status(503).json({ message: 'Palm reading unlock unavailable. Set OPENAI_API_KEY.' });
+      }
+      res.status(500).json({ message: 'Failed to unlock palm reading' });
+    }
   });
 
   return existingServer ?? createServer(app);

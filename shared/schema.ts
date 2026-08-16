@@ -815,3 +815,28 @@ export const insertJyotishSessionQuerySchema = createInsertSchema(jyotishSession
 
 export type InsertJyotishSessionQuery = z.infer<typeof insertJyotishSessionQuerySchema>;
 export type JyotishSessionQuery = typeof jyotishSessionQueries.$inferSelect;
+
+// ─── Consumer Palmistry (Vela-style funnel) ────────────────────────────────
+export const palmReadings = pgTable("palm_readings", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").references(() => users.id),
+  claimToken: varchar("claim_token").notNull(),
+  hand: varchar("hand").notNull().default("left"),
+  extract: jsonb("extract").notNull(),
+  teaser: jsonb("teaser").notNull(),
+  reading: text("reading"),
+  kundliId: varchar("kundli_id").references(() => kundlis.id),
+  language: varchar("language").default("English"),
+  status: varchar("status").notNull().default("analyzed"), // analyzed | unlocked | failed
+  unlockTxnId: varchar("unlock_txn_id"),
+  unlockedAt: timestamp("unlocked_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertPalmReadingSchema = createInsertSchema(palmReadings).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type InsertPalmReading = z.infer<typeof insertPalmReadingSchema>;
+export type PalmReading = typeof palmReadings.$inferSelect;
