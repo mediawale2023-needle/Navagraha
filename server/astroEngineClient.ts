@@ -59,29 +59,19 @@ export interface AstroEngineResponse {
   global_strength_score: number;
 }
 
-/**
- * Call the Rust microservice to calculate Shadbala, Yogas, and Varga strengths
- * for a given natal chart. Returns null if engine is unavailable.
+/** P0 fail-safe: /calculate has no coherent longitude convention today.
+ * d9_sign consumes tropical longitude, but compares against sidereal D1 signs;
+ * Pushkar instead subtracts a fixed 24°. No single payload frame fixes both.
+ * Keep this disabled until the Rust contract is reconciled in a reviewed change.
+ * No environment switch may bypass this guard.
  */
-export async function callAstroEngine(request: ChartRequest): Promise<AstroEngineResponse | null> {
-  try {
-    const response = await fetch(`${ASTRO_ENGINE_URL}/calculate`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(request),
-      signal: AbortSignal.timeout(10000), // 10 second timeout
-    });
+export const RUST_CHART_UNAVAILABLE_REASON =
+  'Rust /calculate skipped: inconsistent tropical/sidereal Varga coordinate frames';
 
-    if (!response.ok) {
-      console.error(`[AstroEngine] HTTP ${response.status} from Rust engine`);
-      return null;
-    }
-
-    return response.json() as Promise<AstroEngineResponse>;
-  } catch (err) {
-    console.warn('[AstroEngine] Rust engine unavailable — proceeding without Shadbala:', err);
-    return null;
-  }
+/** Retain the typed boundary, but never send a knowingly inconsistent chart. */
+export async function callAstroEngine(_request: ChartRequest): Promise<AstroEngineResponse | null> {
+  console.warn('[AstroEngine]', RUST_CHART_UNAVAILABLE_REASON);
+  return null;
 }
 
 /**

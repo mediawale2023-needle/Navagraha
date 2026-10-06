@@ -1,6 +1,7 @@
 import OpenAI from 'openai';
 import { AGENT_PROMPTS } from './prompts';
-import { callAstroEngine, formatShadbalaSummary, ChartRequest } from '../astroEngineClient';
+import { callAstroEngine, formatShadbalaSummary, RUST_CHART_UNAVAILABLE_REASON } from '../astroEngineClient';
+import type { RustChartInput } from '../rustChartAdapter';
 
 // Ensure OPENAI_API_KEY is available in the environment
 const openai = new OpenAI({
@@ -13,7 +14,11 @@ export interface UserContext {
     time: string;
     place: string;
   };
-  chartData?: any;
+  chartData?: {
+    ascendant?: string | null; sunSign?: string | null; moonSign?: string | null;
+    planets?: unknown; calculatedChart?: unknown; dashas?: unknown; doshas?: unknown;
+  } | null;
+  rustChartInput?: RustChartInput;
   profession?: string;
   pastEvents?: string[];
   language?: string;
@@ -60,15 +65,10 @@ export async function runCouncil(context: UserContext): Promise<string> {
 
   // ─── Step 0: Deterministic Rust Math ──────────────────────────────────────
   let shadbalaSummary = '';
-  if (context.chartData?.planets) {
+  const rustInput = context.rustChartInput;
+  if (rustInput?.available && !RUST_CHART_UNAVAILABLE_REASON) {
     console.log('[Orchestrator] Calling Rust astro-engine for Shadbala/Yoga math...');
-    const rustRequest: ChartRequest = {
-      planets: context.chartData.planets,
-      ascendant_longitude: context.chartData.ascendantLongitude ?? 0,
-      latitude: context.chartData.latitude ?? 0,
-      julian_day: context.chartData.julianDay ?? 2451545.0, // J2000.0 fallback
-    };
-    const astroResult = await callAstroEngine(rustRequest);
+    const astroResult = await callAstroEngine(rustInput.request);
     if (astroResult) {
       shadbalaSummary = formatShadbalaSummary(astroResult);
       console.log(
@@ -78,12 +78,16 @@ export async function runCouncil(context: UserContext): Promise<string> {
     } else {
       console.warn('[Orchestrator] Rust engine unavailable — agents will operate without Shadbala data.');
     }
+  } else {
+    console.warn('[Orchestrator] Skipping Rust deterministic calculations:',
+      rustInput && !rustInput.available ? rustInput.reason :
+        rustInput?.available ? RUST_CHART_UNAVAILABLE_REASON : 'No deterministic chart input supplied');
   }
 
   // Combine chart + shadbala for agents
   const contextPayload = JSON.stringify({
     ...context,
-    shadbalaMath: shadbalaSummary || 'Shadbala engine offline — use available chart data only.',
+    shadbalaMath: shadbalaSummary || 'Deterministic calculations unavailable — use supplied chart facts only; never invent missing chart facts or strengths.',
   }, null, 2);
 
   console.log('[Orchestrator] Spinning up the $team council...');
@@ -132,7 +136,7 @@ ${context.transits || '(transits unavailable)'}
 ${context.currentQuery}
 
 ### Deterministic Rust Math (Tier 1 — NO LLM, pure arithmetic):
-${shadbalaSummary || '(Shadbala engine offline)'}
+${shadbalaSummary || '(Deterministic calculations unavailable; do not infer missing strengths)'}
 
 ### Council Findings (Tier 2 — LLM Agents):
 1. **Chronos (Timing):** ${chronosResult}

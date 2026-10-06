@@ -10,7 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest } from '@/lib/queryClient';
-import { ArrowLeft, Calendar, Clock, User, Loader2, Sparkles, Check, Sunrise, Info } from 'lucide-react';
+import { ArrowLeft, Calendar, Clock, User, Loader2, Sparkles, Check, HelpCircle, Info } from 'lucide-react';
 import { Link } from 'wouter';
 import { PlacesAutocomplete } from '@/components/PlacesAutocomplete';
 import { TrustBadge } from '@/components/TrustBadge';
@@ -29,7 +29,7 @@ export default function KundliNew() {
   const [, setLocation] = useLocation();
   const [step, setStep] = useState(1);
   const [coordinates, setCoordinates] = useState<{ lat: number; lng: number } | null>(null);
-  const [useSunrise, setUseSunrise] = useState(false);
+  const [isBirthTimeApproximate, setIsBirthTimeApproximate] = useState(false);
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -48,6 +48,7 @@ export default function KundliNew() {
     mutationFn: async (data: KundliFormData) => {
       const payload = {
         ...data,
+        isBirthTimeApproximate,
         latitude: coordinates?.lat,
         longitude: coordinates?.lng,
       };
@@ -92,12 +93,12 @@ export default function KundliNew() {
     });
   };
 
-  const handleSunriseClick = () => {
-    setUseSunrise(true);
+  const handleUnknownTimeClick = () => {
+    setIsBirthTimeApproximate(true);
     form.setValue('timeOfBirth', '06:00');
     toast({
-      title: 'Sunrise Time Applied',
-      description: 'Using 6:00 AM as approximate birth time',
+      title: 'Approximate Birth Time Applied',
+      description: 'Using 6:00 AM as a placeholder. This is not calculated sunrise; houses and Ascendant may be unreliable.',
     });
   };
 
@@ -268,18 +269,28 @@ export default function KundliNew() {
                               type="time"
                               className="bg-input-background pl-10 rounded-[10px]"
                               {...field}
+                              onChange={(event) => {
+                                field.onChange(event);
+                                setIsBirthTimeApproximate(false);
+                              }}
                             />
                           </div>
                         </FormControl>
                         <FormMessage />
-                        {!useSunrise && (
+                        {isBirthTimeApproximate && (
+                          <p className="mt-2 text-sm text-muted-foreground">
+                            Birth time is approximate: 6:00 AM is a placeholder, not calculated sunrise.
+                            Ascendant and house positions may be unreliable. Enter a known time to clear this option.
+                          </p>
+                        )}
+                        {!isBirthTimeApproximate && (
                           <button
                             type="button"
-                            onClick={handleSunriseClick}
+                            onClick={handleUnknownTimeClick}
                             className="mt-2 inline-flex items-center gap-2 border-b border-foreground pb-0.5 text-sm font-semibold text-foreground"
                           >
-                            <Sunrise className="w-4 h-4" />
-                            Don't know exact time? Use sunrise (6:00 AM)
+                            <HelpCircle className="w-4 h-4" />
+                            I don’t know the exact birth time
                           </button>
                         )}
                       </FormItem>
@@ -333,7 +344,10 @@ export default function KundliNew() {
                         <FormControl>
                           <PlacesAutocomplete
                             value={field.value}
-                            onChange={field.onChange}
+                            onChange={(value) => {
+                              field.onChange(value);
+                              setCoordinates(null);
+                            }}
                             onPlaceSelect={(place) => {
                               setCoordinates({ lat: place.lat, lng: place.lng });
                             }}

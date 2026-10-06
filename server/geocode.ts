@@ -1,3 +1,13 @@
+/** Accept numeric coordinates only, including genuine zero coordinates. */
+export function validCoordinates(latitude: unknown, longitude: unknown): { lat: number; lng: number } | null {
+  const numeric = (value: unknown) =>
+    typeof value === 'number' ? value :
+    typeof value === 'string' && value.trim() !== '' ? Number(value) : NaN;
+  const lat = numeric(latitude), lng = numeric(longitude);
+  return Number.isFinite(lat) && Math.abs(lat) <= 90 &&
+    Number.isFinite(lng) && Math.abs(lng) <= 180 ? { lat, lng } : null;
+}
+
 /**
  * Server-side geocoding of a birth place to coordinates, so a chart is never
  * computed from a fabricated/default location (a wrong Ascendant ruins every
@@ -6,7 +16,7 @@
  */
 export async function geocodePlace(place: string | undefined | null): Promise<{ lat: number; lng: number } | null> {
   const key = process.env.GOOGLE_MAPS_API_KEY;
-  const query = (place || '').trim();
+  const query = typeof place === 'string' ? place.trim() : '';
   if (!key || !query) return null;
   try {
     const url = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(query)}&key=${key}`;
@@ -14,10 +24,7 @@ export async function geocodePlace(place: string | undefined | null): Promise<{ 
     if (!res.ok) return null;
     const data: any = await res.json();
     const loc = data?.results?.[0]?.geometry?.location;
-    if (loc && typeof loc.lat === 'number' && typeof loc.lng === 'number') {
-      return { lat: loc.lat, lng: loc.lng };
-    }
-    return null;
+    return validCoordinates(loc?.lat, loc?.lng);
   } catch {
     return null;
   }
@@ -32,8 +39,7 @@ export async function resolveBirthCoords(
   longitude: unknown,
   placeOfBirth?: string,
 ): Promise<{ lat: number; lng: number } | null> {
-  const lat = latitude != null && latitude !== '' ? parseFloat(String(latitude)) : NaN;
-  const lon = longitude != null && longitude !== '' ? parseFloat(String(longitude)) : NaN;
-  if (Number.isFinite(lat) && Number.isFinite(lon)) return { lat, lng: lon };
+  const coords = validCoordinates(latitude, longitude);
+  if (coords) return coords;
   return geocodePlace(placeOfBirth);
 }
