@@ -5,7 +5,7 @@ import { getKundli } from '../../server/astroEngine';
 
 const mocks = vi.hoisted(() => ({
   storage: {
-    getKundliById: vi.fn(), getUser: vi.fn(), getUserKundlis: vi.fn(), createKundli: vi.fn(), updateKundliChart: vi.fn(),
+    getKundliById: vi.fn(), getUser: vi.fn(), getUserKundlis: vi.fn(), createKundli: vi.fn(), persistLegacyUpgrade: vi.fn(),
     saveAiChatMessage: vi.fn(), getUserMemories: vi.fn(), addUserMemory: vi.fn(), getPredictionFeedbacksByUser: vi.fn(), getPatternStatistics: vi.fn(),
   },
   runCouncil: vi.fn(), explainWithEvidence: vi.fn(), extractMemories: vi.fn(),
@@ -25,6 +25,7 @@ import { registerRoutes } from '../../server/routes';
 let app: Express;
 let v3: any;
 let legacy: any;
+let db: Record<string, any>;
 beforeAll(async () => {
   const nk = await getKundli('1990-08-15', '06:30', 12.9716, 77.5946, { place: 'Bengaluru' });
   v3 = { ...nk, id: 'v3', userId: 'owner', name: 'Owner', dateOfBirth: new Date('1990-08-15T00:00:00Z'), timeOfBirth: '06:30', placeOfBirth: 'Bengaluru', latitude: '12.9716000', longitude: '77.5946000' };
@@ -41,9 +42,10 @@ beforeAll(async () => {
 beforeEach(() => {
   vi.clearAllMocks();
   vi.stubEnv('GOOGLE_MAPS_API_KEY', '');
-  const db: Record<string, any> = { v3, legacy, nocoords: { ...legacy, id: 'nocoords', latitude: null, longitude: null } };
+  db = { v3, legacy, nocoords: { ...legacy, id: 'nocoords', latitude: null, longitude: null } };
   mocks.storage.getKundliById.mockImplementation(async (id: string) => db[id]);
-  mocks.storage.updateKundliChart.mockImplementation(async (id: string, data: any) => (db[id] = { ...db[id], ...data }));
+  mocks.storage.persistLegacyUpgrade.mockImplementation(async (id: string, expected: any, data: any) =>
+    JSON.stringify(db[id]?.chartData) === JSON.stringify(expected) ? (db[id] = { ...db[id], ...data }) : undefined);
   mocks.storage.createKundli.mockImplementation(async (d: any) => ({ ...d, id: 'created' }));
 });
 afterEach(() => { vi.unstubAllEnvs(); });
@@ -73,35 +75,67 @@ describe('GET /api/kundli/:id/insights', () => {
 });
 
 describe('legacy chart upgrade through the owner route', () => {
-  it('recalculates on owner access, persists reversibly and reports the change', async () => {
+  it('serves a recalculated V3 view by default and never writes the stored row', async () => {
     const res = await request(app).get('/api/kundli/legacy').set('x-user', 'owner');
     expect(res.status).toBe(200);
-    expect(mocks.storage.updateKundliChart).toHaveBeenCalledTimes(1);
-    const persisted = mocks.storage.updateKundliChart.mock.calls[0][1];
-    expect(persisted.chartData.legacySnapshot).toEqual({ planetaryPositions: [], houses: [] });
-    expect(persisted.chartData.canonical.birth.timezone).toBe('America/New_York');
     expect(res.body.chartStatus.version).toBe('v3-recalculated-from-legacy');
+    expect(res.body.chartData.canonical.birth.timezone).toBe('America/New_York');
+    expect(res.body.chartData.legacySnapshot).toEqual({ planetaryPositions: [], houses: [] });
+    expect(mocks.storage.persistLegacyUpgrade).not.toHaveBeenCalled();
+    expect(db.legacy.chartData).toEqual({ planetaryPositions: [], houses: [] });
   });
-  it('parallel requests share one upgrade instead of racing to write it', async () => {
+  it('with persistence enabled, writes once by compare-and-swap against the original chartData', async () => {
+    vi.stubEnv('V3_PERSIST_LEGACY_UPGRADES', 'true');
+    const res = await request(app).get('/api/kundli/legacy').set('x-user', 'owner');
+    expect(res.status).toBe(200);
+    expect(mocks.storage.persistLegacyUpgrade).toHaveBeenCalledTimes(1);
+    const [id, expected, data] = mocks.storage.persistLegacyUpgrade.mock.calls[0];
+    expect(id).toBe('legacy');
+    expect(expected).toEqual({ planetaryPositions: [], houses: [] });
+    expect(data.chartData.legacySnapshot).toEqual(expected);
+    expect(data.chartData.legacyColumns).toMatchObject({ zodiacSign: legacy.zodiacSign, moonSign: legacy.moonSign });
+    // Already upgraded: a second access neither recalculates nor writes.
+    await request(app).get('/api/kundli/legacy').set('x-user', 'owner');
+    expect(mocks.storage.persistLegacyUpgrade).toHaveBeenCalledTimes(1);
+  });
+  it('a lost swap (row changed concurrently) serves the recalculated view and overwrites nothing', async () => {
+    vi.stubEnv('V3_PERSIST_LEGACY_UPGRADES', 'true');
+    mocks.storage.persistLegacyUpgrade.mockResolvedValueOnce(undefined);
+    const res = await request(app).get('/api/kundli/legacy').set('x-user', 'owner');
+    expect(res.status).toBe(200);
+    expect(res.body.chartStatus.version).toBe('v3-recalculated-from-legacy');
+    expect(db.legacy.chartData).toEqual({ planetaryPositions: [], houses: [] });
+  });
+  it('parallel requests share one recalculation and at most one write', async () => {
+    vi.stubEnv('V3_PERSIST_LEGACY_UPGRADES', 'true');
     // A slow write keeps the first upgrade in flight while the other requests arrive.
-    mocks.storage.updateKundliChart.mockImplementation((_id: string, data: any) => new Promise((r) => setTimeout(() => r({ ...legacy, ...data }), 50)));
+    mocks.storage.persistLegacyUpgrade.mockImplementation((_id: string, _e: any, data: any) => new Promise((r) => setTimeout(() => r({ ...legacy, ...data }), 50)));
     const [a, b, c] = await Promise.all([
       request(app).get('/api/kundli/legacy').set('x-user', 'owner'),
       request(app).get('/api/kundli/legacy/insights').set('x-user', 'owner'),
       request(app).get('/api/kundli/legacy/transits').set('x-user', 'owner'),
     ]);
     expect([a.status, b.status, c.status]).toEqual([200, 200, 200]);
-    expect(mocks.storage.updateKundliChart).toHaveBeenCalledTimes(1);
+    expect(mocks.storage.persistLegacyUpgrade).toHaveBeenCalledTimes(1);
   });
-  it('an unexpected upgrade failure still returns the stored chart', async () => {
-    mocks.storage.updateKundliChart.mockRejectedValueOnce(new Error('db down'));
+  it('a failed write still serves the recalculated view', async () => {
+    vi.stubEnv('V3_PERSIST_LEGACY_UPGRADES', 'true');
+    mocks.storage.persistLegacyUpgrade.mockRejectedValueOnce(new Error('db down'));
     const res = await request(app).get('/api/kundli/legacy').set('x-user', 'owner');
     expect(res.status).toBe(200);
-    expect(res.body.id).toBe('legacy');
+    expect(res.body.chartStatus.version).toBe('v3-recalculated-from-legacy');
+  });
+  it('a chart without coordinates is limited, not guessed, and is never written', async () => {
+    vi.stubEnv('V3_PERSIST_LEGACY_UPGRADES', 'true');
+    const res = await request(app).get('/api/kundli/nocoords').set('x-user', 'owner');
+    expect(res.status).toBe(200);
+    expect(res.body.chartStatus.version).toBe('limited');
+    expect(mocks.storage.persistLegacyUpgrade).not.toHaveBeenCalled();
   });
   it('a different user cannot trigger the upgrade', async () => {
+    vi.stubEnv('V3_PERSIST_LEGACY_UPGRADES', 'true');
     expect((await request(app).get('/api/kundli/legacy').set('x-user', 'other')).status).toBe(404);
-    expect(mocks.storage.updateKundliChart).not.toHaveBeenCalled();
+    expect(mocks.storage.persistLegacyUpgrade).not.toHaveBeenCalled();
   });
 });
 

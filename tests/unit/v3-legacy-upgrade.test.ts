@@ -40,6 +40,26 @@ describe('legacy chart upgrade', () => {
     const up = (await upgradeLegacyKundli(legacy({ timeOfBirth: 'morning' })))!;
     expect((up.chartData as any).limitedReason).toMatch(/could not be recalculated/);
   });
+  it('is pure and keeps everything it would overwrite, so a rollback restores the row exactly', async () => {
+    const original = legacy();
+    const before = JSON.stringify(original);
+    const up = (await upgradeLegacyKundli(original))!;
+    expect(JSON.stringify(original)).toBe(before);
+    const cd = up.chartData as any;
+    // Rollback = chartData ← legacySnapshot, columns ← legacyColumns (docs/V3_IMPLEMENTATION_REPORT.md).
+    const restored = { ...original, ...cd.legacyColumns, chartData: cd.legacySnapshot };
+    expect(restored).toEqual(original);
+    // A re-upgrade of an already-upgraded row keeps the very first snapshot, not the V3 data.
+    const again = (await upgradeLegacyKundli(legacy({ ...up, chartData: { ...cd, canonical: { stale: true } } })))!;
+    expect((again.chartData as any).legacySnapshot).toEqual(legacyChartData);
+    expect((again.chartData as any).legacyColumns).toEqual(cd.legacyColumns);
+  });
+  it('never yields a half-V3 record: output is either a full canonical chart or explicitly limited', async () => {
+    for (const k of [legacy(), legacy({ latitude: null }), legacy({ timeOfBirth: '25:99' }), legacy({ latitude: '91', longitude: '0' })]) {
+      const cd = (await upgradeLegacyKundli(k))!.chartData as any;
+      expect(isCurrentCanonicalChart(cd.canonical) !== Boolean(cd.limitedReason)).toBe(true);
+    }
+  });
   it('leaves current V3 charts untouched', async () => {
     const nk = await getKundli('1990-08-15', '06:30', 12.9716, 77.5946);
     expect(await upgradeLegacyKundli(legacy({ chartData: nk.chartData }))).toBeNull();

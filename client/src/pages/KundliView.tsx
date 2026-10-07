@@ -30,7 +30,8 @@ const PDF_PRICE = 10;
 
 type TransitData = {
   date: string;
-  planets: Array<{ planet: string; sign: string; houseFromMoon: number; houseFromLagna: number; sav: number | null; retrograde: boolean }>;
+  natalLagnaSign: string | null;
+  planets: Array<{ planet: string; sign: string; houseFromMoon: number; houseFromLagna: number | null; sav: number | null; retrograde: boolean }>;
   sadeSati: { active: boolean; phase: string; saturnSign: string; houseFromMoon: number; note: string; sinceApprox?: string; untilApprox?: string };
   jupiter: { sign: string; houseFromMoon: number; favourable: boolean };
 };
@@ -653,14 +654,14 @@ export default function KundliView() {
                             <td className="p-1.5">{p.planet}{p.retrograde ? ' (R)' : ''}</td>
                             <td className="p-1.5">{p.sign}</td>
                             <td className="p-1.5 text-center">{p.houseFromMoon}</td>
-                            <td className="p-1.5 text-center">{p.houseFromLagna}</td>
+                            <td className="p-1.5 text-center">{p.houseFromLagna ?? '—'}</td>
                             <td className="p-1.5 text-center">{p.sav ?? '—'}</td>
                           </tr>
                         ))}
                       </tbody>
                     </table>
                   </div>
-                  <p className="text-[11px] text-muted-foreground">As of {transits.date}. Houses counted from natal Moon and Lagna; SAV = bindus of the transited sign.</p>
+                  <p className="text-[11px] text-muted-foreground">As of {transits.date}. {transits.natalLagnaSign ? 'Houses counted from natal Moon and Lagna' : 'Birth time is approximate, so houses are counted from the natal Moon only'}; SAV = bindus of the transited sign.</p>
                 </CardContent>
               </Card>
             )}

@@ -6,7 +6,7 @@ import { getKundli } from '../../server/astroEngine';
 const mocks = vi.hoisted(() => ({
   create: vi.fn(),
   storage: {
-    getKundliById: vi.fn(), getUser: vi.fn(), getUserKundlis: vi.fn(), updateKundliChart: vi.fn(),
+    getKundliById: vi.fn(), getUser: vi.fn(), getUserKundlis: vi.fn(), persistLegacyUpgrade: vi.fn(),
     saveAiChatMessage: vi.fn(), getUserMemories: vi.fn(), addUserMemory: vi.fn(), getPredictionFeedbacksByUser: vi.fn(), getPatternStatistics: vi.fn(),
     getAiChatHistory: vi.fn(),
   },

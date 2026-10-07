@@ -31,7 +31,7 @@ import {
   getKundliMatching,
   getNativeHoroscope,
   getNumerology,
-  getTransits,
+  transitsForChart,
   transitSummary,
 } from "./astroEngine/index.js";
 import { computePrashna, PRASHNA_CATEGORIES } from "./astroEngine/prashna.js";
@@ -104,6 +104,14 @@ const authLimiter = rateLimit({
 const paymentLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 30,
+});
+
+// Paid-model AI endpoints, throttled per authenticated user (they run after isAuthenticated).
+const aiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 60,
+  keyGenerator: (req: any) => `user:${req.user?.id ?? req.session?.userId ?? 'anonymous'}`,
+  message: { message: 'Too many AI requests. Please wait a few minutes and try again.' },
 });
 
 // Unauthenticated guest-preview insights: pure computation, but still throttled per IP.
@@ -216,9 +224,11 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
   });
 
   // ─── Kundli ───────────────────────────────────────────────
-  // Upgrade a pre-V3 saved chart in place (reversible; see canonical/upgrade.ts).
-  // Callers must have verified ownership first.
-  // Parallel requests for the same chart share one upgrade instead of racing to write it.
+  // A pre-V3 saved chart is served as a V3 view recalculated on read (see canonical/upgrade.ts);
+  // the stored row is never modified unless V3_PERSIST_LEGACY_UPGRADES=true, and then only by an
+  // atomic compare-and-swap that keeps the original under legacySnapshot. Callers must have
+  // verified ownership first. Parallel requests for the same chart share one recalculation.
+  const persistLegacyUpgrades = () => process.env.V3_PERSIST_LEGACY_UPGRADES === 'true';
   const upgradesInFlight = new Map<string, Promise<Kundli>>();
   async function currentChart<T extends Kundli | null | undefined>(kundli: T): Promise<T> {
     if (!kundli?.id) return kundli;
@@ -226,17 +236,29 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
     const id = kundli.id;
     let pending = upgradesInFlight.get(id);
     if (!pending) {
-      pending = (async () => {
-        const upgrade = await upgradeLegacyKundli(kundli);
+      pending = (async (): Promise<Kundli> => {
+        let upgrade;
+        try {
+          upgrade = await upgradeLegacyKundli(kundli);
+        } catch (err) {
+          // Unexpected engine failure: serve the stored chart marked limited, never as V3.
+          console.error('Legacy chart recalculation failed:', err);
+          return { ...kundli, chartData: { ...(kundli.chartData as any ?? {}), limitedReason: 'This chart could not be recalculated right now. Please try again later.' } };
+        }
         if (!upgrade) return kundli;
-        const prevReason = (kundli.chartData as any)?.limitedReason;
-        if (prevReason && prevReason === (upgrade.chartData as any)?.limitedReason) return kundli;
-        return (await storage.updateKundliChart(id, upgrade)) ?? { ...kundli, ...upgrade };
-      })().catch((err) => {
-        // An unexpected failure must not stop the stored chart from loading.
-        console.error('Legacy chart upgrade failed:', err);
-        return kundli;
-      }).finally(() => upgradesInFlight.delete(id));
+        const view = { ...kundli, ...upgrade };
+        if (!persistLegacyUpgrades() || !isCurrentCanonicalChart((upgrade.chartData as any)?.canonical)) return view;
+        try {
+          const saved = await storage.persistLegacyUpgrade(id, kundli.chartData, upgrade);
+          if (saved) return saved;
+          // Lost the swap: someone else changed the row; use theirs only if it is a full V3 chart.
+          const fresh = await storage.getKundliById(id);
+          return fresh && isCurrentCanonicalChart((fresh.chartData as any)?.canonical) ? fresh : view;
+        } catch (err) {
+          console.error('Persisting a legacy chart upgrade failed (serving the recalculated view):', err);
+          return view;
+        }
+      })().finally(() => upgradesInFlight.delete(id));
       upgradesInFlight.set(id, pending);
     }
     return (await pending) as T;
@@ -348,9 +370,11 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
       const owned = await storage.getKundliById(req.params.id);
       if (!owned || owned.userId !== (req.user as { id: string }).id) return res.status(404).json({ message: "Kundli not found" });
       const kundli = await currentChart(owned);
-      if (!kundli.moonSign || !kundli.ascendant) return res.status(404).json({ message: "Kundli not found" });
-      const sav = (kundli.chartData as any)?.ashtakavarga?.sav;
-      res.json(getTransits(kundli.moonSign, kundli.ascendant, sav));
+      const canonical = (kundli.chartData as any)?.canonical;
+      if (!isCurrentCanonicalChart(canonical)) {
+        return res.status(409).json({ message: chartVersionStatus(kundli).notes[0] ?? 'This chart needs to be recreated with the V3 engine.', chartStatus: chartVersionStatus(kundli) });
+      }
+      res.json(transitsForChart(canonical, (kundli.chartData as any)?.ashtakavarga?.sav));
     } catch (err) {
       console.error('Transit error:', err);
       res.status(500).json({ message: "Failed to compute transits" });
@@ -394,12 +418,23 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
   });
 
   // ─── Panchang ─────────────────────────────────────────────
+  // Without a location the almanac is for New Delhi, and the response says so (location.isDefault).
   app.get('/api/panchang', (req, res) => {
     try {
-      const date = (req.query.date as string) || undefined;
-      const tz = req.query.tz ? parseInt(req.query.tz as string, 10) : 330;
-      res.json(computePanchang(date, Number.isFinite(tz) ? tz : 330));
+      const q = (k: string) => (typeof req.query[k] === 'string' && req.query[k] ? String(req.query[k]) : undefined);
+      const hasLocation = q('lat') !== undefined || q('lng') !== undefined;
+      res.json(computePanchang({
+        date: q('date'),
+        latitude: hasLocation ? q('lat') : 28.6139,
+        longitude: hasLocation ? q('lng') : 77.209,
+        timezone: q('tz'),
+        place: hasLocation ? (q('place')?.slice(0, 120) ?? null) : 'New Delhi, India',
+        isDefaultLocation: !hasLocation,
+      }));
     } catch (err) {
+      if (err instanceof BirthInputError || err instanceof CalculationError) {
+        return res.status(400).json({ message: err.message });
+      }
       console.error('Panchang error:', err);
       res.status(500).json({ message: 'Failed to compute panchang' });
     }
@@ -2202,7 +2237,7 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
   });
 
   // Chat with AI Astrologer (Super-Council Orchestrator)
-  app.post('/api/ai/chat', isAuthenticated, async (req: any, res) => {
+  app.post('/api/ai/chat', isAuthenticated, aiLimiter, async (req: any, res) => {
     try {
       const user = req.user as any;
       const { message, sessionId, language } = req.body;
@@ -2283,9 +2318,9 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
 
       // Current transits (Gochar) for the bound chart.
       let transits: string | undefined;
-      if (kundli?.moonSign && kundli?.ascendant) {
+      if (isCurrentCanonicalChart((kundli?.chartData as any)?.canonical)) {
         try {
-          transits = transitSummary(getTransits(kundli.moonSign, kundli.ascendant, (kundli.chartData as any)?.ashtakavarga?.sav));
+          transits = transitSummary(transitsForChart((kundli!.chartData as any).canonical, (kundli!.chartData as any)?.ashtakavarga?.sav));
         } catch (err) {
           console.error('[chat] transit computation failed:', err);
         }
@@ -2383,7 +2418,7 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
   });
 
   // Interpret a saved Kundli with AI
-  app.post('/api/ai/interpret-kundli', isAuthenticated, async (req: any, res) => {
+  app.post('/api/ai/interpret-kundli', isAuthenticated, aiLimiter, async (req: any, res) => {
     try {
       const { kundliId } = req.body;
       if (!kundliId) return res.status(400).json({ message: "kundliId is required" });
@@ -2820,10 +2855,16 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
       const profile = await storage.getJyotishProfileById(profileId);
       if (!profile) return res.status(404).json({ message: 'Profile not found' });
 
+      // A stored reading is used only if it belongs to THIS profile and holds a current V3 chart;
+      // otherwise the chart is recomputed canonically (never another tenant's or a pre-V3 snapshot).
       let chartData: any;
+      let usedReadingId: string | undefined;
       if (readingId) {
         const reading = await storage.getJyotishReadingById(readingId);
-        chartData = reading?.chartData;
+        if (reading?.profileId === profile.id && isCurrentCanonicalChart((reading.chartData as any)?.canonical)) {
+          chartData = reading.chartData;
+          usedReadingId = reading.id;
+        }
       }
       if (!chartData) {
         chartData = computeJyotishChart(profile.dateOfBirth, profile.timeOfBirth, Number(profile.latitude), Number(profile.longitude)).chartData;
@@ -2841,10 +2882,11 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
         (delta) => res.write(delta),
         language,
       );
-      await storage.createJyotishSessionQuery({ profileId, readingId: readingId || undefined, tradition, question, answer });
+      await storage.createJyotishSessionQuery({ profileId, readingId: usedReadingId, tradition, question, answer });
       res.end();
     } catch (err: any) {
       console.error('Jyotish session query error:', err);
+      if (!res.headersSent && (err instanceof BirthInputError || err instanceof CalculationError)) return res.status(400).json({ message: err.message });
       if (!res.headersSent) {
         if (err.message?.includes('OPENAI_API_KEY')) return res.status(503).json({ message: 'AI features not configured. Set OPENAI_API_KEY.' });
         return res.status(500).json({ message: 'Failed to answer query' });
@@ -3020,6 +3062,21 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
       const profile = await requireProProfile(req, profileId);
       if (!profile) return res.status(404).json({ message: 'Profile not found' });
 
+      // A stored reading is used only if it belongs to THIS profile and holds a current V3 chart;
+      // otherwise the chart is recomputed canonically (never another tenant's or a pre-V3 snapshot).
+      let chartData: any;
+      let usedReadingId: string | undefined;
+      if (readingId) {
+        const reading = await storage.getJyotishReadingById(readingId);
+        if (reading?.profileId === profile.id && isCurrentCanonicalChart((reading.chartData as any)?.canonical)) {
+          chartData = reading.chartData;
+          usedReadingId = reading.id;
+        }
+      }
+      if (!chartData) {
+        chartData = computeJyotishChart(profile.dateOfBirth, profile.timeOfBirth, Number(profile.latitude), Number(profile.longitude)).chartData;
+      }
+
       const credit = await storage.consumeProAiCredit(req.session.astrologerId, 1, PRO_AI_MONTHLY_LIMIT);
       if (!credit.ok) {
         return res.status(402).json({
@@ -3027,15 +3084,6 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
           used: credit.used,
           limit: credit.limit,
         });
-      }
-
-      let chartData: any;
-      if (readingId) {
-        const reading = await storage.getJyotishReadingById(readingId);
-        chartData = reading?.chartData;
-      }
-      if (!chartData) {
-        chartData = computeJyotishChart(profile.dateOfBirth, profile.timeOfBirth, Number(profile.latitude), Number(profile.longitude)).chartData;
       }
 
       res.setHeader('Content-Type', 'text/plain; charset=utf-8');
@@ -3050,10 +3098,11 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
         (delta) => res.write(delta),
         language,
       );
-      await storage.createJyotishSessionQuery({ profileId, readingId: readingId || undefined, tradition, question, answer });
+      await storage.createJyotishSessionQuery({ profileId, readingId: usedReadingId, tradition, question, answer });
       res.end();
     } catch (err: any) {
       console.error('Pro session query error:', err);
+      if (!res.headersSent && (err instanceof BirthInputError || err instanceof CalculationError)) return res.status(400).json({ message: err.message });
       if (!res.headersSent) {
         if (err.message?.includes('OPENAI_API_KEY')) return res.status(503).json({ message: 'AI features not configured. Set OPENAI_API_KEY.' });
         return res.status(500).json({ message: 'Failed to answer query' });

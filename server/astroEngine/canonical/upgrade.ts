@@ -1,12 +1,13 @@
 /**
  * Legacy chart handling. Charts saved before V3 were computed by an
  * approximate Keplerian engine that assumed Indian Standard Time everywhere.
- * They are upgraded lazily, when their owner opens them, by deterministic
- * recalculation from the stored birth data (date, time, coordinates) in the
- * birthplace's historical time zone.
+ * When their owner opens them they are recalculated deterministically from the
+ * stored birth data (date, time, coordinates) in the birthplace's historical
+ * time zone. This module is pure: it returns the V3 fields and never writes.
+ * By default the route serves them as a view and leaves the stored row as is.
  *
- * Reversible: the previous chartData is kept verbatim under `legacySnapshot`.
- * Never silent: a migration note is recorded and surfaced in the UI.
+ * Reversible: any persisted upgrade keeps the previous chartData verbatim under
+ * `legacySnapshot`. Never silent: a migration note is surfaced in the UI.
  * Never fabricated: without stored coordinates or a valid birth time the chart
  * is marked `limited` and left unconverted.
  */
@@ -78,11 +79,16 @@ export async function upgradeLegacyKundli(kundli: Kundli, now = new Date()): Pro
       'Earlier versions used an approximate planetary engine, so some degrees, nakshatras or dasha dates may differ from what you saw before.',
     ];
     const migration: MigrationRecord = { from: 'pre-v3', to: CANONICAL_SCHEMA_VERSION, at: now.toISOString(), notes };
-    const { limitedReason: _drop, legacySnapshot: priorSnapshot, ...previous } = cd;
+    const { limitedReason: _drop, legacySnapshot: priorSnapshot, legacyColumns: priorColumns, ...previous } = cd;
+    // Everything an upgrade overwrites is kept, so a rollback can restore the row exactly.
+    const legacyColumns = priorColumns ?? {
+      zodiacSign: kundli.zodiacSign, moonSign: kundli.moonSign, ascendant: kundli.ascendant,
+      dashas: kundli.dashas, doshas: kundli.doshas, remedies: kundli.remedies,
+    };
     return {
       zodiacSign: nk.zodiacSign, moonSign: nk.moonSign, ascendant: nk.ascendant,
       dashas: nk.dashas, doshas: nk.doshas, remedies: nk.remedies,
-      chartData: { ...nk.chartData, migration, legacySnapshot: priorSnapshot ?? previous },
+      chartData: { ...nk.chartData, migration, legacySnapshot: priorSnapshot ?? previous, legacyColumns },
     };
   } catch (err) {
     if (err instanceof BirthInputError || err instanceof CalculationError) {

@@ -93,6 +93,23 @@ export function siderealAngles(jdUT: number, latitude: number, longitude: number
   return { ascendant, midheaven };
 }
 
+/**
+ * Next sunrise/sunset (UT JD) after `jdUT` at a place: Swiss rise_trans, disc centre,
+ * standard refraction. Throws where the Sun does not rise or set (polar day/night).
+ */
+export function nextSunEvent(jdUT: number, latitude: number, longitude: number, event: 'rise' | 'set'): number {
+  const flag = event === 'rise' ? C.SE_CALC_RISE : C.SE_CALC_SET;
+  const r = sweph.rise_trans(jdUT, C.SE_SUN, '', C.SEFLG_MOSEPH, flag | C.SE_BIT_DISC_CENTER, [longitude, latitude, 0], 1013.25, 15);
+  if (r.flag !== 0 || !Number.isFinite(r.data)) {
+    throw new CalculationError('The Sun does not rise or set at this place on this date.');
+  }
+  return r.data;
+}
+
+export function jdToDate(jd: number): Date {
+  return new Date((jd - 2440587.5) * 86_400_000);
+}
+
 function nakshatraOf(lon: number) {
   const i = nakshatraIndex(lon);
   return { index: i, name: NAKSHATRAS[i].name, lord: NAKSHATRAS[i].lord as Graha, pada: nakshatraPada(lon) };

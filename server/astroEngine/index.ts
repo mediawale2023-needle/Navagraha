@@ -8,9 +8,10 @@ import { SIGNS } from './vedic.js';
 import { lonOf } from './lon.js';
 import { ashtakootMatch }      from './matching.js';
 import { resolveBirthWithCoordinates, type TimeAccuracy } from './birthResolver.js';
-import { computeCanonicalChart, siderealPositions } from './canonical/compute.js';
+import { computeCanonicalChart, siderealPositions, CalculationError } from './canonical/compute.js';
 import { legacyView, type LegacyKundli } from './canonical/legacy.js';
 import { BirthInputError } from './errors.js';
+import type { CanonicalChart } from '@shared/v3/canonical';
 
 export { BirthInputError };
 import { calculateNumerology } from './numerology.js';
@@ -101,8 +102,9 @@ export async function getKundli(
 export interface TransitInfo {
   date: string;
   natalMoonSign: string;
-  natalLagnaSign: string;
-  planets: Array<{ planet: string; sign: string; houseFromMoon: number; houseFromLagna: number; sav: number | null; retrograde: boolean }>;
+  /** Null when the birth time is approximate: houses are then counted from the Moon only. */
+  natalLagnaSign: string | null;
+  planets: Array<{ planet: string; sign: string; houseFromMoon: number; houseFromLagna: number | null; sav: number | null; retrograde: boolean }>;
   sadeSati: { active: boolean; phase: string; saturnSign: string; houseFromMoon: number; note: string; sinceApprox?: string; untilApprox?: string };
   jupiter: { sign: string; houseFromMoon: number; favourable: boolean };
 }
@@ -118,7 +120,8 @@ function siderealLongitudesOn(date: Date): Record<string, number> {
 function resolveSignIndex(s: string | number): number {
   if (typeof s === 'number') return ((Math.round(s) % 12) + 12) % 12;
   const i = (SIGNS as readonly string[]).indexOf(s);
-  return i >= 0 ? i : 0;
+  if (i < 0) throw new CalculationError(`Unknown sign "${s}"`);
+  return i;
 }
 
 /**
@@ -128,12 +131,12 @@ function resolveSignIndex(s: string | number): number {
  */
 export function getTransits(
   natalMoonSign: string | number,
-  natalLagnaSign: string | number,
+  natalLagnaSign: string | number | null,
   savBySign?: number[],
   when: Date = new Date(),
 ): TransitInfo {
   const moonIdx = resolveSignIndex(natalMoonSign);
-  const lagnaIdx = resolveSignIndex(natalLagnaSign);
+  const lagnaIdx = natalLagnaSign == null ? null : resolveSignIndex(natalLagnaSign);
   const { bodies } = siderealPositions(when);
   const lons = Object.fromEntries(Object.entries(bodies).map(([name, b]) => [name, b.longitude]));
 
@@ -143,7 +146,7 @@ export function getTransits(
       planet: p,
       sign: SIGNS[s],
       houseFromMoon: ((s - moonIdx + 12) % 12) + 1,
-      houseFromLagna: ((s - lagnaIdx + 12) % 12) + 1,
+      houseFromLagna: lagnaIdx == null ? null : ((s - lagnaIdx + 12) % 12) + 1,
       sav: savBySign && savBySign.length === 12 ? savBySign[s] : null,
       retrograde: (bodies as any)[p].speed < 0,
     };
@@ -184,23 +187,31 @@ export function getTransits(
   return {
     date: when.toISOString().split('T')[0],
     natalMoonSign: SIGNS[moonIdx],
-    natalLagnaSign: SIGNS[lagnaIdx],
+    natalLagnaSign: lagnaIdx == null ? null : SIGNS[lagnaIdx],
     planets,
     sadeSati: { active, phase, saturnSign: SIGNS[satSign], houseFromMoon: hMoonSat, note, sinceApprox, untilApprox },
     jupiter: { sign: SIGNS[jupSign], houseFromMoon: hMoonJup, favourable: [2, 5, 7, 9, 11].includes(hMoonJup) },
   };
 }
 
+/** Transits for a canonical chart; with an approximate birth time the Lagna is not used. */
+export function transitsForChart(canonical: CanonicalChart, savBySign?: number[], when?: Date): TransitInfo {
+  const moon = canonical.planets.find((p) => p.name === 'Moon')!;
+  const lagna = canonical.birth.timeAccuracy === 'approximate' ? null : canonical.ascendant.sign;
+  return getTransits(moon.sign, lagna, savBySign, when);
+}
+
 /** Compact text summary of transits for AI prompts. */
 export function transitSummary(t: TransitInfo): string {
   const lines = t.planets
-    .map((p) => `- ${p.planet}: ${p.sign} (${p.houseFromMoon}th from Moon, ${p.houseFromLagna}th from Lagna${p.sav != null ? `, SAV ${p.sav}` : ''}${p.retrograde ? ', retrograde' : ''})`)
+    .map((p) => `- ${p.planet}: ${p.sign} (${p.houseFromMoon}th from Moon${p.houseFromLagna != null ? `, ${p.houseFromLagna}th from Lagna` : ''}${p.sav != null ? `, SAV ${p.sav}` : ''}${p.retrograde ? ', retrograde' : ''})`)
     .join('\n');
   const ss = t.sadeSati.active
     ? `Sade Sati ACTIVE — ${t.sadeSati.phase}. Saturn in ${t.sadeSati.saturnSign} (~${t.sadeSati.sinceApprox} to ~${t.sadeSati.untilApprox}).`
     : `Sade Sati not active. ${t.sadeSati.phase}.${t.sadeSati.note ? ' ' + t.sadeSati.note : ''}`;
   const jup = `Jupiter transiting ${t.jupiter.sign} (${t.jupiter.houseFromMoon}th from Moon) — ${t.jupiter.favourable ? 'favourable' : 'mixed'}.`;
-  return `Current transits as of ${t.date} (natal Moon ${t.natalMoonSign}, Lagna ${t.natalLagnaSign}):\n${lines}\n${ss}\n${jup}`;
+  const lagna = t.natalLagnaSign ? `Lagna ${t.natalLagnaSign}` : 'Lagna not used — birth time approximate';
+  return `Current transits as of ${t.date} (natal Moon ${t.natalMoonSign}, ${lagna}):\n${lines}\n${ss}\n${jup}`;
 }
 
 // ─── Kundli Matching ──────────────────────────────────────────────────────────

@@ -1,16 +1,18 @@
 /**
- * Panchang — the five limbs of the Vedic almanac for a given day:
- * Tithi, Nakshatra, Yoga, Karana and Vara (weekday), computed from the
- * sidereal Sun and Moon longitudes (Lahiri ayanamsa). Also provides the
- * standard weekday-based Rahu Kaal / Gulika / Yamaganda windows.
- *
- * Panchang elements are conventionally reported at sunrise; we evaluate at
- * ~06:00 local time for the requested timezone (IST by default).
+ * Panchang — the five limbs of the Vedic almanac for a local civil date at a
+ * place: Tithi, Nakshatra, Yoga, Karana and Vara, from the sidereal Sun and
+ * Moon (Swiss Ephemeris, Lahiri) at that place's actual sunrise (udaya), plus
+ * the weekday-based Rahu Kaal / Gulika / Yamaganda windows, which divide the
+ * real sunrise→sunset day into eighths. Times are reported in the place's
+ * IANA time zone (historical rules and DST included).
  */
+import { siderealPositions, julianDayUT, nextSunEvent, jdToDate, CalculationError } from './canonical/compute.js';
+import { NAKSHATRAS, NAKSHATRA_SPAN } from './vedic.js';
+import { BirthInputError } from './errors.js';
+import { isValidTimeZone, offsetSecondsAt, formatOffset, timeZoneForCoordinates } from './birthResolver.js';
+import { validCoordinates } from '../geocode.js';
 
 const normalize360 = (deg: number) => ((deg % 360) + 360) % 360;
-import { siderealPositions } from "./canonical/compute";
-import { NAKSHATRAS, NAKSHATRA_SPAN } from "./vedic";
 
 export const TITHI_NAMES = [
   "Pratipada", "Dwitiya", "Tritiya", "Chaturthi", "Panchami", "Shashthi",
@@ -44,14 +46,18 @@ export function karanaName(index: number): string {
   return MOVABLE_KARANAS[(i - 1) % 7];
 }
 
-function fmtTime(d: Date, tzOffsetMin: number): string {
-  const local = new Date(d.getTime() + tzOffsetMin * 60000);
-  const h = local.getUTCHours();
-  const m = local.getUTCMinutes();
-  const ampm = h >= 12 ? "PM" : "AM";
-  const h12 = h % 12 === 0 ? 12 : h % 12;
-  return `${h12}:${String(m).padStart(2, "0")} ${ampm}`;
+const DATE_RE = /^(\d{4})-(\d{2})-(\d{2})$/;
+
+/** Local civil date (YYYY-MM-DD) of an instant in a time zone. */
+export function civilDateIn(timeZone: string, at: Date): string {
+  return new Intl.DateTimeFormat('en-CA', { timeZone, year: 'numeric', month: '2-digit', day: '2-digit' }).format(at);
 }
+
+function fmtTime(at: Date, timeZone: string): string {
+  return new Intl.DateTimeFormat('en-US', { timeZone, hour: 'numeric', minute: '2-digit', hour12: true }).format(at);
+}
+
+interface TimeWindow { start: string; end: string; startUTC: string; endUTC: string }
 
 export interface Panchang {
   date: string;
@@ -62,68 +68,98 @@ export interface Panchang {
   karana: string;
   sunrise: string;
   sunset: string;
-  rahuKaal: { start: string; end: string };
-  gulikaKaal: { start: string; end: string };
-  yamaganda: { start: string; end: string };
+  sunriseUTC: string;
+  sunsetUTC: string;
+  rahuKaal: TimeWindow;
+  gulikaKaal: TimeWindow;
+  yamaganda: TimeWindow;
+  location: { latitude: number; longitude: number; timezone: string; utcOffset: string; place: string | null; isDefault: boolean };
+  basis: string;
 }
 
-export function computePanchang(dateInput?: string | Date, tzOffsetMin = 330): Panchang {
-  // Resolve the local calendar date, then evaluate at ~06:00 local (sunrise).
-  const base = dateInput ? new Date(dateInput) : new Date();
-  const localMidnightUtcMs = Math.floor((base.getTime() + tzOffsetMin * 60000) / 86400000) * 86400000 - tzOffsetMin * 60000;
-  const sunriseMin = 6 * 60; // 06:00 local
-  const sunsetMin = 18 * 60; // 18:00 local
-  const evalDate = new Date(localMidnightUtcMs + sunriseMin * 60000);
+export interface PanchangInput {
+  /** Local civil date at the place (YYYY-MM-DD); defaults to today there. */
+  date?: string;
+  latitude: unknown;
+  longitude: unknown;
+  /** IANA zone; derived from the coordinates when absent. */
+  timezone?: string | null;
+  place?: string | null;
+  isDefaultLocation?: boolean;
+  now?: Date;
+}
 
-  // Same Swiss Ephemeris/Lahiri positions as every natal chart.
-  const { bodies } = siderealPositions(evalDate);
+export function computePanchang(input: PanchangInput): Panchang {
+  const coords = validCoordinates(input.latitude, input.longitude);
+  if (!coords) throw new BirthInputError('latitude and longitude must be valid coordinates');
+  const { lat, lng } = coords;
+
+  let timeZone: string;
+  if (input.timezone) {
+    if (!isValidTimeZone(input.timezone)) throw new BirthInputError(`Unknown time zone ${input.timezone}`);
+    timeZone = input.timezone;
+  } else {
+    timeZone = timeZoneForCoordinates(lat, lng, (input.now ?? new Date()).getTime());
+  }
+
+  const date = input.date ?? civilDateIn(timeZone, input.now ?? new Date());
+  const m = DATE_RE.exec(date);
+  const wallMidnight = m ? Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3])) : NaN;
+  if (!m || new Date(wallMidnight).toISOString().slice(0, 10) !== date) throw new BirthInputError('date must be a valid YYYY-MM-DD date');
+  const year = Number(m[1]);
+  if (year < 1800 || year > 2400) throw new BirthInputError('date must be between 1800 and 2400');
+
+  // Search from local midnight (offset read at that instant; a midnight DST shift only moves the start).
+  const startMs = wallMidnight - offsetSecondsAt(timeZone, wallMidnight) * 1000;
+  const sunriseJd = nextSunEvent(julianDayUT(new Date(startMs)), lat, lng, 'rise');
+  const sunriseAt = jdToDate(sunriseJd);
+  if (civilDateIn(timeZone, sunriseAt) !== date) {
+    throw new CalculationError('The Sun does not rise at this place on this date, so a sunrise Panchang cannot be given.');
+  }
+  const sunsetJd = nextSunEvent(sunriseJd, lat, lng, 'set');
+  const sunsetAt = jdToDate(sunsetJd);
+  if (civilDateIn(timeZone, sunsetAt) !== date) {
+    throw new CalculationError('The Sun does not set at this place on this date, so the day cannot be divided for Rahu Kaal.');
+  }
+
+  // Limbs at sunrise, from the same Swiss/Lahiri positions as every natal chart.
+  const { bodies } = siderealPositions(sunriseAt);
   const sunSid = bodies.Sun.longitude;
   const moonSid = bodies.Moon.longitude;
-
   const diff = normalize360(moonSid - sunSid);
-
-  // Tithi (1..30)
   const tithiIdx = Math.floor(diff / 12); // 0..29
-  const paksha = tithiIdx < 15 ? "Shukla" : "Krishna";
-  const tithiInPaksha = tithiIdx % 15; // 0..14
-  const tithiName = TITHI_NAMES[tithiInPaksha];
-
-  // Nakshatra
-  const nakIdx = Math.floor(normalize360(moonSid) / NAKSHATRA_SPAN) % 27;
-  const nak = NAKSHATRAS[nakIdx];
-
-  // Yoga (sum of sidereal longitudes)
+  const nak = NAKSHATRAS[Math.floor(normalize360(moonSid) / NAKSHATRA_SPAN) % 27];
   const yogaIdx = Math.floor(normalize360(sunSid + moonSid) / (360 / 27)) % 27;
 
-  // Karana (half-tithi)
-  const karanaIdx = Math.floor(diff / 6);
+  // The Vedic day begins at this sunrise, which falls on the requested civil date.
+  const weekday = new Date(wallMidnight).getUTCDay();
 
-  const weekday = new Date(localMidnightUtcMs + tzOffsetMin * 60000).getUTCDay();
-
-  // Day length divided into 8 segments
-  const dayLenMin = sunsetMin - sunriseMin;
-  const seg = dayLenMin / 8;
-  const segmentWindow = (n: number) => {
-    const startMin = sunriseMin + (n - 1) * seg;
-    const start = new Date(localMidnightUtcMs + startMin * 60000 - tzOffsetMin * 60000);
-    const end = new Date(localMidnightUtcMs + (startMin + seg) * 60000 - tzOffsetMin * 60000);
-    return { start: fmtTime(start, tzOffsetMin), end: fmtTime(end, tzOffsetMin) };
+  const seg = (sunsetAt.getTime() - sunriseAt.getTime()) / 8;
+  const segmentWindow = (n: number): TimeWindow => {
+    const s = new Date(sunriseAt.getTime() + (n - 1) * seg);
+    const e = new Date(s.getTime() + seg);
+    return { start: fmtTime(s, timeZone), end: fmtTime(e, timeZone), startUTC: s.toISOString(), endUTC: e.toISOString() };
   };
 
-  const sunriseDate = new Date(localMidnightUtcMs + sunriseMin * 60000 - tzOffsetMin * 60000);
-  const sunsetDate = new Date(localMidnightUtcMs + sunsetMin * 60000 - tzOffsetMin * 60000);
-
   return {
-    date: new Date(localMidnightUtcMs + tzOffsetMin * 60000).toISOString().split("T")[0],
+    date,
     vara: VARA_NAMES[weekday],
-    tithi: { name: tithiName, paksha, number: tithiIdx + 1 },
+    tithi: { name: TITHI_NAMES[tithiIdx % 15], paksha: tithiIdx < 15 ? "Shukla" : "Krishna", number: tithiIdx + 1 },
     nakshatra: { name: nak.name, lord: nak.lord },
     yoga: YOGA_NAMES[yogaIdx],
-    karana: karanaName(karanaIdx),
-    sunrise: fmtTime(sunriseDate, tzOffsetMin),
-    sunset: fmtTime(sunsetDate, tzOffsetMin),
+    karana: karanaName(Math.floor(diff / 6)),
+    sunrise: fmtTime(sunriseAt, timeZone),
+    sunset: fmtTime(sunsetAt, timeZone),
+    sunriseUTC: sunriseAt.toISOString(),
+    sunsetUTC: sunsetAt.toISOString(),
     rahuKaal: segmentWindow(RAHU_SEGMENT[weekday]),
     gulikaKaal: segmentWindow(GULIKA_SEGMENT[weekday]),
     yamaganda: segmentWindow(YAMA_SEGMENT[weekday]),
+    location: {
+      latitude: lat, longitude: lng, timezone: timeZone,
+      utcOffset: formatOffset(offsetSecondsAt(timeZone, sunriseAt.getTime())),
+      place: input.place ?? null, isDefault: input.isDefaultLocation === true,
+    },
+    basis: 'Limbs at local sunrise; sunrise/sunset from Swiss Ephemeris (Sun disc centre, standard refraction); Lahiri ayanamsa.',
   };
 }

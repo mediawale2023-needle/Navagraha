@@ -11,13 +11,11 @@
  * (carried over from the previous engine) and are labelled as such — they are
  * not presented as classical rules.
  */
-import sweph from 'sweph';
 import { SIGN_NAMES } from '@shared/v3/canonical';
-import { siderealPositions, siderealAngles, CalculationError } from './canonical/compute.js';
+import { siderealPositions, siderealAngles, nextSunEvent, jdToDate } from './canonical/compute.js';
 import { NAKSHATRAS, NAKSHATRA_SPAN, SIGN_LORDS } from './vedic.js';
 import { TITHI_NAMES, YOGA_NAMES, VARA_NAMES, karanaName } from './panchang.js';
 
-const C = sweph.constants;
 const norm = (x: number) => ((x % 360) + 360) % 360;
 const DAY_LORDS = ['Sun', 'Moon', 'Mars', 'Mercury', 'Jupiter', 'Venus', 'Saturn'];
 const CHALDEAN = ['Saturn', 'Jupiter', 'Mars', 'Sun', 'Venus', 'Mercury', 'Moon'];
@@ -37,20 +35,6 @@ const TIMING: Record<string, string> = {
   Moon: 'Within 1–3 days', Mercury: 'Within 1–3 weeks', Venus: 'Within 1–2 months', Sun: 'Within 1–3 months',
   Mars: 'Within 2–3 months, with friction', Jupiter: 'Within 6–12 months', Saturn: 'Within 1–2 years, with patience',
 };
-
-function jdToDate(jd: number): Date {
-  return new Date((jd - 2440587.5) * 86_400_000);
-}
-
-/** Next sun rise/set after `jdUT` at a place (UT JD). Throws where the Sun does not rise/set. */
-function nextSunEvent(jdUT: number, lat: number, lng: number, event: 'rise' | 'set'): number {
-  const flag = event === 'rise' ? C.SE_CALC_RISE : C.SE_CALC_SET;
-  const r = sweph.rise_trans(jdUT, C.SE_SUN, '', C.SEFLG_MOSEPH, flag | C.SE_BIT_DISC_CENTER, [lng, lat, 0], 1013.25, 15);
-  if (r.flag !== 0 || !Number.isFinite(r.data)) {
-    throw new CalculationError('The Sun does not rise or set at this place on this date, so the hora cannot be determined.');
-  }
-  return r.data;
-}
 
 /** Arudha Lagna: count Lagna→its lord, count the same again from the lord; 1st/7th from Lagna → take the 10th from there. */
 export function arudhaLagna(lagnaSign: number, lordSign: number): number {

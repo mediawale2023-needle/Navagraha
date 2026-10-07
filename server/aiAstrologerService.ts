@@ -13,7 +13,7 @@
 
 import OpenAI from "openai";
 import type { Kundli } from "@shared/schema";
-import { getTransits, transitSummary } from "./astroEngine/index.js";
+import { transitsForChart, transitSummary } from "./astroEngine/index.js";
 import { siderealPositions } from "./astroEngine/canonical/compute.js";
 import { SIGNS } from "./astroEngine/vedic.js";
 import { isCurrentCanonicalChart } from "@shared/v3/canonical";
@@ -554,8 +554,9 @@ export async function generateLifeReport(kundli: Partial<Kundli>): Promise<Gener
   }
 
   const chart = chartSummary(kundli);
-  const transit = (kundli.moonSign && kundli.ascendant)
-    ? "\n\n" + transitSummary(getTransits(kundli.moonSign, kundli.ascendant, (kundli as any).chartData?.ashtakavarga?.sav))
+  const canonical = (kundli as any).chartData?.canonical;
+  const transit = isCurrentCanonicalChart(canonical)
+    ? "\n\n" + transitSummary(transitsForChart(canonical, (kundli as any).chartData?.ashtakavarga?.sav))
     : await currentTransitContext();
 
   // Parallel batches; a failed batch degrades to empty (filtered out) rather than
