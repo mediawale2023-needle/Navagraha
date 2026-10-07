@@ -119,6 +119,11 @@ describe('POST /api/kundli uses the birthplace time zone', () => {
     expect(res.body.message).toMatch(/did not exist/);
     expect(mocks.storage.createKundli).not.toHaveBeenCalled();
   });
+  it('keeps the entered calendar date even when sent as an offset timestamp', async () => {
+    const res = await request(app).post('/api/kundli').send({ ...birth, dateOfBirth: '1990-07-04T00:00:00+05:30' });
+    expect(res.status).toBe(200);
+    expect(res.body.chartData.canonical.birth.localDate).toBe('1990-07-04');
+  });
   it('rejects an unknown explicit time zone', async () => {
     const res = await request(app).post('/api/kundli').send({ ...birth, timezone: 'Mars/Olympus' });
     expect(res.status).toBe(400);

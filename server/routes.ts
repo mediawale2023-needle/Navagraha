@@ -106,6 +106,12 @@ const paymentLimiter = rateLimit({
   max: 30,
 });
 
+// Unauthenticated guest-preview insights: pure computation, but still throttled per IP.
+const insightsLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 60,
+});
+
 export async function registerRoutes(app: Express, existingServer?: Server): Promise<Server> {
 
   // Mount Swagger UI
@@ -235,7 +241,8 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
       const lat = coords.lat;
       const lon = coords.lng;
 
-      const nk = await getKundli(dateOfBirth, req.body.timeOfBirth, lat, lon, {
+      // Pass the entered calendar date itself; a Date round-trip can shift it across UTC midnight.
+      const nk = await getKundli(typeof req.body.dateOfBirth === 'string' ? req.body.dateOfBirth : dateOfBirth, req.body.timeOfBirth, lat, lon, {
         timeAccuracy: req.body.isBirthTimeApproximate === true ? 'approximate' : 'exact',
         timezone: typeof req.body.timezone === 'string' ? req.body.timezone : null,
         utcOffset: typeof req.body.utcOffset === 'string' ? req.body.utcOffset : null,
@@ -310,7 +317,7 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
 
   // Insights for an unsaved (guest) chart held by the client. Pure computation on a
   // schema-validated canonical chart: nothing is stored and no AI is called.
-  app.post('/api/kundli/insights', async (req, res) => {
+  app.post('/api/kundli/insights', insightsLimiter, async (req, res) => {
     try {
       const canonical = canonicalChartSchema.safeParse(req.body?.canonical);
       if (!canonical.success) return res.status(400).json({ message: 'A valid V3 canonical chart is required' });

@@ -311,12 +311,16 @@ function deriveStructured(kundli: Partial<Kundli>): StructuredChart {
     retrograde: !!p.isRetrograde,
   }));
 
+  // Status is derived from the dates as of today; the stored status froze when the chart was created.
+  const today = new Date().toISOString().slice(0, 10);
+  const statusOf = (x: any): "past" | "current" | "upcoming" =>
+    x?.startDate && x?.endDate ? (x.startDate <= today && today < x.endDate ? "current" : today >= x.endDate ? "past" : "upcoming") : x?.status;
   const dashaTimeline: ReportDashaPeriod[] = rawDashas.map((d) => {
-    const current = Array.isArray(d.antardashas) ? d.antardashas.find((a: any) => a.status === "current") : null;
+    const current = Array.isArray(d.antardashas) ? d.antardashas.find((a: any) => statusOf(a) === "current") : null;
     return {
       planet: d.planet,
       period: d.period,
-      status: d.status,
+      status: statusOf(d),
       startDate: d.startDate,
       endDate: d.endDate,
       currentAntardasha: current
