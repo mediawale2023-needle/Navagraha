@@ -124,7 +124,9 @@ export function detectYogas(
   const occ = (h: number) => PLANETS.some((p) => p !== 'Moon' && p !== 'Sun' && houseM[p] === h);
   const conjMoon = PLANETS.some((p) => p !== 'Moon' && sign[p] === sign['Moon']);
   if (!occ(2) && !occ(12) && !conjMoon) {
-    const cancelled = KENDRA.includes(houseL['Moon']) || PLANETS.some((p) => p !== 'Moon' && (KENDRA.includes(houseM[p]) || KENDRA.includes(houseL[p])));
+    // Cancelled when the Moon is in a kendra from the Lagna, or a planet (other
+    // than the Sun) occupies a kendra (4th/7th/10th) from the Moon.
+    const cancelled = KENDRA.includes(houseL['Moon']) || PLANETS.some((p) => p !== 'Moon' && p !== 'Sun' && [4, 7, 10].includes(houseM[p]));
     yogas.push({
       name: 'Kemadruma Yoga',
       category: 'Dosha',
@@ -132,7 +134,7 @@ export function detectYogas(
       cancelled,
       description: cancelled
         ? 'Moon is isolated (Kemadruma) but cancelled by supportive kendra placements.'
-        : 'Moon is isolated (Kemadruma) — emotional ups and downs; remedies advised.',
+        : 'Moon is isolated (Kemadruma) — traditionally read as a need to build steady emotional support.',
     });
   }
 

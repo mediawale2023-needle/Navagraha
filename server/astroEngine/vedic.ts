@@ -86,6 +86,39 @@ export function dasamsaSign(lon: number): number {
   return (start + k) % 12;
 }
 
+/** Drekkana (D3), Parashari: 0–10° the sign itself, 10–20° the 5th, 20–30° the 9th. */
+export function drekkanaSign(lon: number): number {
+  const l = ((lon % 360) + 360) % 360;
+  const signIdx = Math.floor(l / 30) % 12;
+  const k = Math.min(2, Math.floor((l % 30) / 10));
+  return (signIdx + k * 4) % 12;
+}
+
+/** Chaturthamsa (D4): four 7°30' parts → the sign itself, then the 4th, 7th and 10th from it. */
+export function chaturthamsaSign(lon: number): number {
+  const l = ((lon % 360) + 360) % 360;
+  const signIdx = Math.floor(l / 30) % 12;
+  const k = Math.min(3, Math.floor((l % 30) / 7.5));
+  return (signIdx + k * 3) % 12;
+}
+
+/** Saptamsa (D7): seven equal parts; odd signs count from the sign itself, even signs from the 7th. */
+export function saptamsaSign(lon: number): number {
+  const l = ((lon % 360) + 360) % 360;
+  const signIdx = Math.floor(l / 30) % 12;
+  const k = Math.min(6, Math.floor((l % 30) / (30 / 7)));
+  const start = signIdx % 2 === 0 ? signIdx : (signIdx + 6) % 12;
+  return (start + k) % 12;
+}
+
+/** Dwadasamsa (D12): twelve 2°30' parts counted from the sign itself. */
+export function dwadasamsaSign(lon: number): number {
+  const l = ((lon % 360) + 360) % 360;
+  const signIdx = Math.floor(l / 30) % 12;
+  const k = Math.min(11, Math.floor((l % 30) / 2.5));
+  return (signIdx + k) % 12;
+}
+
 /**
  * Shashtiamsa (D60) sign index — past-life karma; the finest division and the
  * most birth-time sensitive (each amsa is 0.5° ≈ 2 minutes of birth time).

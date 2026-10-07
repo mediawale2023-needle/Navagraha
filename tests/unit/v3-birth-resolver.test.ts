@@ -18,6 +18,8 @@ describe('historical UTC offsets', () => {
     ['Sydney, southern-summer DST', '2001-01-10', '20:00', -33.8688, 151.2093, 'Australia/Sydney', '+11:00', '2001-01-10T09:00:00.000Z'],
     ['Kathmandu before 1986', '1980-01-01', '05:30', 27.7172, 85.324, 'Asia/Kathmandu', '+05:30', '1980-01-01T00:00:00.000Z'],
     ['Kathmandu after 1986', '1995-01-01', '05:45', 27.7172, 85.324, 'Asia/Kathmandu', '+05:45', '1995-01-01T00:00:00.000Z'],
+    ['Nairobi 1930s (+02:30; a merged post-1970 zone would say +03:00)', '1935-06-01', '12:00', -1.2921, 36.8219, 'Africa/Nairobi', '+02:30', '1935-06-01T09:30:00.000Z'],
+    ['Reykjavik keeps its own zone history', '1993-04-04', '03:00', 64.1466, -21.9426, 'Atlantic/Reykjavik', '+00:00', '1993-04-04T03:00:00.000Z'],
     ['New York local mean time (1870)', '1870-06-01', '12:00', 40.7128, -74.006, 'America/New_York', '-04:56:02', '1870-06-01T16:56:02.000Z'],
   ])('%s', (_l, date, time, lat, lng, tz, offset, utc) => {
     const r = at(date, time, lat, lng);

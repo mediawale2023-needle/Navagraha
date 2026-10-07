@@ -9,7 +9,8 @@
  * historical rules (e.g. India's 1942–45 war time of +06:30, pre-1906 Madras
  * time of +05:21:10, US/EU daylight saving history).
  */
-import { find as findTimeZones } from 'geo-tz';
+// The 'all' dataset keeps zones whose pre-1970 history differs (default merges them).
+import { find as findTimeZones } from 'geo-tz/all';
 import { BirthInputError } from './errors.js';
 import { geocodePlace, validCoordinates } from '../geocode.js';
 
