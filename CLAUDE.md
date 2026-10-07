@@ -24,7 +24,12 @@ Before every commit: `npx tsc && npm run build && npm test` must all be green.
 - `server/routes.ts` — ALL API routes (one big file). `server/storage.ts` — ALL DB access (the `IStorage` class). `server/index.ts` — bootstrap.
 - `server/migrate.ts` — idempotent raw-SQL migrations + seeds; runs on boot. Keep in sync with `shared/schema.ts`.
 - `shared/schema.ts` — Drizzle tables + Zod insert schemas + types. Single source of truth for the data model.
-- `server/astroEngine/*` — native TS astrology engine (kundli, dasha, horoscope, **panchang**). Every chart's `chartData` also carries **D9 Navamsa** (`navamsaSign`/`navamsaDegree` in `vedic.ts`) and **Ashtakavarga** BAV+SAV (`ashtakavarga.ts`, canonical 337-bindu tables) — both deterministic, always-on (no Rust), unit-tested, rendered in KundliView/reports/PDF and fed into the AI chart summary. **Transits (Gochar)**: `getTransits`/`transitSummary` in `index.ts` compute current planet positions vs the natal Moon/Lagna with SAV weighting and **Sade Sati** phase (`GET /api/kundli/:id/transits`), shown in KundliView and injected into the AI council + life report. Full deterministic Jyotish core (all in `server/astroEngine/*`, unit-tested, fed into the AI chart summary + shown in KundliView): **dignity & avastha** (`dignity.ts` — exaltation/debilitation+Neecha-bhanga, friendships, combustion, planetary war), **bhava** (`bhava.ts` — house lords, graha drishti, karakas, Bhava-Chalit), **Pratyantardasha + Yogini dasha** (`dasha.ts`), **yogas with cancellation** (`yogas.ts`), and **ascendant-specific functional remedies** (`remedies.ts`). `server/agents/*` — AI "Super-Astrologer Council" (`runCouncil`) used by the AI astrologer. `astro-engine-rs/` — Rust engine (shadbala/yoga).
+- **V3 calculation pipeline (single source of natal truth)** — birth input → `server/astroEngine/birthResolver.ts` (coordinates → IANA zone via `geo-tz/all` or explicit `timezone`; historical offset from the tz database; DST gaps/folds rejected unless `utcOffset` disambiguates; UTC instant) → `server/astroEngine/canonical/compute.ts` (`computeCanonicalChart`: Swiss Ephemeris/`sweph` Moshier mode, **Lahiri**, mean node, whole-sign houses) → `CanonicalChart` (`shared/v3/canonical.ts`, strict versioned Zod schema; malformed charts throw). Every consumer reads it: `getKundli` (returns the legacy `chartData` shape as a pure projection via `canonical/legacy.ts`, with `chartData.canonical` embedded), transits, matching, Panchang, Prashna (`prashna.ts`), and the professional `jyotishEngine.ts`. **Do not add another astronomy path**; the Keplerian `planets.ts`/`core.ts` and `swissChart.ts` were deleted.
+- `server/astroEngine/*` — pure Jyotish rule modules over canonical longitudes: vargas D1/D3/D4/D7/D9/D10/D12/D60 (`vedic.ts`), Vimshottari (birth Mahadasha at its true start) + Yogini (`dasha.ts`), dignity/avastha (`dignity.ts`), bhava/aspects (`bhava.ts`), Ashtakavarga (`ashtakavarga.ts`), yogas (`yogas.ts`), doshas (`doshas.ts`), Jaimini karakas + Chara Dasha (marked unverified), functional remedies (`remedies.ts`), partial Shadbala (`canonical/shadbala.ts` — Uchcha/Dig/Naisargika only, **no total Rupas**). Longitudes are read through `lon.ts` (missing body throws, never 0°).
+- **Evidence → Resolution → Timeline** (`server/astroEngine/evidence/*`, types in `shared/v3/evidence.ts`): deterministic per-domain evidence (9 domains; health deliberately excluded) with rule, chart fact, source, provenance and birth-time dependence; qualitative verdicts + confidence (no percentages); Life Timeline from canonical Vimshottari. `buildInsights(chart, asOf)`.
+- **Golden-chart suite**: `tests/unit/golden-astronomy.test.ts` (44 charts; expected values from the independent pipeline in `scripts/golden/*`, provenance in `tests/golden/README.md`) and `tests/unit/golden-jyotish-rules.test.ts`. Regenerate fixtures with `npx tsx scripts/golden/generate.ts` only deliberately.
+- **Legacy charts**: `canonical/upgrade.ts` recalculates pre-V3 saved charts lazily on owner access (old chartData kept as `legacySnapshot`, migration note in `chartData.migration`); charts without coordinates are `limited`. Routes call `currentChart()` (single-flight) after the ownership check.
+- `server/agents/*` — **Ask Your Kundli** (`askKundli.ts`): deterministic router → evidence packet → one explanation call (simple) or the council `runCouncil` (deep, fed only the packet) → chart-contradiction guard → deterministic fallback (also used without `OPENAI_API_KEY`). `astro-engine-rs/` — Rust service: only `/synastry` (koota scoring on canonical inputs) and `/remediation` are called; `/calculate` (heuristic Shadbala, mixed-frame vargas) and `/prashna` are **retired** — `callAstroEngine` stays fail-closed.
 - Services: `paymentService.ts`, `pushService.ts`, `agoraService.ts`, `emailService.ts`, `aiAstrologerService.ts`, `websocketService.ts`.
 
 ## Feature Inventory — these ALREADY EXIST. Do not rebuild; extend.
@@ -33,10 +38,11 @@ Search `server/routes.ts` + `client/src/pages` before building anything below.
 
 **User**
 - Auth: Google OAuth + email/password (`server/auth.ts`). NOT Replit OIDC.
-- Kundli **list** (`/kundli`, `MyCharts.tsx` — saved charts + "generate new"; this is the Charts nav target), generate (`/kundli/new`), view (`/kundli/:id`), matchmaking, numerology, prashna, synastry, remedies (`Matchmaking`, `Numerology`, `Prashna`, `Remedies.tsx`).
+- Kundli **list** (`/kundli`, `MyCharts.tsx` — saved charts + "generate new"; this is the Charts nav target), generate (`/kundli/new`; optional `timezone`/`utcOffset`), view (`/kundli/:id`), matchmaking, numerology, prashna (TypeScript on canonical astronomy, `astroEngine/prashna.ts`), synastry, remedies (`Matchmaking`, `Numerology`, `Prashna`, `Remedies.tsx`).
 - Horoscope (`/horoscope`), **Panchang** (`/panchang`, `server/astroEngine/panchang.ts`, `GET /api/panchang`).
   - **Personalised daily horoscope**: `GET /api/horoscope/personal` (`generateDailyHoroscope` in `aiAstrologerService.ts`) derives a per-user daily card from the most recent chart's dasha, cached once/day per user in `dailyHoroscopes`. Shown atop the Horoscope page.
-- AI Astrologer chat (`/ai-astrologer`, `runCouncil`) — pick a saved chart **or enter birth details** (computed in-memory, not saved; `birthDetails` on `POST /api/ai/chat`), **per-chart conversation threads** (session per chart in localStorage), **multi-language** replies (language directive injected into the council synthesizer/ethicist), life-area quick-question chips. `runCouncil` re-derives the running dasha from today's date and injects it + today as authoritative facts. **Long-term memory**: `extractMemories` pulls durable facts/goals/events from each message into `userMemories`; recent memories are injected into the council so the AI remembers the user across sessions.
+- **Ask Your Kundli** (AI chat, `/ai-astrologer`, `server/agents/askKundli.ts`; deep questions use `runCouncil`; deep links `?q=&kundliId=`) — pick a saved chart **or enter birth details** (computed in-memory, not saved; `birthDetails` on `POST /api/ai/chat`), **per-chart conversation threads** (session per chart in localStorage; prior turns are read from the stored session, never from the client), **multi-language** replies (language directive injected into the council synthesizer/ethicist), life-area quick-question chips. `runCouncil` re-derives the running dasha from today's date and injects it + today as authoritative facts. **Long-term memory**: `extractMemories` pulls durable facts/goals/events from each message into `userMemories`; recent memories are injected into the council so the AI remembers the user across sessions.
+- **Kundli V3 experience** (`KundliView.tsx`): headline (Lagna · Moon · Sun, calculation method), **Chart at a Glance** (`components/v3/ChartGlance.tsx`), **Evidence Sheet** (`components/AIInsightSheet.tsx`, domain + planet modes), **Life Timeline** (`components/v3/LifeTimeline.tsx`, Insights tab). APIs: `GET /api/kundli/:id/insights` (owner), `POST /api/kundli/insights` (guest preview; validated canonical, no storage/AI, rate-limited). Home **Active Influences** (`components/v3/ActiveInfluences.tsx`) and **Remedies** read the user's own chart — never hard-code personal astrology.
 - Astrologer list/detail, **follow/favourite** (heart), **waitlist** when offline (`/astrologers`, `/api/astrologers/:id/follow`, `/waitlist`).
 - Chat (WebSocket), voice/video calls (Agora, `/call/:id`), per-minute billing in `websocketService.ts`.
 - Wallet + recharge: Razorpay, Snapmint (BNPL), LazyPay (`Wallet.tsx`, `paymentService.ts`).
@@ -61,7 +67,7 @@ Search `server/routes.ts` + `client/src/pages` before building anything below.
 
 ## Data model (tables in `shared/schema.ts`)
 
-users, astrologers, kundlis, wallets, transactions, chatMessages, consultations, reviews, scheduledCalls, notifications, astrologerEarnings, payoutRequests, aiChatMessages, userMemories, predictionFeedbacks, homepageContent, **coupons, couponRedemptions, referrals, pushTokens, products, orders, orderItems, reportTypes, reportOrders, dailyHoroscopes, poojas, poojaBookings, liveStreams, streamMessages, astrologerFollows, consultationQueue**, **jyotishClientProfiles** (admin `createdByUserId` or Pro `astrologerId`), **jyotishReadings**, **jyotishSessionQueries**.
+users, astrologers, kundlis (`chartData.canonical` = CanonicalChart V3; `legacySnapshot`/`migration` for upgraded charts), wallets, transactions, chatMessages, consultations, reviews, scheduledCalls, notifications, astrologerEarnings, payoutRequests, aiChatMessages, userMemories, predictionFeedbacks, homepageContent, **coupons, couponRedemptions, referrals, pushTokens, products, orders, orderItems, reportTypes, reportOrders, dailyHoroscopes, poojas, poojaBookings, liveStreams, streamMessages, astrologerFollows, consultationQueue**, **jyotishClientProfiles** (admin `createdByUserId` or Pro `astrologerId`), **jyotishReadings**, **jyotishSessionQueries**.
 
 ## Conventions
 
@@ -74,6 +80,11 @@ users, astrologers, kundlis, wallets, transactions, chatMessages, consultations,
 
 ## Do NOT
 
+- Add a second natal astronomy calculation, or let an LLM state/compute placements; extend `canonical/compute.ts` and the evidence engine instead.
+- Re-enable Rust `/calculate` until its frame, ayanamsa, longitude and varga methodology are reconciled and golden-tested.
+- Show hard-coded personal astrology, fabricated scripture citations or numeric "confidence" percentages.
+- Hand-edit `tests/golden/fixtures.json` or regenerate it from the engine under test.
+
 - Re-add the "Corporate/Boardroom" AI subsystem (removed: it wrote files + ran `git push` via shell = injection risk). No `child_process` git automation.
 - Break the per-minute billing loop in `websocketService.ts` or the first-chat-free skip.
 - Add a second copy of a route/page that already exists (check the Inventory first).
@@ -83,7 +94,9 @@ users, astrologers, kundlis, wallets, transactions, chatMessages, consultations,
 
 - Store/report/pooja/gift checkout is wallet-based (no direct per-item gateway yet).
 - Live chat uses polling; Agora handles real-time A/V. Stream viewer counts are approximate.
-- Timezone is fixed IST; Panchang timings use standard sunrise/sunset tables.
+- Natal charts use the birthplace's historical time zone. Panchang still uses fixed IST and 06:00/18:00 sunrise/sunset; Prashna uses real (Swiss) sunrise.
+- Chara Dasha is lineage-dependent and marked unverified in the canonical chart; consumer evidence/timeline use Vimshottari only.
+- Shadbala is partial (Uchcha/Dig/Naisargika); never present a total.
 
 ## Dev branch
 
