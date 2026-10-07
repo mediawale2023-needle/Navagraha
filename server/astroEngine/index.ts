@@ -107,7 +107,8 @@ export interface NativeNumerology {
 
 // ─── Datetime Parsing ─────────────────────────────────────────────────────────
 
-export class BirthInputError extends Error {}
+import { BirthInputError } from './errors.js';
+export { BirthInputError };
 
 /**
  * Parse a birth date/time combination into a UTC Date.
