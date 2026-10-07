@@ -75,6 +75,46 @@ Rust could receive a malformed planetary payload and fabricated epoch/location i
 
 Route tests use temporary local sockets. The sandbox initially blocked socket binding; rerunning with approved execution permissions passed. External geocoding, LLM, Rust HTTP and database services are mocked. The configured Vitest suite includes `tests/unit`; historical `tests/integration` smoke tests are excluded by the existing configuration and were not counted as executed.
 
+## Review follow-up (PR #61)
+
+Review of the first P0 commit found two blockers. Both were reproduced against the real Express handlers. A regression suite now covers them and fails against the earlier handlers.
+
+### Finding A: `POST /api/feedback` trusted the request body
+
+- **Before:** the payload was `{ userId: req.user.id, ...req.body }`. A body `userId` overrode the authenticated identity, and any user's `kundliId` was accepted without an ownership check.
+- **After:** the body is parsed by an explicit Zod schema covering `kundliId?`, `predictionCategory`, `wasAccurate`, `dashaSystemUsed`, `predictedDate?` and `actualOccurrenceDate?`. Unknown fields (`userId`, `id`, `processedAt`, …) are stripped. `userId` comes only from the session. A supplied `kundliId` must be a non-empty string, otherwise the route returns 400. It must also belong to the caller: a missing or foreign chart gets the standard `404 Kundli not found` before any write. Feedback without a chart reference is still accepted.
+
+### Finding B: incomplete explicit `birthDetails` bypassed validation
+
+- **Before:** `/api/reports/order` and `/api/ai/chat` only entered the calculation path when both `dateOfBirth` and `timeOfBirth` were truthy. With `{ dateOfBirth, timeOfBirth: "" }`, the report route silently billed for the user's latest saved chart, and chat ran without the requested chart.
+- **After:** a shared `selectChart()` helper in `server/birthDetails.ts` runs before any storage read, billing, chat write, council call or memory extraction:
+  - Neither `kundliId` nor `birthDetails` supplied: the documented latest-saved-chart fallback still applies.
+  - `birthDetails` supplied (including `null` or `{}`): it must pass `explicitBirthDetailsSchema`. That requires a real `YYYY-MM-DD` calendar date and an `HH:MM` or `HH:MM:SS` time in range, with typed optional fields. Anything else returns 400 and never falls back.
+  - `kundliId` supplied: it must be a non-empty string (otherwise 400). The ownership check still returns 404 and never falls back.
+  - Both supplied: rejected with 400 as ambiguous. The client never sends both.
+- Location handling is unchanged: valid coordinates are used, otherwise the supplied place is resolved, otherwise the route returns 400. The IST assumption, the approximate-time flag and seconds precision are unchanged. No noon/06:00/J2000/zero-coordinate/default-city fallback was added.
+
+### Regression coverage added (`tests/unit/p0-review-fixes.test.ts`)
+
+These tests use the real registered routes and the real `isAuthenticated` guard. Storage, geocoding and the LLM are mocked, and the user always has a saved chart so any silent fallback would be visible.
+
+- **Feedback:** the owner can submit; a foreign or missing chart gets 404; unauthenticated requests get 401; a body `userId` cannot change the stored identity (with and without a chart); feedback without a chart works; email/password sessions work; malformed `kundliId`, field and date input gets 400. Every denied request is checked to make no `createPredictionFeedback` call.
+- **Report order and AI chat (each):** 16 invalid `birthDetails` shapes return 400. They include the reviewed empty-time case, missing/empty date or time, `{}`, `null`, wrong types, invalid calendar dates and out-of-range or malformed times. Each is checked for no chart reads or fallback, no debit, order, report generation, chat write, memory read, council call, memory extraction or geocoding. Further cases: malformed `kundliId` gets 400; ambiguous `kundliId` plus `birthDetails` gets 400; foreign or missing `kundliId` gets 404; an unresolvable place gets 400; omitted `birthDetails` keeps the fallback; valid `HH:MM` and `HH:MM:SS` details are accepted; place resolution works.
+- The report fallback bills and generates from the saved chart only when `birthDetails` is omitted. Explicit details produce an unsaved chart that keeps seconds and the approximate flag. Chat passes the explicit chart, not the saved one, to the council.
+- Unit cases for the schema's date and time boundaries (leap day, 23:59:59, 24:00, 12:60, …).
+- One existing fixture in `p0-routes.test.ts` sent `kundliId` and `birthDetails` together to chat. It now sends `kundliId` only and still exercises the same ownership checks.
+
+### Rust guard
+
+Unchanged. `/calculate` remains disabled for all charts, and the real-client test still proves no HTTP request is sent.
+
+### Follow-up validation
+
+- `npm test`: **208 tests passed across 18 files** (95 new in this follow-up, most of them parameterised cases).
+- `npm run check`: **passed**.
+- `npm run build`: **passed** (same large-chunk warning).
+- `git diff --check`: **passed**. No lint script is configured.
+
 ## Remaining risks
 
 - All charts skip Rust `/calculate` until its coordinate-frame contract is corrected in a reviewed follow-up. Regenerating a chart does not bypass this guard. Older saved charts also lack exact persisted inputs. P0 deliberately avoids backfilling or reconstructing precise astronomy from rounded degrees.

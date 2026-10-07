@@ -76,7 +76,7 @@ const protectedRoutes = [
   { method: 'get', path: '/api/kundli/chart', body: {} },
   { method: 'get', path: '/api/kundli/chart/transits', body: {} },
   { method: 'post', path: '/api/ai/interpret-kundli', body: { kundliId: 'chart' } },
-  { method: 'post', path: '/api/ai/chat', body: { kundliId: 'chart', message: 'Career', birthDetails: { dateOfBirth: '1990-08-15', timeOfBirth: '06:30' } } },
+  { method: 'post', path: '/api/ai/chat', body: { kundliId: 'chart', message: 'Career' } },
   { method: 'post', path: '/api/reports/order', body: { kundliId: 'chart', reportTypeId: 'type' } },
 ] as const;
 for (const route of protectedRoutes) describe(`${route.method} ${route.path} ownership`, () => {

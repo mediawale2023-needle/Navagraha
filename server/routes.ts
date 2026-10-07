@@ -40,6 +40,7 @@ import {
 } from "./astroEngineClient";
 import { buildRustChartRequest } from "./rustChartAdapter";
 import { resolveBirthCoords } from "./geocode";
+import { selectChart } from "./birthDetails";
 import { computePanchang } from "./astroEngine/panchang";
 import {
   createRazorpayOrder,
@@ -450,13 +451,26 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
 
   // ─── Phase 3, Sprint 4: Pattern Matcher / Feedback ─────────────────
 
+  const feedbackBodySchema = z.object({
+    kundliId: z.string({ invalid_type_error: "kundliId must be a string" }).trim().min(1, "kundliId must not be empty").optional(),
+    predictionCategory: z.string().trim().min(1).max(64),
+    wasAccurate: z.boolean(),
+    dashaSystemUsed: z.string().trim().min(1).max(64),
+    predictedDate: z.coerce.date().optional(),
+    actualOccurrenceDate: z.coerce.date().optional(),
+  });
+
   app.post('/api/feedback', isAuthenticated, async (req: any, res) => {
     try {
-      const payload = {
-        userId: req.user.id,
-        ...req.body
-      };
-      const feedback = await storage.createPredictionFeedback(payload);
+      const parsed = feedbackBodySchema.safeParse(req.body);
+      if (!parsed.success) return res.status(400).json({ message: parsed.error.issues[0]?.message ?? "Invalid feedback" });
+      const userId = (req.user as { id: string }).id;
+      if (parsed.data.kundliId !== undefined) {
+        const kundli = await storage.getKundliById(parsed.data.kundliId);
+        if (!kundli || kundli.userId !== userId) return res.status(404).json({ message: "Kundli not found" });
+      }
+      // userId comes only from the session; unknown body fields are stripped by the schema.
+      const feedback = await storage.createPredictionFeedback({ ...parsed.data, userId });
       res.status(201).json(feedback);
     } catch (e: any) {
       console.error("Feedback error:", e);
@@ -1747,23 +1761,26 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
   app.post('/api/reports/order', isAuthenticated, async (req: any, res) => {
     try {
       const userId = (req.user as any).id;
-      const { reportTypeId, kundliId, birthDetails } = req.body;
+      const { reportTypeId } = req.body;
+      const selection = selectChart(req.body);
+      if (selection.kind === 'invalid') return res.status(400).json({ message: selection.message });
       const reportType = await storage.getReportTypeById(reportTypeId);
       if (!reportType || !reportType.isActive) return res.status(404).json({ message: 'Report not available' });
 
       // Resolve a chart: an explicit saved chart, an on-the-fly chart computed
-      // from entered birth details (NOT saved to the user's charts), or the
-      // user's most recent saved chart.
+      // from entered birth details (NOT saved to the user's charts), or — only
+      // when neither was supplied — the user's most recent saved chart.
       let kundli: any = null;
       let kundliRef: string | undefined;
-      if (kundliId) {
-        kundli = await storage.getKundliById(kundliId);
+      if (selection.kind === 'saved') {
+        kundli = await storage.getKundliById(selection.kundliId);
         if (!kundli || kundli.userId !== userId) return res.status(404).json({ message: "Kundli not found" });
         kundliRef = kundli.id;
       }
-      if (!kundli && birthDetails?.dateOfBirth && birthDetails?.timeOfBirth) {
+      if (selection.kind === 'birthDetails') {
+        const birthDetails = selection.details;
         const dob = new Date(birthDetails.dateOfBirth);
-        const coords = await resolveBirthCoords(birthDetails.latitude, birthDetails.longitude, birthDetails.placeOfBirth);
+        const coords = await resolveBirthCoords(birthDetails.latitude, birthDetails.longitude, birthDetails.placeOfBirth ?? undefined);
         if (!coords) {
           return res.status(400).json({ message: "Please pick an exact birth place for the report — an approximate location gives a wrong Ascendant." });
         }
@@ -1782,7 +1799,7 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
           remedies: nk.remedies,
         };
       }
-      if (!kundli) {
+      if (selection.kind === 'default') {
         const userKundlis = await storage.getUserKundlis(userId);
         kundli = userKundlis?.[0] ?? null;
         if (kundli) kundliRef = kundli.id;
@@ -2111,8 +2128,10 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
   app.post('/api/ai/chat', isAuthenticated, async (req: any, res) => {
     try {
       const user = req.user as any;
-      const { message, sessionId, kundliId, language, birthDetails } = req.body;
+      const { message, sessionId, language } = req.body;
       if (!message) return res.status(400).json({ message: "Message is required" });
+      const selection = selectChart(req.body);
+      if (selection.kind === 'invalid') return res.status(400).json({ message: selection.message });
 
       const activeSessionId = sessionId || crypto.randomUUID();
 
@@ -2122,12 +2141,14 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
       let chartData: any = null;
 
       // Resolve a chart: entered birth details (computed in-memory, not saved),
-      // an explicit saved chart, else the user's most recent saved chart.
-      let kundli: any = kundliId ? await storage.getKundliById(kundliId) : null;
-      if (kundliId && (!kundli || kundli.userId !== user.id)) return res.status(404).json({ message: "Kundli not found" });
-      if (!kundli && birthDetails?.dateOfBirth && birthDetails?.timeOfBirth) {
+      // an explicit saved chart, or — only when neither was supplied — the
+      // user's most recent saved chart.
+      let kundli: any = selection.kind === 'saved' ? await storage.getKundliById(selection.kundliId) : null;
+      if (selection.kind === 'saved' && (!kundli || kundli.userId !== user.id)) return res.status(404).json({ message: "Kundli not found" });
+      if (selection.kind === 'birthDetails') {
+        const birthDetails = selection.details;
         const dob = new Date(birthDetails.dateOfBirth);
-        const coords = await resolveBirthCoords(birthDetails.latitude, birthDetails.longitude, birthDetails.placeOfBirth);
+        const coords = await resolveBirthCoords(birthDetails.latitude, birthDetails.longitude, birthDetails.placeOfBirth ?? undefined);
         if (!coords) {
           return res.status(400).json({ message: "Please enter an exact birth place so I can calculate the Ascendant accurately." });
         }
@@ -2145,7 +2166,7 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
           doshas: nk.doshas,
         };
       }
-      if (!kundli && !birthDetails) {
+      if (selection.kind === 'default') {
         const userKundlis = await storage.getUserKundlis(user.id);
         kundli = userKundlis?.[0] ?? null;
       }
