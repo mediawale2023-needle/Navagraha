@@ -43,7 +43,7 @@ beforeEach(() => {
   vi.stubEnv('GOOGLE_MAPS_API_KEY', '');
   const db: Record<string, any> = { v3, legacy, nocoords: { ...legacy, id: 'nocoords', latitude: null, longitude: null } };
   mocks.storage.getKundliById.mockImplementation(async (id: string) => db[id]);
-  mocks.storage.updateKundliChart.mockImplementation(async (id: string, data: any) => ({ ...db[id], ...data }));
+  mocks.storage.updateKundliChart.mockImplementation(async (id: string, data: any) => (db[id] = { ...db[id], ...data }));
   mocks.storage.createKundli.mockImplementation(async (d: any) => ({ ...d, id: 'created' }));
 });
 afterEach(() => { vi.unstubAllEnvs(); });
@@ -81,6 +81,23 @@ describe('legacy chart upgrade through the owner route', () => {
     expect(persisted.chartData.legacySnapshot).toEqual({ planetaryPositions: [], houses: [] });
     expect(persisted.chartData.canonical.birth.timezone).toBe('America/New_York');
     expect(res.body.chartStatus.version).toBe('v3-recalculated-from-legacy');
+  });
+  it('parallel requests share one upgrade instead of racing to write it', async () => {
+    // A slow write keeps the first upgrade in flight while the other requests arrive.
+    mocks.storage.updateKundliChart.mockImplementation((_id: string, data: any) => new Promise((r) => setTimeout(() => r({ ...legacy, ...data }), 50)));
+    const [a, b, c] = await Promise.all([
+      request(app).get('/api/kundli/legacy').set('x-user', 'owner'),
+      request(app).get('/api/kundli/legacy/insights').set('x-user', 'owner'),
+      request(app).get('/api/kundli/legacy/transits').set('x-user', 'owner'),
+    ]);
+    expect([a.status, b.status, c.status]).toEqual([200, 200, 200]);
+    expect(mocks.storage.updateKundliChart).toHaveBeenCalledTimes(1);
+  });
+  it('an unexpected upgrade failure still returns the stored chart', async () => {
+    mocks.storage.updateKundliChart.mockRejectedValueOnce(new Error('db down'));
+    const res = await request(app).get('/api/kundli/legacy').set('x-user', 'owner');
+    expect(res.status).toBe(200);
+    expect(res.body.id).toBe('legacy');
   });
   it('a different user cannot trigger the upgrade', async () => {
     expect((await request(app).get('/api/kundli/legacy').set('x-user', 'other')).status).toBe(404);

@@ -38,7 +38,7 @@ import { computePrashna, PRASHNA_CATEGORIES } from "./astroEngine/prashna.js";
 import { CalculationError } from "./astroEngine/canonical/compute.js";
 import { upgradeLegacyKundli, chartVersionStatus } from "./astroEngine/canonical/upgrade.js";
 import { buildInsights } from "./astroEngine/evidence/insights.js";
-import { routeQuestion, buildEvidencePacket, answerSimple, answerWithoutChart, guardAnswer, packetSummary } from "./agents/askKundli.js";
+import { routeQuestion, buildEvidencePacket, answerSimple, answerWithoutChart, guardAnswer, packetSummary, limitedChartReply } from "./agents/askKundli.js";
 import { canonicalChartSchema, isCurrentCanonicalChart } from "@shared/v3/canonical";
 import {
   callSynastryEngine,
@@ -218,14 +218,28 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
   // ─── Kundli ───────────────────────────────────────────────
   // Upgrade a pre-V3 saved chart in place (reversible; see canonical/upgrade.ts).
   // Callers must have verified ownership first.
+  // Parallel requests for the same chart share one upgrade instead of racing to write it.
+  const upgradesInFlight = new Map<string, Promise<Kundli>>();
   async function currentChart<T extends Kundli | null | undefined>(kundli: T): Promise<T> {
     if (!kundli?.id) return kundli;
-    const upgrade = await upgradeLegacyKundli(kundli);
-    if (!upgrade) return kundli;
-    const prevReason = (kundli.chartData as any)?.limitedReason;
-    if (prevReason && prevReason === (upgrade.chartData as any)?.limitedReason) return kundli;
-    const saved = await storage.updateKundliChart(kundli.id, upgrade);
-    return (saved ?? { ...kundli, ...upgrade }) as T;
+    if (isCurrentCanonicalChart((kundli.chartData as any)?.canonical)) return kundli;
+    const id = kundli.id;
+    let pending = upgradesInFlight.get(id);
+    if (!pending) {
+      pending = (async () => {
+        const upgrade = await upgradeLegacyKundli(kundli);
+        if (!upgrade) return kundli;
+        const prevReason = (kundli.chartData as any)?.limitedReason;
+        if (prevReason && prevReason === (upgrade.chartData as any)?.limitedReason) return kundli;
+        return (await storage.updateKundliChart(id, upgrade)) ?? { ...kundli, ...upgrade };
+      })().catch((err) => {
+        // An unexpected failure must not stop the stored chart from loading.
+        console.error('Legacy chart upgrade failed:', err);
+        return kundli;
+      }).finally(() => upgradesInFlight.delete(id));
+      upgradesInFlight.set(id, pending);
+    }
+    return (await pending) as T;
   }
 
   app.post('/api/kundli', async (req: any, res) => {
@@ -272,7 +286,7 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
       const kundli = await storage.createKundli({ ...validatedData, ...kundliData });
       res.json(kundli);
     } catch (error) {
-      if (error instanceof BirthInputError) return res.status(400).json({ message: error.message });
+      if (error instanceof BirthInputError || error instanceof CalculationError) return res.status(400).json({ message: error.message });
       if (error instanceof z.ZodError) return res.status(400).json({ message: "Validation error", errors: error.errors });
       console.error('Create kundli error:', error);
       res.status(500).json({ message: "Failed to create kundli" });
@@ -417,7 +431,7 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
         person2: person2Name,
       });
     } catch (error) {
-      if (error instanceof BirthInputError) return res.status(400).json({ message: error.message });
+      if (error instanceof BirthInputError || error instanceof CalculationError) return res.status(400).json({ message: error.message });
       res.status(500).json({ message: "Failed to calculate compatibility" });
     }
   });
@@ -441,11 +455,11 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
       if (!question_category) {
         return res.status(400).json({ message: "Missing required Prashna fields" });
       }
-      const coords = await resolveBirthCoords(latitude, longitude, req.body.place);
-      if (!coords) return res.status(400).json({ message: 'Valid coordinates or a resolvable place are required for Prashna.' });
       if (!PRASHNA_CATEGORIES.includes(question_category)) {
         return res.status(400).json({ message: `question_category must be one of ${PRASHNA_CATEGORIES.join(', ')}` });
       }
+      const coords = await resolveBirthCoords(latitude, longitude, req.body.place);
+      if (!coords) return res.status(400).json({ message: 'Valid coordinates or a resolvable place are required for Prashna.' });
       res.json(computePrashna(new Date(), coords.lat, coords.lng, question_category));
     } catch (e) {
       if (e instanceof CalculationError || e instanceof BirthInputError) return res.status(400).json({ message: e.message });
@@ -496,7 +510,7 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
          person2: req.body.person2Name,
       });
     } catch (e: any) {
-        if (e instanceof BirthInputError) return res.status(400).json({ message: e.message });
+        if (e instanceof BirthInputError || e instanceof CalculationError) return res.status(400).json({ message: e.message });
         console.error("Synastry error:", e);
         res.status(500).json({ message: "Failed to calculate Synastry" }); 
     }
@@ -1369,7 +1383,7 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
         const canonical = (latest?.chartData as any)?.canonical;
         const aiResponseText = isCurrentCanonicalChart(canonical)
           ? (await answerSimple(buildEvidencePacket(canonical, routeQuestion(message)), message)).text
-          : (await answerWithoutChart(message)).text;
+          : latest ? limitedChartReply(chartVersionStatus(latest).notes[0]) : (await answerWithoutChart(message)).text;
         const aiMessage = await storage.createChatMessage({
           userId,
           astrologerId,
@@ -1901,7 +1915,7 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
 
       res.status(201).json({ orderId: order.id, newBalance: debit.balance });
     } catch (err) {
-      if (err instanceof BirthInputError) return res.status(400).json({ message: err.message });
+      if (err instanceof BirthInputError || err instanceof CalculationError) return res.status(400).json({ message: err.message });
       console.error('Report order error:', err);
       res.status(500).json({ message: 'Failed to order report' });
     }
@@ -2294,10 +2308,13 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
 
       // Ask Your Kundli: route the question, build the deterministic evidence packet,
       // then explain it (one model call) or, for deep questions, run the council.
-      const history = (Array.isArray(req.body.history) ? req.body.history : [])
-        .filter((h: any) => (h?.role === 'user' || h?.role === 'assistant') && typeof h?.content === 'string')
-        .slice(-6)
-        .map((h: any) => ({ role: h.role as 'user' | 'assistant', content: String(h.content).slice(0, 4000) }));
+      // Prior turns come from this user's stored session, never from the client (which could forge assistant turns).
+      const history = sessionId
+        ? (await storage.getAiChatHistory(user.id, activeSessionId).catch(() => []))
+            .filter((h) => h.role === 'user' || h.role === 'assistant')
+            .slice(-7, -1)
+            .map((h) => ({ role: h.role as 'user' | 'assistant', content: String(h.content).slice(0, 4000) }))
+        : [];
       const route = routeQuestion(message, { depth: req.body.depth === 'deep' ? 'deep' : undefined });
       const canonical = kundli?.chartData?.canonical;
       let aiResponseText: string;
@@ -2320,6 +2337,10 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
           aiResponseText = answer.text;
           answerSource = answer.source;
         }
+      } else if (kundli) {
+        // A chart was chosen but has no verified V3 calculation: explain rather than guess from legacy data.
+        aiResponseText = limitedChartReply(chartVersionStatus(kundli).notes[0]);
+        answerSource = 'deterministic';
       } else {
         const answer = await answerWithoutChart(message, { language, history });
         aiResponseText = answer.text;
@@ -2355,7 +2376,7 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
         questionsUsed: 0,
       });
     } catch (error: any) {
-      if (error instanceof BirthInputError) return res.status(400).json({ message: error.message });
+      if (error instanceof BirthInputError || error instanceof CalculationError) return res.status(400).json({ message: error.message });
       console.error("AI Chat Error:", error);
       res.status(500).json({ message: "AI Council is currently unavailable. Please try again later." });
     }
@@ -2703,6 +2724,7 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
       const chart = computeJyotishChart(profile.dateOfBirth, profile.timeOfBirth, Number(profile.latitude), Number(profile.longitude));
       res.json(chart);
     } catch (err) {
+      if (err instanceof BirthInputError || err instanceof CalculationError) return res.status(400).json({ message: err.message });
       console.error('Compute jyotish chart error:', err);
       res.status(500).json({ message: 'Failed to compute chart' });
     }
@@ -2723,6 +2745,7 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
       });
       res.json(reading);
     } catch (err) {
+      if (err instanceof BirthInputError || err instanceof CalculationError) return res.status(400).json({ message: err.message });
       console.error('Create jyotish reading error:', err);
       res.status(500).json({ message: 'Failed to create reading' });
     }
@@ -2892,6 +2915,7 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
       const chart = computeJyotishChart(profile.dateOfBirth, profile.timeOfBirth, Number(profile.latitude), Number(profile.longitude));
       res.json(chart);
     } catch (err) {
+      if (err instanceof BirthInputError || err instanceof CalculationError) return res.status(400).json({ message: err.message });
       console.error('Pro compute chart error:', err);
       res.status(500).json({ message: 'Failed to compute chart' });
     }
@@ -2911,6 +2935,7 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
       });
       res.json(reading);
     } catch (err) {
+      if (err instanceof BirthInputError || err instanceof CalculationError) return res.status(400).json({ message: err.message });
       console.error('Pro create reading error:', err);
       res.status(500).json({ message: 'Failed to create reading' });
     }
@@ -2970,6 +2995,7 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
       await storage.updateJyotishReading(reading.id, { [READING_COLUMN[tradition]]: full, status: 'ready' } as any);
       res.end();
     } catch (err: any) {
+      if (!res.headersSent && (err instanceof BirthInputError || err instanceof CalculationError)) return res.status(400).json({ message: err.message });
       console.error('Pro generate reading error:', err);
       if (!res.headersSent) {
         if (err.message?.includes('OPENAI_API_KEY')) return res.status(503).json({ message: 'AI features not configured. Set OPENAI_API_KEY.' });

@@ -60,9 +60,13 @@ export async function upgradeLegacyKundli(kundli: Kundli, now = new Date()): Pro
   if (!coords) return limited('This chart has no stored birth coordinates, so it cannot be recalculated with the V3 engine. Please create it again with the birth place.');
 
   try {
-    const approximate = cd.isBirthTimeApproximate === true;
-    const nk = await getKundli(birthDateString(kundli.dateOfBirth), kundli.timeOfBirth, coords.lat, coords.lng, {
+    // An older canonical record keeps the zone/offset the person supplied (e.g. to settle a DST fold).
+    const prevBirth = cd.canonical?.birth ?? {};
+    const approximate = cd.isBirthTimeApproximate === true || prevBirth.timeAccuracy === 'approximate';
+    const nk = await getKundli(prevBirth.localDate ?? birthDateString(kundli.dateOfBirth), prevBirth.localTime ?? kundli.timeOfBirth, coords.lat, coords.lng, {
       timeAccuracy: approximate ? 'approximate' : 'exact',
+      timezone: prevBirth.timezoneSource === 'supplied' ? prevBirth.timezone : null,
+      utcOffset: typeof prevBirth.utcOffset === 'string' ? prevBirth.utcOffset : null,
       place: kundli.placeOfBirth,
     });
     const canonical: CanonicalChart = nk.chartData.canonical;

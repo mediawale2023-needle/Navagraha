@@ -109,20 +109,23 @@ export function buildEvidencePacket(chart: CanonicalChart, route: Route, asOf = 
 // ─── Consistency check: answer vs chart ──────────────────────────────────────
 
 const SIGN_RE = SIGN_NAMES.join('|');
+const cap = (w: string) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase();
 const PLANET_RE = GRAHAS.join('|');
 
 /** Planet-in-sign / planet-in-house claims in the answer that contradict the chart. */
 export function findChartContradictions(answer: string, chart: CanonicalChart): string[] {
   const issues: string[] = [];
-  const signClaim = new RegExp(`\\b(${PLANET_RE})\\b(?:'s)?\\s+(?:is\\s+|sits\\s+|placed\\s+|posited\\s+|located\\s+)?(?:in|into)\\s+(?:the\\s+sign\\s+(?:of\\s+)?)?(${SIGN_RE})\\b`, 'g');
+  const signClaim = new RegExp(`\\b(${PLANET_RE})\\b(?:'s)?\\s+(?:is\\s+|sits\\s+|placed\\s+|posited\\s+|located\\s+)?(?:in|into)\\s+(?:the\\s+sign\\s+(?:of\\s+)?)?(${SIGN_RE})\\b`, 'gi');
   for (const m of Array.from(answer.matchAll(signClaim))) {
-    const p = chart.planets.find((x) => x.name === m[1])!;
-    if (p.sign !== m[2]) issues.push(`${m[1]} is in ${p.sign}, not ${m[2]}`);
+    const planet = cap(m[1]) as Graha;
+    const claimed = cap(m[2]);
+    const p = chart.planets.find((x) => x.name === planet)!;
+    if (p.sign !== claimed) issues.push(`${planet} is in ${p.sign}, not ${claimed}`);
   }
   if (chart.birth.timeAccuracy === 'exact') {
     const houseClaim = new RegExp(`\\b(${PLANET_RE})\\b\\s+(?:is\\s+|sits\\s+|placed\\s+)?in\\s+(?:your\\s+|the\\s+)?(\\d{1,2})(?:st|nd|rd|th)\\s+house`, 'gi');
     for (const m of Array.from(answer.matchAll(houseClaim))) {
-      const name = (m[1][0].toUpperCase() + m[1].slice(1).toLowerCase()) as Graha;
+      const name = cap(m[1]) as Graha;
       const p = chart.planets.find((x) => x.name === name);
       if (p && p.house !== Number(m[2])) issues.push(`${name} is in the ${ORD(p.house)} house, not the ${ORD(Number(m[2]))}`);
     }
@@ -220,6 +223,11 @@ export function packetSummary(packet: EvidencePacket) {
 }
 
 // ─── No chart available ──────────────────────────────────────────────────────
+
+/** A chosen chart exists but has no verified V3 calculation: say why instead of answering from unverified data. */
+export function limitedChartReply(reason?: string): string {
+  return `I can't read this chart reliably yet. ${reason ?? 'It predates the V3 calculation engine.'} Once the chart is recreated with its birth place, I can explain what it shows and why.`;
+}
 
 export const NO_CHART_REPLY = 'I can answer from your chart once I have your birth details. Choose a saved chart or enter your date, time and place of birth, and I will explain what your chart shows and why.';
 

@@ -16,7 +16,6 @@ import { SIGN_NAMES } from '@shared/v3/canonical';
 import { siderealPositions, siderealAngles, CalculationError } from './canonical/compute.js';
 import { NAKSHATRAS, NAKSHATRA_SPAN, SIGN_LORDS } from './vedic.js';
 import { TITHI_NAMES, YOGA_NAMES, VARA_NAMES, karanaName } from './panchang.js';
-import { timeZoneForCoordinates, offsetSecondsAt } from './birthResolver.js';
 
 const C = sweph.constants;
 const norm = (x: number) => ((x % 360) + 360) % 360;
@@ -81,9 +80,10 @@ export function computePrashna(at: Date, latitude: number, longitude: number, ca
   }
   const sunset = nextSunEvent(lastSunrise, latitude, longitude, 'set');
   const nextSunrise = nextSunEvent(lastSunrise + 0.01, latitude, longitude, 'rise');
-  const zone = timeZoneForCoordinates(latitude, longitude, at.getTime());
-  const sunriseLocal = new Date(jdToDate(lastSunrise).getTime() + offsetSecondsAt(zone, at.getTime()) * 1000);
-  const weekday = sunriseLocal.getUTCDay();
+  // The Vedic weekday is the day on which this sunrise fell, in local mean solar time
+  // (longitude/15 h from UT) — no civil time zone is needed, so border locations work.
+  const sunriseLocalMean = new Date(jdToDate(lastSunrise).getTime() + (longitude / 15) * 3_600_000);
+  const weekday = sunriseLocalMean.getUTCDay();
   const isDay = jdUT < sunset;
   const span = isDay ? (sunset - lastSunrise) / 12 : (nextSunrise - sunset) / 12;
   const horaInPart = Math.min(11, Math.floor((jdUT - (isDay ? lastSunrise : sunset)) / span));

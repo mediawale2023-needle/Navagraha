@@ -13,7 +13,7 @@ type Transits = { sadeSati: { active: boolean; phase: string; note: string; satu
 export function ActiveInfluences() {
   const { data: kundlis } = useQuery<Array<{ id: string; name: string }>>({ queryKey: ['/api/kundli'] });
   const latest = kundlis?.[0];
-  const { data: insights } = useQuery<KundliInsights>({ queryKey: ['/api/kundli', latest?.id, 'insights'], enabled: !!latest });
+  const { data: insights, isError } = useQuery<KundliInsights>({ queryKey: ['/api/kundli', latest?.id, 'insights'], enabled: !!latest });
   const { data: transits } = useQuery<Transits>({ queryKey: ['/api/kundli', latest?.id, 'transits'], enabled: !!latest });
 
   if (!latest) {
@@ -21,6 +21,14 @@ export function ActiveInfluences() {
       <div className="rounded-[12px] border border-border bg-card p-4 text-sm text-muted-foreground">
         Create your Kundli to see the planetary periods actually running in your chart.
         <Link href="/kundli/new" className="ml-1 inline-flex items-center gap-1 font-semibold text-foreground">Create chart <ArrowRight className="h-3.5 w-3.5" /></Link>
+      </div>
+    );
+  }
+  if (isError) {
+    return (
+      <div className="rounded-[12px] border border-border bg-card p-4 text-sm text-muted-foreground">
+        {latest.name}'s chart was made with an older engine and could not be recalculated. Recreate it with the birth place to see its current periods.
+        <Link href={`/kundli/${latest.id}`} className="ml-1 inline-flex items-center gap-1 font-semibold text-foreground">Open chart <ArrowRight className="h-3.5 w-3.5" /></Link>
       </div>
     );
   }
