@@ -27,11 +27,12 @@ function PeriodDetail({ p }: { p: TimelinePeriod }) {
 }
 
 /** Life Timeline — Vimshottari periods annotated with what they engage in this chart. */
-export function LifeTimeline({ periods }: { periods: TimelinePeriod[] }) {
+export function LifeTimeline({ periods, timingNote }: { periods: TimelinePeriod[]; timingNote?: string | null }) {
   const [open, setOpen] = useState<number | null>(periods.findIndex((p) => p.status === 'current'));
   const [openAntar, setOpenAntar] = useState<number | null>(null);
   return (
     <div className="space-y-2" data-testid="life-timeline">
+      {timingNote && <p className="rounded-[10px] border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-800" data-testid="timeline-timing-note">{timingNote}</p>}
       {periods.map((p, i) => (
         <div key={p.start} className={`overflow-hidden rounded-[10px] border ${p.status === 'current' ? 'border-primary/60' : 'border-border'} ${p.status === 'past' ? 'opacity-80' : ''}`}>
           <button className="flex w-full items-center justify-between p-4 text-left transition-colors hover:bg-muted/40" onClick={() => setOpen(open === i ? null : i)}>

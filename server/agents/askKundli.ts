@@ -17,7 +17,8 @@ import { GRAHAS, SIGN_NAMES, type CanonicalChart, type Graha } from '@shared/v3/
 import { DOMAIN_LABELS, LIFE_DOMAINS, type DomainResolution, type LifeDomain, type TimelinePeriod } from '@shared/v3/evidence';
 import { domainResolution, INTERPRETIVE_NOTE } from '../astroEngine/evidence/insights.js';
 import { buildTimeline } from '../astroEngine/evidence/timeline.js';
-import { runningPeriod } from '../astroEngine/evidence/engine.js';
+import { runningPeriod, dashaTimingStable } from '../astroEngine/evidence/engine.js';
+import { validateAnswer, type GuardContext } from './answerGuard.js';
 
 // ─── Question router (deterministic) ─────────────────────────────────────────
 
@@ -57,6 +58,7 @@ export interface EvidencePacket {
   resolutions: DomainResolution[];
   timeline: TimelinePeriod[];
   chart: CanonicalChart;
+  guard: GuardContext;
 }
 
 function resolutionBlock(r: DomainResolution): string {
@@ -76,15 +78,23 @@ export function buildEvidencePacket(chart: CanonicalChart, route: Route, asOf = 
   const timeline = buildTimeline(chart, asOf);
   const rp = runningPeriod(chart, asOf);
   const approx = chart.birth.timeAccuracy === 'approximate';
+  const stable = dashaTimingStable(chart, asOf);
   const planetLine = (g: Graha) => {
     const p = chart.planets.find((x) => x.name === g)!;
     const d = chart.strength.dignities.find((x) => x.planet === g);
-    return `  - ${g}: ${p.sign} ${p.degreeInSign.toFixed(1)}°${approx ? '' : `, ${ORD(p.house)} house`}, ${p.nakshatra.name} pada ${p.nakshatra.pada}${p.retrograde && g !== 'Rahu' && g !== 'Ketu' ? ', retrograde' : ''}${d ? `, ${d.dignity}${d.combust ? ', combust' : ''}` : ''}`;
+    if (g === 'Moon' && approx && !chart.uncertainty.moonSignStableAcrossBirthDate) return '  - Moon: sign and nakshatra UNCERTAIN (the Moon changes sign during the birth date). Do not state them.';
+    const nak = g === 'Moon' && approx && !chart.uncertainty.moonNakshatraStableAcrossBirthDate ? 'nakshatra UNCERTAIN (do not state it)' : `${p.nakshatra.name} pada ${p.nakshatra.pada}`;
+    return `  - ${g}: ${p.sign} ${g === 'Moon' && approx ? '' : `${p.degreeInSign.toFixed(1)}°`}${approx ? '' : `, ${ORD(p.house)} house`}, ${nak}${p.retrograde && g !== 'Rahu' && g !== 'Ketu' ? ', retrograde' : ''}${d ? `, ${d.dignity}${d.combust ? ', combust' : ''}` : ''}`;
   };
+  // With an approximate time the period boundaries move, so no dates are supplied (and none may be stated).
   const relevantPeriods = timeline
     .filter((p) => p.status !== 'past' && (route.intent === 'timing' || p.status === 'current'))
     .slice(0, route.intent === 'timing' ? 4 : 1)
-    .map((p) => `  - ${p.lord} Mahadasha ${p.start.slice(0, 10)} → ${p.end.slice(0, 10)} (${p.status}): engages ${p.domains.map((d) => DOMAIN_LABELS[d.domain]).join(', ') || 'no main life area directly'}; ${p.supporting.concat(p.conflicting).join('; ') || 'neutral placement'}; confidence ${p.confidence}`);
+    .filter((p) => !approx || (p.status === 'current' && stable.mahadasha))
+    .map((p) => `  - ${p.lord} Mahadasha ${approx ? '(dates uncertain: birth time approximate)' : `${p.start.slice(0, 10)} → ${p.end.slice(0, 10)}`} (${p.status}): engages ${p.domains.map((d) => DOMAIN_LABELS[d.domain]).join(', ') || 'no main life area directly'}; ${p.supporting.concat(p.conflicting).join('; ') || 'neutral placement'}; confidence ${p.confidence}`);
+  const runningLine = !rp ? ''
+    : !stable.mahadasha ? '  Running period today: UNCERTAIN because the birth time is approximate. Do not name a current Mahadasha or Antardasha and give no dates.'
+      : `  Running period today (${asOf.toISOString().slice(0, 10)}): ${rp.mahadasha} Mahadasha${rp.antardasha && stable.antardasha ? ` / ${rp.antardasha} Antardasha` : rp.antardasha ? ' (the Antardasha is UNCERTAIN with an approximate birth time; do not name it)' : ''}.`;
 
   const text = [
     'AUTHORITATIVE CHART FACTS (calculated by the Navagraha engine; never recalculate, contradict or extend them):',
@@ -92,45 +102,36 @@ export function buildEvidencePacket(chart: CanonicalChart, route: Route, asOf = 
     `  Birth: ${chart.birth.localDate} ${chart.birth.localTime} (${chart.birth.timezone}, UTC${chart.birth.utcOffset}), ${chart.birth.place || 'place on record'}; birth time ${chart.birth.timeAccuracy}.`,
     approx ? '  The birth time is APPROXIMATE: the Lagna and houses are unknown. Do not mention the Ascendant or house numbers.' : `  Lagna: ${chart.ascendant.sign} ${chart.ascendant.degreeInSign.toFixed(1)}°.`,
     '  Planets:', ...GRAHAS.map(planetLine),
-    rp ? `  Running period today (${asOf.toISOString().slice(0, 10)}): ${rp.mahadasha} Mahadasha${rp.antardasha ? ` / ${rp.antardasha} Antardasha` : ''}.` : '',
+    runningLine,
     '',
     'DETERMINISTIC EVIDENCE AND VERDICTS (from the evidence and resolution engines):',
     ...resolutions.map(resolutionBlock),
     '',
     'DASHA TIMING (from the Vimshottari calculation):',
-    ...(relevantPeriods.length ? relevantPeriods : ['  - (no upcoming periods)']),
+    ...(relevantPeriods.length ? relevantPeriods : [approx ? '  - (period dates are not given: the birth time is approximate)' : '  - (no upcoming periods)']),
     transits ? `\nCURRENT TRANSITS:\n${transits}` : '',
     route.planets.length ? `\nQUESTION FOCUSES ON: ${route.planets.join(', ')}` : '',
     ...(chart.uncertainty.notes.length ? ['', 'UNCERTAINTY:', ...chart.uncertainty.notes.map((n) => `  - ${n}`)] : []),
   ].filter((l) => l !== '').join('\n');
-  return { route, text, resolutions, timeline, chart };
+  const guard: GuardContext = {
+    chart, packetText: text, asOf, transits,
+    running: rp ? { mahadasha: rp.mahadasha, antardasha: rp.antardasha } : null,
+    timing: { mahadashaReliable: stable.mahadasha, antardashaReliable: stable.antardasha },
+  };
+  return { route, text, resolutions, timeline, chart, guard };
 }
 
 // ─── Consistency check: answer vs chart ──────────────────────────────────────
 
-const SIGN_RE = SIGN_NAMES.join('|');
-const cap = (w: string) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase();
-const PLANET_RE = GRAHAS.join('|');
-
-/** Planet-in-sign / planet-in-house claims in the answer that contradict the chart. */
-export function findChartContradictions(answer: string, chart: CanonicalChart): string[] {
-  const issues: string[] = [];
-  const signClaim = new RegExp(`\\b(${PLANET_RE})\\b(?:'s)?\\s+(?:is\\s+|sits\\s+|placed\\s+|posited\\s+|located\\s+)?(?:in|into)\\s+(?:the\\s+sign\\s+(?:of\\s+)?)?(${SIGN_RE})\\b`, 'gi');
-  for (const m of Array.from(answer.matchAll(signClaim))) {
-    const planet = cap(m[1]) as Graha;
-    const claimed = cap(m[2]);
-    const p = chart.planets.find((x) => x.name === planet)!;
-    if (p.sign !== claimed) issues.push(`${planet} is in ${p.sign}, not ${claimed}`);
-  }
-  if (chart.birth.timeAccuracy === 'exact') {
-    const houseClaim = new RegExp(`\\b(${PLANET_RE})\\b\\s+(?:is\\s+|sits\\s+|placed\\s+)?in\\s+(?:your\\s+|the\\s+)?(\\d{1,2})(?:st|nd|rd|th)\\s+house`, 'gi');
-    for (const m of Array.from(answer.matchAll(houseClaim))) {
-      const name = cap(m[1]) as Graha;
-      const p = chart.planets.find((x) => x.name === name);
-      if (p && p.house !== Number(m[2])) issues.push(`${name} is in the ${ORD(p.house)} house, not the ${ORD(Number(m[2]))}`);
-    }
-  }
-  return Array.from(new Set(issues));
+/** Claims in the answer that contradict, or are not supported by, the chart (see answerGuard.ts). */
+export function findChartContradictions(answer: string, chart: CanonicalChart, asOf = new Date()): string[] {
+  const rp = runningPeriod(chart, asOf);
+  const stable = dashaTimingStable(chart, asOf);
+  return validateAnswer(answer, {
+    chart, packetText: '', asOf,
+    running: rp ? { mahadasha: rp.mahadasha, antardasha: rp.antardasha } : null,
+    timing: { mahadashaReliable: stable.mahadasha, antardashaReliable: stable.antardasha },
+  });
 }
 
 // ─── Deterministic answer (no LLM) ───────────────────────────────────────────
@@ -143,7 +144,8 @@ export function deterministicAnswer(packet: EvidencePacket): string {
     if (r.conflicting.length) parts.push(`Counter-evidence:\n${r.conflicting.slice(0, 3).map((e) => `- ${e.explanation}`).join('\n')}`);
   }
   const current = packet.timeline.find((p) => p.status === 'current');
-  if (current) parts.push(`**Timing:** ${current.whyItMatters}`);
+  if (!packet.guard.timing.mahadashaReliable) parts.push('**Timing:** the birth time is approximate, so the current dasha period cannot be stated reliably.');
+  else if (current) parts.push(`**Timing:** ${current.whyItMatters}`);
   parts.push(`_${INTERPRETIVE_NOTE}_`);
   return parts.join('\n\n');
 }
@@ -198,10 +200,10 @@ async function callExplainer(packet: EvidencePacket, question: string, opts: Ask
  */
 export async function guardAnswer(packet: EvidencePacket, draft: string | null, regenerate: (corrections: string[]) => Promise<string | null>): Promise<{ text: string; source: 'llm' | 'deterministic'; corrected: boolean }> {
   if (!draft) return { text: deterministicAnswer(packet), source: 'deterministic', corrected: false };
-  const issues = findChartContradictions(draft, packet.chart);
+  const issues = validateAnswer(draft, packet.guard);
   if (!issues.length) return { text: draft, source: 'llm', corrected: false };
   const second = await regenerate(issues);
-  if (second && !findChartContradictions(second, packet.chart).length) return { text: second, source: 'llm', corrected: true };
+  if (second && !validateAnswer(second, packet.guard).length) return { text: second, source: 'llm', corrected: true };
   return { text: deterministicAnswer(packet), source: 'deterministic', corrected: true };
 }
 

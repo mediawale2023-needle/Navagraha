@@ -676,7 +676,7 @@ export default function KundliView() {
                 </CardHeader>
                 <CardContent>
                   {insights ? (
-                    <LifeTimeline periods={insights.timeline} />
+                    <LifeTimeline periods={insights.timeline} timingNote={insights.timing?.note} />
                   ) : (
                     <p className="text-sm text-muted-foreground">
                       {canonical ? 'Loading your timeline…' : 'This chart predates the V3 engine. Open it again after it has been recalculated, or create it anew.'}

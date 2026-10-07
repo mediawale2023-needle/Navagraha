@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { getKundli } from '../../server/astroEngine';
-import { natalEvidence, dashaEvidence, runningPeriod, DOMAIN_SPECS } from '../../server/astroEngine/evidence/engine';
+import { natalEvidence, dashaEvidence, runningPeriod, dashaTimingStable, DOMAIN_SPECS } from '../../server/astroEngine/evidence/engine';
 import { resolveDomain } from '../../server/astroEngine/evidence/resolution';
 import { buildInsights } from '../../server/astroEngine/evidence/insights';
 import { buildTimeline } from '../../server/astroEngine/evidence/timeline';
@@ -12,7 +12,7 @@ const chartOf = async (date: string, time: string, lat: number, lng: number, app
 
 const item = (over: Partial<EvidenceItem>): EvidenceItem => ({
   id: Math.random().toString(36), domain: 'career', factor: 'f', direction: 'positive', strength: 'moderate', source: 'D1',
-  provenance: 'classical-principle', rule: 'r', explanation: 'e', requiresBirthTime: false, usable: true, ...over,
+  provenance: 'classical-principle', rule: 'r', explanation: 'e', requiresBirthTime: false, usable: true, tier: 'core', ...over,
 });
 
 describe('resolution engine', () => {
@@ -44,10 +44,29 @@ describe('resolution engine', () => {
     expect(r.confidence).toBe('Low');
     expect(r.notes.join(' ')).toMatch(/approximate/);
   });
+  // Spec change (launch sprint): too little evidence is reported as such, not as "Mixed".
   it('never claims a verdict from too little evidence', () => {
     const r = resolveDomain('children', [item({ strength: 'strong' })], { approximate: false });
-    expect(r.verdict).toBe('Mixed');
+    expect(r.verdict).toBe('Insufficient evidence');
     expect(r.confidence).toBe('Low');
+  });
+  it('experimental items are shown but never decide the verdict', () => {
+    const exp = ['Jaimini', 'Shadbala', 'Yoga', 'D1'].map((source) => item({ source: source as any, tier: 'experimental', strength: 'strong' }));
+    const r = resolveDomain('career', [...exp, item({ direction: 'negative' }), item({ direction: 'negative', source: 'D9' }), item({ direction: 'negative', source: 'Ashtakavarga' }), item({})], { approximate: false });
+    expect(r.experimental).toHaveLength(4);
+    expect(r.verdict).toBe('Challenging');
+    expect(r.supporting.every((e) => e.tier === 'core')).toBe(true);
+  });
+  it('weak indicators add weight but never count as independent confirmation', () => {
+    const weak = ['D1', 'D9', 'D10', 'Yoga', 'Ashtakavarga'].map((source) => item({ source: source as any, strength: 'weak' }));
+    const r = resolveDomain('career', [...weak, item({ strength: 'moderate' })], { approximate: false });
+    expect(r.confirmedBy).toEqual(['D1']);
+    expect(r.verdict).toBe('Strong');
+  });
+  it('positive and negative extremes use mirror-image thresholds', () => {
+    const mk = (direction: 'positive' | 'negative') => ['D1', 'D9', 'Ashtakavarga'].map((source) => item({ source: source as any, direction, strength: 'strong' }));
+    expect(resolveDomain('career', [...mk('positive'), item({})], { approximate: false }).verdict).toBe('Very Strong');
+    expect(resolveDomain('career', [...mk('negative'), item({ direction: 'negative' })], { approximate: false }).verdict).toBe('Very Challenging');
   });
 });
 
@@ -128,4 +147,58 @@ describe('timing evidence and life timeline', () => {
       }
     }
   });
+});
+
+describe('evidence tiers and approximate birth time', () => {
+  it('Jaimini, partial Shadbala, modern conventions and common yogas are experimental', async () => {
+    for (const [d, t, lat, lng] of [['1990-08-15', '06:30', 12.9716, 77.5946], ['1975-03-21', '14:20', 19.076, 72.8777], ['1969-01-20', '05:00', 40.7128, -74.006]] as const) {
+      const chart = await chartOf(d, t, lat, lng);
+      for (const dom of LIFE_DOMAINS) for (const e of natalEvidence(chart, dom)) {
+        if (e.source === 'Jaimini' || e.source === 'Shadbala' || e.provenance === 'modern-convention') expect(e.tier, e.id).toBe('experimental');
+        if (/^(Raja|Budha-Aditya|Gajakesari)$|Vipreeta Raja/.test(e.factor.replace(/ Yoga$/, ''))) expect(e.tier, e.id).toBe('experimental');
+      }
+    }
+  });
+  it('with an approximate time, a dasha period is used only when every birth moment that day gives the same period', async () => {
+    const chart = await chartOf('1988-02-14', '06:00', 12.9716, 77.5946, true);
+    const stable = dashaTimingStable(chart, AS_OF);
+    for (const d of LIFE_DOMAINS) for (const e of dashaEvidence(chart, d, AS_OF)) {
+      if (e.factor === 'Running Mahadasha' && !stable.mahadasha) expect(e.usable).toBe(false);
+      if (e.factor === 'Running Antardasha' && !stable.antardasha) expect(e.usable).toBe(false);
+    }
+    // Exact times are always stable; an approximate time's antardasha cannot be more stable than its mahadasha.
+    expect(dashaTimingStable(await chartOf('1988-02-14', '06:00', 12.9716, 77.5946), AS_OF)).toEqual({ mahadasha: true, antardasha: true });
+    if (!stable.mahadasha) expect(stable.antardasha).toBe(false);
+  });
+  it('a whole-day time window usually moves the running periods: those dates are not used as fact', async () => {
+    // Values below were computed by this engine; they follow from the Moon's ~13°/day motion.
+    expect(dashaTimingStable(await chartOf('1988-02-14', '06:00', 12.9716, 77.5946, true), AS_OF)).toEqual({ mahadasha: false, antardasha: false });
+    expect(dashaTimingStable(await chartOf('1990-08-15', '06:30', 12.9716, 77.5946, true), AS_OF)).toEqual({ mahadasha: true, antardasha: false });
+    const ins = buildInsights(await chartOf('1988-02-14', '06:00', 12.9716, 77.5946, true), AS_OF);
+    expect(ins.timing).toMatchObject({ mahadashaReliable: false, antardashaReliable: false });
+    expect(ins.timing.note).toMatch(/approximate/);
+    expect(buildInsights(await chartOf('1990-08-15', '06:30', 12.9716, 77.5946), AS_OF).timing).toEqual({ mahadashaReliable: true, antardashaReliable: true, note: null });
+  });
+});
+
+describe('calibration over the 44 golden charts', () => {
+  it('stays within the launch guardrails (no manufactured extremes, no one-sided domain)', async () => {
+    const { verdictDistribution } = await import('../../scripts/calibration/distribution');
+    const { byDomain, total } = await verdictDistribution();
+    const n = 44;
+    expect(total.Exceptional).toBe(0);
+    expect(total['Very Strong']).toBeLessThanOrEqual(0.06 * n * 9);
+    const positive = total.Exceptional + total['Very Strong'] + total.Strong;
+    const negative = total.Challenging + total['Very Challenging'];
+    expect(positive / (n * 9)).toBeLessThan(0.5);
+    expect(negative).toBeGreaterThan(0.1 * n * 9);
+    for (const d of LIFE_DOMAINS) {
+      const v = byDomain[d];
+      const pos = v.Exceptional + v['Very Strong'] + v.Strong;
+      const neg = v.Challenging + v['Very Challenging'];
+      expect(pos / n, `${d} positive share`).toBeLessThanOrEqual(0.7);
+      expect(neg / n, `${d} negative share`).toBeLessThanOrEqual(0.7);
+      expect(v['Insufficient evidence'] / n, `${d} insufficient share`).toBeLessThanOrEqual(0.35);
+    }
+  }, 120_000);
 });

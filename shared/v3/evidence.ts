@@ -26,6 +26,13 @@ export type EvidenceStrength = "strong" | "moderate" | "weak";
  * modern-convention — a practitioner convention without a classical basis.
  */
 export type EvidenceProvenance = "classical-principle" | "derived-rule" | "modern-convention";
+/**
+ * core — textbook Parashari rules on verified calculations; only these decide a verdict.
+ * experimental — second-system, partial-calculation or convention-based indicators
+ * (Jaimini karakas, partial Shadbala, modern conventions, Navagraha heuristics):
+ * shown for transparency, never counted in the verdict.
+ */
+export type EvidenceTier = "core" | "experimental";
 
 export interface EvidenceItem {
   id: string;
@@ -42,9 +49,10 @@ export interface EvidenceItem {
   requiresBirthTime: boolean;
   /** False when the birth time is approximate and this item depends on it. */
   usable: boolean;
+  tier: EvidenceTier;
 }
 
-export const VERDICTS = ["Exceptional", "Very Strong", "Strong", "Mixed", "Challenging", "Very Challenging"] as const;
+export const VERDICTS = ["Exceptional", "Very Strong", "Strong", "Mixed", "Challenging", "Very Challenging", "Insufficient evidence"] as const;
 export type Verdict = typeof VERDICTS[number];
 export type Confidence = "High" | "Medium" | "Low";
 
@@ -57,6 +65,7 @@ export interface DomainResolution {
   conflicting: EvidenceItem[];
   neutral: EvidenceItem[];
   excluded: EvidenceItem[];     // not usable (birth-time dependent with approximate time)
+  experimental: EvidenceItem[]; // usable but not counted in the verdict (see EvidenceTier)
   confirmedBy: EvidenceSource[];  // independent sources on the supporting side
   contradictedBy: EvidenceSource[];
   conclusion: string;           // deterministic, template-built sentence
@@ -85,5 +94,7 @@ export interface KundliInsights {
   domains: DomainResolution[];
   timeline: TimelinePeriod[];
   currentPeriod: { mahadasha: Graha; antardasha: Graha | null; start: string; end: string } | null;
+  /** False when an approximate birth time could put a different period in force on asOf. */
+  timing: { mahadashaReliable: boolean; antardashaReliable: boolean; note: string | null };
   notes: string[];
 }

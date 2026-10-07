@@ -7,6 +7,7 @@ const VERDICT_STYLE: Record<Verdict, string> = {
   'Mixed': 'bg-amber-500/10 text-amber-700 border-amber-500/25',
   'Challenging': 'bg-orange-600/10 text-orange-700 border-orange-600/25',
   'Very Challenging': 'bg-red-600/10 text-red-700 border-red-600/25',
+  'Insufficient evidence': 'bg-muted text-muted-foreground border-border',
 };
 
 export function VerdictBadge({ verdict }: { verdict: Verdict }) {

@@ -6,7 +6,7 @@
  */
 import type { CanonicalChart } from '@shared/v3/canonical';
 import { EVIDENCE_ENGINE_VERSION, LIFE_DOMAINS, type KundliInsights, type LifeDomain } from '@shared/v3/evidence';
-import { dashaEvidence, indexChart, natalEvidence, runningPeriod } from './engine.js';
+import { dashaEvidence, dashaTimingStable, indexChart, natalEvidence, runningPeriod } from './engine.js';
 import { resolveDomain } from './resolution.js';
 import { buildTimeline } from './timeline.js';
 
@@ -25,6 +25,12 @@ export function buildInsights(chart: CanonicalChart, asOf = new Date()): KundliI
   const domains = LIFE_DOMAINS.map((d) => resolveDomain(d, [...natalEvidence(chart, d, ix), ...dashaEvidence(chart, d, asOf, ix)], { approximate }));
   const rp = runningPeriod(chart, asOf);
   const planet = (n: string) => chart.planets.find((p) => p.name === n)!;
+  const stable = dashaTimingStable(chart, asOf);
+  const timingNote = !stable.mahadasha
+    ? 'The birth time is approximate, so the dasha dates could be shifted: the current Mahadasha and Antardasha are uncertain and are not used in the verdicts.'
+    : !stable.antardasha
+      ? 'The birth time is approximate, so Antardasha dates could be shifted: the current Antardasha is uncertain and is not used in the verdicts.'
+      : null;
   return {
     engineVersion: EVIDENCE_ENGINE_VERSION,
     asOf: asOf.toISOString(),
@@ -38,6 +44,7 @@ export function buildInsights(chart: CanonicalChart, asOf = new Date()): KundliI
     domains,
     timeline: buildTimeline(chart, asOf, ix),
     currentPeriod: rp ? { mahadasha: rp.mahadasha, antardasha: rp.antardasha, start: rp.antarStart ?? rp.mahaStart, end: rp.antarEnd ?? rp.mahaEnd } : null,
-    notes: [...chart.uncertainty.notes, INTERPRETIVE_NOTE],
+    timing: { mahadashaReliable: stable.mahadasha, antardashaReliable: stable.antardasha, note: timingNote },
+    notes: [...chart.uncertainty.notes, ...(timingNote ? [timingNote] : []), INTERPRETIVE_NOTE],
   };
 }

@@ -11,9 +11,10 @@
 import type { CanonicalChart, Graha, SevenGraha } from '@shared/v3/canonical';
 import {
   DOMAIN_LABELS, LIFE_DOMAINS, type EvidenceItem, type EvidenceDirection, type EvidenceProvenance,
-  type EvidenceSource, type EvidenceStrength, type LifeDomain,
+  type EvidenceSource, type EvidenceStrength, type EvidenceTier, type LifeDomain,
 } from '@shared/v3/evidence';
 import { signDignity } from '../dignity.js';
+import { vimshottariDasha } from '../dasha.js';
 
 export const KENDRA = [1, 4, 7, 10];
 export const TRIKONA = [1, 5, 9];
@@ -79,10 +80,13 @@ class Collector {
   add(e: {
     factor: string; planet?: Graha; house?: number; direction: EvidenceDirection; strength: EvidenceStrength;
     source: EvidenceSource; provenance: EvidenceProvenance; rule: string; explanation: string; requiresBirthTime: boolean;
+    tier?: EvidenceTier;
   }) {
     const id = `${this.domain}:${e.source}:${e.factor}:${e.planet ?? ''}:${e.house ?? ''}`.toLowerCase().replace(/[^a-z0-9:]+/g, '-');
     if (this.items.some((i) => i.id === id)) return;
-    this.items.push({ ...e, id, domain: this.domain, usable: !(e.requiresBirthTime && this.ix.approximate) });
+    // Second-system (Jaimini), partial-calculation (Shadbala) and convention-based items never decide a verdict.
+    const tier: EvidenceTier = e.tier ?? (e.source === 'Jaimini' || e.source === 'Shadbala' || e.provenance === 'modern-convention' ? 'experimental' : 'core');
+    this.items.push({ ...e, tier, id, domain: this.domain, usable: !(e.requiresBirthTime && this.ix.approximate) });
   }
 }
 
@@ -123,7 +127,7 @@ function houseRules(c: Collector, ix: ChartIndex, domain: LifeDomain, h: number)
   } else if (DUSTHANA.includes(lordHouse) && !DUSTHANA.includes(h)) {
     const foreignLink = domain === 'foreign' && lordHouse === 12;
     c.add({ factor: `${ORD(h)} lord placement`, planet: lord, house: h, direction: foreignLink ? 'positive' : 'negative', strength: 'moderate', source: 'D1',
-      provenance: foreignLink ? 'derived-rule' : 'classical-principle',
+      provenance: foreignLink ? 'derived-rule' : 'classical-principle', tier: foreignLink ? 'experimental' : 'core',
       rule: foreignLink ? 'A link between the 9th/12th lords and the 12th house is read as a link to distant places.'
         : 'A house lord placed in a dusthana (6, 8, 12) tends to weaken or delay the house it rules.',
       explanation: `${lord}, lord of the ${ORD(h)} house (${sign}), sits in the ${ORD(lordHouse)} house.`, requiresBirthTime: true });
@@ -149,18 +153,23 @@ function houseRules(c: Collector, ix: ChartIndex, domain: LifeDomain, h: number)
       continue;
     }
     if (domain === 'spirituality' && h === 12 && occ === 'Ketu') {
-      c.add({ factor: 'Ketu in the 12th', planet: occ, house: h, direction: 'positive', strength: 'moderate', source: 'D1', provenance: 'derived-rule',
+      c.add({ factor: 'Ketu in the 12th', planet: occ, house: h, direction: 'positive', strength: 'moderate', source: 'D1', provenance: 'derived-rule', tier: 'experimental',
         rule: 'Ketu, the significator of detachment, in the 12th house of release is read as spiritual inclination.',
         explanation: `Ketu occupies the 12th house (${ix.houseSign(h)}).`, requiresBirthTime: true });
       continue;
     }
-    if (benefic) {
-      c.add({ factor: `${occ} in the ${ORD(h)}`, planet: occ, house: h, direction: weakened ? 'neutral' : 'positive', strength: dig && STRONG_DIGNITIES.includes(dig.dignity) ? 'strong' : 'moderate', source: 'D1', provenance: 'classical-principle',
+    if (weakened) {
+      c.add({ factor: `${occ} in the ${ORD(h)}`, planet: occ, house: h, direction: 'negative', strength: 'weak', source: 'D1', provenance: 'classical-principle',
+        rule: 'A debilitated planet (without cancellation) occupying a house cannot deliver its support there.',
+        explanation: `${occ} occupies the ${ORD(h)} house (${ix.houseSign(h)}) and is debilitated.`, requiresBirthTime: true });
+    } else if (benefic) {
+      c.add({ factor: `${occ} in the ${ORD(h)}`, planet: occ, house: h, direction: 'positive', strength: dig && STRONG_DIGNITIES.includes(dig.dignity) ? 'strong' : 'moderate', source: 'D1', provenance: 'classical-principle',
         rule: 'Natural benefics (Jupiter, Venus, Mercury, waxing Moon) occupying a house support its significations.',
-        explanation: `${occ} occupies the ${ORD(h)} house (${ix.houseSign(h)})${weakened ? ', though debilitated' : ''}.`, requiresBirthTime: true });
+        explanation: `${occ} occupies the ${ORD(h)} house (${ix.houseSign(h)}).`, requiresBirthTime: true });
     } else if (UPACHAYA.includes(h)) {
-      c.add({ factor: `${occ} in the ${ORD(h)}`, planet: occ, house: h, direction: 'positive', strength: 'moderate', source: 'D1', provenance: 'classical-principle',
-        rule: 'Natural malefics do well in upachaya houses (3, 6, 10, 11), where they give drive and growth over time.',
+      // Weak: growth through effort over time, not ease — and it applies to every malefic in these houses.
+      c.add({ factor: `${occ} in the ${ORD(h)}`, planet: occ, house: h, direction: 'positive', strength: 'weak', source: 'D1', provenance: 'classical-principle',
+        rule: 'Natural malefics do well in upachaya houses (3, 6, 10, 11), where they give drive and growth over time, through effort.',
         explanation: `${occ} occupies the ${ORD(h)} house (${ix.houseSign(h)}), an upachaya house.`, requiresBirthTime: true });
     } else {
       c.add({ factor: `${occ} in the ${ORD(h)}`, planet: occ, house: h, direction: 'negative', strength: 'moderate', source: 'D1', provenance: 'classical-principle',
@@ -256,9 +265,11 @@ function jaiminiRule(c: Collector, ix: ChartIndex, spec: DomainSpec) {
     requiresBirthTime: ix.approximate && kar.planet === 'Moon' });
 }
 
-// `common`: combinations that occur in a large share of charts count only as weak confirmation.
+// `common`: combinations present in roughly a third or more of charts (measured over the 44 golden
+// charts: Raja 68%, Budha-Aditya 52%, Vipreeta 43%, Gajakesari 36%) cannot discriminate, so they
+// are shown as experimental context but never decide a verdict.
 const YOGA_DOMAINS: Array<{ match: RegExp; domains: LifeDomain[]; lagnaDependent: boolean; common?: boolean }> = [
-  { match: /^Raja Yoga$/, domains: ['career', 'leadership'], lagnaDependent: true },
+  { match: /^Raja Yoga$/, domains: ['career', 'leadership'], lagnaDependent: true, common: true },
   { match: /Neecha Bhanga Raja Yoga/, domains: ['career', 'leadership'], lagnaDependent: true },
   { match: /Vipreeta Raja Yoga/, domains: ['career'], lagnaDependent: true, common: true },
   { match: /^Dhana Yoga$/, domains: ['wealth'], lagnaDependent: true },
@@ -267,7 +278,7 @@ const YOGA_DOMAINS: Array<{ match: RegExp; domains: LifeDomain[]; lagnaDependent
   { match: /^Hamsa Yoga$/, domains: ['spirituality', 'education', 'children'], lagnaDependent: true },
   { match: /^Malavya Yoga$/, domains: ['relationships', 'wealth'], lagnaDependent: true },
   { match: /^Sasa Yoga$/, domains: ['leadership', 'career'], lagnaDependent: true },
-  { match: /^Gajakesari Yoga$/, domains: ['wealth', 'leadership', 'education'], lagnaDependent: false },
+  { match: /^Gajakesari Yoga$/, domains: ['wealth', 'leadership', 'education'], lagnaDependent: false, common: true },
   { match: /^Budha-Aditya Yoga$/, domains: ['education', 'career'], lagnaDependent: false, common: true },
   { match: /^Chandra-Mangala Yoga$/, domains: ['wealth'], lagnaDependent: false },
 ];
@@ -297,7 +308,7 @@ function yogaRules(c: Collector, ix: ChartIndex, domain: LifeDomain) {
     const strength: EvidenceStrength = inDusthana || map.common ? 'weak' : primary && angular ? 'strong' : 'moderate';
     const others = ix.chart.yogas.filter((o) => o.name.replace(/^(Harsha|Sarala|Vimala) /, '') === family && !o.cancelled).length;
     c.add({ factor: y.name, planet: y.planets[0] as Graha | undefined, direction: 'positive', strength, source: 'Yoga',
-      provenance: primary ? 'classical-principle' : 'derived-rule',
+      provenance: primary ? 'classical-principle' : 'derived-rule', tier: map.common ? 'experimental' : 'core',
       rule: `${y.name} is a recognised combination; it is a promise that matures when its planets' periods run${inDusthana ? ', and it is weakened when formed in the 6th, 8th or 12th house' : ''}.`,
       explanation: `${y.description}${others > 1 ? ` (${others} such combinations are present.)` : ''}`, requiresBirthTime: map.lagnaDependent || ix.moonTimeSensitive });
   }
@@ -309,7 +320,7 @@ function domainSpecificRules(c: Collector, ix: ChartIndex, domain: LifeDomain) {
     const l9 = ix.lordOf(9), l12 = ix.lordOf(12);
     const h9 = ix.planet(l9).house, h12 = ix.planet(l12).house;
     if (h12 === 9 || h9 === 12 || (h9 === h12 && l9 !== l12)) {
-      c.add({ factor: '9th–12th lord link', planet: l12, direction: 'positive', strength: 'moderate', source: 'D1', provenance: 'derived-rule',
+      c.add({ factor: '9th–12th lord link', planet: l12, direction: 'positive', strength: 'moderate', source: 'D1', provenance: 'derived-rule', tier: 'experimental',
         rule: 'A connection between the 9th (long journeys) and 12th (distant lands) lords is read as foreign travel or residence.',
         explanation: `The 9th lord ${l9} is in the ${ORD(h9)} and the 12th lord ${l12} is in the ${ORD(h12)}.`, requiresBirthTime: true });
     }
@@ -317,7 +328,7 @@ function domainSpecificRules(c: Collector, ix: ChartIndex, domain: LifeDomain) {
   if (domain === 'wealth') {
     const sav = chart.strength.ashtakavarga.savByHouse;
     const [s11, s12] = [sav[10], sav[11]];
-    c.add({ factor: '11th vs 12th bindus', direction: s11 > s12 ? 'positive' : s11 < s12 ? 'negative' : 'neutral', strength: 'weak', source: 'Ashtakavarga', provenance: 'derived-rule',
+    c.add({ factor: '11th vs 12th bindus', direction: s11 > s12 ? 'positive' : s11 < s12 ? 'negative' : 'neutral', strength: 'weak', source: 'Ashtakavarga', provenance: 'derived-rule', tier: 'experimental',
       rule: 'In Ashtakavarga, more bindus in the 11th (gains) than the 12th (expenses) is read as income exceeding outgo.',
       explanation: `The 11th house has ${s11} bindus and the 12th has ${s12}.`, requiresBirthTime: true });
   }
@@ -332,7 +343,7 @@ function domainSpecificRules(c: Collector, ix: ChartIndex, domain: LifeDomain) {
   if (domain === 'children') {
     const jupFromMoon = ((ix.planet('Jupiter').signIndex - ix.planet('Moon').signIndex + 12) % 12) + 1;
     if ([1, 5, 9].includes(jupFromMoon)) {
-      c.add({ factor: 'Jupiter in trine from the Moon', planet: 'Jupiter', direction: 'positive', strength: 'weak', source: 'D1', provenance: 'derived-rule',
+      c.add({ factor: 'Jupiter in trine from the Moon', planet: 'Jupiter', direction: 'positive', strength: 'weak', source: 'D1', provenance: 'derived-rule', tier: 'experimental',
         rule: 'Jupiter, significator of children, in a trine from the Moon supports this area when judged from the Moon as well as the Lagna.',
         explanation: `Jupiter is ${ORD(jupFromMoon)} from the Moon.`, requiresBirthTime: ix.moonTimeSensitive });
     }
@@ -382,7 +393,7 @@ export function planetCondition(ix: ChartIndex, planet: Graha): { direction: Evi
   }
   const h = ix.planet(planet).house;
   if (!ix.approximate) {
-    if (KENDRA.includes(h) || TRIKONA.includes(h) || h === 11) { score += 1; reasons.push(`${planet} sits in the ${ORD(h)} house`); }
+    if (KENDRA.includes(h) || TRIKONA.includes(h)) { score += 1; reasons.push(`${planet} sits in the ${ORD(h)} house`); }
     else if (DUSTHANA.includes(h)) { score -= 1; reasons.push(`${planet} sits in the ${ORD(h)} house (a dusthana)`); }
   }
   return { direction: score > 0 ? 'positive' : score < 0 ? 'negative' : 'neutral', reasons };
@@ -398,22 +409,54 @@ export function runningPeriod(chart: CanonicalChart, asOf: Date): RunningPeriod 
   return { mahadasha: maha.lord, antardasha: antar?.lord ?? null, mahaStart: maha.start, mahaEnd: maha.end, antarStart: antar?.start, antarEnd: antar?.end };
 }
 
+/**
+ * With an approximate birth time, is the period running on `asOf` the same for every
+ * possible birth moment on the birth date? Moon longitude is advanced linearly at its
+ * birth speed (error < 0.1° within a day) and the Vimshottari calendar recomputed.
+ */
+export function dashaTimingStable(chart: CanonicalChart, asOf: Date): { mahadasha: boolean; antardasha: boolean } {
+  if (chart.birth.timeAccuracy !== 'approximate') return { mahadasha: true, antardasha: true };
+  const moon = chart.planets.find((p) => p.name === 'Moon')!;
+  const birthMs = Date.parse(chart.birth.birthUTC);
+  const [hh, mm, ss] = chart.birth.localTime.split(':').map(Number);
+  const sinceMidnightH = hh + mm / 60 + ss / 3600;
+  const t = asOf.getTime();
+  const running = (deltaH: number) => {
+    const v = vimshottariDasha(moon.longitude + moon.speed * deltaH / 24, new Date(birthMs + deltaH * 3_600_000));
+    const maha = v.mahadashas.find((m) => Date.parse(m.start) <= t && t < Date.parse(m.end));
+    const antar = maha?.antardashas.find((a) => Date.parse(a.start) <= t && t < Date.parse(a.end));
+    return { maha: maha?.lord ?? null, antar: antar?.lord ?? null };
+  };
+  const nominal = running(0);
+  let mahadasha = true, antardasha = true;
+  // Every hour across the local birth date, plus its two ends.
+  const offsets = [-sinceMidnightH, 24 - sinceMidnightH - 1 / 3600];
+  for (let h = Math.ceil(-sinceMidnightH); h < 24 - sinceMidnightH; h++) offsets.push(h);
+  for (const d of offsets) {
+    const r = running(d);
+    if (r.maha !== nominal.maha) mahadasha = false;
+    if (r.maha !== nominal.maha || r.antar !== nominal.antar) antardasha = false;
+  }
+  return { mahadasha, antardasha };
+}
+
 /** Timing evidence: how the running Mahadasha/Antardasha lords engage a domain as of `asOf`. */
 export function dashaEvidence(chart: CanonicalChart, domain: LifeDomain, asOf: Date, ix = indexChart(chart)): EvidenceItem[] {
   const rp = runningPeriod(chart, asOf);
   if (!rp) return [];
   const c = new Collector(ix, domain);
-  const dashaTimeSensitive = ix.approximate && !chart.uncertainty.moonNakshatraStableAcrossBirthDate;
-  const lords: Array<[Graha, 'Mahadasha' | 'Antardasha', EvidenceStrength]> = [[rp.mahadasha, 'Mahadasha', 'moderate']];
-  if (rp.antardasha && rp.antardasha !== rp.mahadasha) lords.push([rp.antardasha, 'Antardasha', 'weak']);
-  for (const [lord, level, strength] of lords) {
+  // With an approximate time, a period is used only if it is running whatever the actual birth moment was.
+  const stable = dashaTimingStable(chart, asOf);
+  const lords: Array<[Graha, 'Mahadasha' | 'Antardasha', EvidenceStrength, boolean]> = [[rp.mahadasha, 'Mahadasha', 'moderate', !stable.mahadasha]];
+  if (rp.antardasha && rp.antardasha !== rp.mahadasha) lords.push([rp.antardasha, 'Antardasha', 'weak', !stable.antardasha]);
+  for (const [lord, level, strength, timeSensitive] of lords) {
     const link = planetDomainLinks(ix, lord).find((l) => l.domain === domain);
     if (!link) continue;
     const cond = planetCondition(ix, lord);
     c.add({ factor: `Running ${level}`, planet: lord, direction: cond.direction, strength, source: 'Dasha', provenance: 'classical-principle',
       rule: 'A planet brings forward the houses it rules and occupies, and its own significations, during its Vimshottari period; how well depends on its strength.',
       explanation: `The ${lord} ${level} is running. ${link.reasons.join('; ')}.${cond.reasons.length ? ` ${cond.reasons.join('; ')}.` : ''}`,
-      requiresBirthTime: link.requiresBirthTime || dashaTimeSensitive });
+      requiresBirthTime: link.requiresBirthTime || timeSensitive });
   }
   return c.items;
 }
