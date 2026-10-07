@@ -6,4 +6,4 @@ vite.config.ts.*
 *.tar.gz
 .env
 .env.local
-.env.*.local
+.env.*.localastro-engine-rs/target/
