@@ -1,53 +1,24 @@
 /**
- * Jyotish AI Reading orchestrator — admin-only professional tool.
+ * Professional Jyotish chart (admin Jyotish Reading + Astrologer Pro).
  *
- * Computes a single precise (Swiss Ephemeris, Lahiri sidereal, via
- * swissChart.ts) position set and feeds it through every existing pure
- * astroEngine module (dasha, yogas, doshas, dignity, bhava, ashtakavarga,
- * vargas) PLUS the new Jaimini (jaimini.ts) and Mahavidya (mahavidya.ts)
- * layers and the gemstone-contraindication checks in remedies.ts.
- *
- * This is intentionally a SEPARATE entry point from getKundli() in index.ts:
- * the consumer-facing kundli flow keeps using the existing ~1-2°-accuracy
- * Keplerian engine (planets.ts) so its behaviour doesn't change. This
- * orchestrator is the only caller of swissChart.ts in the app.
+ * V3: a projection of the same CanonicalChart the consumer Kundli uses — one
+ * Swiss Ephemeris/Lahiri calculation, the birthplace's historical time zone,
+ * and the shared rule layers. Traditions (Parashar, K.N. Rao, Kamakhya)
+ * interpret this chart differently but never recompute its astronomy.
+ * Adds the professional-only layers: Jaimini Chara Dasha detail, Mahavidya,
+ * and gemstone contraindications.
  */
-import { computePrecisePositions } from './swissChart.js';
-import {
-  SIGNS, signFromLon, degreeInSign, nakshatraFromLon, nakshatraPada,
-  houseFromLon, signOfHouse, navamsaSign, navamsaDegree, dasamsaSign, getRemedies,
-} from './vedic.js';
+import { SIGN_NAMES, type CanonicalChart, type Graha } from '@shared/v3/canonical';
+import { navamsaDegree, getRemedies, NAKSHATRAS } from './vedic.js';
 import { calculateDashas, calculateYoginiDasha } from './dasha.js';
-import { computeAshtakavarga } from './ashtakavarga.js';
 import { computeDignities } from './dignity.js';
 import { computeBhava } from './bhava.js';
-import { detectYogas } from './yogas.js';
 import { computeRemedies, checkGemstoneContraindications } from './remedies.js';
-import { hasMangalDosha, hasKaalSarpDosha, hasPitraDosha, hasVishaYoga } from './doshas.js';
 import { computeCharKarakas, computeKarakamsha, calculateCharaDasha } from './jaimini.js';
 import { computeMahavidyaMapping } from './mahavidya.js';
-
-const PLANET_NAMES = ['Sun', 'Moon', 'Mars', 'Mercury', 'Jupiter', 'Venus', 'Saturn', 'Rahu', 'Ketu'];
-
-/**
- * Parse birth date/time (assumed IST, +05:30) into a UTC Date.
- * Deliberately duplicated from astroEngine/index.ts's private helper of the
- * same name rather than exporting/importing it, to avoid touching the
- * existing kundli pipeline.
- */
-function parseBirthDateTime(dateOfBirth: Date | string, timeOfBirth: string): Date {
-  const d = new Date(dateOfBirth);
-  const y = d.getUTCFullYear();
-  const mo = d.getUTCMonth() + 1;
-  const day = d.getUTCDate();
-  const [hh, mm, ss = '0'] = timeOfBirth.split(':');
-  const istOffsetMin = 5 * 60 + 30;
-  const localMin = parseInt(hh, 10) * 60 + parseInt(mm, 10) + parseInt(ss, 10) / 60;
-  const utcMin = localMin - istOffsetMin;
-  const utc = new Date(Date.UTC(y, mo - 1, day, 0, 0, 0));
-  utc.setUTCMinutes(utc.getUTCMinutes() + utcMin);
-  return utc;
-}
+import { resolveBirthWithCoordinates, type TimeAccuracy } from './birthResolver.js';
+import { computeCanonicalChart } from './canonical/compute.js';
+import { birthDateString } from './index.js';
 
 export interface JyotishPlanetEntry {
   planet: string;
@@ -72,7 +43,7 @@ export interface JyotishChartData {
   ashtakavarga: { ascSignIndex: number; bav: Record<string, number[]>; sav: number[]; savByHouse: number[] };
   dignities: ReturnType<typeof computeDignities>;
   bhava: ReturnType<typeof computeBhava>;
-  yogas: ReturnType<typeof detectYogas>;
+  yogas: CanonicalChart['yogas'];
   vimshottariDasha: ReturnType<typeof calculateDashas>;
   yoginiDasha: ReturnType<typeof calculateYoginiDasha>;
   jaimini: {
@@ -99,147 +70,93 @@ export interface JyotishChartSummary {
   moonSign: string;
   ascendant: string;
   nakshatra: string;
-  chartData: JyotishChartData;
+  chartData: JyotishChartData & { canonical: CanonicalChart };
 }
+
+export interface JyotishChartOptions { timeAccuracy?: TimeAccuracy; timezone?: string | null; utcOffset?: string | null }
 
 export function computeJyotishChart(
   dateOfBirth: Date | string,
   timeOfBirth: string,
   latitude: number,
   longitude: number,
+  opts: JyotishChartOptions = {},
 ): JyotishChartSummary {
-  const birthUTC = parseBirthDateTime(dateOfBirth, timeOfBirth);
-  const { jd, sidereal, ascSidereal, retroMap } = computePrecisePositions(birthUTC, latitude, longitude);
-
-  const sunSign = signFromLon(sidereal['Sun']);
-  const moonSign = signFromLon(sidereal['Moon']);
-  const lagnaSign = signFromLon(ascSidereal);
-  const moonNakshatra = nakshatraFromLon(sidereal['Moon']);
-
-  const ascSignIndex = Math.floor((((ascSidereal % 360) + 360) % 360) / 30);
-  const moonSignIndex = Math.floor((((sidereal['Moon'] % 360) + 360) % 360) / 30);
-
-  const planets: JyotishPlanetEntry[] = PLANET_NAMES.map((name) => {
-    const lon = sidereal[name] ?? 0;
-    const nak = nakshatraFromLon(lon);
-    return {
-      planet: name,
-      sign: signFromLon(lon),
-      degree: parseFloat(degreeInSign(lon).toFixed(4)),
-      house: houseFromLon(lon, ascSidereal),
-      isRetrograde: retroMap[name] ?? false,
-      nakshatra: nak.name,
-      nakshatraLord: nak.lord,
-      pada: nakshatraPada(lon),
-      deity: nak.deity,
-      shakti: nak.shakti,
-    };
-  });
-
-  const ascNak = nakshatraFromLon(ascSidereal);
-
-  // 12 houses (Whole Sign)
-  const houses = Array.from({ length: 12 }, (_, i) => ({
-    house: i + 1,
-    sign: signOfHouse(i + 1, ascSidereal),
-    planets: planets.filter((p) => p.house === i + 1).map((p) => p.planet),
+  const canonical = computeCanonicalChart(resolveBirthWithCoordinates({
+    date: birthDateString(dateOfBirth), time: timeOfBirth, latitude, longitude,
+    timezone: opts.timezone ?? null, utcOffset: opts.utcOffset ?? null, timeAccuracy: opts.timeAccuracy ?? 'exact',
   }));
+  return projectJyotishChart(canonical);
+}
 
-  // ─── Navamsa (D9) ───────────────────────────────────────────
-  const ascNavSign = navamsaSign(ascSidereal);
-  const navamsaPositions = PLANET_NAMES.map((name) => {
-    const lon = sidereal[name] ?? 0;
-    const navSign = navamsaSign(lon);
+/** Professional view of a CanonicalChart (no astronomy here). */
+export function projectJyotishChart(canonical: CanonicalChart): JyotishChartSummary {
+  const sidereal = Object.fromEntries(canonical.planets.map((p) => [p.name, p.longitude])) as Record<Graha, number>;
+  const ascSidereal = canonical.ascendant.longitude;
+  const ascSignIndex = canonical.ascendant.signIndex;
+  const birthUTC = new Date(canonical.birth.birthUTC);
+  const retroMap = Object.fromEntries(canonical.planets.map((p) => [p.name, p.retrograde]));
+
+  const planets: JyotishPlanetEntry[] = canonical.planets.map((p) => ({
+    planet: p.name,
+    sign: p.sign,
+    degree: parseFloat(p.degreeInSign.toFixed(4)),
+    house: p.house,
+    isRetrograde: p.retrograde,
+    nakshatra: p.nakshatra.name,
+    nakshatraLord: p.nakshatra.lord,
+    pada: p.nakshatra.pada,
+    deity: NAKSHATRAS[p.nakshatra.index].deity,
+    shakti: NAKSHATRAS[p.nakshatra.index].shakti,
+  }));
+  const houses = canonical.houses.map((h) => ({ house: h.house, sign: h.sign as string, planets: h.occupants as string[] }));
+
+  const vargaView = (d: 'D9' | 'D10', degreeOf?: (l: number) => number) => {
+    const v = canonical.vargas[d];
+    const positions = v.placements.map((p) => ({ planet: p.planet as string, sign: p.sign as string, degree: degreeOf ? parseFloat(degreeOf(sidereal[p.planet]).toFixed(2)) : 0, house: p.house }));
     return {
-      planet: name,
-      sign: SIGNS[navSign],
-      degree: parseFloat(navamsaDegree(lon).toFixed(2)),
-      house: ((navSign - ascNavSign + 12) % 12) + 1,
+      houses: Array.from({ length: 12 }, (_, i) => ({ house: i + 1, sign: SIGN_NAMES[(v.ascendantSignIndex + i) % 12] as string, planets: positions.filter((p) => p.house === i + 1).map((p) => p.planet) })),
+      planetaryPositions: positions,
     };
-  });
-  const navamsaHouses = Array.from({ length: 12 }, (_, i) => {
-    const signIdx = (ascNavSign + i) % 12;
-    return { house: i + 1, sign: SIGNS[signIdx], planets: navamsaPositions.filter((p) => p.house === i + 1).map((p) => p.planet) };
-  });
-
-  // ─── Dasamsa (D10) ──────────────────────────────────────────
-  const ascDasSign = dasamsaSign(ascSidereal);
-  const dasamsaPositions = PLANET_NAMES.map((name) => {
-    const lon = sidereal[name] ?? 0;
-    const dasSign = dasamsaSign(lon);
-    return { planet: name, sign: SIGNS[dasSign], degree: 0, house: ((dasSign - ascDasSign + 12) % 12) + 1 };
-  });
-  const dasamsaHouses = Array.from({ length: 12 }, (_, i) => {
-    const signIdx = (ascDasSign + i) % 12;
-    return { house: i + 1, sign: SIGNS[signIdx], planets: dasamsaPositions.filter((p) => p.house === i + 1).map((p) => p.planet) };
-  });
-
-  // ─── Ashtakavarga ───────────────────────────────────────────
-  const avSignIndex: Record<string, number> = { Ascendant: ascSignIndex };
-  for (const p of ['Sun', 'Moon', 'Mars', 'Mercury', 'Jupiter', 'Venus', 'Saturn']) {
-    avSignIndex[p] = Math.floor((((sidereal[p] ?? 0) % 360) + 360) % 360 / 30);
-  }
-  const av = computeAshtakavarga(avSignIndex);
-  const ashtakavarga = {
-    ascSignIndex,
-    bav: av.bav,
-    sav: av.sav,
-    savByHouse: Array.from({ length: 12 }, (_, h) => av.sav[(ascSignIndex + h) % 12]),
   };
 
-  // ─── Dignity, Bhava, Yogas ──────────────────────────────────
   const dignities = computeDignities(sidereal, ascSignIndex, retroMap);
   const bhava = computeBhava(sidereal, ascSidereal);
-  const yogas = detectYogas(sidereal, ascSignIndex, moonSignIndex, dignities, bhava.houseLords);
-
-  // ─── Dashas: Vimshottari + Yogini (Parashari) ──────────────
-  const vimshottariDasha = calculateDashas(sidereal['Moon'], birthUTC);
-  const yoginiDasha = calculateYoginiDasha(sidereal['Moon'], birthUTC);
-
-  // ─── Jaimini layer ──────────────────────────────────────────
   const charKarakas = computeCharKarakas(sidereal);
   const karakamsha = computeKarakamsha(sidereal, charKarakas);
-  const charaDasha = calculateCharaDasha(ascSidereal, sidereal, birthUTC);
-
-  // ─── Mahavidya (Kamakhya Tantric) ──────────────────────────
-  const mahavidya = computeMahavidyaMapping(ascSidereal, charKarakas);
-
-  // ─── Doshas ─────────────────────────────────────────────────
-  const marsHouse = planets.find((p) => p.planet === 'Mars')?.house ?? 0;
-  const doshas = {
-    mangalDosha: hasMangalDosha(marsHouse),
-    kaalSarpDosha: hasKaalSarpDosha(sidereal),
-    pitruDosha: hasPitraDosha(sidereal['Sun'] ?? 0, sidereal['Rahu'] ?? 0),
-    vishaYoga: hasVishaYoga(sidereal['Moon'] ?? 0, sidereal['Saturn'] ?? 0),
-  };
-
-  // ─── Remedies ───────────────────────────────────────────────
-  const functionalRemedies = computeRemedies(dignities, bhava.houseLords);
-  const nakshatraBasedRemedies = getRemedies(moonNakshatra.lord);
-  const gemstoneContraindications = checkGemstoneContraindications(ascSignIndex, sidereal, dignities);
+  const moon = canonical.planets.find((p) => p.name === 'Moon')!;
+  const dosha = (id: string) => canonical.doshas.find((d) => d.id === id)!.present;
 
   return {
-    zodiacSign: sunSign,
-    moonSign,
-    ascendant: lagnaSign,
-    nakshatra: moonNakshatra.name,
+    zodiacSign: canonical.planets.find((p) => p.name === 'Sun')!.sign,
+    moonSign: moon.sign,
+    ascendant: canonical.ascendant.sign,
+    nakshatra: moon.nakshatra.name,
     chartData: {
-      meta: { jd, engine: 'sweph (Moshier mode, Lahiri sidereal)', ayanamsa: 'Lahiri', birthUTC: birthUTC.toISOString() },
-      ascendant: { sign: lagnaSign, degree: parseFloat(degreeInSign(ascSidereal).toFixed(4)), siderealLon: ascSidereal, nakshatra: ascNak.name, nakshatraLord: ascNak.lord, pada: nakshatraPada(ascSidereal) },
+      meta: { jd: canonical.meta.julianDayUT, engine: `${canonical.meta.ephemeris}, ${canonical.meta.ayanamsa} sidereal`, ayanamsa: canonical.meta.ayanamsa, birthUTC: canonical.birth.birthUTC },
+      ascendant: {
+        sign: canonical.ascendant.sign, degree: parseFloat(canonical.ascendant.degreeInSign.toFixed(4)), siderealLon: ascSidereal,
+        nakshatra: canonical.ascendant.nakshatra.name, nakshatraLord: canonical.ascendant.nakshatra.lord, pada: canonical.ascendant.nakshatra.pada,
+      },
       planets,
       houses,
-      navamsa: { houses: navamsaHouses, planetaryPositions: navamsaPositions },
-      dasamsa: { houses: dasamsaHouses, planetaryPositions: dasamsaPositions },
-      ashtakavarga,
+      navamsa: vargaView('D9', navamsaDegree),
+      dasamsa: vargaView('D10'),
+      ashtakavarga: { ascSignIndex, bav: canonical.strength.ashtakavarga.bav as Record<string, number[]>, sav: canonical.strength.ashtakavarga.sav, savByHouse: canonical.strength.ashtakavarga.savByHouse },
       dignities,
       bhava,
-      yogas,
-      vimshottariDasha,
-      yoginiDasha,
-      jaimini: { charKarakas, karakamsha, charaDasha },
-      mahavidya,
-      doshas,
-      remedies: { functional: functionalRemedies, nakshatraBased: nakshatraBasedRemedies, gemstoneContraindications },
+      yogas: canonical.yogas,
+      vimshottariDasha: calculateDashas(moon.longitude, birthUTC),
+      yoginiDasha: calculateYoginiDasha(moon.longitude, birthUTC),
+      jaimini: { charKarakas, karakamsha, charaDasha: calculateCharaDasha(ascSidereal, sidereal, birthUTC) },
+      mahavidya: computeMahavidyaMapping(ascSidereal, charKarakas),
+      doshas: { mangalDosha: dosha('mangal'), kaalSarpDosha: dosha('kaalSarp'), pitruDosha: dosha('pitru'), vishaYoga: dosha('vishaYoga') },
+      remedies: {
+        functional: computeRemedies(dignities, bhava.houseLords),
+        nakshatraBased: getRemedies(moon.nakshatra.lord),
+        gemstoneContraindications: checkGemstoneContraindications(ascSignIndex, sidereal, dignities),
+      },
+      canonical,
     },
   };
 }

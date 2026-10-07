@@ -30,6 +30,8 @@ export const explicitBirthDetailsSchema = z.object({
   latitude: coordinate,
   longitude: coordinate,
   isBirthTimeApproximate: z.boolean().optional(),
+  timezone: z.string().trim().min(1).max(64).nullish(),
+  utcOffset: z.string().trim().regex(/^[+-]\d{2}:\d{2}(:\d{2})?$/, "utcOffset must look like +05:30").nullish(),
 }, { invalid_type_error: "birthDetails must be an object" });
 
 export type ExplicitBirthDetails = z.infer<typeof explicitBirthDetailsSchema>;

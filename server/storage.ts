@@ -102,6 +102,7 @@ export interface IStorage {
   createKundli(kundli: InsertKundli): Promise<Kundli>;
   getUserKundlis(userId: string): Promise<Kundli[]>;
   getKundliById(id: string): Promise<Kundli | undefined>;
+  updateKundliChart(id: string, data: Pick<Kundli, 'zodiacSign' | 'moonSign' | 'ascendant' | 'chartData' | 'dashas' | 'doshas' | 'remedies'>): Promise<Kundli | undefined>;
 
   // Astrologer operations
   createAstrologer(astrologer: InsertAstrologer): Promise<Astrologer>;
@@ -233,6 +234,11 @@ export class DatabaseStorage implements IStorage {
 
   async getKundliById(id: string): Promise<Kundli | undefined> {
     const [kundli] = await db.select().from(kundlis).where(eq(kundlis.id, id));
+    return kundli;
+  }
+
+  async updateKundliChart(id: string, data: Pick<Kundli, 'zodiacSign' | 'moonSign' | 'ascendant' | 'chartData' | 'dashas' | 'doshas' | 'remedies'>): Promise<Kundli | undefined> {
+    const [kundli] = await db.update(kundlis).set(data).where(eq(kundlis.id, id)).returning();
     return kundli;
   }
 

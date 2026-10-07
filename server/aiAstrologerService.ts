@@ -13,7 +13,9 @@
 
 import OpenAI from "openai";
 import type { Kundli } from "@shared/schema";
-import { getKundli, getTransits, transitSummary } from "./astroEngine/index.js";
+import { getTransits, transitSummary } from "./astroEngine/index.js";
+import { siderealPositions } from "./astroEngine/canonical/compute.js";
+import { SIGNS } from "./astroEngine/vedic.js";
 
 // Shared prediction discipline + ethics for all paid-report generation.
 const REPORT_DISCIPLINE = `Discipline: a yoga/placement is only a promise — tie predictions to the activating dasha + transit and at least two confirmations (Navamsa/Dasamsa, Ashtakavarga, house lord, karaka); weigh planetary strength (a weak/debilitated/combust planet under-delivers; note Neecha-bhanga and yoga cancellation). Give realistic timing windows. Ethics: never predict death or end of longevity; never frighten; pair every difficulty with a remedy and hope; respect the person's free will and effort; recommend only justified remedies, never push gemstones.`;
@@ -469,9 +471,9 @@ const LIFE_REPORT_BATCHES: { focus: string; sections: string[] }[] = [
 
 async function currentTransitContext(): Promise<string> {
   try {
-    const nk: any = await getKundli(new Date(), "12:00", 28.6139, 77.2090);
-    const positions: any[] = nk?.chartData?.planetaryPositions || [];
-    const sign = (p: string) => positions.find((x) => x.planet === p)?.sign || "—";
+    // Geocentric sidereal signs need no observer location.
+    const { bodies } = siderealPositions(new Date());
+    const sign = (p: keyof typeof bodies) => SIGNS[Math.floor(bodies[p].longitude / 30)];
     return `\nCurrent planetary transits (as of ${new Date().toDateString()}): Saturn in ${sign("Saturn")}, Jupiter in ${sign("Jupiter")}, Rahu in ${sign("Rahu")}, Ketu in ${sign("Ketu")}. Assess Sade Sati from Saturn's transit relative to the natal Moon sign.`;
   } catch {
     return "";

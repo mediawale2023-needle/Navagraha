@@ -8,17 +8,17 @@
  * ~06:00 local time for the requested timezone (IST by default).
  */
 
-import { julianDay, toSidereal, normalize360 } from "./core";
-import { sunPosition, moonLongitude } from "./planets";
+const normalize360 = (deg: number) => ((deg % 360) + 360) % 360;
+import { siderealPositions } from "./canonical/compute";
 import { NAKSHATRAS, NAKSHATRA_SPAN } from "./vedic";
 
-const TITHI_NAMES = [
+export const TITHI_NAMES = [
   "Pratipada", "Dwitiya", "Tritiya", "Chaturthi", "Panchami", "Shashthi",
   "Saptami", "Ashtami", "Navami", "Dashami", "Ekadashi", "Dwadashi",
   "Trayodashi", "Chaturdashi", "Purnima/Amavasya",
 ];
 
-const YOGA_NAMES = [
+export const YOGA_NAMES = [
   "Vishkambha", "Priti", "Ayushman", "Saubhagya", "Shobhana", "Atiganda",
   "Sukarma", "Dhriti", "Shoola", "Ganda", "Vriddhi", "Dhruva", "Vyaghata",
   "Harshana", "Vajra", "Siddhi", "Vyatipata", "Variyana", "Parigha", "Shiva",
@@ -29,14 +29,14 @@ const YOGA_NAMES = [
 const MOVABLE_KARANAS = ["Bava", "Balava", "Kaulava", "Taitila", "Garaja", "Vanija", "Vishti"];
 const FIXED_KARANAS = ["Shakuni", "Chatushpada", "Naga", "Kimstughna"];
 
-const VARA_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+export const VARA_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
 // Rahu Kaal occupies the Nth 1/8 segment of daytime, by weekday (Sun..Sat).
 const RAHU_SEGMENT = [8, 2, 7, 5, 6, 4, 3];
 const GULIKA_SEGMENT = [7, 6, 5, 4, 3, 2, 1];
 const YAMA_SEGMENT = [5, 4, 3, 2, 1, 7, 6];
 
-function karanaName(index: number): string {
+export function karanaName(index: number): string {
   // 60 half-tithis per lunar month → karana cycle
   const i = index % 60;
   if (i === 0) return FIXED_KARANAS[3]; // Kimstughna (first half of Shukla Pratipada)
@@ -75,9 +75,10 @@ export function computePanchang(dateInput?: string | Date, tzOffsetMin = 330): P
   const sunsetMin = 18 * 60; // 18:00 local
   const evalDate = new Date(localMidnightUtcMs + sunriseMin * 60000);
 
-  const jd = julianDay(evalDate);
-  const sunSid = toSidereal(sunPosition(jd).lon, jd);
-  const moonSid = toSidereal(moonLongitude(jd), jd);
+  // Same Swiss Ephemeris/Lahiri positions as every natal chart.
+  const { bodies } = siderealPositions(evalDate);
+  const sunSid = bodies.Sun.longitude;
+  const moonSid = bodies.Moon.longitude;
 
   const diff = normalize360(moonSid - sunSid);
 

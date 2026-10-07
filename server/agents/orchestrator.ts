@@ -1,7 +1,5 @@
 import OpenAI from 'openai';
 import { AGENT_PROMPTS } from './prompts';
-import { callAstroEngine, formatShadbalaSummary, RUST_CHART_UNAVAILABLE_REASON } from '../astroEngineClient';
-import type { RustChartInput } from '../rustChartAdapter';
 
 // Ensure OPENAI_API_KEY is available in the environment
 const openai = new OpenAI({
@@ -18,7 +16,6 @@ export interface UserContext {
     ascendant?: string | null; sunSign?: string | null; moonSign?: string | null;
     planets?: unknown; calculatedChart?: unknown; dashas?: unknown; doshas?: unknown;
   } | null;
-  rustChartInput?: RustChartInput;
   profession?: string;
   pastEvents?: string[];
   language?: string;
@@ -63,26 +60,10 @@ export async function runCouncil(context: UserContext): Promise<string> {
     ? `\n\nLANGUAGE DIRECTIVE: Write the entire final response in ${lang}, using natural, fluent, everyday ${lang}. Astrological proper nouns (planet, sign and dasha names) may stay recognizable.`
     : '';
 
-  // ─── Step 0: Deterministic Rust Math ──────────────────────────────────────
-  let shadbalaSummary = '';
-  const rustInput = context.rustChartInput;
-  if (rustInput?.available && !RUST_CHART_UNAVAILABLE_REASON) {
-    console.log('[Orchestrator] Calling Rust astro-engine for Shadbala/Yoga math...');
-    const astroResult = await callAstroEngine(rustInput.request);
-    if (astroResult) {
-      shadbalaSummary = formatShadbalaSummary(astroResult);
-      console.log(
-        `[Orchestrator] Rust engine: GlobalStrength=${astroResult.global_strength_score} Rupas, ` +
-        `${astroResult.yogas.filter(y => y.fires).length} active Yogas`
-      );
-    } else {
-      console.warn('[Orchestrator] Rust engine unavailable — agents will operate without Shadbala data.');
-    }
-  } else {
-    console.warn('[Orchestrator] Skipping Rust deterministic calculations:',
-      rustInput && !rustInput.available ? rustInput.reason :
-        rustInput?.available ? RUST_CHART_UNAVAILABLE_REASON : 'No deterministic chart input supplied');
-  }
+  // Strengths come from the canonical chart in chartData (dignity, Ashtakavarga,
+  // partial Shadbala). The Rust /calculate path is retired: its Varga and
+  // Shadbala methodology could not be verified against the canonical frame.
+  const shadbalaSummary = '';
 
   // Combine chart + shadbala for agents
   const contextPayload = JSON.stringify({
@@ -135,8 +116,8 @@ ${context.transits || '(transits unavailable)'}
 ### User Query:
 ${context.currentQuery}
 
-### Deterministic Rust Math (Tier 1 — NO LLM, pure arithmetic):
-${shadbalaSummary || '(Deterministic calculations unavailable; do not infer missing strengths)'}
+### Deterministic strengths:
+Use only the dignity, Ashtakavarga and partial Shadbala (Uchcha/Dig/Naisargika) values present in the supplied chart. No total Shadbala exists; do not infer missing strengths.
 
 ### Council Findings (Tier 2 — LLM Agents):
 1. **Chronos (Timing):** ${chronosResult}

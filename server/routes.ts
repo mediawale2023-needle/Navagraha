@@ -18,6 +18,7 @@ import {
   insertScheduledCallSchema,
   users as usersTable,
   kundlis as kundlisTable,
+  type Kundli,
   astrologers as astrologersTable,
   transactions as transactionsTable,
   consultations as consultationsTable,
@@ -33,12 +34,13 @@ import {
   getTransits,
   transitSummary,
 } from "./astroEngine/index.js";
+import { computePrashna, PRASHNA_CATEGORIES } from "./astroEngine/prashna.js";
+import { CalculationError } from "./astroEngine/canonical/compute.js";
+import { upgradeLegacyKundli, chartVersionStatus } from "./astroEngine/canonical/upgrade.js";
 import {
-  callPrashnaEngine,
   callSynastryEngine,
   callRemediationEngine,
 } from "./astroEngineClient";
-import { buildRustChartRequest } from "./rustChartAdapter";
 import { resolveBirthCoords } from "./geocode";
 import { selectChart } from "./birthDetails";
 import { computePanchang } from "./astroEngine/panchang";
@@ -205,6 +207,18 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
   });
 
   // ─── Kundli ───────────────────────────────────────────────
+  // Upgrade a pre-V3 saved chart in place (reversible; see canonical/upgrade.ts).
+  // Callers must have verified ownership first.
+  async function currentChart<T extends Kundli | null | undefined>(kundli: T): Promise<T> {
+    if (!kundli?.id) return kundli;
+    const upgrade = await upgradeLegacyKundli(kundli);
+    if (!upgrade) return kundli;
+    const prevReason = (kundli.chartData as any)?.limitedReason;
+    if (prevReason && prevReason === (upgrade.chartData as any)?.limitedReason) return kundli;
+    const saved = await storage.updateKundliChart(kundli.id, upgrade);
+    return (saved ?? { ...kundli, ...upgrade }) as T;
+  }
+
   app.post('/api/kundli', async (req: any, res) => {
     try {
       const userId = req.user?.id || req.session?.userId || null;
@@ -218,7 +232,12 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
       const lat = coords.lat;
       const lon = coords.lng;
 
-      const nk = await getKundli(dateOfBirth, req.body.timeOfBirth, lat, lon);
+      const nk = await getKundli(dateOfBirth, req.body.timeOfBirth, lat, lon, {
+        timeAccuracy: req.body.isBirthTimeApproximate === true ? 'approximate' : 'exact',
+        timezone: typeof req.body.timezone === 'string' ? req.body.timezone : null,
+        utcOffset: typeof req.body.utcOffset === 'string' ? req.body.utcOffset : null,
+        place: req.body.placeOfBirth,
+      });
       const kundliData = {
         zodiacSign: nk.zodiacSign,
         moonSign: nk.moonSign,
@@ -262,17 +281,20 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
 
   app.get('/api/kundli/:id', isAuthenticated, async (req, res) => {
     try {
-      const kundli = await storage.getKundliById(req.params.id);
-      if (!kundli || kundli.userId !== (req.user as { id: string }).id) return res.status(404).json({ message: "Kundli not found" });
-      res.json(kundli);
+      const owned = await storage.getKundliById(req.params.id);
+      if (!owned || owned.userId !== (req.user as { id: string }).id) return res.status(404).json({ message: "Kundli not found" });
+      const kundli = await currentChart(owned);
+      res.json({ ...kundli, chartStatus: chartVersionStatus(kundli) });
     } catch { res.status(500).json({ message: "Failed to fetch kundli" }); }
   });
 
   // Current transits (Gochar) + Sade Sati for a saved chart.
   app.get('/api/kundli/:id/transits', isAuthenticated, async (req, res) => {
     try {
-      const kundli = await storage.getKundliById(req.params.id);
-      if (!kundli || kundli.userId !== (req.user as { id: string }).id || !kundli.moonSign || !kundli.ascendant) return res.status(404).json({ message: "Kundli not found" });
+      const owned = await storage.getKundliById(req.params.id);
+      if (!owned || owned.userId !== (req.user as { id: string }).id) return res.status(404).json({ message: "Kundli not found" });
+      const kundli = await currentChart(owned);
+      if (!kundli.moonSign || !kundli.ascendant) return res.status(404).json({ message: "Kundli not found" });
       const sav = (kundli.chartData as any)?.ashtakavarga?.sav;
       res.json(getTransits(kundli.moonSign, kundli.ascendant, sav));
     } catch (err) {
@@ -381,12 +403,15 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
       }
       const coords = await resolveBirthCoords(latitude, longitude, req.body.place);
       if (!coords) return res.status(400).json({ message: 'Valid coordinates or a resolvable place are required for Prashna.' });
-      // Calculate current Julian Day at the exact moment of the question
-      const julian_day = (Date.now() / 86400000) + 2440587.5;
-      const result = await callPrashnaEngine({ julian_day, latitude: coords.lat, longitude: coords.lng, question_category });
-      if (!result) return res.status(503).json({ message: "Prashna engine unavailable" });
-      res.json(result);
-    } catch { res.status(500).json({ message: "Failed to calculate Prashna" }); }
+      if (!PRASHNA_CATEGORIES.includes(question_category)) {
+        return res.status(400).json({ message: `question_category must be one of ${PRASHNA_CATEGORIES.join(', ')}` });
+      }
+      res.json(computePrashna(new Date(), coords.lat, coords.lng, question_category));
+    } catch (e) {
+      if (e instanceof CalculationError || e instanceof BirthInputError) return res.status(400).json({ message: e.message });
+      console.error('Prashna error:', e);
+      res.status(500).json({ message: "Failed to calculate Prashna" });
+    }
   });
 
   app.post('/api/synastry', async (req, res) => {
@@ -1775,6 +1800,7 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
       if (selection.kind === 'saved') {
         kundli = await storage.getKundliById(selection.kundliId);
         if (!kundli || kundli.userId !== userId) return res.status(404).json({ message: "Kundli not found" });
+        kundli = await currentChart(kundli);
         kundliRef = kundli.id;
       }
       if (selection.kind === 'birthDetails') {
@@ -1784,7 +1810,12 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
         if (!coords) {
           return res.status(400).json({ message: "Please pick an exact birth place for the report — an approximate location gives a wrong Ascendant." });
         }
-        const nk = await getKundli(dob, birthDetails.timeOfBirth, coords.lat, coords.lng);
+        const nk = await getKundli(dob, birthDetails.timeOfBirth, coords.lat, coords.lng, {
+          timeAccuracy: birthDetails.isBirthTimeApproximate === true ? 'approximate' : 'exact',
+          timezone: birthDetails.timezone ?? null,
+          utcOffset: birthDetails.utcOffset ?? null,
+          place: birthDetails.placeOfBirth ?? null,
+        });
         kundli = {
           name: birthDetails.name,
           dateOfBirth: dob,
@@ -1801,7 +1832,7 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
       }
       if (selection.kind === 'default') {
         const userKundlis = await storage.getUserKundlis(userId);
-        kundli = userKundlis?.[0] ?? null;
+        kundli = await currentChart(userKundlis?.[0] ?? null);
         if (kundli) kundliRef = kundli.id;
       }
       if (!kundli) return res.status(400).json({ message: 'Provide birth details or generate your Kundli first to order a report.' });
@@ -2145,6 +2176,7 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
       // user's most recent saved chart.
       let kundli: any = selection.kind === 'saved' ? await storage.getKundliById(selection.kundliId) : null;
       if (selection.kind === 'saved' && (!kundli || kundli.userId !== user.id)) return res.status(404).json({ message: "Kundli not found" });
+      if (selection.kind === 'saved') kundli = await currentChart(kundli);
       if (selection.kind === 'birthDetails') {
         const birthDetails = selection.details;
         const dob = new Date(birthDetails.dateOfBirth);
@@ -2152,7 +2184,12 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
         if (!coords) {
           return res.status(400).json({ message: "Please enter an exact birth place so I can calculate the Ascendant accurately." });
         }
-        const nk = await getKundli(dob, birthDetails.timeOfBirth, coords.lat, coords.lng);
+        const nk = await getKundli(dob, birthDetails.timeOfBirth, coords.lat, coords.lng, {
+          timeAccuracy: birthDetails.isBirthTimeApproximate === true ? 'approximate' : 'exact',
+          timezone: birthDetails.timezone ?? null,
+          utcOffset: birthDetails.utcOffset ?? null,
+          place: birthDetails.placeOfBirth ?? null,
+        });
         kundli = {
           name: birthDetails.name,
           dateOfBirth: dob,
@@ -2168,7 +2205,7 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
       }
       if (selection.kind === 'default') {
         const userKundlis = await storage.getUserKundlis(user.id);
-        kundli = userKundlis?.[0] ?? null;
+        kundli = await currentChart(userKundlis?.[0] ?? null);
       }
       if (kundli) {
         birthDate = kundli.dateOfBirth ? new Date(kundli.dateOfBirth).toISOString().split('T')[0] : 'Unknown';
@@ -2231,7 +2268,6 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
           place: birthPlace,
         },
         chartData,
-        rustChartInput: buildRustChartRequest(kundli),
         profession: 'User',
         language,
         memories,
@@ -2283,8 +2319,9 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
       const { kundliId } = req.body;
       if (!kundliId) return res.status(400).json({ message: "kundliId is required" });
 
-      const kundli = await storage.getKundliById(kundliId);
-      if (!kundli || kundli.userId !== (req.user as { id: string }).id) return res.status(404).json({ message: "Kundli not found" });
+      const owned = await storage.getKundliById(kundliId);
+      if (!owned || owned.userId !== (req.user as { id: string }).id) return res.status(404).json({ message: "Kundli not found" });
+      const kundli = await currentChart(owned);
 
       const interpretation = await interpretKundli(kundli);
       res.json(interpretation);

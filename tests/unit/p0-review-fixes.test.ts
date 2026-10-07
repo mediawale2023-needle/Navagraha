@@ -279,7 +279,8 @@ describe('chart actually used after selection', () => {
     const chart = mocks.generateReport.mock.calls[0][1];
     expect(chart.timeOfBirth).toBe('06:30:45');
     expect(chart.chartData.isBirthTimeApproximate).toBe(true);
-    expect(chart.chartData.calculationInputs.latitude).toBe(coords.latitude);
+    expect(chart.chartData.canonical.birth.latitude).toBe(coords.latitude);
+    expect(chart.chartData.canonical.birth.localTime).toBe('06:30:45');
   });
 
   it('chat with explicit details passes that chart, not the saved one, to the council', async () => {
