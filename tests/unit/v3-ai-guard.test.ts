@@ -127,3 +127,12 @@ describe('draft → validate → regenerate once → validate → deterministic 
     }
   }, 120_000);
 });
+
+describe('approximate-time disclosure travels with every answer', () => {
+  it('the evidence summary carries a disclosure for approximate times only', async () => {
+    const { packetSummary } = await import('../../server/agents/askKundli');
+    const c = (await getKundli('1988-02-14', '06:00', 12.9716, 77.5946, { timeAccuracy: 'approximate' })).chartData.canonical;
+    expect(packetSummary(buildEvidencePacket(c, routeQuestion('career?'), AS_OF)).disclosure).toMatch(/approximate.*Lagna and houses were not used/);
+    expect(packetSummary(packet).disclosure).toBeNull();
+  });
+});

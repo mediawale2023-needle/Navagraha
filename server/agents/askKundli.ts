@@ -221,6 +221,10 @@ export function packetSummary(packet: EvidencePacket) {
   return {
     route: packet.route,
     domains: packet.resolutions.map((r) => ({ domain: r.domain, label: r.label, verdict: r.verdict, confidence: r.confidence, supporting: r.supporting.length, conflicting: r.conflicting.length })),
+    timeAccuracy: packet.chart.birth.timeAccuracy,
+    disclosure: packet.chart.birth.timeAccuracy === 'approximate'
+      ? `Birth time is approximate: the Lagna and houses were not used${packet.guard.timing.mahadashaReliable ? ' and dasha dates may shift' : ', and the current dasha period could not be determined'}.`
+      : null,
   };
 }
 

@@ -40,6 +40,7 @@ interface FullKundli extends Kundli {
 
 interface EvidenceSummary {
   domains: Array<{ domain: string; label: string; verdict: string; confidence: string; supporting: number; conflicting: number }>;
+  disclosure?: string | null;
 }
 
 interface ChatMessage {
@@ -601,6 +602,7 @@ export default function AIAstrologer() {
                       <div className="mt-3 border-t border-border/50 pt-2 text-[11px] text-muted-foreground" data-testid="answer-evidence">
                         Based on your chart:{" "}
                         {msg.evidence.domains.map((d) => `${d.label} — ${d.verdict} (${d.confidence} confidence; ${d.supporting} supporting, ${d.conflicting} conflicting)`).join(" · ")}
+                        {msg.evidence.disclosure && <span className="mt-1 block text-amber-700" data-testid="answer-time-disclosure">{msg.evidence.disclosure}</span>}
                       </div>
                     ) : null}
                   </>
