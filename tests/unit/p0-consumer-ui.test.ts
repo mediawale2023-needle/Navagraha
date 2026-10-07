@@ -9,7 +9,7 @@ describe('P0 consumer UI source regressions', () => {
     for (const claim of ['Moon in 4th House', 'Mars in 10th House', 'Jupiter in 7th House']) expect(view).not.toContain(claim);
     expect(view).toContain('<TabsContent value="insights">');
     // V3: the tab shows the evidence-driven Life Timeline, never pre-written chart claims.
-    expect(view).toContain('<LifeTimeline periods={insights.timeline} />');
+    expect(view).toContain('<LifeTimeline periods={insights.timeline} timingNote={insights.timing?.note} />');
     expect(view).not.toMatch(/\|\| 'Aries'|\|\| 'Taurus'/);
   });
   it('the evidence sheet carries no fabricated citations or indicator counts', () => {
