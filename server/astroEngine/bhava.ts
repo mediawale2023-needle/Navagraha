@@ -4,6 +4,7 @@
  * house overlay that flags planets sitting near a sign edge.
  */
 import { SIGNS } from './vedic.js';
+import { lonOf } from './lon.js';
 
 const SIGN_LORDS = ['Mars', 'Venus', 'Mercury', 'Moon', 'Sun', 'Mercury', 'Venus', 'Mars', 'Jupiter', 'Saturn', 'Saturn', 'Jupiter'];
 const ALL_PLANETS = ['Sun', 'Moon', 'Mars', 'Mercury', 'Jupiter', 'Venus', 'Saturn', 'Rahu', 'Ketu'];
@@ -36,7 +37,7 @@ export function computeBhava(sidereal: Record<string, number>, ascSidereal: numb
   const planetSign: Record<string, number> = {};
   const planetHouse: Record<string, number> = {};
   for (const p of ALL_PLANETS) {
-    planetSign[p] = signOf(sidereal[p] ?? 0);
+    planetSign[p] = signOf(lonOf(sidereal, p));
     planetHouse[p] = whole(planetSign[p]);
   }
 
@@ -48,8 +49,8 @@ export function computeBhava(sidereal: Record<string, number>, ascSidereal: numb
       house: i + 1,
       sign: SIGNS[signIdx],
       lord,
-      lordSign: SIGNS[planetSign[lord] ?? 0],
-      lordHouse: planetHouse[lord] ?? 0,
+      lordSign: SIGNS[planetSign[lord]],
+      lordHouse: planetHouse[lord],
     };
   });
 
@@ -73,7 +74,7 @@ export function computeBhava(sidereal: Record<string, number>, ascSidereal: numb
   void cusps;
   const chalit = ALL_PLANETS.map((p) => {
     const rasiHouse = planetHouse[p];
-    const chalitHouse = chalitHouseOf(sidereal[p] ?? 0);
+    const chalitHouse = chalitHouseOf(lonOf(sidereal, p));
     return { planet: p, rasiHouse, chalitHouse, shifted: rasiHouse !== chalitHouse };
   });
 

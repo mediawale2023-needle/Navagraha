@@ -5,7 +5,7 @@ import { QuickActionCard } from '@/components/QuickActionCard';
 import { HeroBanner } from '@/components/HeroBanner';
 import { SectionHeader } from '@/components/SectionHeader';
 import { GreetingCard } from '@/components/GreetingCard';
-import { ActiveInfluenceCard } from '@/components/ActiveInfluenceCard';
+import { ActiveInfluences } from '@/components/v3/ActiveInfluences';
 import { AstrologerCard } from '@/components/astrologer-card';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -108,7 +108,7 @@ export default function Home() {
           <div className="grid gap-4 lg:grid-cols-[minmax(0,1.5fr)_320px] lg:items-stretch">
             <GreetingCard
               userName={user?.firstName ? user.firstName.split(' ')[0] : 'Seeker'}
-              subtitle="Saturn turns benefic on Thursday. Move on the conversation you&apos;ve been postponing."
+              subtitle="See what your chart says, and why."
               className="h-full"
             />
             <div className="yantra-card h-full p-5">
@@ -235,31 +235,16 @@ export default function Home() {
             <div>
               <SectionHeader
                 title="Active Influences"
-                subtitle="Current planetary periods affecting you"
-                viewAllLink="/kundli/new"
+                subtitle="Current planetary periods in your chart"
+                viewAllLink="/kundli"
               />
               <div className="space-y-3">
-                <ActiveInfluenceCard
-                  title="Mars Mahadasha"
-                  description="High energy period. Focus on career and ambition. Watch for impulsiveness."
-                  type="dasha"
-                  severity="medium"
-                  endDate="Mar 2027"
-                  linkTo="/kundli/new"
-                />
-                <ActiveInfluenceCard
-                  title="Saturn Transit 12th House"
-                  description="Time for rest and spiritual growth. Avoid major decisions."
-                  type="transit"
-                  severity="low"
-                  endDate="Jan 2026"
-                  linkTo="/kundli/new"
-                />
+                <ActiveInfluences />
               </div>
             </div>
             <div className="yantra-card p-6">
               <p className="yantra-eyebrow">Today&apos;s Guidance</p>
-              <h3 className="font-display mt-2 text-xl text-foreground">A grounded day for action</h3>
+              <h3 className="font-display mt-2 text-xl text-foreground">Guidance from your own chart</h3>
               <p className="mt-3 text-sm text-muted-foreground">
                 Generate your kundli to unlock chart-specific guidance, stronger remedies, and better astrologer matching.
               </p>

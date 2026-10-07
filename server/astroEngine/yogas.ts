@@ -4,6 +4,7 @@
  * its cancellation). Deterministic, from the natal chart.
  */
 import type { PlanetDignity } from './dignity.js';
+import { lonOf } from './lon.js';
 
 const KENDRA = [1, 4, 7, 10];
 const TRIKONA = [1, 5, 9];
@@ -35,7 +36,7 @@ export function detectYogas(
   const houseL: Record<string, number> = {};
   const houseM: Record<string, number> = {};
   for (const p of PLANETS) {
-    sign[p] = signOf(sidereal[p] ?? 0);
+    sign[p] = signOf(lonOf(sidereal, p));
     houseL[p] = hL(sign[p]);
     houseM[p] = hM(sign[p]);
   }

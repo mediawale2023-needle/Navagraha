@@ -5,6 +5,7 @@
  */
 
 import { SIGNS } from './vedic.js';
+import { lonOf } from './lon.js';
 import { ashtakootMatch }      from './matching.js';
 import { resolveBirthWithCoordinates, type TimeAccuracy } from './birthResolver.js';
 import { computeCanonicalChart, siderealPositions } from './canonical/compute.js';
@@ -148,7 +149,7 @@ export function getTransits(
     };
   });
 
-  const satSign = signIdxOf(lons['Saturn'] ?? 0);
+  const satSign = signIdxOf(lonOf(lons, 'Saturn'));
   const hMoonSat = ((satSign - moonIdx + 12) % 12) + 1;
   let active = false;
   let phase = 'Not in Sade Sati';
@@ -166,18 +167,18 @@ export function getTransits(
   let b = new Date(when);
   for (let i = 0; i < 36; i++) {
     const prev = new Date(b); prev.setMonth(prev.getMonth() - 1);
-    if (signIdxOf(siderealLongitudesOn(prev)['Saturn'] ?? 0) !== satSign) break;
+    if (signIdxOf(lonOf(siderealLongitudesOn(prev), 'Saturn')) !== satSign) break;
     b = prev;
   }
   let e = new Date(when);
   for (let i = 0; i < 36; i++) {
     const next = new Date(e); next.setMonth(next.getMonth() + 1); e = next;
-    if (signIdxOf(siderealLongitudesOn(next)['Saturn'] ?? 0) !== satSign) break;
+    if (signIdxOf(lonOf(siderealLongitudesOn(next), 'Saturn')) !== satSign) break;
   }
   sinceApprox = monthFmt(b);
   untilApprox = monthFmt(e);
 
-  const jupSign = signIdxOf(lons['Jupiter'] ?? 0);
+  const jupSign = signIdxOf(lonOf(lons, 'Jupiter'));
   const hMoonJup = ((jupSign - moonIdx + 12) % 12) + 1;
 
   return {

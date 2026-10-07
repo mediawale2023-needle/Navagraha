@@ -1,4 +1,6 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { Link } from 'wouter';
 import { Sparkles, Filter, Calendar } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -26,73 +28,39 @@ interface Remedy {
   hasReminder?: boolean;
 }
 
-const SAMPLE_REMEDIES: Remedy[] = [
-  {
-    id: '1',
-    title: 'Mangal Dosha Shanti Puja',
-    description: 'Perform this puja to reduce the malefic effects of Mars in your chart. Best performed on Tuesdays.',
-    priority: 'high',
-    timeRequired: '15 minutes',
-    bestTime: 'Early morning (6-8 AM)',
-    bestDay: 'Tuesday',
-    itemsNeeded: ['Red flowers', 'Jaggery (gur)', 'Red cloth', 'Sindoor'],
-    category: 'puja',
-  },
-  {
-    id: '2',
-    title: 'Hanuman Chalisa Recitation',
-    description: 'Recite Hanuman Chalisa for strength, courage, and Mars-related remedies.',
-    priority: 'medium',
-    timeRequired: '8 minutes',
-    bestTime: 'Morning or evening',
-    bestDay: 'Tuesday or Saturday',
-    category: 'mantra',
-  },
-  {
-    id: '3',
-    title: 'Wear Red Coral Gemstone',
-    description: 'Red Coral (Moonga) strengthens Mars. Consult an astrologer before wearing.',
-    priority: 'consult',
-    timeRequired: 'N/A',
-    bestTime: 'Tuesday morning during Shukla Paksha',
-    itemsNeeded: ['Red Coral (5-7 carats)', 'Copper or gold setting'],
-    category: 'gemstone',
-  },
-  {
-    id: '4',
-    title: 'Donate Red Lentils (Masoor Dal)',
-    description: 'Donating red lentils on Tuesdays helps reduce Mars afflictions.',
-    priority: 'medium',
-    timeRequired: '5 minutes',
-    bestTime: 'Morning',
-    bestDay: 'Tuesday',
-    itemsNeeded: ['Red lentils (masoor dal)', 'Red cloth for wrapping'],
-    category: 'donation',
-  },
-  {
-    id: '5',
-    title: 'Avoid Alcohol and Non-Veg on Tuesday',
-    description: 'Lifestyle remedy to reduce Mars negativity. Observe this weekly.',
-    priority: 'medium',
-    timeRequired: 'All day',
-    bestDay: 'Every Tuesday',
-    category: 'lifestyle',
-  },
-  {
-    id: '6',
-    title: 'Surya Namaskar Daily',
-    description: 'Daily sun salutations strengthen the Sun and improve overall vitality.',
-    priority: 'medium',
-    timeRequired: '10 minutes',
-    bestTime: 'Sunrise',
-    category: 'lifestyle',
-  },
+/** Practices offered when no chart exists — explicitly NOT chart-specific and never tied to a dosha. */
+const GENERAL_PRACTICES: Remedy[] = [
+  { id: 'g1', title: 'Daily meditation', description: 'A general wellbeing practice, not based on your chart.', priority: 'medium', timeRequired: '10 minutes', bestTime: 'Morning', category: 'lifestyle' },
+  { id: 'g2', title: 'Surya Namaskar', description: 'A general practice for energy and routine, not based on your chart.', priority: 'medium', timeRequired: '10 minutes', bestTime: 'Sunrise', category: 'lifestyle' },
 ];
+
+interface FunctionalRemedy { focus: string; action: string; gemstone?: string; mantra: string; japaCount: number; donation?: string; day: string; deity: string; reason: string }
+
+/** Turn the chart's own functional remedies into trackable practices. Gemstones always require consultation. */
+function remediesFromChart(list: FunctionalRemedy[]): Remedy[] {
+  return list.flatMap((r, i) => {
+    const out: Remedy[] = [{
+      id: `m${i}`, title: `${r.action} ${r.focus}: ${r.deity} mantra`,
+      description: `${r.reason} Chant "${r.mantra}" (${r.japaCount.toLocaleString()}×).`,
+      priority: 'medium', timeRequired: '15 minutes', bestDay: r.day, bestTime: r.day, category: 'mantra',
+    }];
+    if (r.donation) out.push({ id: `d${i}`, title: `Donate ${r.donation}`, description: `Optional charity linked to ${r.focus}. ${r.reason}`, priority: 'medium', timeRequired: '5 minutes', bestDay: r.day, bestTime: r.day, category: 'donation' });
+    if (r.gemstone) out.push({ id: `g${i}`, title: `${r.gemstone} (consult first)`, description: `Traditionally linked to ${r.focus}. Consult a qualified astrologer before wearing any gemstone; never buy one out of fear.`, priority: 'consult', timeRequired: 'N/A', category: 'gemstone' });
+    return out;
+  });
+}
 
 export default function Remedies() {
   const [filterPriority, setFilterPriority] = useState<string>('all');
   const [filterCategory, setFilterCategory] = useState<string>('all');
-  const [remedies, setRemedies] = useState<Remedy[]>(SAMPLE_REMEDIES);
+  const { data: kundlis } = useQuery<Array<{ id: string; name: string }>>({ queryKey: ['/api/kundli'] });
+  const latest = kundlis?.[0];
+  const { data: chart } = useQuery<{ chartData?: { functionalRemedies?: FunctionalRemedy[] } }>({ queryKey: ['/api/kundli', latest?.id], enabled: !!latest });
+  const fromChart = chart?.chartData?.functionalRemedies;
+  const [remedies, setRemedies] = useState<Remedy[]>(GENERAL_PRACTICES);
+  useEffect(() => {
+    if (fromChart?.length) setRemedies(remediesFromChart(fromChart));
+  }, [fromChart]);
 
   const filteredRemedies = remedies.filter((remedy) => {
     if (filterPriority !== 'all' && remedy.priority !== filterPriority) return false;
@@ -125,7 +93,7 @@ export default function Remedies() {
                 <Sparkles className="w-4 h-4 text-[var(--primary-border)]" />
               </div>
               <div>
-                <h1 className="font-display text-foreground">Recommended Remedies</h1>
+                <h1 className="font-display text-foreground">{fromChart?.length ? `Remedies from ${latest?.name}'s chart` : 'General practices'}</h1>
                 <p className="text-xs text-muted-foreground">
                   {completedCount} of {totalCount} completed this month
                 </p>
@@ -142,17 +110,19 @@ export default function Remedies() {
             <div className="flex items-center justify-between mb-3">
               <h3 className="font-display text-foreground">Monthly Progress</h3>
               <Badge className="bg-nava-navy text-primary">
-                {Math.round((completedCount / totalCount) * 100)}% Complete
+                {totalCount ? Math.round((completedCount / totalCount) * 100) : 0}% Complete
               </Badge>
             </div>
             <div className="w-full bg-muted rounded-full h-2 mb-2">
               <div
                 className="h-2 rounded-full bg-[var(--primary-border)] transition-all duration-300"
-                style={{ width: `${(completedCount / totalCount) * 100}%` }}
+                style={{ width: `${totalCount ? (completedCount / totalCount) * 100 : 0}%` }}
               />
             </div>
             <p className="text-xs text-muted-foreground">
-              Completing remedies reduces dosha effects and improves planetary strength
+              {fromChart?.length
+                ? 'Optional practices derived from your chart’s functional planets. Remedies support effort; they are never a condition for a good outcome.'
+                : <>These are general practices, not based on any chart. <Link href="/kundli/new" className="font-semibold text-foreground underline">Create your Kundli</Link> for chart-specific suggestions.</>}
             </p>
           </CardContent>
         </Card>
