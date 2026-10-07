@@ -204,4 +204,3 @@ export function validateAnswer(answer: string, ctx: GuardContext): string[] {
 
   return Array.from(new Set(issues));
 }
-
