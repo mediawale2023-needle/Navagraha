@@ -113,3 +113,15 @@ export function computeDignities(
     };
   });
 }
+
+/** Dignity of a planet placed in a sign (no degree-dependent Moolatrikona), e.g. for a varga placement. */
+export function signDignity(planet: string, signIndex: number): 'Exalted' | 'Debilitated' | 'Own sign' | "Friend's sign" | "Enemy's sign" | 'Neutral sign' | null {
+  if (!DIGNITY_PLANETS.includes(planet)) return null;
+  if (EXALT[planet] === signIndex) return 'Exalted';
+  if (DEBIL[planet] === signIndex) return 'Debilitated';
+  if (OWN[planet].includes(signIndex)) return 'Own sign';
+  const lord = SIGN_LORDS[signIndex];
+  if (FRIENDS[planet].includes(lord)) return "Friend's sign";
+  if (ENEMIES[planet].includes(lord)) return "Enemy's sign";
+  return 'Neutral sign';
+}

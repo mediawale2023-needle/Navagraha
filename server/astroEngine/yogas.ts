@@ -19,6 +19,7 @@ export interface Yoga {
   description: string;
 }
 
+const ord = (n: number) => `${n}${n === 1 ? 'st' : n === 2 ? 'nd' : n === 3 ? 'rd' : 'th'}`;
 const signOf = (lon: number) => Math.floor((((lon % 360) + 360) % 360) / 30) % 12;
 
 export function detectYogas(
@@ -79,7 +80,7 @@ export function detectYogas(
         const key = [lk, lt].sort().join('-');
         if (seenRaja.has(key)) continue;
         seenRaja.add(key);
-        yogas.push({ name: 'Raja Yoga', category: 'Raja', planets: [lk, lt], description: `Lords of the ${k}th (kendra) and ${t}th (trikona) unite in house ${lordHouseByHouse[k]} — status and success.` });
+        yogas.push({ name: 'Raja Yoga', category: 'Raja', planets: [lk, lt], description: `Lords of the ${ord(k)} (kendra) and ${ord(t)} (trikona) unite in the ${ord(lordHouseByHouse[k])} house — status and success.` });
       }
     }
   }
@@ -96,7 +97,7 @@ export function detectYogas(
         const key = [la, lb].sort().join('-');
         if (seenDhana.has(key)) continue;
         seenDhana.add(key);
-        yogas.push({ name: 'Dhana Yoga', category: 'Dhana', planets: [la, lb], description: `Wealth-house lords (${a}th & ${b}th) combine in house ${lordHouseByHouse[a]} — financial gain.` });
+        yogas.push({ name: 'Dhana Yoga', category: 'Dhana', planets: [la, lb], description: `Wealth-house lords (${ord(a)} & ${ord(b)}) combine in the ${ord(lordHouseByHouse[a])} house — financial gain.` });
       }
     }
   }
@@ -115,7 +116,7 @@ export function detectYogas(
         name: `${VIPREETA_NAME[dh]} Vipreeta Raja Yoga`,
         category: 'Raja',
         planets: [lord],
-        description: `${dh}th lord (${lord}) sits in the ${lordHouse}th (also a dusthana) — Vipreeta Raja Yoga: setbacks convert into unexpected gains, often after the difficulty has already run its course.`,
+        description: `${ord(dh)} lord (${lord}) sits in the ${ord(lordHouse)} (also a dusthana) — Vipreeta Raja Yoga: setbacks convert into unexpected gains, often after the difficulty has already run its course.`,
       });
     }
   }

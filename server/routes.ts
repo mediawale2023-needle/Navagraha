@@ -37,6 +37,8 @@ import {
 import { computePrashna, PRASHNA_CATEGORIES } from "./astroEngine/prashna.js";
 import { CalculationError } from "./astroEngine/canonical/compute.js";
 import { upgradeLegacyKundli, chartVersionStatus } from "./astroEngine/canonical/upgrade.js";
+import { buildInsights } from "./astroEngine/evidence/insights.js";
+import { canonicalChartSchema, isCurrentCanonicalChart } from "@shared/v3/canonical";
 import {
   callSynastryEngine,
   callRemediationEngine,
@@ -286,6 +288,36 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
       const kundli = await currentChart(owned);
       res.json({ ...kundli, chartStatus: chartVersionStatus(kundli) });
     } catch { res.status(500).json({ message: "Failed to fetch kundli" }); }
+  });
+
+  // V3 insights: evidence-backed domain verdicts + life timeline for a saved chart.
+  app.get('/api/kundli/:id/insights', isAuthenticated, async (req, res) => {
+    try {
+      const owned = await storage.getKundliById(req.params.id);
+      if (!owned || owned.userId !== (req.user as { id: string }).id) return res.status(404).json({ message: "Kundli not found" });
+      const kundli = await currentChart(owned);
+      const canonical = (kundli.chartData as any)?.canonical;
+      if (!isCurrentCanonicalChart(canonical)) {
+        return res.status(409).json({ message: chartVersionStatus(kundli).notes[0] ?? 'This chart needs to be recreated with the V3 engine.', chartStatus: chartVersionStatus(kundli) });
+      }
+      res.json({ ...buildInsights(canonical), chartStatus: chartVersionStatus(kundli) });
+    } catch (err) {
+      console.error('Insights error:', err);
+      res.status(500).json({ message: "Failed to compute insights" });
+    }
+  });
+
+  // Insights for an unsaved (guest) chart held by the client. Pure computation on a
+  // schema-validated canonical chart: nothing is stored and no AI is called.
+  app.post('/api/kundli/insights', async (req, res) => {
+    try {
+      const canonical = canonicalChartSchema.safeParse(req.body?.canonical);
+      if (!canonical.success) return res.status(400).json({ message: 'A valid V3 canonical chart is required' });
+      res.json(buildInsights(canonical.data));
+    } catch (err) {
+      console.error('Guest insights error:', err);
+      res.status(500).json({ message: "Failed to compute insights" });
+    }
   });
 
   // Current transits (Gochar) + Sade Sati for a saved chart.
