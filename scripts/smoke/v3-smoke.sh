@@ -56,6 +56,8 @@ if [ "$MODE" == local ]; then
   chk "legacy row untouched in the database" "$($PSQL "select (chart_data ? 'canonical')::text || ':' || zodiac_sign from kundlis where id='$LG'")" 'false:Leo'
   NC=$($PSQL "insert into kundlis (user_id,name,date_of_birth,time_of_birth,place_of_birth,chart_data) values ('$OWNER_ID','NoCoords','1990-07-04','12:00','Somewhere','$LEGACY') returning id" | head -1)
   chk "legacy chart without coordinates is limited, not guessed" "$(req -b "$O" "$B/api/kundli/$NC/insights"; j .chartStatus.version)" '409"limited"'
+  req "$B/api/reports/types" >/dev/null; RT0=$(jq -r '[.[] | select(.isActive != false and .category != "life_complete")][0].id // empty' "$T/body.json")
+  chk "no report is sold on a chart without a V3 calculation" "$(req -b "$O" -X POST "$B/api/reports/order" -d "{\"kundliId\":\"$NC\",\"reportTypeId\":\"$RT0\"}")" 409
 else
   skp "legacy chart checks (need direct DB access; run in local mode)"
 fi
