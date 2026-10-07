@@ -112,6 +112,7 @@ describe('P0 route regressions', () => {
     expect(mocks.storage.getUserKundlis).not.toHaveBeenCalled();
   });
   it('passes the actual chart and a planetary array to the council (deep questions)', async () => {
+    vi.stubEnv('FEATURE_AI_COUNCIL', 'true'); // the council is gated off by default; this exercises the gated path
     await request(app).post('/api/ai/chat').set('x-user', 'owner').send({ message: 'Career', kundliId: 'chart', depth: 'deep' });
     expect(mocks.runCouncil).toHaveBeenCalledWith(expect.objectContaining({
       chartData: expect.objectContaining({ planets: saved.chartData.planetaryPositions }),

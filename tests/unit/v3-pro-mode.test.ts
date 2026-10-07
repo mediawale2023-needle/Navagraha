@@ -42,3 +42,50 @@ describe('professional Jyotish consumes the canonical chart', () => {
     expect(create.mock.calls[0][0].messages[1].content).toContain('birth time APPROXIMATE');
   });
 });
+
+describe('professional mode matches the consumer chart exactly', () => {
+  const CASES = [
+    ['1990-08-15', '06:30', 12.9716, 77.5946], ['1969-01-20', '05:00', 40.7128, -74.006],
+    ['1985-07-01', '09:15', 51.5074, -0.1278], ['2003-11-02', '23:45', 28.6139, 77.209], ['1995-01-01', '05:45', 27.7172, 85.324],
+  ] as const;
+  it.each(CASES)('%s %s (%s, %s): longitude, sign, house, nakshatra, pada, Ascendant, D9, D10 and Vimshottari', async (date, time, lat, lng) => {
+    const pro = computeJyotishChart(date, time, lat, lng).chartData;
+    const c = (await getKundli(date, time, lat, lng)).chartData.canonical;
+    expect(pro.canonical.planets.map((p) => p.longitude)).toEqual(c.planets.map((p) => p.longitude));
+    for (const p of pro.planets) {
+      const x = c.planets.find((q) => q.name === p.planet)!;
+      expect([p.sign, p.house, p.nakshatra, p.pada, p.isRetrograde]).toEqual([x.sign, x.house, x.nakshatra.name, x.nakshatra.pada, x.retrograde]);
+      expect(Math.abs(p.degree - x.degreeInSign)).toBeLessThan(1e-3);
+    }
+    expect([pro.ascendant.sign, pro.ascendant.nakshatra, pro.ascendant.pada, pro.ascendant.siderealLon]).toEqual([c.ascendant.sign, c.ascendant.nakshatra.name, c.ascendant.nakshatra.pada, c.ascendant.longitude]);
+    const signsIn = (v: { houses: Array<{ sign: string; planets: string[] }> }) => Object.fromEntries(v.houses.flatMap((h) => h.planets.map((g) => [g, h.sign])));
+    expect(signsIn(pro.navamsa)).toEqual(Object.fromEntries(c.vargas.D9.placements.map((p) => [p.planet, p.sign])));
+    expect(signsIn(pro.dasamsa)).toEqual(Object.fromEntries(c.vargas.D10.placements.map((p) => [p.planet, p.sign])));
+    const md = c.dashas.vimshottari.mahadashas;
+    expect(pro.vimshottariDasha.map((d: any) => d.planet)).toEqual(md.slice(0, pro.vimshottariDasha.length).map((m) => m.lord));
+    pro.vimshottariDasha.forEach((d: any, i: number) => expect(d.endDate).toBe(md[i].end.slice(0, 10)));
+  });
+});
+
+describe('Chara Dasha is withheld from professional AI evidence unless enabled', () => {
+  const profile = { name: 'C', dateOfBirth: '1990-08-15', timeOfBirth: '06:30', placeOfBirth: 'Bengaluru' };
+  const prompt = async () => {
+    vi.stubEnv('OPENAI_API_KEY', 'test');
+    create.mockResolvedValue((async function* () { yield { choices: [{ delta: { content: 'ok' } }] }; })());
+    await streamTraditionReading('kn_rao', profile, computeJyotishChart('1990-08-15', '06:30', 12.9716, 77.5946).chartData, () => {});
+    return create.mock.calls[0][0].messages as Array<{ content: string }>;
+  };
+  it('default: no Chara periods reach the model and the K.N. Rao method uses two systems', async () => {
+    const [system, user] = await prompt();
+    expect(user.content).toContain('Jaimini Chara Dasha: WITHHELD');
+    expect(user.content).not.toMatch(/Current Chara Mahadasha/);
+    expect(system.content).toContain('Vimshottari and Yogini');
+    expect(system.content).not.toMatch(/three timing systems/);
+  });
+  it('FEATURE_CHARA_DASHA=true restores the three-system method', async () => {
+    vi.stubEnv('FEATURE_CHARA_DASHA', 'true');
+    const [system, user] = await prompt();
+    expect(user.content).toMatch(/Chara Mahadasha/);
+    expect(system.content).toMatch(/three timing systems/);
+  });
+});

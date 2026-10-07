@@ -137,8 +137,17 @@ describe('POST /api/ai/chat routing', () => {
     const prompt = mocks.create.mock.calls[0][0].messages.at(-1).content;
     expect(prompt).toContain('DETERMINISTIC EVIDENCE AND VERDICTS');
   });
-  it('a deep question runs the council with the evidence packet', async () => {
+  it('the council is gated off by default: a deep question uses the guarded single explainer', async () => {
     vi.stubEnv('OPENAI_API_KEY', 'test');
+    mocks.create.mockResolvedValue(reply('Your career has mixed support.'));
+    const res = await request(app).post('/api/ai/chat').set('x-user', 'owner').send({ message: 'Give me a detailed career analysis', kundliId: 'chart' });
+    expect(res.status).toBe(200);
+    expect(mocks.runCouncil).not.toHaveBeenCalled();
+    expect(mocks.create).toHaveBeenCalledTimes(1);
+  });
+  it('with FEATURE_AI_COUNCIL, a deep question runs the council with the evidence packet', async () => {
+    vi.stubEnv('OPENAI_API_KEY', 'test');
+    vi.stubEnv('FEATURE_AI_COUNCIL', 'true');
     mocks.runCouncil.mockResolvedValue('Council reading.');
     const res = await request(app).post('/api/ai/chat').set('x-user', 'owner').send({ message: 'Give me a detailed career analysis', kundliId: 'chart' });
     expect(res.status).toBe(200);

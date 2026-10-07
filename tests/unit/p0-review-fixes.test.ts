@@ -284,6 +284,7 @@ describe('chart actually used after selection', () => {
   });
 
   it('chat with explicit details passes that chart, not the saved one, to the council', async () => {
+    vi.stubEnv('FEATURE_AI_COUNCIL', 'true'); // the council is gated off by default; this exercises the gated path
     const res = await request(app).post('/api/ai/chat').set('x-user', 'owner').send({
       message: 'Career', depth: 'deep', birthDetails: { dateOfBirth: '1992-05-13', timeOfBirth: '06:30', ...coords },
     });
@@ -295,6 +296,7 @@ describe('chart actually used after selection', () => {
   });
 
   it('chat fallback uses the saved chart when birthDetails is omitted', async () => {
+    vi.stubEnv('FEATURE_AI_COUNCIL', 'true'); // the council is gated off by default; this exercises the gated path
     await request(app).post('/api/ai/chat').set('x-user', 'owner').send({ message: 'Career', depth: 'deep' });
     expect(mocks.runCouncil).toHaveBeenCalledWith(expect.objectContaining({
       birthDetails: { date: '1990-08-15', time: '06:30', place: 'Bengaluru' },

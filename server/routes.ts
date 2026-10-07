@@ -5,6 +5,7 @@ import { db } from "./db";
 import { sql, eq, asc, desc, and, inArray } from "drizzle-orm";
 import { setupAuth, isAuthenticated, isAdmin } from "./auth";
 import { runCouncil } from "./agents/orchestrator";
+import { features } from "./features";
 import { setupSwagger } from "./swagger";
 import rateLimit from "express-rate-limit";
 import {
@@ -228,7 +229,6 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
   // the stored row is never modified unless V3_PERSIST_LEGACY_UPGRADES=true, and then only by an
   // atomic compare-and-swap that keeps the original under legacySnapshot. Callers must have
   // verified ownership first. Parallel requests for the same chart share one recalculation.
-  const persistLegacyUpgrades = () => process.env.V3_PERSIST_LEGACY_UPGRADES === 'true';
   const upgradesInFlight = new Map<string, Promise<Kundli>>();
   async function currentChart<T extends Kundli | null | undefined>(kundli: T): Promise<T> {
     if (!kundli?.id) return kundli;
@@ -247,7 +247,7 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
         }
         if (!upgrade) return kundli;
         const view = { ...kundli, ...upgrade };
-        if (!persistLegacyUpgrades() || !isCurrentCanonicalChart((upgrade.chartData as any)?.canonical)) return view;
+        if (!features.persistLegacyUpgrades() || !isCurrentCanonicalChart((upgrade.chartData as any)?.canonical)) return view;
         try {
           const saved = await storage.persistLegacyUpgrade(id, kundli.chartData, upgrade);
           if (saved) return saved;
@@ -2358,7 +2358,7 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
       if (isCurrentCanonicalChart(canonical)) {
         const packet = buildEvidencePacket(canonical, route, new Date(), transits);
         evidenceSummary = packetSummary(packet);
-        if (route.depth === 'deep') {
+        if (route.depth === 'deep' && features.aiCouncil()) {
           const reading = await runCouncil({
             birthDetails: { date: birthDate, time: birthTime, place: birthPlace },
             chartData, profession: 'User', language, memories, transits, verifiedEvents, accuracyNote,

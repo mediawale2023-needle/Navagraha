@@ -48,7 +48,9 @@ export async function runCouncil(context: UserContext): Promise<string> {
 
   // Recompute the running periods from TODAY (not the stored status, which is
   // frozen at chart-generation time) so the council can't anchor to a stale year.
-  const currentPeriod = deriveCurrentPeriod(context.chartData?.dashas, today);
+  // With an evidence packet, the packet's running-period line is the only source (it says when an
+  // approximate birth time makes the period uncertain); raw dasha JSON is used only without one.
+  const currentPeriod = context.evidencePacket ? null : deriveCurrentPeriod(context.chartData?.dashas, today);
   const currentPeriodLine = currentPeriod
     ? ` As of today the running Mahadasha is ${currentPeriod.maha}${currentPeriod.antar ? ` and the running Antardasha is ${currentPeriod.antar}` : ''}${currentPeriod.period ? ` (${currentPeriod.period})` : ''} — treat this as authoritative and do not contradict it.`
     : '';
@@ -66,7 +68,7 @@ export async function runCouncil(context: UserContext): Promise<string> {
     ? `${context.evidencePacket}\n\nQUESTION: ${context.currentQuery}\nMEMORIES: ${(context.memories ?? []).join(' | ') || '(none)'}\nCONFIRMED PAST EVENTS: ${(context.verifiedEvents ?? []).join(' | ') || '(none)'}`
     : JSON.stringify({ ...context, note: 'No deterministic evidence packet: use supplied chart facts only; never invent missing chart facts or strengths.' }, null, 2);
 
-  console.log('[Orchestrator] Spinning up the $team council...');
+  console.log('[Orchestrator] Running the council...');
 
   // ─── Step 1+2: Parallel 5-Agent Council ────────────────────────────────────
   const [
@@ -96,7 +98,7 @@ export async function runCouncil(context: UserContext): Promise<string> {
   const synthesisPayload = `
 ### Authoritative Temporal Facts (DO NOT contradict):
 - Today's date: ${today}
-${currentPeriod ? `- Running Mahadasha: ${currentPeriod.maha}\n- Running Antardasha: ${currentPeriod.antar || '—'}${currentPeriod.period ? `\n- Mahadasha period: ${currentPeriod.period}` : ''}` : '- (Dasha periods unavailable)'}
+${currentPeriod ? `- Running Mahadasha: ${currentPeriod.maha}\n- Running Antardasha: ${currentPeriod.antar || '—'}${currentPeriod.period ? `\n- Mahadasha period: ${currentPeriod.period}` : ''}` : context.evidencePacket ? '- Running period: as stated in the evidence packet (if it says UNCERTAIN, do not name one)' : '- (Dasha periods unavailable)'}
 
 ### What we know about this person (from past conversations — use to personalise; don't recite verbatim):
 ${memoryBlock}
@@ -123,7 +125,7 @@ ${context.evidencePacket ?? '(none — use only the supplied chart facts; do not
 
 ${PREDICTION_DISCIPLINE}
 
-Now synthesize into the final reading. Be specific and confident where the chart supports it, honest where it does not.${languageDirective}
+Now synthesize into the final reading. Be specific where the supplied evidence supports it and plain about uncertainty; never use words of certainty such as "definitely", "guaranteed" or "will surely".${languageDirective}
 `;
 
   const jyotishiOutput = await callAgent("jyotishi", temporalInjector(AGENT_PROMPTS.jyotishi), synthesisPayload);

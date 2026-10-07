@@ -328,7 +328,7 @@ function DashasTab({ chartData }: { chartData: any }) {
       </Card>
 
       <Card>
-        <CardHeader><CardTitle className="text-sm">Jaimini Chara Dasha</CardTitle></CardHeader>
+        <CardHeader><CardTitle className="text-sm">Jaimini Chara Dasha <span className="font-normal text-muted-foreground">(unverified — not used by the AI)</span></CardTitle></CardHeader>
         <CardContent className="space-y-1">
           {chartData.jaimini.charaDasha.map((c: any) => (
             <div key={c.sign + c.startDate} className={`text-sm flex justify-between p-1.5 rounded ${c.status === 'current' ? 'bg-primary/5 font-medium' : ''}`}>
