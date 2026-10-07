@@ -20,7 +20,11 @@ import { TrustBadge } from '@/components/TrustBadge';
 import { CalculationInfo } from '@/components/CalculationInfo';
 import { PriorityRemedyCard } from '@/components/PriorityRemedyCard';
 import { NorthIndianChartEnhanced } from '@/components/NorthIndianChartEnhanced';
-import { AIInsightSheet } from '@/components/AIInsightSheet';
+import { AIInsightSheet, type InsightSubject } from '@/components/AIInsightSheet';
+import { ChartGlance } from '@/components/v3/ChartGlance';
+import { LifeTimeline } from '@/components/v3/LifeTimeline';
+import type { KundliInsights, EvidenceItem } from '@shared/v3/evidence';
+import type { CanonicalChart } from '@shared/v3/canonical';
 
 const PDF_PRICE = 10;
 
@@ -126,7 +130,7 @@ export default function KundliView() {
   const [modal, setModal] = useState<PdfModal>(null);
   const [walletBalance, setWalletBalance] = useState(0);
   const [pdfIsFree, setPdfIsFree] = useState(false);
-  const [selectedPlanet, setSelectedPlanet] = useState<{ name: string; house: number } | null>(null);
+  const [sheetSubject, setSheetSubject] = useState<InsightSubject | null>(null);
   const [aiSheetOpen, setAiSheetOpen] = useState(false);
 
   const { isAuthenticated } = useAuth();
@@ -192,6 +196,15 @@ export default function KundliView() {
     enabled: !!kundliId && !isPreview,
   });
 
+  // V3 evidence-backed insights: owner route for saved charts, stateless route for guest previews.
+  const canonical: CanonicalChart | undefined = (kundli?.chartData as any)?.canonical;
+  const { data: insights } = useQuery<KundliInsights>({
+    queryKey: isPreview ? ['guest-insights', canonical?.meta?.calculatedAt] : ['/api/kundli', kundliId, 'insights'],
+    // An explicit `queryFn: undefined` would override the default fetcher, so only spread it for previews.
+    ...(isPreview ? { queryFn: () => apiRequest<KundliInsights>('POST', '/api/kundli/insights', { canonical }) } : {}),
+    enabled: isPreview ? !!canonical : !!kundliId,
+  });
+
   useEffect(() => {
     if (kundli) {
       const dashas = (kundli.dashas as any[]) || [];
@@ -200,9 +213,23 @@ export default function KundliView() {
     }
   }, [kundli]);
 
-  const handlePlanetClick = (planet: any, house: number) => {
-    setSelectedPlanet({ name: planet.planet, house });
+  const handlePlanetClick = (planet: any) => {
+    if (!canonical || !canonical.planets.some((p) => p.name === planet.planet)) return;
+    const seen = new Set<string>();
+    const evidence: EvidenceItem[] = [];
+    for (const d of insights?.domains ?? []) {
+      for (const e of [...d.supporting, ...d.conflicting, ...d.neutral]) {
+        if (e.planet === planet.planet && !seen.has(e.explanation)) { seen.add(e.explanation); evidence.push(e); }
+      }
+    }
+    setSheetSubject({ kind: 'planet', planet: planet.planet, chart: canonical, evidence });
     setAiSheetOpen(true);
+  };
+
+  const askAbout = (question: string) => {
+    const params = new URLSearchParams({ q: question });
+    if (kundliId && !isPreview) params.set('kundliId', kundliId);
+    navigate(`/ai-astrologer?${params.toString()}`);
   };
 
   if (!isPreview && isLoading) return <LoadingSpinner />;
@@ -243,7 +270,7 @@ export default function KundliView() {
               <Download className="w-4 h-4 mr-2" />
               {pdfChecking ? 'Checking…' : 'Download PDF'}
             </Button>
-            <TrustBadge variant="verified" />
+            <TrustBadge variant="calculated" />
           </div>
         </div>
 
@@ -252,7 +279,28 @@ export default function KundliView() {
           <CardHeader>
             <div className="flex items-start justify-between flex-wrap gap-3">
               <div>
-                <CardTitle className="font-display text-2xl mb-2">{kundli.name}</CardTitle>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">Your Kundli</p>
+                <CardTitle className="font-display text-2xl mb-1">{kundli.name}</CardTitle>
+                {canonical && (
+                  <div className="mb-2" data-testid="kundli-headline">
+                    <p className="font-display text-lg text-foreground">
+                      {canonical.birth.timeAccuracy === 'approximate' ? 'Lagna unknown' : `${canonical.ascendant.sign} Lagna`}
+                      {' · '}{canonical.planets.find((p) => p.name === 'Moon')?.sign} Moon
+                      {' · '}{canonical.planets.find((p) => p.name === 'Sun')?.sign} Sun
+                    </p>
+                    <p className="text-xs text-muted-foreground">Calculated using Swiss Ephemeris · {canonical.meta.ayanamsa} Ayanamsa · {canonical.birth.timezone} (UTC{canonical.birth.utcOffset})</p>
+                  </div>
+                )}
+                {(kundli as any).chartStatus?.version === 'v3-recalculated-from-legacy' && (
+                  <div className="mb-2 rounded-[8px] border border-primary/25 bg-primary/10 p-2.5 text-xs text-foreground" data-testid="migration-notice">
+                    {(kundli as any).chartStatus.notes.map((n: string) => <p key={n}>{n}</p>)}
+                  </div>
+                )}
+                {(kundli as any).chartStatus?.version === 'limited' && (
+                  <div className="mb-2 rounded-[8px] border border-amber-500/30 bg-amber-500/10 p-2.5 text-xs text-amber-800">
+                    {(kundli as any).chartStatus.notes[0]}
+                  </div>
+                )}
                 {chartData?.isBirthTimeApproximate && (
                   <p className="text-sm text-muted-foreground">Birth time is approximate; Ascendant and house positions may be unreliable.</p>
                 )}
@@ -273,10 +321,10 @@ export default function KundliView() {
               </div>
               <div className="flex flex-wrap gap-2">
                 <Badge variant="secondary" className="bg-primary/15 text-[var(--primary-border)]">
-                  {kundli.zodiacSign || 'Aries'}
+                  {kundli.zodiacSign || '—'}
                 </Badge>
                 <Badge variant="secondary" className="bg-nava-teal/10 text-nava-teal">
-                  Moon: {kundli.moonSign || 'Taurus'}
+                  Moon: {kundli.moonSign || '—'}
                 </Badge>
               </div>
             </div>
@@ -295,6 +343,20 @@ export default function KundliView() {
 
           {/* Overview */}
           <TabsContent value="overview">
+            {insights && (
+              <Card className="card-clean mb-4">
+                <CardHeader>
+                  <CardTitle className="font-display">Your Chart at a Glance</CardTitle>
+                  {insights.headline.timeAccuracy === 'approximate' && (
+                    <p className="text-xs text-muted-foreground">Birth time is approximate, so house-based indicators are set aside and every confidence is low.</p>
+                  )}
+                </CardHeader>
+                <CardContent>
+                  <ChartGlance domains={insights.domains} onWhy={(d) => { setSheetSubject({ kind: 'domain', resolution: d }); setAiSheetOpen(true); }} />
+                  <p className="mt-3 text-[11px] text-muted-foreground">{insights.notes[insights.notes.length - 1]}</p>
+                </CardContent>
+              </Card>
+            )}
             <Card className="card-clean">
               <CardHeader>
                 <CardTitle className="font-display">Astrological Overview</CardTitle>
@@ -608,10 +670,17 @@ export default function KundliView() {
           <TabsContent value="insights">
             <div className="space-y-3">
               <Card className="card-clean">
-                <CardContent className="pt-6">
-                  <p className="text-sm text-muted-foreground">
-                    Personalized insights are unavailable. Calculated planetary placements are shown in the chart tab.
-                  </p>
+                <CardHeader>
+                  <CardTitle className="font-display">Life Timeline</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {insights ? (
+                    <LifeTimeline periods={insights.timeline} />
+                  ) : (
+                    <p className="text-sm text-muted-foreground">
+                      {canonical ? 'Loading your timeline…' : 'This chart predates the V3 engine. Open it again after it has been recalculated, or create it anew.'}
+                    </p>
+                  )}
                 </CardContent>
               </Card>
             </div>
@@ -672,7 +741,16 @@ export default function KundliView() {
 
         {/* Calculation Method */}
         <div className="mb-6">
-          <CalculationInfo />
+          {canonical ? (
+            <CalculationInfo
+              ephemeris={`${canonical.meta.ephemeris} ${canonical.meta.ephemerisVersion}`}
+              ayanamsa={`${canonical.meta.ayanamsa} (${canonical.meta.ayanamsaDegrees.toFixed(4)}°)`}
+              houseSystem="Whole Sign"
+              timezone={`${canonical.birth.timezone} (UTC${canonical.birth.utcOffset}), ${canonical.birth.timezoneSource === 'supplied' ? 'as entered' : 'from the birth place'}`}
+            />
+          ) : (
+            <CalculationInfo ephemeris="Legacy engine (pre-V3)" ayanamsa="Lahiri" houseSystem="Whole Sign" timezone="Assumed Indian Standard Time (pre-V3)" />
+          )}
         </div>
 
         {/* AI Astrologer CTA */}
@@ -700,14 +778,12 @@ export default function KundliView() {
       <ConfirmModal open={modal === 'confirm'} balance={walletBalance} isFree={pdfIsFree} onConfirm={handleConfirmPurchase} onCancel={() => setModal(null)} loading={pdfConfirming} />
       <InsufficientModal open={modal === 'insufficient'} balance={walletBalance} onClose={() => setModal(null)} onRecharge={() => { setModal(null); navigate('/wallet'); }} />
 
-      {/* AI Insight Sheet */}
+      {/* Evidence Sheet */}
       <AIInsightSheet
         open={aiSheetOpen}
         onOpenChange={setAiSheetOpen}
-        planetName={selectedPlanet?.name || ''}
-        houseNumber={selectedPlanet?.house || 1}
-        signName="Aries"
-        baseInsight="This placement indicates specific influences on your life path. The planet's energy manifests through the affairs of this house."
+        subject={sheetSubject}
+        onAskQuestion={askAbout}
       />
     </div>
   );

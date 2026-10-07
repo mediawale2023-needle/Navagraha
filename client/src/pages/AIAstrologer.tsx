@@ -38,10 +38,15 @@ interface FullKundli extends Kundli {
   dashas?: DashaEntry[];
 }
 
+interface EvidenceSummary {
+  domains: Array<{ domain: string; label: string; verdict: string; confidence: string; supporting: number; conflicting: number }>;
+}
+
 interface ChatMessage {
   role: "user" | "assistant";
   content: string;
   id?: string;
+  evidence?: EvidenceSummary | null;
 }
 
 interface AiInterpretation {
@@ -108,7 +113,7 @@ function sessionForKey(key: string, forceNew = false): string {
 const THINKING_STEPS = [
   'Casting your chart…',
   'Reading planetary positions…',
-  'Consulting the astrologer council…',
+  'Gathering evidence from your chart…',
   'Weighing dasha & transits…',
   'Composing your reading…',
 ];
@@ -148,12 +153,21 @@ export default function AIAstrologer() {
   const detailsMode = selectedKundliId === DETAILS_KEY;
   const birthValid = !!(birth.name.trim() && birth.dateOfBirth && birth.timeOfBirth && birth.placeOfBirth.trim());
 
-  // Auto-select the first available Kundli so users don't accidentally chat with an empty chart context
+  // Deep links from the Evidence Sheet: ?kundliId=<owned chart>&q=<question>.
+  const [linkParams] = useState(() => new URLSearchParams(window.location.search));
+  useEffect(() => {
+    const q = linkParams.get("q");
+    if (q) setInput(q.slice(0, 500));
+  }, [linkParams]);
+
+  // Auto-select the linked chart if it is one of the user's, else the first available Kundli,
+  // so users don't accidentally chat with an empty chart context.
   useEffect(() => {
     if (kundlis.length > 0 && selectedKundliId === "none") {
-      setSelectedKundliId(kundlis[0].id);
+      const linked = linkParams.get("kundliId");
+      setSelectedKundliId(kundlis.some((k) => k.id === linked) ? linked! : kundlis[0].id);
     }
-  }, [kundlis, selectedKundliId]);
+  }, [kundlis, selectedKundliId, linkParams]);
 
   // Switching context (chart / details / none) loads that context's own thread.
   useEffect(() => {
@@ -216,7 +230,7 @@ export default function AIAstrologer() {
       if (data.questionsUsed !== undefined) setQuestionsUsed(data.questionsUsed);
       setMessages((prev) => [
         ...prev,
-        { role: "assistant", content: data.reply, id: crypto.randomUUID() },
+        { role: "assistant", content: data.reply, id: crypto.randomUUID(), evidence: data.evidence ?? null },
       ]);
     },
     onError: (err: any) => {
@@ -290,7 +304,7 @@ export default function AIAstrologer() {
             </button>
           </Link>
           <div className="flex-1">
-            <h1 className="font-bold text-lg text-foreground">AI Astrologer</h1>
+            <h1 className="font-bold text-lg text-foreground">Ask Your Kundli</h1>
             <div className="flex items-center gap-1.5">
               <Sparkles className="w-3 h-3 text-nava-amber" />
               <span className="text-xs text-muted-foreground">Powered by AI</span>
@@ -577,11 +591,19 @@ export default function AIAstrologer() {
                 }`}
               >
                 {msg.role === "assistant" ? (
-                  <div className="prose prose-sm dark:prose-invert max-w-none prose-headings:text-[var(--primary-border)] prose-a:text-[var(--primary-border)] prose-strong:text-foreground prose-p:leading-relaxed text-foreground">
-                    <ReactMarkdown>
-                      {msg.content}
-                    </ReactMarkdown>
-                  </div>
+                  <>
+                    <div className="prose prose-sm dark:prose-invert max-w-none prose-headings:text-[var(--primary-border)] prose-a:text-[var(--primary-border)] prose-strong:text-foreground prose-p:leading-relaxed text-foreground">
+                      <ReactMarkdown>
+                        {msg.content}
+                      </ReactMarkdown>
+                    </div>
+                    {msg.evidence?.domains?.length ? (
+                      <div className="mt-3 border-t border-border/50 pt-2 text-[11px] text-muted-foreground" data-testid="answer-evidence">
+                        Based on your chart:{" "}
+                        {msg.evidence.domains.map((d) => `${d.label} — ${d.verdict} (${d.confidence} confidence; ${d.supporting} supporting, ${d.conflicting} conflicting)`).join(" · ")}
+                      </div>
+                    ) : null}
+                  </>
                 ) : (
                   msg.content
                 )}

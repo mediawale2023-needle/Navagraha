@@ -120,4 +120,12 @@ describe('timing evidence and life timeline', () => {
     expect(current.antardashas!.filter((a) => a.status === 'current')).toHaveLength(1);
     for (const p of tl) expect(p.whyItMatters).toContain(p.lord);
   });
+  it('never lists the same reason as both supporting and conflicting', async () => {
+    for (const [d, t, lat, lng] of [['1990-08-15', '06:30', 12.9716, 77.5946], ['1975-03-21', '14:20', 19.076, 72.8777], ['1969-01-20', '05:00', 40.7128, -74.006]] as const) {
+      const tl = buildTimeline(await chartOf(d, t, lat, lng), AS_OF);
+      for (const p of [...tl, ...tl.flatMap((x) => x.antardashas ?? [])]) {
+        expect(p.supporting.filter((r) => p.conflicting.includes(r))).toEqual([]);
+      }
+    }
+  });
 });

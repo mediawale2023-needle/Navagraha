@@ -8,7 +8,16 @@ describe('P0 consumer UI source regressions', () => {
     const view = page('KundliView');
     for (const claim of ['Moon in 4th House', 'Mars in 10th House', 'Jupiter in 7th House']) expect(view).not.toContain(claim);
     expect(view).toContain('<TabsContent value="insights">');
-    expect(view).toContain('Personalized insights are unavailable.');
+    // V3: the tab shows the evidence-driven Life Timeline, never pre-written chart claims.
+    expect(view).toContain('<LifeTimeline periods={insights.timeline} />');
+    expect(view).not.toMatch(/\|\| 'Aries'|\|\| 'Taurus'/);
+  });
+  it('the evidence sheet carries no fabricated citations or indicator counts', () => {
+    const sheet = readFileSync(new URL('../../client/src/components/AIInsightSheet.tsx', import.meta.url), 'utf8');
+    expect(sheet).not.toMatch(/Chapter \d+/);
+    expect(sheet).not.toContain('Based on 3 strong indicators');
+    expect(sheet).not.toContain('signName="Aries"');
+    expect(page('KundliView')).not.toContain('baseInsight=');
   });
   it('clearly discloses approximate birth time in creation and viewing', () => {
     const creation = page('KundliNew');

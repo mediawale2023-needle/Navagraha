@@ -28,8 +28,10 @@ function describe(ix: ChartIndex, level: TimelinePeriod['level'], lord: Graha, s
   const links = planetDomainLinks(ix, lord).filter((l) => !(ix.approximate && l.requiresBirthTime));
   const cond = planetCondition(ix, lord);
   const domains = links.map((l) => ({ domain: l.domain, direction: cond.direction, reasons: l.reasons }));
-  const supporting = cond.direction === 'positive' ? cond.reasons : cond.reasons.filter((r) => !/debilitated|combust|dusthana/.test(r));
-  const conflicting = cond.reasons.filter((r) => /debilitated|combust|dusthana/.test(r));
+  // Each reason is classified once, by its own direction (never both lists).
+  const isNegative = (r: string) => /debilitated|combust|dusthana/.test(r);
+  const supporting = cond.reasons.filter((r) => !isNegative(r));
+  const conflicting = cond.reasons.filter(isNegative);
   let confidence: Confidence = 'Medium';
   if (ix.approximate || dashaTimeSensitive) confidence = 'Low';
   else if (links.length > 0 && cond.reasons.length >= 2) confidence = 'High';
