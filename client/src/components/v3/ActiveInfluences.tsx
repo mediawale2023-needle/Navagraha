@@ -34,8 +34,11 @@ export function ActiveInfluences() {
   }
   if (!insights) return <div className="rounded-[12px] border border-border bg-card p-4 text-sm text-muted-foreground">Loading your current periods…</div>;
 
-  const maha = insights.timeline.find((p) => p.status === 'current');
-  const antar = maha?.antardashas?.find((a) => a.status === 'current');
+  // An approximate birth time can move the period boundaries: show only what is certain, without dates.
+  const timing = insights.timing ?? { mahadashaReliable: true, antardashaReliable: true, note: null };
+  const approximate = insights.headline.timeAccuracy === 'approximate';
+  const maha = timing.mahadashaReliable ? insights.timeline.find((p) => p.status === 'current') : undefined;
+  const antar = timing.antardashaReliable ? maha?.antardashas?.find((a) => a.status === 'current') : undefined;
   const link = `/kundli/${latest.id}`;
   return (
     <>
@@ -46,7 +49,7 @@ export function ActiveInfluences() {
           description={`${maha.themes.slice(0, 2).join(', ')}. ${maha.whyItMatters}`}
           type="dasha"
           severity="low"
-          endDate={monthYear(maha.end)}
+          endDate={approximate ? undefined : monthYear(maha.end)}
           linkTo={link}
         />
       )}
@@ -57,7 +60,7 @@ export function ActiveInfluences() {
           description={antar.whyItMatters}
           type="dasha"
           severity="low"
-          endDate={monthYear(antar.end)}
+          endDate={approximate ? undefined : monthYear(antar.end)}
           linkTo={link}
         />
       )}
@@ -72,6 +75,7 @@ export function ActiveInfluences() {
           linkTo={link}
         />
       )}
+      {timing.note && <p className="text-[11px] text-amber-700" data-testid="active-influences-timing-note">{timing.note}</p>}
       <p className="text-[11px] text-muted-foreground">From {latest.name}'s chart. Jyotish describes tendencies, not certainties.</p>
     </>
   );

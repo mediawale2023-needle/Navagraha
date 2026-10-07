@@ -9,17 +9,18 @@ const mocks = vi.hoisted(() => ({
     getKundliById: vi.fn(), getUser: vi.fn(), getUserKundlis: vi.fn(), persistLegacyUpgrade: vi.fn(),
     getJyotishProfileById: vi.fn(), getJyotishReadingById: vi.fn(), consumeProAiCredit: vi.fn(), createJyotishSessionQuery: vi.fn(),
     saveAiChatMessage: vi.fn(), getUserMemories: vi.fn(), getPredictionFeedbacksByUser: vi.fn(), getPatternStatistics: vi.fn(),
+    getReportTypeById: vi.fn(), debitWallet: vi.fn(), createReportOrder: vi.fn(), getDailyHoroscope: vi.fn(), updateJyotishReading: vi.fn(),
   },
-  answerSessionQuery: vi.fn(),
+  answerSessionQuery: vi.fn(), streamTraditionReading: vi.fn(), generateDailyHoroscope: vi.fn(),
 }));
 vi.mock('../../server/storage', () => ({ storage: mocks.storage }));
 vi.mock('../../server/db', () => ({ db: {} }));
 vi.mock('../../server/auth', async (orig) => ({ ...await orig<typeof import('../../server/auth')>(), setupAuth: vi.fn() }));
 vi.mock('../../server/swagger', () => ({ setupSwagger: vi.fn() }));
-vi.mock('../../server/jyotishAiService', () => ({ streamTraditionReading: vi.fn(), answerSessionQuery: mocks.answerSessionQuery }));
+vi.mock('../../server/jyotishAiService', () => ({ streamTraditionReading: mocks.streamTraditionReading, answerSessionQuery: mocks.answerSessionQuery }));
 vi.mock('../../server/aiAstrologerService', () => ({
   interpretKundli: vi.fn(async () => ({ content: 'ok' })), generateReport: vi.fn(), generateLifeReport: vi.fn(), extractMemories: vi.fn(async () => []),
-  generatePreConsultBrief: vi.fn(), generatePostConsultFollowUp: vi.fn(), matchAstrologerToChart: vi.fn(), generateDailyHoroscope: vi.fn(),
+  generatePreConsultBrief: vi.fn(), generatePostConsultFollowUp: vi.fn(), matchAstrologerToChart: vi.fn(), generateDailyHoroscope: mocks.generateDailyHoroscope,
 }));
 vi.mock('../../server/pushService', () => ({ sendPushToUser: vi.fn(), sendPushToAstrologer: vi.fn() }));
 import { registerRoutes } from '../../server/routes';
@@ -48,7 +49,7 @@ beforeAll(async () => {
 beforeEach(() => {
   vi.clearAllMocks();
   vi.stubEnv('GOOGLE_MAPS_API_KEY', '');
-  const kundlis: Record<string, any> = { exact, approx };
+  const kundlis: Record<string, any> = { exact, approx, legacy: { ...exact, id: 'legacy', latitude: null, longitude: null, chartData: { planetaryPositions: [], houses: [] } } };
   mocks.storage.getKundliById.mockImplementation(async (id: string) => kundlis[id]);
   mocks.storage.getJyotishProfileById.mockImplementation(async (id: string) => ({ pA: profileA, pB: profileB } as any)[id]);
   mocks.storage.getJyotishReadingById.mockImplementation(async (id: string) => (id === 'rB' ? readingB : undefined));
@@ -138,5 +139,33 @@ describe('GET /api/panchang', () => {
     expect((await request(app).get('/api/panchang?date=2024-06-21&lat=69.6492&lng=18.9553')).status).toBe(400);
     expect((await request(app).get('/api/panchang?date=2024-13-01')).status).toBe(400);
     expect((await request(app).get('/api/panchang?lat=abc&lng=1')).status).toBe(400);
+  });
+});
+
+describe('launch review fixes', () => {
+  it('a paid report is refused (409) before any debit when the chart has no verified V3 calculation', async () => {
+    mocks.storage.getReportTypeById.mockResolvedValue({ id: 't', name: 'Career', category: 'career', isActive: true, price: '299' });
+    const res = await request(app).post('/api/reports/order').set('x-user', 'owner').send({ kundliId: 'legacy', reportTypeId: 't' });
+    expect(res.status).toBe(409);
+    expect(mocks.storage.debitWallet).not.toHaveBeenCalled();
+    expect(mocks.storage.createReportOrder).not.toHaveBeenCalled();
+  });
+  it('the personal horoscope is never generated from a pre-V3 chart', async () => {
+    mocks.storage.getUserKundlis.mockResolvedValue([{ ...exact, id: 'legacy', latitude: null, longitude: null, chartData: { planetaryPositions: [] } }]);
+    const res = await request(app).get('/api/horoscope/personal').set('x-user', 'owner');
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ hasChart: false, limitedReason: expect.any(String) });
+    expect(mocks.generateDailyHoroscope).not.toHaveBeenCalled();
+  });
+  it('a pro reading stored with a pre-V3 chart is regenerated from the canonical chart', async () => {
+    mocks.storage.getJyotishReadingById.mockResolvedValue({ id: 'rOld', profileId: 'pA', chartData: { planets: [], legacy: true }, language: 'English' });
+    mocks.streamTraditionReading.mockResolvedValue('reading');
+    const res = await request(app).post('/api/astrologer/pro/readings/rOld/generate').set('x-astro', 'astroA').send({ tradition: 'parashar' });
+    expect(res.status).toBe(200);
+    const chartData = mocks.streamTraditionReading.mock.calls[0][2];
+    expect(chartData.canonical.birth.localDate).toBe('1990-08-15');
+  });
+  it('over-long chat messages are rejected before any model call', async () => {
+    expect((await request(app).post('/api/ai/chat').set('x-user', 'msg-cap').send({ message: 'x'.repeat(2001) })).status).toBe(400);
   });
 });

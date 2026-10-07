@@ -55,8 +55,10 @@ export default function Remedies() {
   const [filterCategory, setFilterCategory] = useState<string>('all');
   const { data: kundlis } = useQuery<Array<{ id: string; name: string }>>({ queryKey: ['/api/kundli'] });
   const latest = kundlis?.[0];
-  const { data: chart } = useQuery<{ chartData?: { functionalRemedies?: FunctionalRemedy[] } }>({ queryKey: ['/api/kundli', latest?.id], enabled: !!latest });
-  const fromChart = chart?.chartData?.functionalRemedies;
+  const { data: chart } = useQuery<{ chartStatus?: { version: string }; chartData?: { functionalRemedies?: FunctionalRemedy[]; canonical?: { birth?: { timeAccuracy?: string } } } }>({ queryKey: ['/api/kundli', latest?.id], enabled: !!latest });
+  // Functional remedies follow the Lagna: only for a verified V3 chart with an exact birth time.
+  const chartUsable = chart?.chartStatus?.version !== 'limited' && chart?.chartData?.canonical?.birth?.timeAccuracy === 'exact';
+  const fromChart = chartUsable ? chart?.chartData?.functionalRemedies : undefined;
   const [remedies, setRemedies] = useState<Remedy[]>(GENERAL_PRACTICES);
   useEffect(() => {
     if (fromChart?.length) setRemedies(remediesFromChart(fromChart));

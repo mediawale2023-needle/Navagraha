@@ -41,7 +41,7 @@ function chartSummary(kundli: Partial<Kundli>): string {
   const { birthDetails, planetaryPositions, dashaTimeline } = deriveStructured(kundli);
 
   const posLines = planetaryPositions
-    .map((p) => `- ${p.planet}: ${p.sign ?? "—"} (House ${p.house ?? "—"}, ${p.degree ?? "—"}°${p.retrograde ? ", retrograde" : ""})`)
+    .map((p) => `- ${p.planet}: ${p.sign ?? "—"} (${p.house != null ? `House ${p.house}, ` : ""}${p.degree ?? "—"}°${p.retrograde ? ", retrograde" : ""})`)
     .join("\n");
 
   const currentMd = dashaTimeline.find((d) => d.status === "current");
@@ -49,15 +49,19 @@ function chartSummary(kundli: Partial<Kundli>): string {
 
   // Running Pratyantardasha (finer timing) + cross-confirming Yogini dasha.
   const rawDashas: any[] = Array.isArray((kundli as any).dashas) ? (kundli as any).dashas : [];
-  const curMdRaw = rawDashas.find((d) => d.status === "current");
-  const curAdRaw = curMdRaw?.antardashas?.find((a: any) => a.status === "current");
-  const curPdRaw = curAdRaw?.pratyantardashas?.find((p: any) => p.status === "current");
+  // Running periods from the dates as of today (the stored status froze when the chart was saved).
+  const today = new Date().toISOString().slice(0, 10);
+  const running = (x: any) => x?.startDate && x?.endDate ? x.startDate <= today && today < x.endDate : x?.status === "current";
+  const approx = isApproximate(kundli);
+  const curMdRaw = approx ? undefined : rawDashas.find(running);
+  const curAdRaw = curMdRaw?.antardashas?.find(running);
+  const curPdRaw = curAdRaw?.pratyantardashas?.find(running);
   const pratyantarLine = curPdRaw ? `Current Pratyantardasha: ${curPdRaw.planet} (${curPdRaw.period})` : "";
   const yogini: any[] = (kundli as any).chartData?.yoginiDasha || [];
-  const curYogini = yogini.find((y) => y.status === "current");
+  const curYogini = approx ? undefined : yogini.find(running);
   const yoginiLine = curYogini ? `Yogini Dasha (cross-check): ${curYogini.yogini} / ${curYogini.lord} (${curYogini.period})` : "";
 
-  const dashaLines = [
+  const dashaLines = approx ? "Not stated: the birth time is approximate, so the dasha dates could shift." : [
     currentMd
       ? `Current Mahadasha: ${currentMd.planet} (${currentMd.period})${currentMd.currentAntardasha ? `, Antardasha ${currentMd.currentAntardasha.planet} (${currentMd.currentAntardasha.period})` : ""}`
       : "Current Mahadasha: not available",
@@ -69,20 +73,20 @@ function chartSummary(kundli: Partial<Kundli>): string {
   const doshas = ((kundli as any).doshas || {}) as Record<string, unknown>;
   const doshaList = Object.entries(doshas).filter(([, v]) => v).map(([k]) => k).join(", ") || "None detected";
 
-  const navPositions: any[] = (kundli as any).chartData?.navamsa?.planetaryPositions || [];
+  const navPositions: any[] = approx ? [] : (kundli as any).chartData?.navamsa?.planetaryPositions || [];
   const navLines = navPositions
     .filter((p) => p.planet !== "Ascendant")
     .map((p) => `- ${p.planet}: ${p.sign} (D9 House ${p.house})`)
     .join("\n");
 
-  const dasamsaPos: any[] = (kundli as any).chartData?.dasamsa?.planetaryPositions || [];
+  const dasamsaPos: any[] = approx ? [] : (kundli as any).chartData?.dasamsa?.planetaryPositions || [];
   const dasamsaLines = dasamsaPos
     .filter((p) => p.planet !== "Ascendant")
     .map((p) => `- ${p.planet}: ${p.sign} (D10 House ${p.house})`)
     .join("\n");
 
   const savByHouse: number[] = (kundli as any).chartData?.ashtakavarga?.savByHouse || [];
-  const savLine = savByHouse.length === 12
+  const savLine = !approx && savByHouse.length === 12
     ? savByHouse.map((b, i) => `H${i + 1}:${b}`).join("  ")
     : "";
 
@@ -96,12 +100,13 @@ function chartSummary(kundli: Partial<Kundli>): string {
     .map((y) => `- ${y.name}${y.cancelled ? " (cancelled/bhanga)" : ""}: ${y.description}`)
     .join("\n");
 
-  const funcRemedies: any[] = (kundli as any).chartData?.functionalRemedies || [];
+  // Functional remedies are ascendant-specific, so they need an exact birth time.
+  const funcRemedies: any[] = approx ? [] : (kundli as any).chartData?.functionalRemedies || [];
   const remedyLines = funcRemedies
     .map((r) => `- ${r.action} ${r.focus}: ${r.gemstone ? `gemstone ${r.gemstone}; ` : ""}${r.donation ? `donate ${r.donation}; ` : ""}mantra "${r.mantra}" (${r.japaCount}x) on ${r.day}; worship ${r.deity}. ${r.reason}`)
     .join("\n");
 
-  const bhava: any = (kundli as any).chartData?.bhava || {};
+  const bhava: any = approx ? {} : (kundli as any).chartData?.bhava || {};
   const lordLines = Array.isArray(bhava.houseLords)
     ? bhava.houseLords.map((h: any) => `- House ${h.house} (${h.sign}) lord ${h.lord} sits in house ${h.lordHouse} (${h.lordSign})`).join("\n")
     : "";
@@ -117,7 +122,7 @@ Name: ${birthDetails.name || "Unknown"}
 Date of Birth: ${birthDetails.dateOfBirth || "Unknown"}
 Time of Birth: ${birthDetails.timeOfBirth || "Unknown"}
 Place of Birth: ${birthDetails.placeOfBirth || "Unknown"}
-Ascendant (Lagna): ${birthDetails.ascendant || "Unknown"}
+Ascendant (Lagna): ${birthDetails.ascendant || (approx ? "Not stated — birth time approximate (do not mention the Lagna, houses or dasha dates)" : "Unknown")}
 Moon Sign (Rashi): ${birthDetails.moonSign || "Unknown"}
 Sun Sign: ${birthDetails.sunSign || "Unknown"}
 
@@ -274,6 +279,7 @@ export interface ReportBirthDetails {
   ascendant?: string;
   moonSign?: string;
   sunSign?: string;
+  timeAccuracy?: "exact" | "approximate";
 }
 
 export interface GeneratedReport {
@@ -293,7 +299,13 @@ interface StructuredChart {
   planetaryPositions: ReportPlanetPosition[];
   chartData: { houses?: any[]; planetaryPositions?: any[] };
   dashaTimeline: ReportDashaPeriod[];
+  /** Set when the birth time is approximate: what was withheld and why. */
+  disclosure?: string;
 }
+
+const APPROXIMATE_DISCLOSURE =
+  "The birth time is approximate, so the Lagna (Ascendant), house positions, the Lagna-based charts and dasha dates are not shown: they could all change with the exact time. Planet signs and the readings below that do not depend on the birth time still apply.";
+const isApproximate = (kundli: Partial<Kundli>) => (kundli as any).chartData?.canonical?.birth?.timeAccuracy === "approximate";
 
 // Turn a stored Kundli (chartData/dashas JSONB) into the structured shapes the
 // report renderer and PDF need: birth details, a planetary-position table, the
@@ -339,6 +351,15 @@ function deriveStructured(kundli: Partial<Kundli>): StructuredChart {
     sunSign: kundli.zodiacSign || undefined,
   };
 
+  if (isApproximate(kundli)) {
+    return {
+      birthDetails: { ...birthDetails, ascendant: undefined, timeAccuracy: "approximate" },
+      planetaryPositions: planetaryPositions.filter((p) => p.planet !== "Ascendant").map((p) => ({ ...p, house: undefined })),
+      chartData: {},
+      dashaTimeline: [],
+      disclosure: APPROXIMATE_DISCLOSURE,
+    };
+  }
   return { birthDetails, planetaryPositions, chartData: cd, dashaTimeline };
 }
 
@@ -675,7 +696,7 @@ export async function generateDailyHoroscope(
     const dashaCtx = currentMd
       ? `, currently running the ${currentMd.planet} Mahadasha${currentMd.currentAntardasha ? ` / ${currentMd.currentAntardasha.planet} Antardasha` : ""}`
       : "";
-    const prompt = `You are an expert Vedic astrologer writing today's PERSONALISED daily horoscope for ${dateStr}. Base it specifically on this person's chart — Lagna ${birthDetails.ascendant || "—"}, Moon ${birthDetails.moonSign || "—"}, Sun ${birthDetails.sunSign || "—"}${dashaCtx}. Make it specific and actionable for today — not generic sun-sign text.${lang ? ` Write every text field in ${lang}.` : ""}
+    const prompt = `You are an expert Vedic astrologer writing today's PERSONALISED daily horoscope for ${dateStr}. Base it specifically on this person's chart — ${birthDetails.ascendant ? `Lagna ${birthDetails.ascendant}, ` : 'Lagna not known (birth time approximate: do not mention the Lagna or houses), '}Moon ${birthDetails.moonSign || "—"}, Sun ${birthDetails.sunSign || "—"}${dashaCtx}. Make it specific and actionable for today — not generic sun-sign text.${lang ? ` Write every text field in ${lang}.` : ""}
 
 Return ONLY valid JSON: {"headline":"short uplifting headline","overall":"2-3 sentence personalised summary for today","rating":<integer 1-5>,"career":"1-2 sentences","love":"1-2 sentences","health":"1-2 sentences","finance":"1-2 sentences","luckyColor":"a colour","luckyNumber":<integer 1-9>,"advice":"one practical tip for today"}`;
 

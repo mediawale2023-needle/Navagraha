@@ -264,6 +264,18 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
     return (await pending) as T;
   }
 
+  /** A stored professional reading's chart if it is a current V3 chart, else recomputed canonically from the profile. */
+  function readingChartData(reading: { chartData: unknown }, profile: { dateOfBirth: any; timeOfBirth: any; latitude: any; longitude: any }): any {
+    if (isCurrentCanonicalChart((reading.chartData as any)?.canonical)) return reading.chartData;
+    return computeJyotishChart(profile.dateOfBirth, profile.timeOfBirth, Number(profile.latitude), Number(profile.longitude)).chartData;
+  }
+
+  /** The owner's chart for AI context only if it holds a verified V3 calculation; otherwise null (no legacy data). */
+  async function verifiedChart(kundli: Kundli | null | undefined): Promise<Kundli | null> {
+    const k = await currentChart(kundli ?? null);
+    return k && isCurrentCanonicalChart((k.chartData as any)?.canonical) ? k : null;
+  }
+
   app.post('/api/kundli', async (req: any, res) => {
     try {
       const userId = req.user?.id || req.session?.userId || null;
@@ -383,15 +395,19 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
 
   // ─── Horoscope ────────────────────────────────────────────
   // Personalised daily horoscope from the user's chart, cached once per day.
-  app.get('/api/horoscope/personal', isAuthenticated, async (req: any, res) => {
+  app.get('/api/horoscope/personal', isAuthenticated, aiLimiter, async (req: any, res) => {
     try {
       const userId = (req.user as any).id;
       const language = (req.query.language as string) || 'English';
       const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(new Date());
 
       const userKundlis = await storage.getUserKundlis(userId);
-      const kundli = userKundlis?.[0] ?? null;
+      const kundli = await currentChart(userKundlis?.[0] ?? null);
       if (!kundli) return res.json({ hasChart: false });
+      // A chart without a verified V3 calculation is never used as the basis of a reading.
+      if (!isCurrentCanonicalChart((kundli.chartData as any)?.canonical)) {
+        return res.json({ hasChart: false, limitedReason: chartVersionStatus(kundli).notes[0] ?? 'Your chart needs to be recreated with its birth place.' });
+      }
 
       const cached = await storage.getDailyHoroscope(userId, today);
       if (cached && cached.language === language) {
@@ -1401,13 +1417,14 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
     } catch { res.status(500).json({ message: "Failed to fetch messages" }); }
   });
 
-  app.post('/api/chat/:astrologerId', isAuthenticated, async (req: any, res) => {
+  app.post('/api/chat/:astrologerId', isAuthenticated, (req: any, res, next) => (req.params.astrologerId === 'ai-astrologer' ? aiLimiter(req, res, next) : next()), async (req: any, res) => {
     try {
       const user = req.user as any;
       const userId = user.id;
       const { astrologerId } = req.params;
       const { message, sender } = req.body;
       if (!message || !sender) return res.status(400).json({ message: "Message and sender required" });
+      if (typeof message !== 'string' || message.length > 2000) return res.status(400).json({ message: "Message is too long (2000 characters max)" });
 
       const chatMessage = await storage.createChatMessage({ userId, astrologerId, message, sender });
       
@@ -1583,7 +1600,7 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
         (async () => {
           try {
             const userKundlis = await storage.getUserKundlis(userId);
-            const latestKundli = userKundlis?.[0] ?? null;
+            const latestKundli = await verifiedChart(userKundlis?.[0]);
             const durationMinutes = Math.floor((consultation.durationSeconds || 0) / 60);
             const followUp = await generatePostConsultFollowUp(
               latestKundli,
@@ -1917,6 +1934,10 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
         if (kundli) kundliRef = kundli.id;
       }
       if (!kundli) return res.status(400).json({ message: 'Provide birth details or generate your Kundli first to order a report.' });
+      // Never charge for a report built on a chart without a verified V3 calculation.
+      if (!isCurrentCanonicalChart((kundli.chartData as any)?.canonical)) {
+        return res.status(409).json({ message: chartVersionStatus(kundli).notes[0] ?? 'This chart needs to be recreated with its birth place before a report can be generated.', chartStatus: chartVersionStatus(kundli) });
+      }
 
       const price = parseFloat(reportType.price);
       const debit = await storage.debitWallet(userId, price, `Report: ${reportType.name}`);
@@ -2241,7 +2262,8 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
     try {
       const user = req.user as any;
       const { message, sessionId, language } = req.body;
-      if (!message) return res.status(400).json({ message: "Message is required" });
+      if (!message || typeof message !== 'string') return res.status(400).json({ message: "Message is required" });
+      if (message.length > 2000) return res.status(400).json({ message: "Message is too long (2000 characters max)" });
       const selection = selectChart(req.body);
       if (selection.kind === 'invalid') return res.status(400).json({ message: selection.message });
 
@@ -2439,7 +2461,7 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
   });
 
   // Pre-consultation brief — talking points tailored to user's chart + astrologer
-  app.get('/api/ai/pre-consult-brief', isAuthenticated, async (req: any, res) => {
+  app.get('/api/ai/pre-consult-brief', isAuthenticated, aiLimiter, async (req: any, res) => {
     try {
       const userId = (req.user as any).id;
       const { astrologerId } = req.query;
@@ -2451,7 +2473,7 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
       ]);
       if (!astrologer) return res.status(404).json({ message: "Astrologer not found" });
 
-      const latestKundli = userKundlis?.[0] ?? null;
+      const latestKundli = await verifiedChart(userKundlis?.[0]);
       const brief = await generatePreConsultBrief(
         latestKundli,
         astrologer.name,
@@ -2468,12 +2490,12 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
   });
 
   // Astrologer matching — rank online astrologers by chart compatibility
-  app.get('/api/ai/match-astrologer', isAuthenticated, async (req: any, res) => {
+  app.get('/api/ai/match-astrologer', isAuthenticated, aiLimiter, async (req: any, res) => {
     try {
       const userId = (req.user as any).id;
       const userKundlis = await storage.getUserKundlis(userId);
-      const latestKundli = userKundlis?.[0];
-      if (!latestKundli) return res.status(400).json({ message: "No Kundli found. Create a birth chart first." });
+      const latestKundli = await verifiedChart(userKundlis?.[0]);
+      if (!latestKundli) return res.status(400).json({ message: "No verified Kundli found. Create (or recreate) your birth chart with its birth place first." });
 
       const allAstrologers = await storage.getAllAstrologers();
       const candidates = (allAstrologers || [])
@@ -2815,6 +2837,7 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
       if (!reading) return res.status(404).json({ message: 'Reading not found' });
       const profile = await storage.getJyotishProfileById(reading.profileId);
       if (!profile) return res.status(404).json({ message: 'Profile not found' });
+      const chartData = readingChartData(reading, profile);
 
       res.setHeader('Content-Type', 'text/plain; charset=utf-8');
       res.setHeader('Cache-Control', 'no-cache');
@@ -2823,7 +2846,7 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
       const full = await streamTraditionReading(
         tradition,
         jyotishProfileInfo(profile),
-        reading.chartData as any,
+        chartData,
         (delta) => res.write(delta),
         reading.language || 'English',
       );
@@ -2831,6 +2854,7 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
       res.end();
     } catch (err: any) {
       console.error('Generate jyotish reading error:', err);
+      if (!res.headersSent && (err instanceof BirthInputError || err instanceof CalculationError)) return res.status(400).json({ message: err.message });
       if (!res.headersSent) {
         if (err.message?.includes('OPENAI_API_KEY')) return res.status(503).json({ message: 'AI features not configured. Set OPENAI_API_KEY.' });
         return res.status(500).json({ message: 'Failed to generate reading' });
@@ -3013,6 +3037,7 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
       if (!reading) return res.status(404).json({ message: 'Reading not found' });
       const profile = await requireProProfile(req, reading.profileId);
       if (!profile) return res.status(404).json({ message: 'Reading not found' });
+      const chartData = readingChartData(reading, profile);
 
       const credit = await storage.consumeProAiCredit(req.session.astrologerId, 1, PRO_AI_MONTHLY_LIMIT);
       if (!credit.ok) {
@@ -3030,7 +3055,7 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
       const full = await streamTraditionReading(
         tradition,
         jyotishProfileInfo(profile),
-        reading.chartData as any,
+        chartData,
         (delta) => res.write(delta),
         reading.language || 'English',
       );
@@ -3039,6 +3064,7 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
     } catch (err: any) {
       if (!res.headersSent && (err instanceof BirthInputError || err instanceof CalculationError)) return res.status(400).json({ message: err.message });
       console.error('Pro generate reading error:', err);
+      if (!res.headersSent && (err instanceof BirthInputError || err instanceof CalculationError)) return res.status(400).json({ message: err.message });
       if (!res.headersSent) {
         if (err.message?.includes('OPENAI_API_KEY')) return res.status(503).json({ message: 'AI features not configured. Set OPENAI_API_KEY.' });
         return res.status(500).json({ message: 'Failed to generate reading' });

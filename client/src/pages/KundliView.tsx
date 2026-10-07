@@ -28,6 +28,13 @@ import type { CanonicalChart } from '@shared/v3/canonical';
 
 const PDF_PRICE = 10;
 
+// Whether a stored dasha period is running today, from its dates (the stored status froze when the chart was saved).
+const isRunning = (x: any) => {
+  if (!x?.startDate || !x?.endDate) return x?.status === 'current';
+  const today = new Date().toISOString().slice(0, 10);
+  return x.startDate <= today && today < x.endDate;
+};
+
 type TransitData = {
   date: string;
   natalLagnaSign: string | null;
@@ -209,7 +216,7 @@ export default function KundliView() {
   useEffect(() => {
     if (kundli) {
       const dashas = (kundli.dashas as any[]) || [];
-      const idx = dashas.findIndex((d: any) => d.status === 'current');
+      const idx = dashas.findIndex(isRunning);
       setExpandedDasha(idx >= 0 ? idx : null);
     }
   }, [kundli]);
@@ -248,10 +255,10 @@ export default function KundliView() {
 
   const birthDate = new Date(kundli.dateOfBirth);
   const chartData = kundli.chartData as any;
-  const curMd = (kundli.dashas as any[] | undefined)?.find((d: any) => d.status === 'current');
-  const curAd = curMd?.antardashas?.find((a: any) => a.status === 'current');
-  const curPd = curAd?.pratyantardashas?.find((p: any) => p.status === 'current');
-  const curYogini = (chartData?.yoginiDasha as any[] | undefined)?.find((y: any) => y.status === 'current');
+  const curMd = (kundli.dashas as any[] | undefined)?.find(isRunning);
+  const curAd = curMd?.antardashas?.find(isRunning);
+  const curPd = curAd?.pratyantardashas?.find(isRunning);
+  const curYogini = (chartData?.yoginiDasha as any[] | undefined)?.find(isRunning);
   const dashas = (kundli.dashas as any[]) || [];
   const doshas = (kundli.doshas as any) || {};
   const remedies = (kundli.remedies as any[]) || [];
@@ -498,7 +505,8 @@ export default function KundliView() {
               </Card>
             )}
 
-            {chartData?.functionalRemedies?.length > 0 && (
+            {/* Lagna-based: only with an exact birth time */}
+            {chartData?.functionalRemedies?.length > 0 && chartData?.canonical?.birth?.timeAccuracy !== 'approximate' && (
               <Card className="mt-4">
                 <CardHeader>
                   <CardTitle className="text-base">Personalised Remedies</CardTitle>
@@ -692,11 +700,12 @@ export default function KundliView() {
             <Card className="card-clean">
               <CardHeader>
                 <CardTitle className="font-display">Vimshottari Dashas</CardTitle>
+                {insights?.timing?.note && <p className="text-xs text-amber-700" data-testid="dashas-timing-note">{insights.timing.note} Dates below are for the time entered.</p>}
               </CardHeader>
               <CardContent>
                 <div className="space-y-2">
                   {dashas.length > 0 ? dashas.map((dasha: any, i: number) => (
-                    <div key={i} className={`overflow-hidden rounded-[10px] border ${dasha.status === 'current' ? 'border-primary/60' : 'border-border'}`}>
+                    <div key={i} className={`overflow-hidden rounded-[10px] border ${isRunning(dasha) ? 'border-primary/60' : 'border-border'}`}>
                       <button className="w-full flex items-center justify-between p-4 text-left hover:bg-muted/40 transition-colors" onClick={() => setExpandedDasha(expandedDasha === i ? null : i)}>
                         <div className="flex items-center gap-3">
                           {expandedDasha === i ? <ChevronDown className="w-4 h-4 text-muted-foreground" /> : <ChevronRight className="w-4 h-4 text-muted-foreground" />}
@@ -705,17 +714,17 @@ export default function KundliView() {
                             <div className="text-sm text-muted-foreground">{dasha.period}</div>
                           </div>
                         </div>
-                        {dasha.status === 'current' && <Badge className="bg-nava-navy text-primary">Current</Badge>}
+                        {isRunning(dasha) && <Badge className="bg-nava-navy text-primary">Current</Badge>}
                       </button>
                       {expandedDasha === i && dasha.antardashas?.length > 0 && (
                         <div className="border-t border-border bg-muted/30">
                           {dasha.antardashas.map((ad: any, j: number) => (
-                            <div key={j} className={`flex items-center justify-between border-b border-border/50 px-6 py-2.5 text-sm last:border-0 ${ad.status === 'current' ? 'bg-primary/10' : ''}`}>
+                            <div key={j} className={`flex items-center justify-between border-b border-border/50 px-6 py-2.5 text-sm last:border-0 ${isRunning(ad) ? 'bg-primary/10' : ''}`}>
                               <div>
                                 <span className="font-medium">{dasha.planet}/{ad.planet}</span>
                                 <span className="text-muted-foreground ml-2">{ad.period}</span>
                               </div>
-                              {ad.status === 'current' && <Badge variant="outline" className="text-xs">Active</Badge>}
+                              {isRunning(ad) && <Badge variant="outline" className="text-xs">Active</Badge>}
                             </div>
                           ))}
                         </div>

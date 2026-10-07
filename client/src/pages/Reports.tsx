@@ -304,6 +304,9 @@ export default function Reports() {
                 {downloading ? 'Preparing PDF…' : 'Download PDF'}
               </Button>
 
+              {viewing.content.disclosure && (
+                <p className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-800" data-testid="report-disclosure">{viewing.content.disclosure}</p>
+              )}
               {/* Birth details */}
               {viewing.content.birthDetails && (
                 <div className="rounded-xl border border-border/50 p-3 text-sm grid grid-cols-2 gap-x-4 gap-y-1">
