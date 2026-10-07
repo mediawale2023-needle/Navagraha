@@ -4,7 +4,7 @@ import { storage } from "./storage";
 import { db } from "./db";
 import { sql, eq, asc, desc, and, inArray } from "drizzle-orm";
 import { setupAuth, isAuthenticated, isAdmin } from "./auth";
-import { runCouncil, UserContext } from "./agents/orchestrator";
+import { runCouncil } from "./agents/orchestrator";
 import { setupSwagger } from "./swagger";
 import rateLimit from "express-rate-limit";
 import {
@@ -38,6 +38,7 @@ import { computePrashna, PRASHNA_CATEGORIES } from "./astroEngine/prashna.js";
 import { CalculationError } from "./astroEngine/canonical/compute.js";
 import { upgradeLegacyKundli, chartVersionStatus } from "./astroEngine/canonical/upgrade.js";
 import { buildInsights } from "./astroEngine/evidence/insights.js";
+import { routeQuestion, buildEvidencePacket, answerSimple, answerWithoutChart, guardAnswer, packetSummary } from "./agents/askKundli.js";
 import { canonicalChartSchema, isCurrentCanonicalChart } from "@shared/v3/canonical";
 import {
   callSynastryEngine,
@@ -1356,20 +1357,12 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
       
       // AI Astrologer Integration
       if (astrologerId === 'ai-astrologer' && sender === 'user') {
-        const context: UserContext = {
-          birthDetails: {
-            date: user.dateOfBirth ? new Date(user.dateOfBirth).toISOString().split('T')[0] : 'Unknown',
-            time: user.timeOfBirth || 'Unknown',
-            place: user.placeOfBirth || 'Unknown',
-          },
-          profession: 'User', // Could be pulled from profile if available
-          currentQuery: message
-        };
-        
-        // Let the client know the message was saved, AI response will be fetched on next poll/WS
-        // Actually, we can just run it asynchronously or wait for it.
-        // Waiting for it returns the AI response immediately to the client:
-        const aiResponseText = await runCouncil(context);
+        // Same evidence-grounded path as /api/ai/chat; never a chart-less council.
+        const latest = await currentChart((await storage.getUserKundlis(userId))?.[0] ?? null);
+        const canonical = (latest?.chartData as any)?.canonical;
+        const aiResponseText = isCurrentCanonicalChart(canonical)
+          ? (await answerSimple(buildEvidencePacket(canonical, routeQuestion(message)), message)).text
+          : (await answerWithoutChart(message)).text;
         const aiMessage = await storage.createChatMessage({
           userId,
           astrologerId,
@@ -2292,25 +2285,39 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
         console.error('[chat] feedback load failed:', err);
       }
 
-      // Prepare context for Orchestrator
-      const context: UserContext = {
-        birthDetails: {
-          date: birthDate,
-          time: birthTime,
-          place: birthPlace,
-        },
-        chartData,
-        profession: 'User',
-        language,
-        memories,
-        transits,
-        verifiedEvents,
-        accuracyNote,
-        currentQuery: message
-      };
-
-      // Execute Council parallel logic
-      const aiResponseText = await runCouncil(context);
+      // Ask Your Kundli: route the question, build the deterministic evidence packet,
+      // then explain it (one model call) or, for deep questions, run the council.
+      const history = (Array.isArray(req.body.history) ? req.body.history : [])
+        .filter((h: any) => (h?.role === 'user' || h?.role === 'assistant') && typeof h?.content === 'string')
+        .slice(-6)
+        .map((h: any) => ({ role: h.role as 'user' | 'assistant', content: String(h.content).slice(0, 4000) }));
+      const route = routeQuestion(message, { depth: req.body.depth === 'deep' ? 'deep' : undefined });
+      const canonical = kundli?.chartData?.canonical;
+      let aiResponseText: string;
+      let evidenceSummary: ReturnType<typeof packetSummary> | null = null;
+      let answerSource: 'llm' | 'deterministic' = 'llm';
+      if (isCurrentCanonicalChart(canonical)) {
+        const packet = buildEvidencePacket(canonical, route, new Date(), transits);
+        evidenceSummary = packetSummary(packet);
+        if (route.depth === 'deep') {
+          const reading = await runCouncil({
+            birthDetails: { date: birthDate, time: birthTime, place: birthPlace },
+            chartData, profession: 'User', language, memories, transits, verifiedEvents, accuracyNote,
+            evidencePacket: packet.text, currentQuery: message,
+          });
+          const guarded = await guardAnswer(packet, reading, async () => (await answerSimple(packet, message, { language, memories, history })).text);
+          aiResponseText = guarded.text;
+          answerSource = guarded.source;
+        } else {
+          const answer = await answerSimple(packet, message, { language, memories, history });
+          aiResponseText = answer.text;
+          answerSource = answer.source;
+        }
+      } else {
+        const answer = await answerWithoutChart(message, { language, history });
+        aiResponseText = answer.text;
+        answerSource = answer.source;
+      }
 
       // Save AI response to DB
       await storage.saveAiChatMessage({
@@ -2336,7 +2343,9 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
       res.json({
         sessionId: activeSessionId,
         reply: aiResponseText,
-        questionsUsed: 0 // Optional: Could track rate limits here
+        evidence: evidenceSummary,
+        answerSource,
+        questionsUsed: 0,
       });
     } catch (error: any) {
       if (error instanceof BirthInputError) return res.status(400).json({ message: error.message });
@@ -2653,10 +2662,13 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
   app.post('/api/admin/jyotish/profiles', isAdmin, adminLimiter, async (req, res) => {
     try {
       const body = insertJyotishClientProfileSchema.omit({ createdByUserId: true, astrologerId: true }).parse(req.body);
+      // Reject birth data the canonical engine cannot calculate before saving it.
+      computeJyotishChart(body.dateOfBirth, body.timeOfBirth, Number(body.latitude), Number(body.longitude));
       const profile = await storage.createJyotishProfile({ ...body, createdByUserId: (req.user as any).id, astrologerId: null });
       res.json(profile);
     } catch (err: any) {
       if (err instanceof z.ZodError) return res.status(400).json({ message: 'Invalid profile data', errors: err.errors });
+      if (err instanceof BirthInputError || err instanceof CalculationError) return res.status(400).json({ message: err.message });
       console.error('Create jyotish profile error:', err);
       res.status(500).json({ message: 'Failed to create profile' });
     }
@@ -2837,6 +2849,7 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
       const body = insertJyotishClientProfileSchema
         .omit({ createdByUserId: true, astrologerId: true })
         .parse(req.body);
+      computeJyotishChart(body.dateOfBirth, body.timeOfBirth, Number(body.latitude), Number(body.longitude));
       const profile = await storage.createJyotishProfile({
         ...body,
         createdByUserId: null,
@@ -2845,6 +2858,7 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
       res.json(profile);
     } catch (err: any) {
       if (err instanceof z.ZodError) return res.status(400).json({ message: 'Invalid profile data', errors: err.errors });
+      if (err instanceof BirthInputError || err instanceof CalculationError) return res.status(400).json({ message: err.message });
       console.error('Pro create profile error:', err);
       res.status(500).json({ message: 'Failed to create profile' });
     }

@@ -285,18 +285,20 @@ describe('chart actually used after selection', () => {
 
   it('chat with explicit details passes that chart, not the saved one, to the council', async () => {
     const res = await request(app).post('/api/ai/chat').set('x-user', 'owner').send({
-      message: 'Career', birthDetails: { dateOfBirth: '1992-05-13', timeOfBirth: '06:30', ...coords },
+      message: 'Career', depth: 'deep', birthDetails: { dateOfBirth: '1992-05-13', timeOfBirth: '06:30', ...coords },
     });
     expect(res.status).toBe(200);
     expect(mocks.runCouncil).toHaveBeenCalledWith(expect.objectContaining({
       birthDetails: { date: '1992-05-13', time: '06:30', place: 'Bengaluru' },
+      evidencePacket: expect.stringContaining('Birth: 1992-05-13 06:30:00'),
     }));
   });
 
   it('chat fallback uses the saved chart when birthDetails is omitted', async () => {
-    await request(app).post('/api/ai/chat').set('x-user', 'owner').send({ message: 'Career' });
+    await request(app).post('/api/ai/chat').set('x-user', 'owner').send({ message: 'Career', depth: 'deep' });
     expect(mocks.runCouncil).toHaveBeenCalledWith(expect.objectContaining({
       birthDetails: { date: '1990-08-15', time: '06:30', place: 'Bengaluru' },
+      evidencePacket: expect.stringContaining('Birth: 1990-08-15 06:30:00'),
     }));
   });
 });

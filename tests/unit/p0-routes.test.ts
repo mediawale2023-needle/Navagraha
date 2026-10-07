@@ -111,10 +111,11 @@ describe('P0 route regressions', () => {
     expect(mocks.runCouncil).not.toHaveBeenCalled();
     expect(mocks.storage.getUserKundlis).not.toHaveBeenCalled();
   });
-  it('passes the actual chart and a planetary array to the council', async () => {
-    await request(app).post('/api/ai/chat').set('x-user', 'owner').send({ message: 'Career', kundliId: 'chart' });
+  it('passes the actual chart and a planetary array to the council (deep questions)', async () => {
+    await request(app).post('/api/ai/chat').set('x-user', 'owner').send({ message: 'Career', kundliId: 'chart', depth: 'deep' });
     expect(mocks.runCouncil).toHaveBeenCalledWith(expect.objectContaining({
       chartData: expect.objectContaining({ planets: saved.chartData.planetaryPositions }),
+      evidencePacket: expect.stringContaining(`Lagna: ${saved.chartData.canonical.ascendant.sign}`),
     }));
   });
   const birth = { name: 'Guest', gender: 'male', dateOfBirth: '1990-08-15', timeOfBirth: '06:00', placeOfBirth: 'Bengaluru', latitude: 12.9716, longitude: 77.5946, isBirthTimeApproximate: true };

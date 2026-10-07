@@ -23,24 +23,25 @@ export interface UserContext {
   transits?: string;
   verifiedEvents?: string[];
   accuracyNote?: string;
+  /** Deterministic evidence packet (Ask Your Kundli). When present, agents see only this, not raw chart JSON. */
+  evidencePacket?: string;
   currentQuery: string;
 }
 
-const PREDICTION_DISCIPLINE = `PREDICTION DISCIPLINE (mandatory — a master astrologer's rules):
-- A yoga or placement is only a PROMISE. Predict an outcome ONLY when it is activated by the relevant Dasha/Antardasha/Pratyantardasha AND supported by transit (especially the Saturn–Jupiter double transit). Always give the timing window.
-- Never predict from a single factor. Require at least TWO further confirmations (Navamsa/Dasamsa, Ashtakavarga bindus, the house lord, the karaka, or an aspect) and name them.
-- Weigh strength: a debilitated, combust or weak planet cannot fully deliver its promise (note Neecha-bhanga if it applies). A cancelled yoga (bhanga) does not give full results.
-- Calibrated confidence: if the chart is genuinely ambiguous or the birth time is uncertain, say so plainly instead of inventing certainty.
-- Adapt classical rules to the person's modern context (Desha-Kaala-Patra); avoid archaic literalism.
-ETHICS: Never predict death or the end of longevity. Never frighten. Frame every dosha or Sade Sati with a remedy and realistic hope. Respect free will and effort — the chart shows tendency and timing, not fixed fate. Recommend only the remedies the chart's functional needs justify; never push gemstones.`;
+const PREDICTION_DISCIPLINE = `PREDICTION DISCIPLINE (mandatory):
+- A yoga or placement is only a promise; tie any timing to the supplied dasha periods and transits.
+- Never predict from a single factor; name the supplied confirmations and contradictions.
+- Keep the engine's verdict and confidence labels. If the chart is ambiguous or the birth time is approximate, say so plainly.
+- Adapt classical rules to the person's modern context (Desha-Kaala-Patra).
+ETHICS: Never predict death, lifespan, serious illness, guaranteed pregnancy, guaranteed marriage/divorce or guaranteed financial outcomes. Never frighten, never sell remedies through fear, never push gemstones. The chart shows tendency and timing as the tradition reads it, not fixed fate.`;
 
 /**
- * Super-Astrologer Council: Parallel `$team` Orchestrator (v2 Shadbala Edition)
+ * Super-Astrologer Council — the DEEP path of Ask Your Kundli.
  *
- * Step 0 (NEW): Calls the Rust astro-engine for deterministic Shadbala/Yoga/Varga math.
- * Step 1: Injects the Rust matrix into all 5 agents' prompt payloads.
- * Step 2: Runs 5 specialist LLM agents in parallel.
- * Step 3: Jyotishi Synthesizer compiles the final reading from pure math, not guesses.
+ * Step 1: Every agent receives the same deterministic evidence packet.
+ * Step 2: Five specialist agents interpret it in parallel.
+ * Step 3: The Jyotishi synthesizes; the Ethicist gate reviews safety.
+ * Simple questions do not reach this function (see askKundli.ts).
  */
 export async function runCouncil(context: UserContext): Promise<string> {
   const today = new Date().toISOString().split('T')[0];
@@ -60,16 +61,10 @@ export async function runCouncil(context: UserContext): Promise<string> {
     ? `\n\nLANGUAGE DIRECTIVE: Write the entire final response in ${lang}, using natural, fluent, everyday ${lang}. Astrological proper nouns (planet, sign and dasha names) may stay recognizable.`
     : '';
 
-  // Strengths come from the canonical chart in chartData (dignity, Ashtakavarga,
-  // partial Shadbala). The Rust /calculate path is retired: its Varga and
-  // Shadbala methodology could not be verified against the canonical frame.
-  const shadbalaSummary = '';
-
-  // Combine chart + shadbala for agents
-  const contextPayload = JSON.stringify({
-    ...context,
-    shadbalaMath: shadbalaSummary || 'Deterministic calculations unavailable — use supplied chart facts only; never invent missing chart facts or strengths.',
-  }, null, 2);
+  // Agents see the deterministic evidence packet; raw chart JSON only when no packet exists.
+  const contextPayload = context.evidencePacket
+    ? `${context.evidencePacket}\n\nQUESTION: ${context.currentQuery}\nMEMORIES: ${(context.memories ?? []).join(' | ') || '(none)'}\nCONFIRMED PAST EVENTS: ${(context.verifiedEvents ?? []).join(' | ') || '(none)'}`
+    : JSON.stringify({ ...context, note: 'No deterministic evidence packet: use supplied chart facts only; never invent missing chart facts or strengths.' }, null, 2);
 
   console.log('[Orchestrator] Spinning up the $team council...');
 
@@ -116,8 +111,8 @@ ${context.transits || '(transits unavailable)'}
 ### User Query:
 ${context.currentQuery}
 
-### Deterministic strengths:
-Use only the dignity, Ashtakavarga and partial Shadbala (Uchcha/Dig/Naisargika) values present in the supplied chart. No total Shadbala exists; do not infer missing strengths.
+### Deterministic evidence packet (authoritative):
+${context.evidencePacket ?? '(none — use only the supplied chart facts; do not infer missing strengths)'}
 
 ### Council Findings (Tier 2 — LLM Agents):
 1. **Chronos (Timing):** ${chronosResult}
@@ -135,7 +130,7 @@ Now synthesize into the final reading. Be specific and confident where the chart
 
   // ─── Step 4: Ethicist Gate (Safety Filter) ────────────────────────────────
   console.log('[Orchestrator] Running Ethicist Gate...');
-  const ethicsReinforce = "\n\nSTRICT: Remove any prediction of death or end of longevity entirely. Remove fear-mongering. Ensure every challenge (dosha, Sade Sati, malefic period) is paired with a concrete remedy and realistic hope. Do not add gemstone sales pressure.";
+  const ethicsReinforce = "\n\nSTRICT: Remove any prediction of death or longevity. Remove fear-mongering. Pair challenges with realistic, practical guidance; remedies are optional and never a condition for a good outcome. No gemstone sales pressure.";
   const finalReading = await callAgent("ethicist", temporalInjector(AGENT_PROMPTS.ethicist) + ethicsReinforce + languageDirective, jyotishiOutput);
 
   return finalReading;

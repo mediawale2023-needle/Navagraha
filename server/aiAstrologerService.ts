@@ -16,9 +16,11 @@ import type { Kundli } from "@shared/schema";
 import { getTransits, transitSummary } from "./astroEngine/index.js";
 import { siderealPositions } from "./astroEngine/canonical/compute.js";
 import { SIGNS } from "./astroEngine/vedic.js";
+import { isCurrentCanonicalChart } from "@shared/v3/canonical";
+import { buildInsights } from "./astroEngine/evidence/insights.js";
 
 // Shared prediction discipline + ethics for all paid-report generation.
-const REPORT_DISCIPLINE = `Discipline: a yoga/placement is only a promise — tie predictions to the activating dasha + transit and at least two confirmations (Navamsa/Dasamsa, Ashtakavarga, house lord, karaka); weigh planetary strength (a weak/debilitated/combust planet under-delivers; note Neecha-bhanga and yoga cancellation). Give realistic timing windows. Ethics: never predict death or end of longevity; never frighten; pair every difficulty with a remedy and hope; respect the person's free will and effort; recommend only justified remedies, never push gemstones.`;
+const REPORT_DISCIPLINE = `Discipline: a yoga/placement is only a promise — tie predictions to the activating dasha + transit and at least two confirmations (Navamsa/Dasamsa, Ashtakavarga, house lord, karaka); weigh planetary strength (a weak/debilitated/combust planet under-delivers; note Neecha-bhanga and yoga cancellation). Give realistic timing windows. Grounding: use only the chart facts and deterministic evidence supplied; never invent a placement, yoga, dosha, strength or date; keep the engine's verdicts; never cite chapter/verse numbers or quote scriptures; if the birth time is approximate, say so and do not build on the Lagna or houses. Ethics: Jyotish is a traditional interpretive system, not certainty — describe tendencies and timing; never predict death, lifespan, serious illness, guaranteed pregnancy, guaranteed marriage/divorce or guaranteed financial outcomes; never frighten; pair difficulty with realistic guidance (remedies are optional, never a condition); respect free will; recommend only justified remedies, never push gemstones.`;
 
 // Lazy-init so the server starts without the key (degraded mode)
 let _client: OpenAI | null = null;
@@ -152,7 +154,26 @@ Doshas: ${doshaList}
 
 Ascendant-specific Remedies (functional — prefer these over generic advice):
 ${remedyLines || "Not available"}
+${canonicalContext(kundli)}
 `.trim();
+}
+
+/** V3 additions: calculation provenance, birth-time accuracy, today's running period and the evidence graph. */
+function canonicalContext(kundli: Partial<Kundli>): string {
+  const canonical = (kundli as any).chartData?.canonical;
+  if (!isCurrentCanonicalChart(canonical)) return "";
+  const insights = buildInsights(canonical);
+  const rp = insights.currentPeriod;
+  const domainLines = insights.domains
+    .map((d) => `- ${d.label}: ${d.verdict} (confidence ${d.confidence}) — ${d.conclusion}`)
+    .join("\n");
+  return `
+Calculation: ${insights.headline.calculation}; birth time ${canonical.birth.timeAccuracy.toUpperCase()} (${canonical.birth.timezone}, UTC${canonical.birth.utcOffset}).
+${canonical.uncertainty.notes.length ? `Uncertainty: ${canonical.uncertainty.notes.join(" ")}` : ""}
+Running period TODAY (authoritative; supersedes any status above): ${rp ? `${rp.mahadasha} Mahadasha${rp.antardasha ? ` / ${rp.antardasha} Antardasha` : ""}` : "not available"}
+
+Deterministic evidence verdicts (authoritative; explain, do not change):
+${domainLines}`;
 }
 
 // ─── Kundli Interpretation (used in KundliView page) ──────────────────────────

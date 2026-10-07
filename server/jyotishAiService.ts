@@ -16,6 +16,8 @@
  */
 import OpenAI from 'openai';
 import type { JyotishChartData } from './astroEngine/jyotishEngine.js';
+import { isCurrentCanonicalChart } from '@shared/v3/canonical';
+import { buildInsights } from './astroEngine/evidence/insights.js';
 
 export type Tradition = 'parashar' | 'kn_rao' | 'kamakhya';
 
@@ -28,7 +30,7 @@ export const TRADITION_LABELS: Record<Tradition, string> = {
 // Shared ethics/discipline, mirrored from aiAstrologerService.ts's
 // REPORT_DISCIPLINE so every tradition's output holds to the same standard
 // regardless of methodology.
-const DISCIPLINE = `Discipline: tie every prediction to the activating dasha + at least two confirmations (Navamsa/Dasamsa, Ashtakavarga SAV, house lord placement, karaka). Weigh planetary strength — a weak/debilitated/combust planet under-delivers; note Neecha-bhanga and yoga cancellation explicitly. Give realistic timing windows, not vague ones. Ethics: never predict death or loss of longevity; never frighten; pair every difficulty with a remedy and hope; respect free will; never push a gemstone — flag this engine's own gemstone-contraindication checks if any are present for the chart.
+const DISCIPLINE = `Discipline: tie every prediction to the activating dasha + at least two confirmations (Navamsa/Dasamsa, Ashtakavarga SAV, house lord placement, karaka). Weigh planetary strength — a weak/debilitated/combust planet under-delivers; note Neecha-bhanga and yoga cancellation explicitly. Give realistic timing windows, not vague ones. Ethics: never predict death or loss of longevity, serious illness or guaranteed outcomes; never frighten; pair every difficulty with realistic guidance (remedies are optional, never a condition for a good outcome); respect free will; never push a gemstone — flag this engine's own gemstone-contraindication checks if any are present for the chart.
 
 Depth and structure (mandatory — this is a working reference for a professional astrologer, not a short summary; write the full length needed to satisfy every point below, do not compress or truncate):
 1. THIS IS NOT A DASHA-ONLY REPORT: begin with a full chart-darshan before timeline work. Open by naming the chart's foundational architecture — Lagna, Lagna lord, Atmakaraka, Karakamsha, Ishta Devata, strongest yoga(s), standout dosha(s), special coincidences, and any rare signature explicitly supplied by the chart data. Explain what kind of life this chart is fundamentally built for before you start period analysis.
@@ -40,11 +42,13 @@ Depth and structure (mandatory — this is a working reference for a professiona
 7. AFTER THE CORE CHART DARSHAN, MOVE THROUGH DISTINCT LAYERS: foundation of the chart, soul-signature (Atmakaraka/Karakamsha/Ishta Devata), named yogas/doshas, marriage/partnership signature (especially Daarakaraka if supplied), career/artha signature, spiritual/tantric signature where relevant, THEN the dasha activation sequence. The reading must feel like a full chart revelation, not a spreadsheet of periods.
 8. CLOSE with a short chronological digest (period → ruling planet(s) → one-line verdict) covering the full past-through-future arc, so the astrologer can scan the whole life timeline before reading the detailed sections.
 9. THE NAMED TRADITION IS THE METHOD, NOT A LABEL: the tradition-specific technique described in your system role (BPHS houses, K.N. Rao's triple dasha confirmation, or Kamakhya's Mahavidya/Devi-form mapping) must be the actual reasoning engine you use to arrive at EVERY period's prediction in the past/present/future walk above — not generic dignity/yoga commentary with the tradition's name attached afterward, and not a separate decorative section bolted on top. If a reader swapped the tradition name in your header, the reasoning in every period should visibly stop making sense for that other tradition — that's the bar.
-10. VOICE AND PRESENTATION: write in-character, in the first person, as the named tradition's astrologer-guru actually speaking to a fellow professional in a live session — not a clinical report generator. Use bold, dramatic section headers (capitalized, e.g. "THE FIRST SEAL", "THE TURNING POINT", "THE DASHA ACTIVATION SEQUENCE") to mark major movements of the reading. Lean into the tradition's natural register: Parashar should read like a rigorous classical pandit citing BPHS; K.N. Rao should read like a meticulous triple-confirmation analyst; Kamakhya should read like a Shakta-Tantric guru, and may code-switch naturally between Hindi and English the way such a guru actually speaks (e.g. weaving in words like "dekho", "iska matlab", "yeh bahut important hai") — sparingly enough to stay legible, not as decoration on every line.
+10. VOICE AND PRESENTATION: write in-character, in the first person, as the named tradition's astrologer-guru actually speaking to a fellow professional in a live session — not a clinical report generator. Use bold, dramatic section headers (capitalized, e.g. "THE FIRST SEAL", "THE TURNING POINT", "THE DASHA ACTIVATION SEQUENCE") to mark major movements of the reading. Lean into the tradition's natural register: Parashar should read like a rigorous classical pandit grounded in BPHS principles (describe the principle; never quote or number chapters/verses); K.N. Rao should read like a meticulous triple-confirmation analyst; Kamakhya should read like a Shakta-Tantric guru, and may code-switch naturally between Hindi and English the way such a guru actually speaks (e.g. weaving in words like "dekho", "iska matlab", "yeh bahut important hai") — sparingly enough to stay legible, not as decoration on every line.
 11. ACTION, NOT JUST VERDICTS: every period must carry concrete, strategic guidance the astrologer can hand to their client — specific career/business moves, relationship actions, timing windows for travel or major decisions, and where sadhana is recommended, the EXACT mantra or bija syllable, repetition count, day of the week, and best time of day. Where a gemstone is discussed, give the specific do's and don'ts with the reasoning (carat/quality cautions, when NOT to wear it, what it should never be combined with) — never a bare "wear X" without the reasoning, and never overriding this engine's own gemstone-contraindication flags.
 12. NAME THE CHART'S TECHNICAL HIGH POINTS BY THEIR EXACT NAMES AS SUPPLIED: when the chart data lists a named yoga (e.g. "Shasha Yoga", "Vimala Vipreeta Raja Yoga"), a Vargottama placement, a Daarakaraka callout, or a special coincidence, cite it by that exact name/label from the data — never invent a yoga, dosha, or special-degree claim (such as Pushkara Navamsha) that the supplied chart data does not contain.
 13. MAHAVIDYA DERIVATION (Kamakhya tradition only, but relevant context for all three): the engine supplies two authoritative Mahavidya assignments — Primary (via Atmakaraka) and Lagna (via Ascendant sign). Treat both as settled fact; never contradict them. You may additionally offer a narrative, secondary Mahavidya read through the Ishta Devata/Karakamsha chain for extra texture, but you must explicitly label that one as a secondary/lineage-flavoured derivation, distinct from and never overriding the engine's primary/lagna computation.
-14. CLOSE EVERY READING WITH "THE WARNING": a short final section, clearly headed, naming the single psychological pattern or blind spot this chart predisposes the client toward (e.g. a tendency this dasha sequence or dignity pattern tends to produce — impulsiveness, over-attachment, avoidance, etc.) and any dosha-based caution still live for them, framed with care, never as fear — then close with a one-line benediction.`;
+14. SHARED FACTS, DIFFERENT LENSES: the chart facts and the deterministic evidence graph supplied are identical for every tradition. Your tradition may weigh and interpret that evidence differently, but must never alter a placement, invent evidence, or contradict the engine's facts. Never cite chapter/verse numbers or quote verses that were not supplied.
+15. BIRTH-TIME ACCURACY: if the chart data says the birth time is approximate, say so at the start and do not build conclusions on the Lagna, houses or fine vargas.
+16. CLOSE EVERY READING WITH "THE WARNING": a short final section, clearly headed, naming the single psychological pattern or blind spot this chart predisposes the client toward (e.g. a tendency this dasha sequence or dignity pattern tends to produce — impulsiveness, over-attachment, avoidance, etc.) and any dosha-based caution still live for them, framed with care, never as fear — then close with a one-line benediction.`;
 
 let _client: OpenAI | null = null;
 function getClient(): OpenAI {
@@ -163,10 +167,29 @@ export interface JyotishProfileInfo {
   placeOfBirth: string;
 }
 
+/** Calculation provenance, birth-time accuracy and the deterministic evidence graph (shared by all traditions). */
+function fmtCanonicalContext(chartData: JyotishChartData): string {
+  const canonical = (chartData as any).canonical;
+  if (!isCurrentCanonicalChart(canonical)) return 'Calculation provenance: legacy chart without a V3 canonical record.';
+  const insights = buildInsights(canonical);
+  const domains = insights.domains.map((d) => {
+    const sup = d.supporting.slice(0, 3).map((e) => `${e.factor} [${e.source}]`).join('; ') || 'none';
+    const con = d.conflicting.slice(0, 2).map((e) => `${e.factor} [${e.source}]`).join('; ') || 'none';
+    return `- ${d.label}: ${d.verdict} (confidence ${d.confidence}); supports: ${sup}; counters: ${con}`;
+  }).join('\n');
+  return `Calculation: ${canonical.meta.ephemeris}, ${canonical.meta.ayanamsa} ayanamsa (${canonical.meta.ayanamsaDegrees.toFixed(4)}°), ${canonical.meta.houseSystem} houses, ${canonical.meta.nodeType} node.
+Birth instant: ${canonical.birth.localDate} ${canonical.birth.localTime} ${canonical.birth.timezone} (UTC${canonical.birth.utcOffset}) = ${canonical.birth.birthUTC}; birth time ${canonical.birth.timeAccuracy.toUpperCase()}.
+${canonical.uncertainty.notes.length ? `Uncertainty: ${canonical.uncertainty.notes.join(' ')}\n` : ''}
+Deterministic evidence graph (authoritative; the same for every tradition — weigh it through your method, never contradict it):
+${domains}`;
+}
+
 function chartSummaryForPrompt(profile: JyotishProfileInfo, chartData: JyotishChartData): string {
   return `
 Client: ${profile.name}${profile.gender ? ` (${profile.gender})` : ''}
 Born: ${profile.dateOfBirth} at ${profile.timeOfBirth}, ${profile.placeOfBirth}
+${fmtCanonicalContext(chartData)}
+
 Ascendant (Lagna): ${chartData.ascendant.sign} ${chartData.ascendant.degree}° — Nakshatra ${chartData.ascendant.nakshatra} pada ${chartData.ascendant.pada}
 
 Planetary Positions (D1 Rasi, Lahiri sidereal, Swiss Ephemeris precision):
