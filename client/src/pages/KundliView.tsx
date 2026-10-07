@@ -18,7 +18,6 @@ import { DeterministicRemedies } from '@/components/DeterministicRemedies';
 import { VerifyEventDialog } from '@/components/VerifyEventDialog';
 import { TrustBadge } from '@/components/TrustBadge';
 import { CalculationInfo } from '@/components/CalculationInfo';
-import { InsightCard } from '@/components/InsightCard';
 import { PriorityRemedyCard } from '@/components/PriorityRemedyCard';
 import { NorthIndianChartEnhanced } from '@/components/NorthIndianChartEnhanced';
 import { AIInsightSheet } from '@/components/AIInsightSheet';
@@ -229,37 +228,6 @@ export default function KundliView() {
   const doshas = (kundli.doshas as any) || {};
   const remedies = (kundli.remedies as any[]) || [];
 
-  // Generate insights from chart data
-  const insights = [
-    {
-      id: '1',
-      title: 'Moon in 4th House',
-      preview: 'Strong emotional connection to home and family. You find peace in domestic environments.',
-      fullContent: 'The Moon in the 4th house indicates deep emotional ties to your roots, family, and home environment. You are naturally nurturing and find comfort in familiar surroundings. This placement favors real estate, agriculture, and businesses related to home and family.',
-      priority: 'high' as const,
-      planet: 'Moon',
-      house: 4,
-    },
-    {
-      id: '2',
-      title: 'Mars in 10th House',
-      preview: 'Ambitious career drive. Natural leadership abilities in professional settings.',
-      fullContent: 'Mars in the 10th house gives you tremendous drive and ambition in your career. You are a natural leader who is not afraid to take initiative. This placement favors careers in engineering, military, sports, surgery, or any field requiring courage and physical energy.',
-      priority: 'medium' as const,
-      planet: 'Mars',
-      house: 10,
-    },
-    {
-      id: '3',
-      title: 'Jupiter in 7th House',
-      preview: 'Beneficial partnerships and marriage. Spouse may be wise or spiritually inclined.',
-      fullContent: 'Jupiter in the 7th house is considered highly auspicious for partnerships and marriage. Your spouse is likely to be wise, generous, and spiritually inclined. This placement also favors business partnerships and legal matters.',
-      priority: 'low' as const,
-      planet: 'Jupiter',
-      house: 7,
-    },
-  ];
-
   return (
     <div className="yantra-shell min-h-screen pb-20">
       <div className="max-w-4xl mx-auto px-4 py-6">
@@ -285,6 +253,9 @@ export default function KundliView() {
             <div className="flex items-start justify-between flex-wrap gap-3">
               <div>
                 <CardTitle className="font-display text-2xl mb-2">{kundli.name}</CardTitle>
+                {chartData?.isBirthTimeApproximate && (
+                  <p className="text-sm text-muted-foreground">Birth time is approximate; Ascendant and house positions may be unreliable.</p>
+                )}
                 <div className="flex flex-wrap gap-4 text-muted-foreground text-sm">
                   <div className="flex items-center gap-1.5">
                     <Calendar className="w-4 h-4" />
@@ -292,7 +263,7 @@ export default function KundliView() {
                   </div>
                   <div className="flex items-center gap-1.5">
                     <Clock className="w-4 h-4" />
-                    <span>{kundli.timeOfBirth}</span>
+                    <span>{kundli.timeOfBirth}{chartData?.isBirthTimeApproximate ? " (approximate)" : ""}</span>
                   </div>
                   <div className="flex items-center gap-1.5">
                     <MapPin className="w-4 h-4" />
@@ -636,15 +607,13 @@ export default function KundliView() {
           {/* Insights */}
           <TabsContent value="insights">
             <div className="space-y-3">
-              {insights.map((insight) => (
-                <InsightCard
-                  key={insight.id}
-                  title={insight.title}
-                  preview={insight.preview}
-                  fullContent={insight.fullContent}
-                  priority={insight.priority}
-                />
-              ))}
+              <Card className="card-clean">
+                <CardContent className="pt-6">
+                  <p className="text-sm text-muted-foreground">
+                    Personalized insights are unavailable. Calculated planetary placements are shown in the chart tab.
+                  </p>
+                </CardContent>
+              </Card>
             </div>
           </TabsContent>
 

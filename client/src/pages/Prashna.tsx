@@ -37,12 +37,11 @@ export default function Prashna() {
 
   const mutation = useMutation({
     mutationFn: async (data: PrashnaFormData) => {
-      // Note: Coordinates are typically stored in the PlacesAutocomplete component
-      // We pass fallback defaults if coordinates aren't fully resolved yet
       const payload = {
         question_category: data.question_category,
-        latitude: data.latitude || 28.6139,
-        longitude: data.longitude || 77.2090,
+        place: data.place,
+        latitude: data.latitude,
+        longitude: data.longitude,
       };
       return await apiRequest('POST', '/api/prashna', payload);
     },
@@ -132,7 +131,11 @@ export default function Prashna() {
                         <FormControl>
                           <PlacesAutocomplete
                             value={field.value}
-                            onChange={field.onChange}
+                            onChange={(value) => {
+                              field.onChange(value);
+                              form.setValue('latitude', undefined);
+                              form.setValue('longitude', undefined);
+                            }}
                             onPlaceSelect={(place) => {
                                 form.setValue('latitude', place.lat);
                                 form.setValue('longitude', place.lng);

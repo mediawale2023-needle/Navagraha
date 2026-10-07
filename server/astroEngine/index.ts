@@ -32,6 +32,13 @@ export interface NativeKundliResult {
   ascendant:   string;
   nakshatra:   string;
   chartData: {
+    isBirthTimeApproximate?: boolean;
+    calculationInputs?: {
+      julianDay: number; latitude: number; longitude: number;
+      ascendantLongitude: number; // Tropical degrees, matching the Rust input contract
+      ayanamsa: number;
+      tropicalLongitudes: Record<string, number>;
+    };
     houses:             Array<{ house: number; sign: string; planets: string[] }>;
     planetaryPositions: Array<{ planet: string; sign: string; degree: number; house: number; isRetrograde: boolean }>;
     navamsa?: {
@@ -100,12 +107,13 @@ export interface NativeNumerology {
 
 // ─── Datetime Parsing ─────────────────────────────────────────────────────────
 
+export class BirthInputError extends Error {}
+
 /**
  * Parse a birth date/time combination into a UTC Date.
  *
  * @param dateOfBirth  JS Date or ISO date string (date part used)
  * @param timeOfBirth  "HH:MM" or "HH:MM:SS" in IST (+05:30)
- * @param latitudeDeg  Birth latitude (used for timezone offset; defaults to IST if not provided)
  */
 function parseBirthDateTime(dateOfBirth: Date | string, timeOfBirth: string): Date {
   const d   = new Date(dateOfBirth);
@@ -113,18 +121,17 @@ function parseBirthDateTime(dateOfBirth: Date | string, timeOfBirth: string): Da
   const mo  = d.getUTCMonth() + 1;
   const day = d.getUTCDate();
 
-  const [hh, mm, ss = '0'] = timeOfBirth.split(':');
-
-  // Birth time is assumed to be IST (UTC+5:30) — the Indian standard
-  const istOffsetMin = 5 * 60 + 30;
-  const localMin =
-    parseInt(hh, 10) * 60 + parseInt(mm, 10) + parseInt(ss, 10) / 60;
-  const utcMin = localMin - istOffsetMin;
-
-  // Build a UTC date
-  const utc = new Date(Date.UTC(y, mo - 1, day, 0, 0, 0));
-  utc.setUTCMinutes(utc.getUTCMinutes() + utcMin);
-  return utc;
+  // Reject malformed/out-of-range times instead of normalizing another instant.
+  if (!Number.isFinite(d.getTime()) || typeof timeOfBirth !== 'string' ||
+      !/^\d{2}:\d{2}(?::\d{2})?$/.test(timeOfBirth)) {
+    throw new BirthInputError('A valid birth date and time (HH:MM or HH:MM:SS) are required');
+  }
+  const [hh, mm, ss = 0] = timeOfBirth.split(':').map(Number);
+  if (hh > 23 || mm > 59 || ss > 59) {
+    throw new BirthInputError('Birth time must be between 00:00:00 and 23:59:59');
+  }
+  // Preserve the consumer engine's IST assumption, including supplied seconds.
+  return new Date(Date.UTC(y, mo - 1, day, hh, mm - 330, ss));
 }
 
 // ─── Kundli ───────────────────────────────────────────────────────────────────
@@ -143,7 +150,12 @@ export async function getKundli(
   latitude: number,
   longitude: number,
 ): Promise<NativeKundliResult> {
+  if (!Number.isFinite(latitude) || Math.abs(latitude) > 90 ||
+      !Number.isFinite(longitude) || Math.abs(longitude) > 180) {
+    throw new Error("Valid birth coordinates are required");
+  }
   const birthUTC = parseBirthDateTime(dateOfBirth, timeOfBirth);
+  if (!Number.isFinite(birthUTC.getTime())) throw new Error("Valid birth date and time are required");
   const jd = julianDay(birthUTC);
 
   // All tropical longitudes
@@ -286,6 +298,11 @@ export async function getKundli(
     ascendant:   lagnaSign,
     nakshatra:   nakshatra.name,
     chartData: {
+      // Persist exact inputs in existing JSON; display positions are rounded.
+      calculationInputs: {
+        julianDay: jd, latitude, longitude, ascendantLongitude: ascTropical, ayanamsa,
+        tropicalLongitudes: Object.fromEntries(Object.entries(tropical).map(([name, p]) => [name, p.lon])),
+      },
       houses,
       planetaryPositions: [ascEntry, ...planetaryPositions],
       navamsa: {
