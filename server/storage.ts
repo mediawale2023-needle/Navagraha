@@ -170,6 +170,7 @@ export interface IStorage {
 
   // Astrologer earnings
   hasEarningForConsultation(consultationId: string): Promise<boolean>;
+  getBilledAmountForConsultation(consultationId: string): Promise<number>;
   createEarning(data: {
     astrologerId: string;
     consultationId?: string;
@@ -455,6 +456,9 @@ export class DatabaseStorage implements IStorage {
       .select()
       .from(consultations)
       .where(eq(consultations.id, id));
+    // Only an active consultation is timed and priced; ending one already closed (by the
+    // billing loop, or cancelled when the marketplace was paused) changes nothing.
+    if (!consultation || consultation.status !== "active") return consultation;
 
     const durationSeconds = consultation?.startedAt
       ? Math.floor((Date.now() - new Date(consultation.startedAt).getTime()) / 1000)
@@ -471,9 +475,9 @@ export class DatabaseStorage implements IStorage {
         durationSeconds,
         totalAmount,
       })
-      .where(eq(consultations.id, id))
+      .where(and(eq(consultations.id, id), eq(consultations.status, "active")))
       .returning();
-    return updated;
+    return updated ?? (await this.getConsultationById(id))!;
   }
 
   async updateConsultationDuration(
@@ -583,7 +587,7 @@ export class DatabaseStorage implements IStorage {
     const [call] = await db
       .update(scheduledCalls)
       .set({ status: 'cancelled' })
-      .where(and(eq(scheduledCalls.id, id), eq(scheduledCalls.userId, userId)))
+      .where(and(eq(scheduledCalls.id, id), eq(scheduledCalls.userId, userId), sql`${scheduledCalls.status} in ('pending', 'confirmed')`))
       .returning();
     return call;
   }
@@ -636,6 +640,19 @@ export class DatabaseStorage implements IStorage {
   }
 
   // ─── Astrologer earnings ───────────────────────────────────
+
+  /** What the user was actually charged for a consultation (its per-minute debits). */
+  async getBilledAmountForConsultation(consultationId: string): Promise<number> {
+    const [row] = await db
+      .select({ total: sql<string>`coalesce(sum(abs(${transactions.amount})), 0)` })
+      .from(transactions)
+      .where(and(
+        eq(transactions.consultationId, consultationId),
+        eq(transactions.type, "debit"),
+        eq(transactions.status, "completed"),
+      ));
+    return parseFloat(row?.total ?? "0");
+  }
 
   async hasEarningForConsultation(consultationId: string): Promise<boolean> {
     const [row] = await db
