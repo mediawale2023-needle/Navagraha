@@ -1,3 +1,4 @@
+import { isAstrologerAvailable } from '@/lib/astrologerPresence';
 import { useQuery } from '@tanstack/react-query';
 import { type LucideIcon, Phone, MessageCircle, Calendar, Sparkles, User, Wallet, LogOut, ArrowRight, Radio, ShoppingBag, FileText, Flame, CalendarDays } from 'lucide-react';
 import { Link, useLocation } from 'wouter';
@@ -279,11 +280,12 @@ export default function Home() {
                 id={astrologer.id}
                 name={astrologer.name}
                 image={astrologer.profileImageUrl || ''}
-                rating={astrologer.rating ? Number(astrologer.rating) : 4.9}
-                experience={astrologer.experience || 10}
-                price={astrologer.pricePerMinute ? Number(astrologer.pricePerMinute) : 25}
+                rating={astrologer.rating}
+                experience={astrologer.experience}
+                price={astrologer.pricePerMinute}
                 specialization={astrologer.specializations?.[0] || 'Vedic Astrology'}
-                isOnline={astrologer.isOnline || astrologer.availability === 'available'}
+                isVerified={Boolean(astrologer.isVerified)}
+                isOnline={isAstrologerAvailable(astrologer)}
               />
             ))}
           </div>

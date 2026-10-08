@@ -91,6 +91,7 @@ users, astrologers, kundlis (`chartData.canonical` = CanonicalChart V3; `legacyS
 - Client data fetching: TanStack Query with the URL as `queryKey`; mutations via `apiRequest`. Failures throw `ApiError` (`lib/apiError.ts`: readable `message`, `status`, optional `field`) — branch on `status`, never parse the message; show `field` errors on the form field. Never surface raw response bodies.
 - Promotional copy must match what billing does: the free-chat entitlement is `FREE_CHAT_MINUTES` (first chat only), exposed as `freeChatMinutes` in `/api/config`; seeded homepage copy is corrected only by guarded, idempotent UPDATEs (`HOMEPAGE_COPY_FIXES` in `migrate.ts`) that match untouched seed text.
 - Keep secrets out of logs and responses (astrologer `passwordHash`/`bankAccountNumber` are stripped from API output).
+- Never invent a figure to fill the UI: astrologer rating/experience/price go through `lib/astrologerDisplay.ts` ("New" / hidden when absent), online dots only via `isAstrologerAvailable`, Matchmaking shows the calculated gunas /36 and the eight-koota table only. `tests/unit/no-fabricated-output.test.ts` greps the client for default ratings, experience, prices, scores and audience claims.
 - Comments: only explain non-obvious "why". No narration.
 
 ## Do NOT
