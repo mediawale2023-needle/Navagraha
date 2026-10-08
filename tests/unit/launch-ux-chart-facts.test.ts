@@ -74,3 +74,20 @@ describe('chart pages never state unverified placements', () => {
     expect(page('KundliNew')).toMatch(/prefillFromSearch\([^)]*\),\n\s*placeOfBirth: ''/);
   });
 });
+
+describe('review follow-ups', () => {
+  it('pads a stored H:MM birth time instead of dropping it from the prefill', () => {
+    expect(recreateHref({ name: 'A', timeOfBirth: '9:30' })).toBe('/kundli/new?name=A&tob=09%3A30');
+    expect(recreateHref({ name: 'A', timeOfBirth: '09:30:00' })).toBe('/kundli/new?name=A&tob=09%3A30');
+  });
+  it('only a 409 tells the user to recreate the chart; other failures say the period could not load', () => {
+    for (const p of ['components/v3/RunningPeriodCard.tsx', 'components/v3/ActiveInfluences.tsx']) {
+      const src = readFileSync(new URL(`../../client/src/${p}`, import.meta.url), 'utf8');
+      expect(src).toContain('isApiError(error) && error.status === 409');
+      expect(src).toMatch(/could not be loaded right now/);
+    }
+  });
+  it('astrologer login treats an unserved route (404) as the server being unavailable', () => {
+    expect(page('AstrologerLogin')).toContain('status === 404 || status === 502 || status === 503');
+  });
+});

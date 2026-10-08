@@ -2,13 +2,14 @@ import { useQuery } from '@tanstack/react-query';
 import { useLocation } from 'wouter';
 import type { KundliInsights } from '@shared/v3/evidence';
 import { monthYear, selectRunningPeriods } from '@/lib/runningPeriods';
+import { isApiError } from '@/lib/apiError';
 
 /** Home's running-period card: the Mahadasha/Antardasha actually running in the user's latest chart. */
 export function RunningPeriodCard() {
   const [, setLocation] = useLocation();
   const { data: kundlis, isLoading: listLoading } = useQuery<Array<{ id: string; name: string }>>({ queryKey: ['/api/kundli'] });
   const latest = kundlis?.[0];
-  const { data: insights, isError } = useQuery<KundliInsights>({ queryKey: ['/api/kundli', latest?.id, 'insights'], enabled: !!latest });
+  const { data: insights, isError, error } = useQuery<KundliInsights>({ queryKey: ['/api/kundli', latest?.id, 'insights'], enabled: !!latest });
 
   let eyebrow = 'Running period';
   let title: string;
@@ -21,6 +22,10 @@ export function RunningPeriodCard() {
   } else if (!latest) {
     title = 'Create your Kundli';
     body = 'See the planetary period actually running in your chart, and what it engages.';
+  } else if (isError && !(isApiError(error) && error.status === 409)) {
+    title = 'Period unavailable';
+    body = 'Your current period could not be loaded right now. Please try again shortly.';
+    primary = { label: 'Open chart', sub: latest.name, href: `/kundli/${latest.id}` };
   } else if (isError || !insights) {
     title = 'Recreate your chart';
     body = `${latest.name}'s chart was made with an older engine and needs its birth place to show current periods.`;

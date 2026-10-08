@@ -50,7 +50,7 @@ export default function AstrologerLogin() {
       const raw = String(err?.message || '');
       const status = isApiError(err) ? err.status : undefined;
       let description = 'Login failed. Please try again.';
-      if (status === 502 || status === 503 || /Cannot POST|Failed to fetch|NetworkError/i.test(raw)) {
+      if (status === 404 || status === 502 || status === 503 || /Failed to fetch|NetworkError/i.test(raw)) {
         description = 'Server is unavailable (database not connected). Check Render DATABASE_URL, then retry.';
       } else if (status === 403) {
         description = raw || 'Account pending admin approval.';

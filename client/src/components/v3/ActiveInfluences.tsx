@@ -4,6 +4,7 @@ import { ArrowRight } from 'lucide-react';
 import { ActiveInfluenceCard } from '@/components/ActiveInfluenceCard';
 import type { KundliInsights } from '@shared/v3/evidence';
 import { monthYear, selectRunningPeriods } from '@/lib/runningPeriods';
+import { isApiError } from '@/lib/apiError';
 
 const GLYPH: Record<string, string> = { Sun: '☉', Moon: '☽', Mars: '♂', Mercury: '☿', Jupiter: '♃', Venus: '♀', Saturn: '♄', Rahu: '☊', Ketu: '☋' };
 
@@ -13,7 +14,7 @@ type Transits = { sadeSati: { active: boolean; phase: string; note: string; satu
 export function ActiveInfluences() {
   const { data: kundlis } = useQuery<Array<{ id: string; name: string }>>({ queryKey: ['/api/kundli'] });
   const latest = kundlis?.[0];
-  const { data: insights, isError } = useQuery<KundliInsights>({ queryKey: ['/api/kundli', latest?.id, 'insights'], enabled: !!latest });
+  const { data: insights, isError, error } = useQuery<KundliInsights>({ queryKey: ['/api/kundli', latest?.id, 'insights'], enabled: !!latest });
   const { data: transits } = useQuery<Transits>({ queryKey: ['/api/kundli', latest?.id, 'transits'], enabled: !!latest });
 
   if (!latest) {
@@ -21,6 +22,13 @@ export function ActiveInfluences() {
       <div className="rounded-[12px] border border-border bg-card p-4 text-sm text-muted-foreground">
         Create your Kundli to see the planetary periods actually running in your chart.
         <Link href="/kundli/new" className="ml-1 inline-flex items-center gap-1 font-semibold text-foreground">Create chart <ArrowRight className="h-3.5 w-3.5" /></Link>
+      </div>
+    );
+  }
+  if (isError && !(isApiError(error) && error.status === 409)) {
+    return (
+      <div className="rounded-[12px] border border-border bg-card p-4 text-sm text-muted-foreground" data-testid="active-influences-load-error">
+        Your current periods could not be loaded right now. Please try again shortly.
       </div>
     );
   }
