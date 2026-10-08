@@ -438,7 +438,7 @@ export default function KundliView() {
                 </div>
               </CardHeader>
               <CardContent>
-                <div className="flex flex-col items-center gap-4 p-4">
+                <div className="flex flex-col items-center gap-4 p-1 sm:p-4">
                   {chartView.mode === 'table' ? (
                     <div className="w-full" data-testid="approximate-planet-table">
                       <p className="mb-3 text-xs text-muted-foreground">Birth time is approximate and the Moon changed sign on this birth date, so no house chart can be drawn. Only sign positions are shown.</p>

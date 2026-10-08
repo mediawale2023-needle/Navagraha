@@ -2,6 +2,8 @@
 // view and in paid reports. Geometry and house-label positions are exported so
 // the PDF builder can reproduce the exact same layout.
 
+import { layoutHouseLabels, PLANET_FONT_SIZE } from '@/lib/chartLabels';
+
 export const PLANET_ABBR: Record<string, string> = {
   Sun: 'Su', Moon: 'Mo', Mars: 'Ma', Mercury: 'Me',
   Jupiter: 'Ju', Venus: 'Ve', Saturn: 'Sa', Rahu: 'Ra', Ketu: 'Ke',
@@ -97,27 +99,27 @@ export function NorthIndianChartEnhanced({ chartData, onPlanetClick }: { chartDa
           const planets = housePlanets[h] || [];
           const pos = HOUSE_TEXT[h];
           if (!pos || planets.length === 0) return null;
-          const totalHeight = planets.length * 14;
-          const startY = pos.py - (totalHeight / 2) + 7;
-          return planets.map((p, i) => {
-            const abbr = PLANET_ABBR[p.planet] ?? (p.planet === 'Ascendant' ? 'Asc' : p.planet.slice(0, 2));
-            const color = PLANET_COLORS[abbr] || '#1A1A2E';
-            const retro = p.isRetrograde ? '®' : '';
-            const label = p.degree ? `${abbr}-${p.degree}°${retro}` : `${abbr}${retro}`;
+          return layoutHouseLabels(planets).map((l) => {
+            const abbr = PLANET_ABBR[l.planet.planet] ?? (l.planet.planet === 'Ascendant' ? 'Asc' : l.planet.planet.slice(0, 2));
+            const activate = () => onPlanetClick?.(l.planet, h);
             return (
               <text
-                key={`${h}-${p.planet}`}
-                x={pos.px}
-                y={startY + i * 14}
+                key={`${h}-${l.planet.planet}`}
+                x={pos.px + l.dx}
+                y={pos.py + l.dy}
                 textAnchor="middle"
-                fontSize="9.5"
+                dominantBaseline="middle"
+                fontSize={PLANET_FONT_SIZE}
                 fontWeight="600"
-                fill={color}
-                className="cursor-pointer"
-                onClick={() => onPlanetClick?.(p, h)}
-                style={{ transition: 'opacity 0.2s' }}
+                fill={PLANET_COLORS[abbr] || '#1A1A2E'}
+                className={onPlanetClick ? 'cursor-pointer' : undefined}
+                role={onPlanetClick ? 'button' : undefined}
+                tabIndex={onPlanetClick ? 0 : undefined}
+                aria-label={l.ariaLabel}
+                onClick={onPlanetClick ? activate : undefined}
+                onKeyDown={onPlanetClick ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); activate(); } } : undefined}
               >
-                {label}
+                {l.text}
               </text>
             );
           });
