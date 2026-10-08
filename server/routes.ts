@@ -892,6 +892,7 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
 
   // Canonical description used to identify PDF download transactions
   const PDF_DESCRIPTION = 'Kundli PDF download';
+  const PDF_PRICE = 10;
 
   // Check whether the current user is eligible for a free PDF (first download ever)
   app.get('/api/wallet/pdf-check', isAuthenticated, async (req: any, res) => {
@@ -913,9 +914,11 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
   app.post('/api/wallet/deduct', isAuthenticated, async (req: any, res) => {
     try {
       const userId = (req.user as any).id;
-      const { amount, description } = req.body;
-      const cost = parseFloat(amount);
-      if (!cost || cost <= 0) return res.status(400).json({ message: "Invalid amount" });
+      // The only paid item sold here is the Kundli PDF, priced on the server; a client
+      // amount is ignored so it cannot set its own price.
+      const { description } = req.body;
+      if (description !== PDF_DESCRIPTION) return res.status(400).json({ message: "Unknown purchase" });
+      const cost = PDF_PRICE;
       let wallet = await storage.getWallet(userId);
       if (!wallet) wallet = await storage.createWallet(userId);
 
@@ -1553,7 +1556,9 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
   app.post('/api/consultations/:id/end', isAuthenticated, async (req: any, res) => {
     try {
       const userId = (req.user as any).id;
-      const consultation = await storage.endConsultation(req.params.id);
+      const owned = await storage.getConsultationById(req.params.id);
+      if (!owned || owned.userId !== userId) return res.status(404).json({ message: "Not found" });
+      const consultation = await storage.endConsultation(owned.id);
 
       // Set astrologer back to online
       if (consultation.astrologerId) {
@@ -1561,8 +1566,9 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
       }
 
       // Create earnings record for astrologer
+      // Ending is called more than once (WebSocket stop, then REST); earn once per consultation.
       const gross = parseFloat(consultation.totalAmount || "0");
-      if (gross > 0) {
+      if (gross > 0 && !(await storage.hasEarningForConsultation(consultation.id))) {
         const platformFee = (gross * PLATFORM_FEE_PERCENTAGE) / 100;
         const net = gross - platformFee;
         await storage.createEarning({
@@ -1642,10 +1648,10 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
     } catch { res.status(500).json({ message: "Failed to fetch consultations" }); }
   });
 
-  app.get('/api/consultations/:id', isAuthenticated, async (req, res) => {
+  app.get('/api/consultations/:id', isAuthenticated, async (req: any, res) => {
     try {
       const consultation = await storage.getConsultationById(req.params.id);
-      if (!consultation) return res.status(404).json({ message: "Not found" });
+      if (!consultation || consultation.userId !== (req.user as any).id) return res.status(404).json({ message: "Not found" });
       res.json(consultation);
     } catch { res.status(500).json({ message: "Failed to fetch consultation" }); }
   });
@@ -1750,9 +1756,10 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
     } catch { res.status(500).json({ message: "Failed to fetch schedule" }); }
   });
 
-  app.delete('/api/schedule/:id', isAuthenticated, async (req, res) => {
+  app.delete('/api/schedule/:id', isAuthenticated, async (req: any, res) => {
     try {
-      const call = await storage.updateScheduledCallStatus(req.params.id, 'cancelled');
+      const call = await storage.cancelUserScheduledCall(req.params.id, (req.user as any).id);
+      if (!call) return res.status(404).json({ message: "Booking not found" });
       res.json(call);
     } catch { res.status(500).json({ message: "Failed to cancel booking" }); }
   });
@@ -1765,9 +1772,9 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
     } catch { res.status(500).json({ message: "Failed to fetch notifications" }); }
   });
 
-  app.put('/api/notifications/:id/read', isAuthenticated, async (req, res) => {
+  app.put('/api/notifications/:id/read', isAuthenticated, async (req: any, res) => {
     try {
-      await storage.markNotificationRead(req.params.id);
+      await storage.markNotificationRead(req.params.id, (req.user as any).id);
       res.json({ success: true });
     } catch { res.status(500).json({ message: "Failed to update notification" }); }
   });

@@ -153,6 +153,7 @@ export interface IStorage {
   getUserScheduledCalls(userId: string): Promise<ScheduledCall[]>;
   getAstrologerScheduledCalls(astrologerId: string): Promise<ScheduledCall[]>;
   updateScheduledCallStatus(id: string, status: string): Promise<ScheduledCall>;
+  cancelUserScheduledCall(id: string, userId: string): Promise<ScheduledCall | undefined>;
 
   // Notification operations
   createNotification(data: {
@@ -164,10 +165,11 @@ export interface IStorage {
     data?: object;
   }): Promise<Notification>;
   getUserNotifications(userId: string): Promise<Notification[]>;
-  markNotificationRead(id: string): Promise<void>;
+  markNotificationRead(id: string, userId: string): Promise<void>;
   markAllNotificationsRead(userId: string): Promise<void>;
 
   // Astrologer earnings
+  hasEarningForConsultation(consultationId: string): Promise<boolean>;
   createEarning(data: {
     astrologerId: string;
     consultationId?: string;
@@ -577,6 +579,15 @@ export class DatabaseStorage implements IStorage {
     return call;
   }
 
+  async cancelUserScheduledCall(id: string, userId: string): Promise<ScheduledCall | undefined> {
+    const [call] = await db
+      .update(scheduledCalls)
+      .set({ status: 'cancelled' })
+      .where(and(eq(scheduledCalls.id, id), eq(scheduledCalls.userId, userId)))
+      .returning();
+    return call;
+  }
+
   // ─── Notification operations ───────────────────────────────
 
   async createNotification(data: {
@@ -610,11 +621,11 @@ export class DatabaseStorage implements IStorage {
       .limit(50);
   }
 
-  async markNotificationRead(id: string): Promise<void> {
+  async markNotificationRead(id: string, userId: string): Promise<void> {
     await db
       .update(notifications)
       .set({ isRead: true })
-      .where(eq(notifications.id, id));
+      .where(and(eq(notifications.id, id), eq(notifications.userId, userId)));
   }
 
   async markAllNotificationsRead(userId: string): Promise<void> {
@@ -625,6 +636,15 @@ export class DatabaseStorage implements IStorage {
   }
 
   // ─── Astrologer earnings ───────────────────────────────────
+
+  async hasEarningForConsultation(consultationId: string): Promise<boolean> {
+    const [row] = await db
+      .select({ id: astrologerEarnings.id })
+      .from(astrologerEarnings)
+      .where(eq(astrologerEarnings.consultationId, consultationId))
+      .limit(1);
+    return Boolean(row);
+  }
 
   async createEarning(data: {
     astrologerId: string;
