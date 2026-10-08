@@ -124,6 +124,27 @@ describe('3. demo Pro astrologer credentials', () => {
     expect(patch.passwordHash).not.toBe(sha256('ProDemo@2026'));
     expect(patch.passwordHash).toMatch(/^[0-9a-f]{64}$/);
     expect(mocks.pool.query).toHaveBeenCalledWith(expect.stringMatching(/DELETE FROM sessions WHERE sess->>'astrologerId' = \$1/), ['demo-id']);
+    expect(mocks.pool.query).toHaveBeenCalledWith(expect.stringMatching(/UPDATE live_streams SET status = 'ended'/), ['demo-id']);
+  });
+
+  it('production: an account under a configured PRO_ASTROLOGER_EMAIL that still has the default password is locked too', async () => {
+    vi.stubEnv('NODE_ENV', 'production');
+    vi.stubEnv('PRO_ASTROLOGER_EMAIL', 'Studio@Co.test');
+    vi.stubEnv('PRO_ASTROLOGER_PASSWORD', '');
+    mocks.astro.getAstrologerByEmail.mockImplementation(async (email: string) => (email === 'studio@co.test' ? demo({ id: 'studio-id', email }) : undefined));
+    await seed();
+    expect(mocks.astro.updateAstrologer).toHaveBeenCalledWith('studio-id', expect.objectContaining({ isVerified: false }));
+  });
+
+  it('production with a private password still locks a leftover default-password demo account first', async () => {
+    vi.stubEnv('NODE_ENV', 'production');
+    vi.stubEnv('PRO_ASTROLOGER_EMAIL', 'studio@co.test');
+    vi.stubEnv('PRO_ASTROLOGER_PASSWORD', 'A-Private#Pass-2026');
+    mocks.astro.getAstrologerByEmail.mockImplementation(async (email: string) => (email === 'pro@navagraha.app' ? demo() : undefined));
+    mocks.astro.createAstrologerWithPassword.mockResolvedValue({ id: 'studio-new' });
+    await seed();
+    expect(mocks.astro.updateAstrologer).toHaveBeenCalledWith('demo-id', expect.objectContaining({ isVerified: false }));
+    expect(mocks.astro.createAstrologerWithPassword).toHaveBeenCalledWith(expect.objectContaining({ email: 'studio@co.test', password: 'A-Private#Pass-2026' }));
   });
 
   it('production: a demo account whose password was already changed is left alone', async () => {
