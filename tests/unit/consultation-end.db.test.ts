@@ -51,12 +51,26 @@ describe.skipIf(!url)('ending consultations (Postgres)', () => {
     expect(await storage.getBilledAmountForConsultation(id)).toBe(75);
   });
 
-  it('a consultation can carry only one earning', async () => {
+  it('a consultation earns once, with totals moved once, even when ends race', async () => {
     const id = await consultation('ended', 1);
     const earning = { astrologerId: astro, consultationId: id, grossAmount: '75.00', platformFee: '18.75', netAmount: '56.25' };
-    await storage.createEarning(earning);
-    await expect(storage.createEarning(earning)).rejects.toMatchObject({ code: '23505' });
-    const { rows } = await pool.query('SELECT pending_payout FROM astrologers WHERE id = $1', [astro]);
-    expect(rows[0].pending_payout).toBe('56.25');
+    const before = Number((await pool.query('SELECT pending_payout FROM astrologers WHERE id = $1', [astro])).rows[0].pending_payout);
+    const results = await Promise.all(Array.from({ length: 5 }, () => storage.createEarning(earning)));
+    expect(results.filter(Boolean)).toHaveLength(1);
+    const after = Number((await pool.query('SELECT pending_payout FROM astrologers WHERE id = $1', [astro])).rows[0].pending_payout);
+    expect(after - before).toBeCloseTo(56.25);
+  });
+
+  it('still earns once where historical duplicates kept the unique index from being created', async () => {
+    await pool.query('DROP INDEX IF EXISTS astrologer_earnings_consultation_uq');
+    try {
+      const id = await consultation('ended', 1);
+      const earning = { astrologerId: astro, consultationId: id, grossAmount: '50.00', platformFee: '12.50', netAmount: '37.50' };
+      const results = await Promise.all(Array.from({ length: 5 }, () => storage.createEarning(earning)));
+      expect(results.filter(Boolean)).toHaveLength(1);
+      expect((await pool.query('SELECT count(*)::int AS n FROM astrologer_earnings WHERE consultation_id = $1', [id])).rows[0].n).toBe(1);
+    } finally {
+      await (await import('../../server/migrate')).runMigrations();
+    }
   });
 });
