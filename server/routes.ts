@@ -2448,9 +2448,14 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
 
   // ─── Admin / Developer Dashboard ──────────────────────────
   // Settle pending Razorpay recharges whose confirmation never arrived (also runs on a timer).
-  app.post('/api/admin/payments/reconcile', isAdmin, adminLimiter, async (_req, res) => {
+  // Dry run unless ?apply=1; ?days=N (default 7) limits it to recharges from the last N days.
+  app.post('/api/admin/payments/reconcile', isAdmin, adminLimiter, async (req, res) => {
     try {
-      res.json(await reconcilePendingRecharges());
+      const days = Math.min(Math.max(Number(req.query.days) || 7, 1), 90);
+      res.json(await reconcilePendingRecharges(new Date(), undefined, {
+        createdAfter: new Date(Date.now() - days * 86_400_000),
+        dryRun: req.query.apply !== '1',
+      }));
     } catch (err: any) {
       if (err?.message?.includes('must be set')) return res.status(503).json({ message: 'Payment gateway not configured' });
       console.error('Reconcile error:', err);

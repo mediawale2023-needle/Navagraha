@@ -200,6 +200,13 @@ export function setupWebSocket(server: Server) {
                 return;
               }
 
+              // A consultation priced at ₹0 runs without charging.
+              if (!(cost > 0)) {
+                const freeClient = userClients.get(userId);
+                if (freeClient) send(freeClient.ws, { type: "billing_tick", deducted: 0, consultationId });
+                return;
+              }
+
               // Atomic: a purchase made during the chat cannot be lost to this write.
               const debited = await storage.tryDebitBalance(userId, cost);
 

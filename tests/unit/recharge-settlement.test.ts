@@ -5,12 +5,13 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vite
 import express, { type Express } from 'express';
 import request from 'supertest';
 import crypto from 'node:crypto';
+import { readFileSync } from 'node:fs';
 
 const mocks = vi.hoisted(() => ({
   storage: {
     getUser: vi.fn(), getWallet: vi.fn(), settleRechargeOrder: vi.fn(), getRechargeByOrderId: vi.fn(),
     settleExternalRecharge: vi.fn(), createNotification: vi.fn(), getCouponByCode: vi.fn(), incrementCouponUsage: vi.fn(),
-    getReferralByReferee: vi.fn(), claimReferralReward: vi.fn(), creditWallet: vi.fn(), createTransaction: vi.fn(),
+    getReferralByReferee: vi.fn(), rewardReferral: vi.fn(), creditWallet: vi.fn(), createTransaction: vi.fn(),
     getStalePendingRecharges: vi.fn(), failPendingRecharge: vi.fn(), updateWalletBalance: vi.fn(), updateTransactionStatus: vi.fn(),
   },
   notifyUser: vi.fn(),
@@ -122,19 +123,25 @@ describe('webhook', () => {
 });
 
 describe('referral reward on settlement', () => {
-  it('is paid only by the caller that wins the claim', async () => {
-    mocks.storage.settleRechargeOrder.mockResolvedValue({ transaction: txn(), balance: '575.00' });
-    mocks.storage.getReferralByReferee.mockResolvedValue({ id: 'r1', referrerId: 'friend', status: 'pending' });
-    mocks.storage.claimReferralReward.mockResolvedValueOnce(undefined);
-    await request(app).post('/api/payment/razorpay/verify').set('x-user', 'payer').send({ orderId: 'order_1', paymentId: 'pay_1', signature: sign('order_1', 'pay_1') });
-    expect(mocks.storage.creditWallet).not.toHaveBeenCalled();
+  const verify = () => request(app).post('/api/payment/razorpay/verify').set('x-user', 'payer').send({ orderId: 'order_1', paymentId: 'pay_1', signature: sign('order_1', 'pay_1') });
 
-    mocks.storage.claimReferralReward.mockResolvedValueOnce({ id: 'r1' });
-    mocks.storage.creditWallet.mockResolvedValue('600.00');
-    const res = await request(app).post('/api/payment/razorpay/verify').set('x-user', 'payer').send({ orderId: 'order_1', paymentId: 'pay_1', signature: sign('order_1', 'pay_1') });
-    expect(mocks.storage.creditWallet).toHaveBeenCalledWith('payer', 25);
-    expect(mocks.storage.creditWallet).toHaveBeenCalledWith('friend', 75);
+  it('is paid through the atomic once-only reward, and its result is the balance reported', async () => {
+    mocks.storage.settleRechargeOrder.mockResolvedValue({ transaction: txn(), balance: '575.00' });
+    mocks.storage.getReferralByReferee.mockResolvedValue({ id: 'r1', referrerId: 'friend', refereeId: 'payer', status: 'pending' });
+    mocks.storage.rewardReferral.mockResolvedValueOnce('600.00');
+    const res = await verify();
+    expect(mocks.storage.rewardReferral).toHaveBeenCalledWith(expect.objectContaining({ id: 'r1' }), 75, 25);
     expect(res.body.newBalance).toBe(600);
+    expect(mocks.storage.creditWallet).not.toHaveBeenCalled();
+  });
+
+  it('a reward already paid by a concurrent settlement sends no notification', async () => {
+    mocks.storage.settleRechargeOrder.mockResolvedValue({ transaction: txn(), balance: '575.00' });
+    mocks.storage.getReferralByReferee.mockResolvedValue({ id: 'r1', referrerId: 'friend', refereeId: 'payer', status: 'pending' });
+    mocks.storage.rewardReferral.mockResolvedValueOnce(null);
+    const res = await verify();
+    expect(res.body.newBalance).toBe(575);
+    expect(mocks.storage.createNotification).not.toHaveBeenCalledWith(expect.objectContaining({ title: 'Referral Bonus' }));
   });
 });
 
@@ -158,32 +165,65 @@ describe('BNPL callbacks credit through the idempotent path', () => {
 
 describe('reconciling pending recharges', () => {
   const now = new Date('2026-10-08T12:00:00Z');
+  const stale = () => [
+    txn({ id: 'paid', status: 'pending', gatewayOrderId: 'o_paid', createdAt: new Date(now.getTime() - 30 * 60_000) }),
+    txn({ id: 'abandoned', status: 'pending', gatewayOrderId: 'o_old', createdAt: new Date(now.getTime() - ABANDON_AFTER_MS - 60_000) }),
+    txn({ id: 'recent', status: 'pending', gatewayOrderId: 'o_recent', createdAt: new Date(now.getTime() - 20 * 60_000) }),
+  ];
+  const fetchPayments = vi.fn(async (orderId: string) => (orderId === 'o_paid' ? [{ id: 'pay_p', status: 'captured' }] : [{ id: 'pay_f', status: 'failed' }]));
 
   it('settles a captured payment, fails one unpaid for a day, and leaves a recent one pending', async () => {
-    mocks.storage.getStalePendingRecharges.mockResolvedValue([
-      txn({ id: 'paid', status: 'pending', gatewayOrderId: 'o_paid', createdAt: new Date(now.getTime() - 30 * 60_000) }),
-      txn({ id: 'abandoned', status: 'pending', gatewayOrderId: 'o_old', createdAt: new Date(now.getTime() - ABANDON_AFTER_MS - 60_000) }),
-      txn({ id: 'recent', status: 'pending', gatewayOrderId: 'o_recent', createdAt: new Date(now.getTime() - 20 * 60_000) }),
-    ]);
+    mocks.storage.getStalePendingRecharges.mockResolvedValue(stale());
     mocks.storage.settleRechargeOrder.mockResolvedValue({ transaction: txn({ gatewayOrderId: 'o_paid' }), balance: '575.00' });
     mocks.storage.failPendingRecharge.mockResolvedValue(true);
-    const fetchPayments = vi.fn(async (orderId: string) => (orderId === 'o_paid' ? [{ id: 'pay_p', status: 'captured' }] : [{ id: 'pay_f', status: 'failed' }]));
 
     const result = await reconcilePendingRecharges(now, fetchPayments);
 
-    expect(result).toEqual({ checked: 3, settled: 1, failed: 1, errors: 0 });
+    expect(result).toMatchObject({ checked: 3, settled: 1, failed: 1, errors: 0, dryRun: false });
     expect(mocks.storage.settleRechargeOrder).toHaveBeenCalledWith('o_paid', 'pay_p', undefined, undefined);
     expect(mocks.storage.failPendingRecharge).toHaveBeenCalledWith('abandoned');
     expect(mocks.storage.failPendingRecharge).not.toHaveBeenCalledWith('recent');
   });
 
-  it('a gateway error on one recharge does not stop the rest', async () => {
-    mocks.storage.getStalePendingRecharges.mockResolvedValue([txn({ id: 'a', gatewayOrderId: 'o_a', status: 'pending' }), txn({ id: 'b', gatewayOrderId: 'o_b', status: 'pending' })]);
+  it('a dry run reports what it would do and changes nothing', async () => {
+    mocks.storage.getStalePendingRecharges.mockResolvedValue(stale());
+    const result = await reconcilePendingRecharges(now, fetchPayments, { dryRun: true });
+    expect(result).toMatchObject({ checked: 3, settled: 1, failed: 1, dryRun: true });
+    expect(result.actions.map((a) => [a.transactionId, a.action])).toEqual([['paid', 'settle'], ['abandoned', 'fail']]);
+    expect(mocks.storage.settleRechargeOrder).not.toHaveBeenCalled();
+    expect(mocks.storage.failPendingRecharge).not.toHaveBeenCalled();
+  });
+
+  it('only recharges in the requested window are looked at', async () => {
+    mocks.storage.getStalePendingRecharges.mockResolvedValue([]);
+    const createdAfter = new Date('2026-10-01T00:00:00Z');
+    await reconcilePendingRecharges(now, fetchPayments, { createdAfter });
+    expect(mocks.storage.getStalePendingRecharges).toHaveBeenCalledWith(expect.any(Date), createdAfter);
+  });
+
+  it('a gateway error does not stop the rest, and an order unanswerable for a day stops blocking the queue', async () => {
+    mocks.storage.getStalePendingRecharges.mockResolvedValue([
+      txn({ id: 'a', gatewayOrderId: 'o_a', status: 'pending', createdAt: new Date(now.getTime() - ABANDON_AFTER_MS - 1) }),
+      txn({ id: 'b', gatewayOrderId: 'o_b', status: 'pending', createdAt: new Date(now.getTime() - 30 * 60_000) }),
+      txn({ id: 'c', gatewayOrderId: 'o_c', status: 'pending', createdAt: new Date(now.getTime() - 30 * 60_000) }),
+    ]);
     mocks.storage.settleRechargeOrder.mockResolvedValue({ transaction: txn(), balance: '1.00' });
+    mocks.storage.failPendingRecharge.mockResolvedValue(true);
     const fetchPayments = vi.fn(async (orderId: string) => {
-      if (orderId === 'o_a') throw new Error('gateway down');
+      if (orderId !== 'o_b') throw new Error('BAD_REQUEST id does not exist');
       return [{ id: 'pay_b', status: 'captured' }];
     });
-    expect(await reconcilePendingRecharges(now, fetchPayments)).toEqual({ checked: 2, settled: 1, failed: 0, errors: 1 });
+    expect(await reconcilePendingRecharges(now, fetchPayments)).toMatchObject({ checked: 3, settled: 1, failed: 1, errors: 2 });
+    expect(mocks.storage.failPendingRecharge).toHaveBeenCalledWith('a');
+    expect(mocks.storage.failPendingRecharge).not.toHaveBeenCalledWith('c');
+  });
+});
+
+describe('free consultations', () => {
+  it('a ₹0/min consultation ticks without charging instead of ending', () => {
+    const ws = readFileSync('server/websocketService.ts', 'utf8');
+    const tick = ws.slice(ws.indexOf('const timer = setInterval'));
+    expect(tick.indexOf('if (!(cost > 0))')).toBeGreaterThan(-1);
+    expect(tick.indexOf('if (!(cost > 0))')).toBeLessThan(tick.indexOf('tryDebitBalance'));
   });
 });

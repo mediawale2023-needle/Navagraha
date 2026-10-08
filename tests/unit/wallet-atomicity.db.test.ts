@@ -81,12 +81,33 @@ describe.skipIf(!url)('wallet money paths under concurrency (Postgres)', () => {
     expect(await balanceOf(id)).toBe('300.00');
   });
 
-  it('a referral reward can be claimed once', async () => {
+  it('a referral reward is paid once, atomically, to both wallets', async () => {
     const referrer = await newUser('0.00');
     const referee = await newUser('0.00');
     const { rows } = await pool.query("INSERT INTO referrals (referrer_id, referee_id, status) VALUES ($1, $2, 'pending') RETURNING id", [referrer, referee]);
-    const claims = await Promise.all(Array.from({ length: 4 }, () => storage.claimReferralReward(rows[0].id, '75', '25')));
-    expect(claims.filter(Boolean)).toHaveLength(1);
+    const referral = { id: rows[0].id, referrerId: referrer, refereeId: referee };
+    const results = await Promise.all(Array.from({ length: 4 }, () => storage.rewardReferral(referral, 75, 25)));
+    expect(results.filter((r) => r !== null)).toEqual(['25.00']);
+    expect(await balanceOf(referrer)).toBe('75.00');
+    expect(await balanceOf(referee)).toBe('25.00');
+  });
+
+  it('a recharge marked failed by the reconciler is still credited when the payment is captured later', async () => {
+    const id = await newUser('0.00');
+    const orderId = `order_${crypto.randomUUID()}`;
+    await pool.query(
+      "INSERT INTO transactions (user_id, amount, type, status, payment_method, gateway_order_id) VALUES ($1, '200.00', 'recharge', 'failed', 'razorpay', $2)",
+      [id, orderId],
+    );
+    expect(await storage.settleRechargeOrder(orderId, 'pay_late')).not.toBeNull();
+    expect(await balanceOf(id)).toBe('200.00');
+  });
+
+  it('a wallet whose balance is NULL is credited and debited as if it were zero', async () => {
+    const id = await newUser('0.00');
+    await pool.query('UPDATE wallets SET balance = NULL WHERE user_id = $1', [id]);
+    expect(await storage.creditWallet(id, 40)).toBe('40.00');
+    expect(await storage.tryDebitBalance(id, 15)).toBe('25.00');
   });
 
   it('zero, negative and non-finite amounts never move money', async () => {

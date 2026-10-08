@@ -126,9 +126,9 @@ export interface IStorage {
   settleRechargeOrder(orderId: string, paymentId: string, signature?: string, userId?: string): Promise<{ transaction: Transaction; balance: string } | null>;
   settleExternalRecharge(data: { userId: string; orderId: string; amount: number; description: string; paymentMethod: string; paymentId?: string }): Promise<{ transaction: Transaction; balance: string } | null>;
   getRechargeByOrderId(orderId: string): Promise<Transaction | undefined>;
-  getStalePendingRecharges(createdBefore: Date): Promise<Transaction[]>;
+  getStalePendingRecharges(createdBefore: Date, createdAfter?: Date): Promise<Transaction[]>;
+  rewardReferral(referral: { id: string; referrerId: string; refereeId: string }, referrerReward: number, refereeReward: number): Promise<string | null>;
   failPendingRecharge(id: string): Promise<boolean>;
-  claimReferralReward(id: string, referrerReward: string, refereeReward: string): Promise<Referral | undefined>;
   hasFreeAccess(userId: string): Promise<boolean>;
 
   // Transaction operations
@@ -1027,14 +1027,32 @@ export class DatabaseStorage implements IStorage {
       .orderBy(desc(referrals.createdAt));
   }
 
-  /** Marks a pending referral rewarded; returns it only to the caller that made the change. */
-  async claimReferralReward(id: string, referrerReward: string, refereeReward: string): Promise<Referral | undefined> {
-    const [row] = await db
-      .update(referrals)
-      .set({ status: "rewarded", referrerReward, refereeReward, rewardedAt: new Date() })
-      .where(and(eq(referrals.id, id), eq(referrals.status, "pending")))
-      .returning();
-    return row;
+  /**
+   * Pays a referral exactly once and atomically: the pending referral is claimed and both
+   * wallets credited (with their transactions) in one DB transaction, so a failure leaves
+   * the reward unpaid and still claimable rather than claimed and lost. Returns the
+   * referee's new balance, or null when it was already rewarded.
+   */
+  async rewardReferral(
+    referral: { id: string; referrerId: string; refereeId: string },
+    referrerReward: number,
+    refereeReward: number,
+  ): Promise<string | null> {
+    return db.transaction(async (tx) => {
+      const [claimed] = await tx
+        .update(referrals)
+        .set({ status: "rewarded", referrerReward: referrerReward.toString(), refereeReward: refereeReward.toString(), rewardedAt: new Date() })
+        .where(and(eq(referrals.id, referral.id), eq(referrals.status, "pending")))
+        .returning({ id: referrals.id });
+      if (!claimed) return null;
+      const refereeBalance = await this.creditWallet(referral.refereeId, refereeReward, tx);
+      await this.creditWallet(referral.referrerId, referrerReward, tx);
+      await tx.insert(transactions).values([
+        { userId: referral.refereeId, amount: refereeReward.toString(), type: "recharge", description: "Referral bonus", status: "completed" },
+        { userId: referral.referrerId, amount: referrerReward.toString(), type: "recharge", description: "Referral reward", status: "completed" },
+      ]);
+      return refereeBalance;
+    });
   }
 
   async markReferralRewarded(
@@ -1100,8 +1118,8 @@ export class DatabaseStorage implements IStorage {
     await exec.insert(wallets).values({ userId, balance: "0" }).onConflictDoNothing({ target: wallets.userId });
     const [row] = await exec
       .update(wallets)
-      .set({ balance: sql`${wallets.balance} - ${amount}::numeric`, updatedAt: new Date() })
-      .where(and(eq(wallets.userId, userId), sql`${wallets.balance} >= ${amount}::numeric`))
+      .set({ balance: sql`coalesce(${wallets.balance}, 0) - ${amount}::numeric`, updatedAt: new Date() })
+      .where(and(eq(wallets.userId, userId), sql`coalesce(${wallets.balance}, 0) >= ${amount}::numeric`))
       .returning({ balance: wallets.balance });
     return row ? String(row.balance) : null;
   }
@@ -1115,7 +1133,7 @@ export class DatabaseStorage implements IStorage {
       .values({ userId, balance: value })
       .onConflictDoUpdate({
         target: wallets.userId,
-        set: { balance: sql`${wallets.balance} + ${value}::numeric`, updatedAt: new Date() },
+        set: { balance: sql`coalesce(${wallets.balance}, 0) + ${value}::numeric`, updatedAt: new Date() },
       })
       .returning({ balance: wallets.balance });
     return String(row.balance);
@@ -1126,6 +1144,8 @@ export class DatabaseStorage implements IStorage {
    * is claimed by a conditional UPDATE in the same DB transaction as the credit, so the
    * browser's verify call and the webhook can both arrive and only one of them credits.
    * Returns null when there is no pending recharge for the order (already settled, or none).
+   * A recharge the reconciler gave up on ("failed") is still claimed: a payment that is
+   * captured late must be credited, not lost.
    */
   async settleRechargeOrder(
     orderId: string,
@@ -1140,7 +1160,7 @@ export class DatabaseStorage implements IStorage {
         .where(and(
           eq(transactions.gatewayOrderId, orderId),
           eq(transactions.type, "recharge"),
-          eq(transactions.status, "pending"),
+          sql`${transactions.status} in ('pending', 'failed')`,
           ...(userId ? [eq(transactions.userId, userId)] : []),
         ))
         .returning();
@@ -1199,7 +1219,7 @@ export class DatabaseStorage implements IStorage {
     return row;
   }
 
-  async getStalePendingRecharges(createdBefore: Date): Promise<Transaction[]> {
+  async getStalePendingRecharges(createdBefore: Date, createdAfter?: Date): Promise<Transaction[]> {
     return db
       .select()
       .from(transactions)
@@ -1208,6 +1228,7 @@ export class DatabaseStorage implements IStorage {
         eq(transactions.status, "pending"),
         eq(transactions.paymentMethod, "razorpay"),
         sql`${transactions.createdAt} < ${createdBefore}`,
+        ...(createdAfter ? [sql`${transactions.createdAt} >= ${createdAfter}`] : []),
       ))
       .orderBy(asc(transactions.createdAt))
       .limit(100);
