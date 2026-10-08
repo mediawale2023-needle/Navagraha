@@ -1,6 +1,7 @@
 import express, { type Request, Response, NextFunction } from "express";
 import { createServer } from "http";
 import { registerRoutes } from "./routes";
+import { apiNotFound, metricsAllowed } from "./httpGuards";
 import { setupVite, serveStatic, log } from "./vite";
 import { runMigrations } from "./migrate";
 import { startRechargeReconciler } from "./rechargeSettlement";
@@ -74,7 +75,10 @@ const httpServer = createServer(app);
 const collectDefaultMetrics = client.collectDefaultMetrics;
 collectDefaultMetrics({ register: client.register });
 
-app.get('/metrics', async (_req, res) => {
+// Process metrics reveal internals: in production they need `Authorization: Bearer $METRICS_TOKEN`
+// and are not served at all without one.
+app.get('/metrics', async (req, res) => {
+  if (!metricsAllowed(req.headers.authorization)) return res.status(404).json({ message: 'Not found' });
   res.set('Content-Type', client.register.contentType);
   res.end(await client.register.metrics());
 });
@@ -156,6 +160,9 @@ waitForDatabase()
       console.error("[startup] WebSocket setup failed:", err);
       return;
     }
+
+    // An unknown API path is a JSON 404, never the SPA's HTML.
+    app.use('/api', apiNotFound);
 
     app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
       const status = err.status || err.statusCode || 500;

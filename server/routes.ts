@@ -129,14 +129,14 @@ const FINALISE_WINDOW_MS = 5 * 60 * 1000;
 
 export async function registerRoutes(app: Express, existingServer?: Server): Promise<Server> {
 
-  // Mount Swagger UI
-  setupSwagger(app);
-
   try {
     await setupAuth(app);
   } catch (err) {
     console.error('[startup] Auth setup failed (continuing without auth):', err);
   }
+
+  // After auth, so the production guard can see the signed-in admin.
+  setupSwagger(app, isAdmin);
 
   // NOTE: /api/config is registered in index.ts (before async init) so it
   // responds immediately for Railway healthchecks. Do NOT duplicate here.

@@ -3,8 +3,8 @@ name: Navagraha Platform CI
 on:
   push:
     branches: [ "main" ]
+  # Every PR, including ones stacked on another PR's branch.
   pull_request:
-    branches: [ "main" ]
 
 jobs:
   build:
@@ -14,20 +14,44 @@ jobs:
       matrix:
         node-version: [20.x]
 
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: navagraha_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
     steps:
     - uses: actions/checkout@v4
-    
+
     - name: Use Node.js ${{ matrix.node-version }}
       uses: actions/setup-node@v4
       with:
         node-version: ${{ matrix.node-version }}
         cache: 'npm'
-        
+
     - name: Install dependencies
       run: npm ci || npm install
-      
+
     - name: Run Typecheck
       run: npx tsc --noEmit
-      
+
     - name: Build JS bundles
       run: npm run build
+
+    - name: Unit tests
+      run: npm test
+
+    # Wallet, refund, billing, earnings and marketplace-pause behaviour against a real,
+    # disposable Postgres (serial: the suites share one database and its migrations).
+    - name: Database tests
+      env:
+        TEST_DATABASE_URL: postgres://postgres:postgres@localhost:5432/navagraha_test
+      run: npx vitest run --config vitest.config.ts --no-file-parallelism tests/unit/*.db.test.ts
