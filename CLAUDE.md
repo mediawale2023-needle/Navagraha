@@ -15,7 +15,7 @@ npm test         # vitest run — MUST pass before commit
 npm run db:push  # push schema to DB (drizzle-kit)
 ```
 
-Before every commit: `npx tsc && npm run build && npm test` must all be green.
+Before every commit: `npx tsc && npm run build && npm test` must all be green. CI (`.github/workflows/main.yml`, every PR) runs typecheck, build, `npm test` and the `*.db.test.ts` suites against a Postgres service.
 
 ## Architecture map
 
@@ -90,6 +90,7 @@ users, astrologers, kundlis (`chartData.canonical` = CanonicalChart V3; `legacyS
 - Third-party integrations (Razorpay, Agora, Firebase, OpenAI, Google Maps) must **degrade gracefully** when their env keys are absent — never crash boot.
 - Client data fetching: TanStack Query with the URL as `queryKey`; mutations via `apiRequest`. Failures throw `ApiError` (`lib/apiError.ts`: readable `message`, `status`, optional `field`) — branch on `status`, never parse the message; show `field` errors on the form field. Never surface raw response bodies.
 - Promotional copy must match what billing does: the free-chat entitlement is `FREE_CHAT_MINUTES` (first chat only), exposed as `freeChatMinutes` in `/api/config`; seeded homepage copy is corrected only by guarded, idempotent UPDATEs (`HOMEPAGE_COPY_FIXES` in `migrate.ts`) that match untouched seed text.
+- Unknown `/api/*` paths return a JSON 404 (`apiNotFound`, `server/httpGuards.ts`), never the SPA HTML. In production `/api-docs` is admin-only and `/metrics` needs `Authorization: Bearer $METRICS_TOKEN` (404 without one).
 - Keep secrets out of logs and responses (astrologer `passwordHash`/`bankAccountNumber` are stripped from API output).
 - Never invent a figure to fill the UI: astrologer rating/experience/price go through `lib/astrologerDisplay.ts` ("New" / hidden when absent), online dots only via `isAstrologerAvailable`, Matchmaking shows the calculated gunas /36 and the eight-koota table only. `tests/unit/no-fabricated-output.test.ts` greps the client for default ratings, experience, prices, scores and audience claims.
 - Comments: only explain non-obvious "why". No narration.
