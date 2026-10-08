@@ -200,10 +200,10 @@ export function setupWebSocket(server: Server) {
                 return;
               }
 
-              const wallet = await storage.getWallet(userId);
-              const balance = parseFloat(wallet?.balance || "0");
+              // Atomic: a purchase made during the chat cannot be lost to this write.
+              const debited = await storage.tryDebitBalance(userId, cost);
 
-              if (balance < cost) {
+              if (debited === null) {
                 // Insufficient balance — end session
                 clearInterval(timer);
                 billingTimers.delete(consultationId);
@@ -221,9 +221,7 @@ export function setupWebSocket(server: Server) {
                 return;
               }
 
-              // Deduct from wallet
-              const newBalance = (balance - cost).toFixed(2);
-              await storage.updateWalletBalance(userId, newBalance);
+              const newBalance = debited;
 
               // Record transaction
               await storage.createTransaction({

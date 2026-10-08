@@ -79,7 +79,8 @@ import {
 import { computeJyotishChart } from "./astroEngine/jyotishEngine.js";
 import { streamTraditionReading, answerSessionQuery, type Tradition } from "./jyotishAiService.js";
 import { insertJyotishClientProfileSchema } from "@shared/schema";
-import { sendWelcomeEmail, sendPaymentReceipt, sendBookingConfirmation, sendConsultationSummary } from "./emailService";
+import { sendWelcomeEmail, sendBookingConfirmation, sendConsultationSummary } from "./emailService";
+import { settleRazorpayPayment, reconcilePendingRecharges } from "./rechargeSettlement";
 import crypto from "crypto";
 
 // ─────────────────────────────────────────────────────────────
@@ -941,12 +942,11 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
       }
       // ────────────────────────────────────────────────────────────────────────
 
-      const balance = parseFloat(wallet.balance || "0");
-      if (balance < cost) {
-        return res.status(402).json({ message: "Insufficient balance", balance, required: cost });
+      const newBalance = await storage.tryDebitBalance(userId, cost);
+      if (newBalance === null) {
+        return res.status(402).json({ message: "Insufficient balance", balance: parseFloat(wallet.balance || "0"), required: cost });
       }
-      const newBalance = (balance - cost).toFixed(2);
-      const updatedWallet = await storage.updateWalletBalance(userId, newBalance);
+      const updatedWallet = { ...wallet, balance: newBalance };
       await storage.createTransaction({
         userId,
         amount: (-cost).toString(),
@@ -1165,106 +1165,16 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
       const valid = verifyRazorpaySignature(orderId, paymentId, signature);
       if (!valid) return res.status(400).json({ message: "Payment verification failed" });
 
-      const txns = await storage.getUserTransactions(userId);
-      const pendingTxn = txns.find((txn) => txn.gatewayOrderId === orderId && txn.status === 'pending');
-      if (!pendingTxn) {
-        return res.status(404).json({ message: "Pending transaction not found" });
+      const settled = await settleRazorpayPayment(orderId, paymentId, signature, userId);
+      if (settled) return res.json({ success: true, newBalance: settled.balance });
+
+      // Already credited by the webhook or the reconciler: answer success, credit nothing.
+      const recharge = await storage.getRechargeByOrderId(orderId);
+      if (recharge && recharge.userId === userId && recharge.status === 'completed') {
+        const wallet = await storage.getWallet(userId);
+        return res.json({ success: true, newBalance: parseFloat(wallet?.balance || "0"), alreadyCredited: true });
       }
-
-      // Add to wallet
-      let wallet = await storage.getWallet(userId);
-      if (!wallet) wallet = await storage.createWallet(userId);
-
-      const totalCredit = parseFloat(pendingTxn.amount || "0");
-      const newBalance = (parseFloat(wallet.balance || "0") + totalCredit).toFixed(2);
-      await storage.updateWalletBalance(userId, newBalance);
-
-      // Update transaction status
-      await storage.updateTransactionStatus(pendingTxn.id, 'completed', paymentId, signature);
-
-      await storage.createNotification({
-        userId,
-        type: 'payment',
-        title: 'Wallet Recharged',
-        body: `₹${totalCredit} added to your wallet successfully.`,
-      });
-      sendPushToUser(userId, {
-        title: 'Wallet Recharged',
-        body: `₹${totalCredit} added to your wallet successfully.`,
-        link: '/wallet',
-        data: { type: 'payment' },
-      });
-
-      // Finalise coupon usage now that the recharge is confirmed
-      if (pendingTxn.couponCode) {
-        const coupon = await storage.getCouponByCode(pendingTxn.couponCode);
-        if (coupon) await storage.incrementCouponUsage(coupon.id);
-      }
-
-      // Referral reward: fire once on the invitee's first completed recharge
-      let runningBalance = parseFloat(newBalance);
-      try {
-        const referral = await storage.getReferralByReferee(userId);
-        if (referral && referral.status === 'pending') {
-          // Credit the new user (referee)
-          runningBalance = runningBalance + REFEREE_REWARD;
-          await storage.updateWalletBalance(userId, runningBalance.toFixed(2));
-          await storage.createTransaction({
-            userId,
-            amount: REFEREE_REWARD.toString(),
-            type: 'recharge',
-            description: 'Referral bonus',
-            status: 'completed',
-          });
-          await storage.createNotification({
-            userId,
-            type: 'payment',
-            title: 'Referral Bonus',
-            body: `You received ₹${REFEREE_REWARD} referral bonus in your wallet.`,
-          });
-
-          // Credit the inviter (referrer)
-          const referrerWallet = (await storage.getWallet(referral.referrerId))
-            || (await storage.createWallet(referral.referrerId));
-          const referrerBalance = (parseFloat(referrerWallet.balance || '0') + REFERRER_REWARD).toFixed(2);
-          await storage.updateWalletBalance(referral.referrerId, referrerBalance);
-          await storage.createTransaction({
-            userId: referral.referrerId,
-            amount: REFERRER_REWARD.toString(),
-            type: 'recharge',
-            description: 'Referral reward',
-            status: 'completed',
-          });
-          await storage.createNotification({
-            userId: referral.referrerId,
-            type: 'payment',
-            title: 'Referral Reward',
-            body: `Your friend recharged! ₹${REFERRER_REWARD} has been added to your wallet.`,
-          });
-
-          await storage.markReferralRewarded(
-            referral.id,
-            REFERRER_REWARD.toString(),
-            REFEREE_REWARD.toString(),
-          );
-        }
-      } catch (refErr) {
-        console.error('Referral reward error:', refErr);
-      }
-
-      // Send email receipt (fire-and-forget)
-      const user = await storage.getUser(userId);
-      if (user?.email) {
-        sendPaymentReceipt(user.email, {
-          userName: user.firstName || 'User',
-          amount: parseFloat(pendingTxn.amount || "0"),
-          bonus: 0,
-          newBalance: runningBalance,
-          paymentId,
-        }).catch(() => {});
-      }
-
-      res.json({ success: true, newBalance: runningBalance });
+      return res.status(404).json({ message: "Pending transaction not found" });
     } catch (error) {
       console.error("Razorpay verify error:", error);
       res.status(500).json({ message: "Payment verification failed" });
@@ -1281,12 +1191,16 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
         return res.status(400).json({ message: "Invalid webhook signature" });
       }
 
+      // The webhook credits on its own, so a payer who closes the tab before the
+      // browser's verify call still gets the money; settlement is idempotent.
       const event = req.body;
       if (event.event === 'payment.captured') {
-        const payment = event.payload.payment.entity;
-        const userId = payment.notes?.userId;
-        if (userId) {
-          notifyUser(userId, { type: 'payment_confirmed', paymentId: payment.id });
+        const payment = event.payload?.payment?.entity;
+        if (payment?.order_id && payment?.id) {
+          const settled = await settleRazorpayPayment(String(payment.order_id), String(payment.id));
+          if (settled) {
+            notifyUser(settled.transaction.userId, { type: 'payment_confirmed', paymentId: payment.id, newBalance: settled.balance });
+          }
         }
       }
       res.json({ status: 'ok' });
@@ -1330,21 +1244,13 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
         return res.status(400).json({ message: "Invalid callback signature" });
       }
 
-      if (status === 'success' && user_id) {
-        let wallet = await storage.getWallet(user_id);
-        if (!wallet) wallet = await storage.createWallet(user_id);
-        const newBalance = (parseFloat(wallet.balance || "0") + parseFloat(amount)).toFixed(2);
-        await storage.updateWalletBalance(user_id, newBalance);
-        await storage.createTransaction({
-          userId: user_id,
-          amount,
-          type: 'recharge',
-          description: 'Snapmint EMI recharge',
-          status: 'completed',
-          paymentMethod: 'snapmint',
-          gatewayOrderId: order_id,
+      const credit = parseFloat(amount);
+      if (status === 'success' && user_id && order_id && credit > 0) {
+        const settled = await storage.settleExternalRecharge({
+          userId: String(user_id), orderId: String(order_id), amount: credit,
+          description: 'Snapmint EMI recharge', paymentMethod: 'snapmint',
         });
-        notifyUser(user_id, { type: 'payment_confirmed', newBalance: parseFloat(newBalance) });
+        if (settled) notifyUser(String(user_id), { type: 'payment_confirmed', newBalance: parseFloat(settled.balance) });
       }
       res.json({ status: 'ok' });
     } catch { res.status(500).json({ message: "Callback error" }); }
@@ -1388,22 +1294,14 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
       const { status, txnid, amount } = req.body;
       if (status === 'success') {
         // Extract userId from txnId (format: lp_{userId}_{timestamp})
-        const userId = txnid.split('_')[1];
-        if (userId) {
-          let wallet = await storage.getWallet(userId);
-          if (!wallet) wallet = await storage.createWallet(userId);
-          const newBalance = (parseFloat(wallet.balance || "0") + parseFloat(amount)).toFixed(2);
-          await storage.updateWalletBalance(userId, newBalance);
-          await storage.createTransaction({
-            userId,
-            amount,
-            type: 'recharge',
-            description: 'LazyPay BNPL recharge',
-            status: 'completed',
-            paymentMethod: 'lazypay',
-            gatewayOrderId: txnid,
+        const userId = String(txnid || '').split('_')[1];
+        const credit = parseFloat(amount);
+        if (userId && credit > 0) {
+          const settled = await storage.settleExternalRecharge({
+            userId, orderId: String(txnid), amount: credit,
+            description: 'LazyPay BNPL recharge', paymentMethod: 'lazypay',
           });
-          notifyUser(userId, { type: 'payment_confirmed', newBalance: parseFloat(newBalance) });
+          if (settled) notifyUser(userId, { type: 'payment_confirmed', newBalance: parseFloat(settled.balance) });
         }
       }
       // PayU requires redirect
@@ -2531,6 +2429,17 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
   });
 
   // ─── Admin / Developer Dashboard ──────────────────────────
+  // Settle pending Razorpay recharges whose confirmation never arrived (also runs on a timer).
+  app.post('/api/admin/payments/reconcile', isAdmin, adminLimiter, async (_req, res) => {
+    try {
+      res.json(await reconcilePendingRecharges());
+    } catch (err: any) {
+      if (err?.message?.includes('must be set')) return res.status(503).json({ message: 'Payment gateway not configured' });
+      console.error('Reconcile error:', err);
+      res.status(500).json({ message: 'Reconciliation failed' });
+    }
+  });
+
   app.get('/api/admin/stats', isAdmin, adminLimiter, async (_req, res) => {
     try {
       const [

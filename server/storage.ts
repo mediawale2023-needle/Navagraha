@@ -121,6 +121,14 @@ export interface IStorage {
   getWallet(userId: string): Promise<Wallet | undefined>;
   createWallet(userId: string): Promise<Wallet>;
   updateWalletBalance(userId: string, amount: string): Promise<Wallet>;
+  tryDebitBalance(userId: string, cost: number): Promise<string | null>;
+  creditWallet(userId: string, amount: number): Promise<string>;
+  settleRechargeOrder(orderId: string, paymentId: string, signature?: string, userId?: string): Promise<{ transaction: Transaction; balance: string } | null>;
+  settleExternalRecharge(data: { userId: string; orderId: string; amount: number; description: string; paymentMethod: string; paymentId?: string }): Promise<{ transaction: Transaction; balance: string } | null>;
+  getRechargeByOrderId(orderId: string): Promise<Transaction | undefined>;
+  getStalePendingRecharges(createdBefore: Date): Promise<Transaction[]>;
+  failPendingRecharge(id: string): Promise<boolean>;
+  claimReferralReward(id: string, referrerReward: string, refereeReward: string): Promise<Referral | undefined>;
   hasFreeAccess(userId: string): Promise<boolean>;
 
   // Transaction operations
@@ -1002,6 +1010,16 @@ export class DatabaseStorage implements IStorage {
       .orderBy(desc(referrals.createdAt));
   }
 
+  /** Marks a pending referral rewarded; returns it only to the caller that made the change. */
+  async claimReferralReward(id: string, referrerReward: string, refereeReward: string): Promise<Referral | undefined> {
+    const [row] = await db
+      .update(referrals)
+      .set({ status: "rewarded", referrerReward, refereeReward, rewardedAt: new Date() })
+      .where(and(eq(referrals.id, id), eq(referrals.status, "pending")))
+      .returning();
+    return row;
+  }
+
   async markReferralRewarded(
     id: string,
     referrerReward: string,
@@ -1053,6 +1071,141 @@ export class DatabaseStorage implements IStorage {
   // Atomically debit the wallet; returns null when balance is insufficient.
   // Admin accounts get free access to all paid features (for testing): record
   // a zero-cost transaction for traceability but never decrement the balance.
+  // ─── Atomic wallet arithmetic ──────────────────────────────
+  // Balances change only by relative, conditional UPDATEs, never read-then-write, so
+  // concurrent debits and credits (a report bought mid-chat, a webhook racing the
+  // browser's verify call) cannot overdraw a wallet or lose an update.
+
+  /** Debits `cost` if the balance covers it; returns the new balance, or null (no change). */
+  async tryDebitBalance(userId: string, cost: number, exec: any = db): Promise<string | null> {
+    if (!(cost > 0) || !Number.isFinite(cost)) return null;
+    const amount = cost.toFixed(2);
+    await exec.insert(wallets).values({ userId, balance: "0" }).onConflictDoNothing({ target: wallets.userId });
+    const [row] = await exec
+      .update(wallets)
+      .set({ balance: sql`${wallets.balance} - ${amount}::numeric`, updatedAt: new Date() })
+      .where(and(eq(wallets.userId, userId), sql`${wallets.balance} >= ${amount}::numeric`))
+      .returning({ balance: wallets.balance });
+    return row ? String(row.balance) : null;
+  }
+
+  /** Adds `amount` to the wallet (created if missing); returns the new balance. */
+  async creditWallet(userId: string, amount: number, exec: any = db): Promise<string> {
+    if (!(amount > 0) || !Number.isFinite(amount)) throw new Error(`Invalid credit amount: ${amount}`);
+    const value = amount.toFixed(2);
+    const [row] = await exec
+      .insert(wallets)
+      .values({ userId, balance: value })
+      .onConflictDoUpdate({
+        target: wallets.userId,
+        set: { balance: sql`${wallets.balance} + ${value}::numeric`, updatedAt: new Date() },
+      })
+      .returning({ balance: wallets.balance });
+    return String(row.balance);
+  }
+
+  /**
+   * Completes a pending Razorpay recharge and credits it, exactly once: the pending row
+   * is claimed by a conditional UPDATE in the same DB transaction as the credit, so the
+   * browser's verify call and the webhook can both arrive and only one of them credits.
+   * Returns null when there is no pending recharge for the order (already settled, or none).
+   */
+  async settleRechargeOrder(
+    orderId: string,
+    paymentId: string,
+    signature?: string,
+    userId?: string,
+  ): Promise<{ transaction: Transaction; balance: string } | null> {
+    return db.transaction(async (tx) => {
+      const [claimed] = await tx
+        .update(transactions)
+        .set({ status: "completed", gatewayPaymentId: paymentId, ...(signature ? { gatewaySignature: signature } : {}) })
+        .where(and(
+          eq(transactions.gatewayOrderId, orderId),
+          eq(transactions.type, "recharge"),
+          eq(transactions.status, "pending"),
+          ...(userId ? [eq(transactions.userId, userId)] : []),
+        ))
+        .returning();
+      if (!claimed) return null;
+      const balance = await this.creditWallet(claimed.userId, parseFloat(claimed.amount), tx);
+      return { transaction: claimed, balance };
+    });
+  }
+
+  /**
+   * Records and credits a gateway recharge that has no pending row (Snapmint, LazyPay)
+   * at most once per order: a replayed callback finds the completed row and credits nothing.
+   */
+  async settleExternalRecharge(data: {
+    userId: string; orderId: string; amount: number; description: string; paymentMethod: string; paymentId?: string;
+  }): Promise<{ transaction: Transaction; balance: string } | null> {
+    try {
+      return await db.transaction(async (tx) => {
+        // Serialises concurrent callbacks for the same order within this transaction.
+        await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${"recharge:" + data.orderId}))`);
+        const [done] = await tx
+          .select({ id: transactions.id })
+          .from(transactions)
+          .where(and(eq(transactions.gatewayOrderId, data.orderId), eq(transactions.type, "recharge"), eq(transactions.status, "completed")))
+          .limit(1);
+        if (done) return null;
+        const [transaction] = await tx
+          .insert(transactions)
+          .values({
+            userId: data.userId,
+            amount: data.amount.toFixed(2),
+            type: "recharge",
+            description: data.description,
+            status: "completed",
+            paymentMethod: data.paymentMethod,
+            gatewayOrderId: data.orderId,
+            ...(data.paymentId ? { gatewayPaymentId: data.paymentId } : {}),
+          })
+          .returning();
+        const balance = await this.creditWallet(data.userId, data.amount, tx);
+        return { transaction, balance };
+      });
+    } catch (err: any) {
+      if (err?.code === "23505") return null; // unique index: another callback won the race
+      throw err;
+    }
+  }
+
+  async getRechargeByOrderId(orderId: string): Promise<Transaction | undefined> {
+    const [row] = await db
+      .select()
+      .from(transactions)
+      .where(and(eq(transactions.gatewayOrderId, orderId), eq(transactions.type, "recharge")))
+      .orderBy(desc(transactions.createdAt))
+      .limit(1);
+    return row;
+  }
+
+  async getStalePendingRecharges(createdBefore: Date): Promise<Transaction[]> {
+    return db
+      .select()
+      .from(transactions)
+      .where(and(
+        eq(transactions.type, "recharge"),
+        eq(transactions.status, "pending"),
+        eq(transactions.paymentMethod, "razorpay"),
+        sql`${transactions.createdAt} < ${createdBefore}`,
+      ))
+      .orderBy(asc(transactions.createdAt))
+      .limit(100);
+  }
+
+  /** Marks a still-pending recharge failed; false when it was settled meanwhile. */
+  async failPendingRecharge(id: string): Promise<boolean> {
+    const rows = await db
+      .update(transactions)
+      .set({ status: "failed" })
+      .where(and(eq(transactions.id, id), eq(transactions.status, "pending")))
+      .returning({ id: transactions.id });
+    return rows.length > 0;
+  }
+
   async hasFreeAccess(userId: string): Promise<boolean> {
     const user = await this.getUser(userId);
     return isAdminEmail(user?.email);
@@ -1073,18 +1226,18 @@ export class DatabaseStorage implements IStorage {
       return { balance: wallet.balance || "0" };
     }
 
-    const balance = parseFloat(wallet.balance || "0");
-    if (balance < cost) return null;
-    const newBalance = (balance - cost).toFixed(2);
-    await this.updateWalletBalance(userId, newBalance);
-    await this.createTransaction({
-      userId,
-      amount: (-cost).toString(),
-      type: "debit",
-      description,
-      status: "completed",
+    return db.transaction(async (tx) => {
+      const balance = await this.tryDebitBalance(userId, cost, tx);
+      if (balance === null) return null;
+      await tx.insert(transactions).values({
+        userId,
+        amount: (-cost).toString(),
+        type: "debit",
+        description,
+        status: "completed",
+      });
+      return { balance };
     });
-    return { balance: newBalance };
   }
 
   // ─── Astromall ─────────────────────────────────────────────
