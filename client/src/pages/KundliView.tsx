@@ -11,6 +11,7 @@ import {
 } from '@/components/ui/dialog';
 import { ArrowLeft, Calendar, Clock, MapPin, Download, ChevronDown, ChevronRight, Wallet, Sparkles, Info, ArrowRight } from 'lucide-react';
 import { recreateHref } from '@/lib/recreateChart';
+import { BalanceShortfall } from '@/components/BalanceShortfall';
 import { chartTabView, type ChartTabView } from '@/lib/approximateChart';
 import type { Kundli } from '@shared/schema';
 import { useAuth } from '@/hooks/useAuth';
@@ -93,7 +94,6 @@ function ConfirmModal({ open, balance, isFree, onConfirm, onCancel, loading }: {
 }
 
 function InsufficientModal({ open, balance, onClose, onRecharge }: { open: boolean; balance: number; onClose: () => void; onRecharge: () => void }) {
-  const shortfall = (PDF_PRICE - balance).toFixed(2);
   return (
     <Dialog open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
       <DialogContent className="max-w-sm">
@@ -106,20 +106,7 @@ function InsufficientModal({ open, balance, onClose, onRecharge }: { open: boole
             You don't have enough wallet balance to download this report.
           </DialogDescription>
         </DialogHeader>
-        <div className="rounded-lg bg-muted px-4 py-3 text-sm space-y-1">
-          <div className="flex justify-between">
-            <span className="text-muted-foreground">Your balance</span>
-            <span className="font-medium text-nava-burgundy">₹{balance.toFixed(2)}</span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-muted-foreground">Required</span>
-            <span className="font-medium">₹{PDF_PRICE}</span>
-          </div>
-          <div className="border-t border-border pt-1 flex justify-between">
-            <span className="text-muted-foreground">Add at least</span>
-            <span className="font-semibold">₹{shortfall}</span>
-          </div>
-        </div>
+        <BalanceShortfall balance={balance} required={PDF_PRICE} />
         <DialogFooter className="gap-2 sm:gap-0">
           <Button variant="outline" onClick={onClose}>Later</Button>
           <Button onClick={onRecharge} className="bg-nava-royal-purple hover:bg-nava-royal-purple/90">
