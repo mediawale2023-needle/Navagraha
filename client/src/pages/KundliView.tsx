@@ -266,6 +266,8 @@ export default function KundliView() {
   const remedies = (kundli.remedies as any[]) || [];
   // A chart the V3 engine could not recalculate: its stored placements are unverified, so none are shown.
   const limited = (kundli as any).chartStatus?.version === 'limited';
+  const requestedTab = typeof window === 'undefined' ? null : new URLSearchParams(window.location.search).get('tab');
+  const initialTab = requestedTab && ['overview', 'chart', 'insights', 'dashas', 'remedies'].includes(requestedTab) ? requestedTab : 'overview';
   const chartView: ChartTabView = canonical ? chartTabView(canonical) : { mode: 'exact' };
   const moonSignUncertain = chartView.mode === 'table';
 
@@ -360,7 +362,7 @@ export default function KundliView() {
 
         {!limited && (<>
         {/* Tabs */}
-        <Tabs defaultValue="overview" className="w-full mb-6">
+        <Tabs defaultValue={initialTab} className="w-full mb-6">
           <TabsList className="grid w-full grid-cols-5 bg-muted p-1">
             <TabsTrigger value="overview" className="rounded-[6px] data-[state=active]:bg-nava-navy data-[state=active]:text-primary">Overview</TabsTrigger>
             <TabsTrigger value="chart" className="rounded-[6px] data-[state=active]:bg-nava-navy data-[state=active]:text-primary">Chart</TabsTrigger>

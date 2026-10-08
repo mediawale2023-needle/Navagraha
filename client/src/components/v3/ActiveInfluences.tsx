@@ -3,9 +3,9 @@ import { Link } from 'wouter';
 import { ArrowRight } from 'lucide-react';
 import { ActiveInfluenceCard } from '@/components/ActiveInfluenceCard';
 import type { KundliInsights } from '@shared/v3/evidence';
+import { monthYear, selectRunningPeriods } from '@/lib/runningPeriods';
 
 const GLYPH: Record<string, string> = { Sun: '☉', Moon: '☽', Mars: '♂', Mercury: '☿', Jupiter: '♃', Venus: '♀', Saturn: '♄', Rahu: '☊', Ketu: '☋' };
-const monthYear = (iso: string) => new Date(iso).toLocaleDateString(undefined, { month: 'short', year: 'numeric' });
 
 type Transits = { sadeSati: { active: boolean; phase: string; note: string; saturnSign: string; untilApprox?: string } };
 
@@ -35,10 +35,8 @@ export function ActiveInfluences() {
   if (!insights) return <div className="rounded-[12px] border border-border bg-card p-4 text-sm text-muted-foreground">Loading your current periods…</div>;
 
   // An approximate birth time can move the period boundaries: show only what is certain, without dates.
-  const timing = insights.timing ?? { mahadashaReliable: true, antardashaReliable: true, note: null };
-  const approximate = insights.headline.timeAccuracy === 'approximate';
-  const maha = timing.mahadashaReliable ? insights.timeline.find((p) => p.status === 'current') : undefined;
-  const antar = timing.antardashaReliable ? maha?.antardashas?.find((a) => a.status === 'current') : undefined;
+  const { maha, antar, showDates, note } = selectRunningPeriods(insights);
+  const approximate = !showDates;
   const link = `/kundli/${latest.id}`;
   return (
     <>
@@ -75,7 +73,7 @@ export function ActiveInfluences() {
           linkTo={link}
         />
       )}
-      {timing.note && <p className="text-[11px] text-amber-700" data-testid="active-influences-timing-note">{timing.note}</p>}
+      {note && <p className="text-[11px] text-amber-700" data-testid="active-influences-timing-note">{note}</p>}
       <p className="text-[11px] text-muted-foreground">From {latest.name}'s chart. Jyotish describes tendencies, not certainties.</p>
     </>
   );

@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { isAstrologerAvailable } from '@/lib/astrologerPresence';
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 import { Link } from 'wouter';
 import { Button } from '@/components/ui/button';
@@ -99,7 +100,7 @@ export default function Astrologers() {
     setTimeout(() => { window.location.href = '/api/login'; }, 1500);
   };
 
-  const isOnline = (a: Astrologer) => a.isOnline || onlineAstrologers.has(a.id) || a.availability === 'available';
+  const isOnline = (a: Astrologer) => isAstrologerAvailable(a) || onlineAstrologers.has(a.id);
 
   const filteredAstrologers = astrologers?.filter((a) => {
     const matchesSearch = a.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
