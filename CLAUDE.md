@@ -46,6 +46,7 @@ Search `server/routes.ts` + `client/src/pages` before building anything below.
   - **Complete Life Report** (premium ₹1499, category `life_complete`, seeded idempotently in `migrate.ts`): `generateLifeReport` runs ~11 parallel gpt-4o batches (every planet & house, yogas, doshas + live Saturn-transit Sade Sati, life domains, dasha life-map, remedies) → ~50 sections / 50+ pages. Order route dispatches on `category === 'life_complete'`. PDF adds a Contents page when sections > 12.
 - **Live streaming** viewer (`/live`, `/live/:id`) — chat (polling) + paid gifting.
 - Reviews, scheduled calls, notifications (in-app + **FCM push** `pushService.ts`).
+- **Palmistry / Hast Rekha** (`/palmistry`, `Palmistry.tsx`): Vela-style consumer funnel — left-palm guide → camera/upload → GPT-4o vision line extract with polylines → SVG overlay proof → free teaser → wallet unlock (`debitWallet`, ₹199). Guest `analyze` + claim token; optional kundli fuse on full report. APIs `/api/palmistry/*`; table `palm_readings`.
 
 **Astrologer** (`/astrologer/*`, session via `req.session.astrologerId`, `isAstrologerAuthenticated`)
 - Dashboard, online/offline toggle, consultations, schedule, earnings, payouts.
@@ -61,7 +62,7 @@ Search `server/routes.ts` + `client/src/pages` before building anything below.
 
 ## Data model (tables in `shared/schema.ts`)
 
-users, astrologers, kundlis, wallets, transactions, chatMessages, consultations, reviews, scheduledCalls, notifications, astrologerEarnings, payoutRequests, aiChatMessages, userMemories, predictionFeedbacks, homepageContent, **coupons, couponRedemptions, referrals, pushTokens, products, orders, orderItems, reportTypes, reportOrders, dailyHoroscopes, poojas, poojaBookings, liveStreams, streamMessages, astrologerFollows, consultationQueue**, **jyotishClientProfiles** (admin `createdByUserId` or Pro `astrologerId`), **jyotishReadings**, **jyotishSessionQueries**.
+users, astrologers, kundlis, wallets, transactions, chatMessages, consultations, reviews, scheduledCalls, notifications, astrologerEarnings, payoutRequests, aiChatMessages, userMemories, predictionFeedbacks, homepageContent, **coupons, couponRedemptions, referrals, pushTokens, products, orders, orderItems, reportTypes, reportOrders, dailyHoroscopes, poojas, poojaBookings, liveStreams, streamMessages, astrologerFollows, consultationQueue**, **jyotishClientProfiles** (admin `createdByUserId` or Pro `astrologerId`), **jyotishReadings**, **jyotishSessionQueries**, **palmReadings**.
 
 ## Conventions
 

@@ -529,6 +529,25 @@ CREATE TABLE IF NOT EXISTS jyotish_session_queries (
   created_at timestamp DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS idx_jyotish_queries_profile ON jyotish_session_queries (profile_id, created_at);
+
+-- ─── Consumer Palmistry readings (Vela-style funnel) ───────────────────────
+CREATE TABLE IF NOT EXISTS palm_readings (
+  id varchar PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id varchar REFERENCES users(id),
+  claim_token varchar NOT NULL,
+  hand varchar NOT NULL DEFAULT 'left',
+  extract jsonb NOT NULL,
+  teaser jsonb NOT NULL,
+  reading text,
+  kundli_id varchar REFERENCES kundlis(id),
+  language varchar DEFAULT 'English',
+  status varchar NOT NULL DEFAULT 'analyzed',
+  unlock_txn_id varchar,
+  unlocked_at timestamp,
+  created_at timestamp DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_palm_readings_user ON palm_readings (user_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_palm_readings_claim ON palm_readings (claim_token);
 `;
 
 const SEED_STORE_SQL = `

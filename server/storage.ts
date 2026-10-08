@@ -32,12 +32,15 @@ import {
   jyotishClientProfiles,
   jyotishReadings,
   jyotishSessionQueries,
+  palmReadings,
   type JyotishClientProfile,
   type InsertJyotishClientProfile,
   type JyotishReading,
   type InsertJyotishReading,
   type JyotishSessionQuery,
   type InsertJyotishSessionQuery,
+  type PalmReading,
+  type InsertPalmReading,
   type Coupon,
   type InsertCoupon,
   type CouponRedemption,
@@ -1600,6 +1603,30 @@ export class DatabaseStorage implements IStorage {
       .from(jyotishSessionQueries)
       .where(eq(jyotishSessionQueries.profileId, profileId))
       .orderBy(desc(jyotishSessionQueries.createdAt));
+  }
+
+  // ─── Consumer Palmistry ────────────────────────────────────
+  async createPalmReading(data: InsertPalmReading): Promise<PalmReading> {
+    const [row] = await db.insert(palmReadings).values(data).returning();
+    return row;
+  }
+
+  async getPalmReadingById(id: string): Promise<PalmReading | undefined> {
+    const [row] = await db.select().from(palmReadings).where(eq(palmReadings.id, id));
+    return row;
+  }
+
+  async updatePalmReading(id: string, data: Partial<InsertPalmReading>): Promise<PalmReading> {
+    const [row] = await db.update(palmReadings).set(data).where(eq(palmReadings.id, id)).returning();
+    return row;
+  }
+
+  async listPalmReadingsForUser(userId: string): Promise<PalmReading[]> {
+    return await db
+      .select()
+      .from(palmReadings)
+      .where(eq(palmReadings.userId, userId))
+      .orderBy(desc(palmReadings.createdAt));
   }
 }
 

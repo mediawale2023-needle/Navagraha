@@ -9,7 +9,7 @@ import { motion } from 'framer-motion';
 import {
   Star, MessageCircle, Phone, Sparkles,
   Heart, ChevronRight,
-  CheckCircle2, Sun, ArrowRight, Calendar, Mail, Lock, User, Gift
+  CheckCircle2, Sun, ArrowRight, Mail, Lock, User, Gift, Hand
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest } from '@/lib/queryClient';
@@ -18,8 +18,8 @@ import type { Astrologer } from '@shared/schema';
 const CATEGORIES = [
   { label: 'Talk to\nAstrologer', icon: Phone, href: '/astrologers', color: 'bg-nava-teal' },
   { label: 'Chat with\nAstrologer', icon: MessageCircle, href: '/astrologers', color: 'bg-nava-magenta' },
+  { label: 'Palm\nReading', icon: Hand, href: '/palmistry', color: 'bg-nava-amber' },
   { label: 'Daily\nHoroscope', icon: Sparkles, href: '/horoscope', color: 'bg-nava-amber' },
-  { label: 'Book\nAppointment', icon: Calendar, href: '/schedule', color: 'bg-nava-navy' },
   { label: 'Birth\nChart', icon: Sun, href: '/kundli/new', color: 'bg-nava-teal' },
   { label: 'Match\nMaking', icon: Heart, href: '/kundli/matchmaking', color: 'bg-nava-magenta' },
 ];

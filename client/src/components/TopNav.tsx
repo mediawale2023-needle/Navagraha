@@ -12,6 +12,7 @@ const NAV_LINKS = [
   { label: "Home", path: "/" },
   { label: "Live", path: "/live" },
   { label: "Astrologers", path: "/astrologers" },
+  { label: "Palm", path: "/palmistry" },
   { label: "Astromall", path: "/store" },
   { label: "Reports", path: "/reports" },
   { label: "Pooja", path: "/pooja" },
