@@ -9,7 +9,7 @@ const mocks = vi.hoisted(() => ({
     getKundliById: vi.fn(), getUser: vi.fn(), getUserKundlis: vi.fn(), persistLegacyUpgrade: vi.fn(),
     getJyotishProfileById: vi.fn(), getJyotishReadingById: vi.fn(), consumeProAiCredit: vi.fn(), createJyotishSessionQuery: vi.fn(),
     saveAiChatMessage: vi.fn(), getUserMemories: vi.fn(), getPredictionFeedbacksByUser: vi.fn(), getPatternStatistics: vi.fn(),
-    getReportTypeById: vi.fn(), debitWallet: vi.fn(), createReportOrder: vi.fn(), getDailyHoroscope: vi.fn(), updateJyotishReading: vi.fn(),
+    getReportTypeById: vi.fn(), debitWallet: vi.fn(), createReportOrder: vi.fn(), placeReportOrder: vi.fn(), setReportOrderContent: vi.fn(), failAndRefundReportOrder: vi.fn(), getDailyHoroscope: vi.fn(), updateJyotishReading: vi.fn(),
   },
   answerSessionQuery: vi.fn(), streamTraditionReading: vi.fn(), generateDailyHoroscope: vi.fn(),
 }));
@@ -47,6 +47,7 @@ beforeAll(async () => {
   await registerRoutes(app);
 });
 beforeEach(() => {
+  vi.stubEnv('OPENAI_API_KEY', 'test-key');
   vi.clearAllMocks();
   vi.stubEnv('GOOGLE_MAPS_API_KEY', '');
   const kundlis: Record<string, any> = { exact, approx, legacy: { ...exact, id: 'legacy', latitude: null, longitude: null, chartData: { planetaryPositions: [], houses: [] } } };
@@ -147,8 +148,20 @@ describe('launch review fixes', () => {
     mocks.storage.getReportTypeById.mockResolvedValue({ id: 't', name: 'Career', category: 'career', isActive: true, price: '299' });
     const res = await request(app).post('/api/reports/order').set('x-user', 'owner').send({ kundliId: 'legacy', reportTypeId: 't' });
     expect(res.status).toBe(409);
-    expect(mocks.storage.debitWallet).not.toHaveBeenCalled();
-    expect(mocks.storage.createReportOrder).not.toHaveBeenCalled();
+    expect(mocks.storage.placeReportOrder).not.toHaveBeenCalled();
+  });
+  it('the Complete Life Report is refused (409) before any debit for an approximate birth time', async () => {
+    mocks.storage.getReportTypeById.mockResolvedValue({ id: 't', name: 'Complete Life Report', category: 'life_complete', isActive: true, price: '1499' });
+    const res = await request(app).post('/api/reports/order').set('x-user', 'owner').send({ kundliId: 'approx', reportTypeId: 't' });
+    expect(res.status).toBe(409);
+    expect(res.body.message).toMatch(/exact birth time/);
+    expect(mocks.storage.placeReportOrder).not.toHaveBeenCalled();
+  });
+  it('a catalogue entry whose category cannot be generated is not sold', async () => {
+    mocks.storage.getReportTypeById.mockResolvedValue({ id: 't', name: 'Health', category: 'health', isActive: true, price: '249' });
+    const res = await request(app).post('/api/reports/order').set('x-user', 'owner').send({ kundliId: 'approx', reportTypeId: 't' });
+    expect(res.status).toBe(404);
+    expect(mocks.storage.placeReportOrder).not.toHaveBeenCalled();
   });
   it('the personal horoscope is never generated from a pre-V3 chart', async () => {
     mocks.storage.getUserKundlis.mockResolvedValue([{ ...exact, id: 'legacy', latitude: null, longitude: null, chartData: { planetaryPositions: [] } }]);

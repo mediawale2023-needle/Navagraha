@@ -14,10 +14,11 @@
 import OpenAI from "openai";
 import type { Kundli } from "@shared/schema";
 import { transitsForChart, transitSummary } from "./astroEngine/index.js";
-import { siderealPositions } from "./astroEngine/canonical/compute.js";
-import { SIGNS } from "./astroEngine/vedic.js";
 import { isCurrentCanonicalChart } from "@shared/v3/canonical";
 import { buildInsights } from "./astroEngine/evidence/insights.js";
+import {
+  ReportGenerationError, checkSections, correctionNote, textProblems, MIN_SUMMARY_CHARS, type ReportGuard, type Section,
+} from "./reportQuality.js";
 
 // Shared prediction discipline + ethics for all paid-report generation.
 const REPORT_DISCIPLINE = `Discipline: a yoga/placement is only a promise — tie predictions to the activating dasha + transit and at least two confirmations (Navamsa/Dasamsa, Ashtakavarga, house lord, karaka); weigh planetary strength (a weak/debilitated/combust planet under-delivers; note Neecha-bhanga and yoga cancellation). Give realistic timing windows. Grounding: use only the chart facts and deterministic evidence supplied; never invent a placement, yoga, dosha, strength or date; keep the engine's verdicts; never cite chapter/verse numbers or quote scriptures; if the birth time is approximate, say so and do not build on the Lagna or houses. Ethics: Jyotish is a traditional interpretive system, not certainty — describe tendencies and timing; never predict death, lifespan, serious illness, guaranteed pregnancy, guaranteed marriage/divorce or guaranteed financial outcomes; never frighten; pair difficulty with realistic guidance (remedies are optional, never a condition); respect free will; recommend only justified remedies, never push gemstones.`;
@@ -164,6 +165,18 @@ ${canonicalContext(kundli)}
 }
 
 /** V3 additions: calculation provenance, birth-time accuracy, today's running period and the evidence graph. */
+// A period the birth-time uncertainty could change is never stated as running.
+function runningPeriodLine(
+  rp: { mahadasha: string; antardasha?: string | null } | null | undefined,
+  timing: { mahadashaReliable: boolean; antardashaReliable: boolean } | undefined,
+): string {
+  if (!rp) return "not available";
+  if (timing && !timing.mahadashaReliable) return "UNCERTAIN because the birth time is approximate; do not name a current Mahadasha or Antardasha";
+  const antar = rp.antardasha && (!timing || timing.antardashaReliable) ? ` / ${rp.antardasha} Antardasha` : "";
+  const antarNote = rp.antardasha && timing && !timing.antardashaReliable ? " (the Antardasha is uncertain with an approximate birth time; do not name it)" : "";
+  return `${rp.mahadasha} Mahadasha${antar}${antarNote}`;
+}
+
 function canonicalContext(kundli: Partial<Kundli>): string {
   const canonical = (kundli as any).chartData?.canonical;
   if (!isCurrentCanonicalChart(canonical)) return "";
@@ -175,7 +188,7 @@ function canonicalContext(kundli: Partial<Kundli>): string {
   return `
 Calculation: ${insights.headline.calculation}; birth time ${canonical.birth.timeAccuracy.toUpperCase()} (${canonical.birth.timezone}, UTC${canonical.birth.utcOffset}).
 ${canonical.uncertainty.notes.length ? `Uncertainty: ${canonical.uncertainty.notes.join(" ")}` : ""}
-Running period TODAY (authoritative; supersedes any status above): ${rp ? `${rp.mahadasha} Mahadasha${rp.antardasha ? ` / ${rp.antardasha} Antardasha` : ""}` : "not available"}
+Running period TODAY (authoritative; supersedes any status above): ${runningPeriodLine(rp, insights.timing)}
 
 Deterministic evidence verdicts (authoritative; explain, do not change):
 ${domainLines}`;
@@ -392,9 +405,8 @@ const REPORT_FOCUS: Record<string, { title: string; focus: string; sections: str
   career:     { title: "Career & Profession Report", focus: "career path, ideal professions, job vs business, and timing of professional growth", sections: ["Career Overview", "Strengths & Ideal Fields", "Job vs Business", "Growth Timing & Dashas", "Challenges to Watch"] },
   marriage:   { title: "Marriage & Love Report", focus: "marriage timing, partner characteristics, married life, and relationship harmony", sections: ["Love & Marriage Overview", "Partner Traits", "Marriage Timing", "Married Life", "Harmony & Compatibility"] },
   finance:    { title: "Wealth & Finance Report", focus: "wealth houses, income sources, investments, savings and financial timing", sections: ["Financial Overview", "Income Sources", "Wealth Accumulation", "Favourable Investment Windows", "Money Management"] },
-  health:     { title: "Health & Wellbeing Report", focus: "constitution, vulnerable periods, and lifestyle and astrological remedies", sections: ["Health Constitution", "Vulnerable Periods", "Areas to Watch", "Lifestyle Guidance"] },
-  year_ahead: { title: "Year Ahead Report", focus: "month-by-month predictions for the coming 12 months across career, money, relationships and health", sections: ["Year Overview", "Career & Work", "Money & Finance", "Relationships", "Health", "Best & Cautious Months"] },
-  life:       { title: "Life Reading Report", focus: "overall life themes, personality, and major life areas", sections: ["Life Overview", "Personality", "Career", "Relationships", "Health & Wellbeing"] },
+  year_ahead: { title: "Year Ahead Report", focus: "month-by-month predictions for the coming 12 months across career, money and relationships", sections: ["Year Overview", "Career & Work", "Money & Finance", "Relationships", "Best & Cautious Months"] },
+  life:       { title: "Life Reading Report", focus: "overall life themes, personality, and major life areas", sections: ["Life Overview", "Personality", "Career", "Relationships"] },
 };
 
 type ReportMeta = { title: string; focus: string; sections: string[] };
@@ -406,34 +418,7 @@ function sectionPlan(meta: ReportMeta): string[] {
   return ["Birth Chart Overview", "Key Planetary Influences", ...meta.sections, "Dasha Periods & Timing"];
 }
 
-function templatedNarrative(meta: ReportMeta, structured: StructuredChart): ReportNarrative {
-  const bd = structured.birthDetails;
-  const currentMd = structured.dashaTimeline.find((d) => d.status === "current");
-  const posText = structured.planetaryPositions
-    .filter((p) => p.planet !== "Ascendant")
-    .map((p) => `${p.planet} in ${p.sign} (House ${p.house})`)
-    .join(", ");
-
-  return {
-    title: meta.title,
-    summary: `This ${meta.title} is prepared from your Vedic birth chart — Lagna ${bd.ascendant || "—"}, Moon ${bd.moonSign || "—"}, Sun ${bd.sunSign || "—"}. ${currentMd ? `You are currently running the ${currentMd.planet} Mahadasha${currentMd.currentAntardasha ? ` with ${currentMd.currentAntardasha.planet} Antardasha` : ""}. ` : ""}It focuses on ${meta.focus}.`,
-    sections: [
-      { heading: "Birth Chart Overview", body: `Your ascendant (Lagna) is ${bd.ascendant || "—"} with the Moon placed in ${bd.moonSign || "—"} and the Sun in ${bd.sunSign || "—"}. Planetary placements: ${posText || "—"}.` },
-      ...meta.sections.map((heading) => ({
-        heading,
-        body: `Analysis of ${heading.toLowerCase()} based on your ascendant ${bd.ascendant || ""}, Moon sign ${bd.moonSign || ""}${currentMd ? ` and the current ${currentMd.planet} Mahadasha` : ""}.`,
-      })),
-      { heading: "Dasha Periods & Timing", body: currentMd ? `Current Mahadasha: ${currentMd.planet} (${currentMd.period}).${currentMd.currentAntardasha ? ` Antardasha: ${currentMd.currentAntardasha.planet} (${currentMd.currentAntardasha.period}).` : ""} The full Vimshottari timeline is shown in your report.` : "Your Vimshottari dasha timeline is shown in your report." },
-    ],
-    remedies: [
-      "Chant your Lagna lord's beej mantra 108 times daily",
-      "Wear the gemstone recommended for your ascendant after consultation",
-      "Offer prayers and donate on your favourable weekday",
-    ],
-  };
-}
-
-async function aiNarrative(meta: ReportMeta, kundli: Partial<Kundli>): Promise<ReportNarrative> {
+async function aiNarrative(meta: ReportMeta, kundli: Partial<Kundli>, correction = ""): Promise<ReportNarrative> {
   const client = getClient();
   const plan = sectionPlan(meta);
   const prompt = `You are an expert Vedic astrologer preparing a premium, in-depth paid report titled "${meta.title}". This is a paid product (₹299–₹499), so it must read like a thorough professional consultation — detailed, specific and personalised, NOT a short summary. Focus on ${meta.focus}.
@@ -451,7 +436,7 @@ Return ONLY valid JSON with this exact shape:
 }
 
 Birth chart:
-${chartSummary(kundli)}`;
+${chartSummary(kundli)}${correction ? `\n\n${correction}` : ""}`;
 
   const response = await client.chat.completions.create({
     model: "gpt-4o",
@@ -469,77 +454,103 @@ ${chartSummary(kundli)}`;
   };
 }
 
+/** The guard context for a stored chart; reports are only generated for verified V3 charts. */
+function reportGuard(kundli: Partial<Kundli>, transits?: string, extraFacts = ""): ReportGuard {
+  const chart = (kundli as any).chartData?.canonical;
+  if (!isCurrentCanonicalChart(chart)) throw new ReportGenerationError("chart is not a verified V3 calculation");
+  return { chart, factsText: `${chartSummary(kundli)}\n${extraFacts}`, transits, asOf: new Date() };
+}
+
+const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+export function reportWindow(asOf: Date): string {
+  const end = new Date(Date.UTC(asOf.getUTCFullYear() + 1, asOf.getUTCMonth(), 1));
+  return `Report window: ${MONTHS[asOf.getUTCMonth()]} ${asOf.getUTCFullYear()} to ${MONTHS[end.getUTCMonth()]} ${end.getUTCFullYear()} (today is ${asOf.toISOString().slice(0, 10)}).`;
+}
+
+function requireAi() {
+  if (!process.env.OPENAI_API_KEY) throw new ReportGenerationError("AI report generation is not configured");
+}
+
+/** AI remedies are kept only when they make no claim the chart contradicts. */
+function checkedRemedies(remedies: string[], guard: ReportGuard): string[] {
+  const clean = remedies.filter((r) => typeof r === "string" && r.trim());
+  return textProblems(clean.join(". "), guard, 0).length ? [] : clean;
+}
+
+/**
+ * A paid report: every planned section must be a substantive reading consistent with the
+ * chart. One regeneration with the problems listed; then it fails (and the order is refunded).
+ */
 export async function generateReport(
   category: string,
   kundli: Partial<Kundli>,
 ): Promise<GeneratedReport> {
-  const meta = REPORT_FOCUS[category] || REPORT_FOCUS.life;
+  requireAi();
+  const meta = REPORT_FOCUS[category];
+  if (!meta) throw new ReportGenerationError(`no report is offered for category "${category}"`);
+  const asOf = new Date();
+  // A year-ahead reading names the months it covers; those years are facts, not inventions.
+  const window = category === "year_ahead" ? reportWindow(asOf) : "";
+  const guard = reportGuard(kundli, undefined, window);
+  const plan = sectionPlan(meta);
   const structured = deriveStructured(kundli);
-  const chartRemedies = extractChartRemedies(kundli);
 
-  let narrative: ReportNarrative;
-  if (process.env.OPENAI_API_KEY) {
-    try {
-      narrative = await aiNarrative(meta, kundli);
-    } catch (err) {
-      console.error("[report] generation failed, using templated fallback:", err);
-      narrative = templatedNarrative(meta, structured);
+  let correction = "";
+  let problems: string[] = [];
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const narrative = await aiNarrative(meta, kundli, [window, correction].filter(Boolean).join("\n\n"));
+    const { accepted, rejected } = checkSections(plan, narrative.sections, guard);
+    const summaryProblems = textProblems(narrative.summary || "", guard, MIN_SUMMARY_CHARS);
+    if (summaryProblems.length) rejected.push({ heading: "summary", problems: summaryProblems });
+    if (!rejected.length) {
+      return {
+        title: narrative.title || meta.title,
+        summary: narrative.summary.trim(),
+        sections: accepted,
+        remedies: dedupeRemedies([...checkedRemedies(narrative.remedies || [], guard), ...extractChartRemedies(kundli)]),
+        ...structured,
+        generatedAt: new Date().toISOString(),
+      };
     }
-  } else {
-    narrative = templatedNarrative(meta, structured);
+    problems = rejected.map((r) => `${r.heading}: ${r.problems.join("; ")}`);
+    correction = correctionNote(rejected);
   }
-
-  return {
-    ...narrative,
-    remedies: dedupeRemedies([...(narrative.remedies || []), ...chartRemedies]),
-    ...structured,
-    generatedAt: new Date().toISOString(),
-  };
+  throw new ReportGenerationError(`report failed the quality check: ${problems.join(" | ")}`);
 }
 
 // ─── Complete Life Report (premium, 50+ pages) ────────────────────────────────
 
-// Each batch is one focused gpt-4o call; run in parallel they assemble into a
-// ~50-section, 50+ page report grounded in the actual chart.
+// Each batch is one focused gpt-4o call; run in parallel they assemble into a 46-section
+// report grounded in the actual chart. Health and longevity are deliberately not predicted.
 const LIFE_REPORT_BATCHES: { focus: string; sections: string[] }[] = [
-  { focus: "the native's core identity and nature", sections: ["Executive Summary", "Personality & Temperament", "Mind & Emotional Nature", "Physical Constitution & Appearance", "Core Strengths & Talents", "Challenges & Karmic Lessons"] },
+  { focus: "the native's core identity and nature", sections: ["Executive Summary", "Personality & Temperament", "Mind & Emotional Nature", "Core Strengths & Talents", "Challenges & Karmic Lessons"] },
   { focus: "the Sun, Moon and Mars in this chart (placement, dignity, aspects, effects)", sections: ["Sun — Soul, Ego & Authority", "Moon — Mind, Emotions & Mother", "Mars — Energy, Courage & Drive"] },
   { focus: "Mercury, Jupiter and Venus (placement, dignity, aspects, effects)", sections: ["Mercury — Intellect & Communication", "Jupiter — Wisdom, Fortune & Dharma", "Venus — Love, Beauty & Comforts"] },
   { focus: "Saturn, Rahu and Ketu (placement, dignity, aspects, effects)", sections: ["Saturn — Discipline, Karma & Delay", "Rahu — Ambition, Illusion & Obsession", "Ketu — Detachment & Liberation"] },
-  { focus: "houses 1 to 6 of the chart, with their lords and occupants", sections: ["1st House — Self, Body & Vitality", "2nd House — Wealth, Speech & Family", "3rd House — Courage, Siblings & Effort", "4th House — Home, Mother & Happiness", "5th House — Intelligence, Children & Romance", "6th House — Health, Debts & Enemies"] },
-  { focus: "houses 7 to 12 of the chart, with their lords and occupants", sections: ["7th House — Marriage & Partnerships", "8th House — Longevity, Secrets & Transformation", "9th House — Fortune, Father & Dharma", "10th House — Career, Status & Karma", "11th House — Gains, Networks & Desires", "12th House — Loss, Expenses, Foreign & Moksha"] },
+  { focus: "houses 1 to 6 of the chart, with their lords and occupants", sections: ["1st House — Self, Body & Vitality", "2nd House — Wealth, Speech & Family", "3rd House — Courage, Siblings & Effort", "4th House — Home, Mother & Happiness", "5th House — Intelligence, Children & Romance", "6th House — Service, Debts & Competition"] },
+  { focus: "houses 7 to 12 of the chart, with their lords and occupants", sections: ["7th House — Marriage & Partnerships", "8th House — Secrets, Research & Transformation", "9th House — Fortune, Father & Dharma", "10th House — Career, Status & Karma", "11th House — Gains, Networks & Desires", "12th House — Loss, Expenses, Foreign & Moksha"] },
   { focus: "the yogas (planetary combinations) present in this chart and their results", sections: ["Raja Yogas & Power Combinations", "Dhana Yogas (Wealth)", "Other Significant Yogas"] },
   { focus: "doshas and afflictions, including the current Saturn transit (Sade Sati / Dhaiya)", sections: ["Mangal Dosha (Manglik) Analysis", "Kaal Sarp & Pitru Dosha", "Sade Sati & Saturn's Current Influence"] },
-  { focus: "the major life domains based on the relevant houses, lords and dashas", sections: ["Career & Profession", "Wealth & Financial Outlook", "Marriage & Relationships", "Education & Learning", "Health & Longevity", "Spirituality & Life Purpose"] },
+  { focus: "the major life domains based on the relevant houses, lords and dashas", sections: ["Career & Profession", "Wealth & Financial Outlook", "Marriage & Relationships", "Education & Learning", "Spirituality & Life Purpose"] },
   { focus: "the Vimshottari dasha life-map — predictions for the major planetary periods, anchored to today's date", sections: ["Dasha Life-Map Overview", "Current Mahadasha — Detailed Forecast", "Next Mahadasha — What to Expect", "Long-Term Dasha Outlook"] },
   { focus: "personalised, practical remedies for this specific chart", sections: ["Gemstone Recommendations", "Mantras & Japa", "Charity, Fasting & Rituals", "Lifestyle & Conduct", "Lucky Factors (colours, numbers, days)"] },
 ];
-
-async function currentTransitContext(): Promise<string> {
-  try {
-    // Geocentric sidereal signs need no observer location.
-    const { bodies } = siderealPositions(new Date());
-    const sign = (p: keyof typeof bodies) => SIGNS[Math.floor(bodies[p].longitude / 30)];
-    return `\nCurrent planetary transits (as of ${new Date().toDateString()}): Saturn in ${sign("Saturn")}, Jupiter in ${sign("Jupiter")}, Rahu in ${sign("Rahu")}, Ketu in ${sign("Ketu")}. Assess Sade Sati from Saturn's transit relative to the natal Moon sign.`;
-  } catch {
-    return "";
-  }
-}
 
 async function generateLifeBatch(
   batch: { focus: string; sections: string[] },
   chart: string,
   transit: string,
-): Promise<{ heading: string; body: string }[]> {
+  correction = "",
+): Promise<unknown> {
   const client = getClient();
-  const prompt = `You are a master Vedic astrologer (Jyotish) writing one part of a premium 50+ page "Complete Life Report" (Brihat Kundli). Focus on ${batch.focus}. Reference the EXACT chart data below — name specific planets, signs, houses, degrees, nakshatra and dasha periods. Be thorough, specific and personalised (never generic): write 2-4 rich paragraphs for EACH heading.
+  const prompt = `You are a master Vedic astrologer (Jyotish) writing one part of a premium "Complete Life Report" (Brihat Kundli). Focus on ${batch.focus}. Reference the EXACT chart data below — name specific planets, signs, houses, degrees, nakshatra and dasha periods. Be thorough, specific and personalised (never generic): write 2-4 rich paragraphs for EACH heading.
 
 ${REPORT_DISCIPLINE}
 
 Return ONLY valid JSON: {"sections":[{"heading":"<exact heading>","body":"<2-4 detailed paragraphs>"}]} — one object per heading, with headings EXACTLY and in this order: ${JSON.stringify(batch.sections)}.
 
 Birth chart:
-${chart}${transit}`;
+${chart}${transit}${correction ? `\n\n${correction}` : ""}`;
 
   const resp = await client.chat.completions.create({
     model: "gpt-4o",
@@ -547,60 +558,49 @@ ${chart}${transit}`;
     response_format: { type: "json_object" },
     max_tokens: 3000,
   });
-  const parsed = JSON.parse(resp.choices[0]?.message?.content || "{}");
-  const arr: any[] = Array.isArray(parsed.sections) ? parsed.sections : [];
-  return batch.sections
-    .map((h, i) => {
-      const byHeading = arr.find((s) => typeof s?.heading === "string" && s.heading.trim().toLowerCase() === h.trim().toLowerCase());
-      const body = String((byHeading?.body ?? arr[i]?.body) || "").trim();
-      return { heading: h, body };
-    })
-    .filter((s) => s.body);
+  return JSON.parse(resp.choices[0]?.message?.content || "{}").sections;
 }
 
+/** One batch, checked; the headings it got wrong are regenerated once and otherwise left out. */
+async function checkedLifeBatch(batch: { focus: string; sections: string[] }, chart: string, transit: string, guard: ReportGuard): Promise<Section[]> {
+  const first = checkSections(batch.sections, await generateLifeBatch(batch, chart, transit).catch(() => []), guard);
+  if (!first.rejected.length) return first.accepted;
+  const retryHeadings = first.rejected.map((r) => r.heading);
+  const retry = checkSections(retryHeadings, await generateLifeBatch({ ...batch, sections: retryHeadings }, chart, transit, correctionNote(first.rejected)).catch(() => []), guard);
+  if (retry.rejected.length) console.warn(`[life-report] left out after retry: ${retry.rejected.map((r) => `${r.heading} (${r.problems.join("; ")})`).join(", ")}`);
+  const byHeading = new Map([...first.accepted, ...retry.accepted].map((x) => [x.heading, x]));
+  return batch.sections.flatMap((h) => byHeading.get(h) ?? []);
+}
+
+export const LIFE_REPORT_SECTION_COUNT = LIFE_REPORT_BATCHES.reduce((n, b) => n + b.sections.length, 0);
+/** Fewer sections than this and the report is not delivered (the order is refunded). */
+export const LIFE_REPORT_MIN_SECTIONS = Math.ceil(LIFE_REPORT_SECTION_COUNT * 0.9);
+
 export async function generateLifeReport(kundli: Partial<Kundli>): Promise<GeneratedReport> {
+  requireAi();
+  if (isApproximate(kundli)) throw new ReportGenerationError("the Complete Life Report reads every house and needs an exact birth time");
   const structured = deriveStructured(kundli);
-  const chartRemedies = extractChartRemedies(kundli);
-  const title = "Complete Life Report";
-
-  if (!process.env.OPENAI_API_KEY) {
-    const narrative = templatedNarrative(REPORT_FOCUS.life, structured);
-    return {
-      ...narrative,
-      title,
-      remedies: dedupeRemedies([...(narrative.remedies || []), ...chartRemedies]),
-      ...structured,
-      generatedAt: new Date().toISOString(),
-    };
-  }
-
-  const chart = chartSummary(kundli);
   const canonical = (kundli as any).chartData?.canonical;
   const transit = isCurrentCanonicalChart(canonical)
     ? "\n\n" + transitSummary(transitsForChart(canonical, (kundli as any).chartData?.ashtakavarga?.sav))
-    : await currentTransitContext();
+    : "";
+  const guard = reportGuard(kundli, transit);
+  const chart = chartSummary(kundli);
 
-  // Parallel batches; a failed batch degrades to empty (filtered out) rather than
-  // failing the whole report.
-  const results = await Promise.all(
-    LIFE_REPORT_BATCHES.map((batch) =>
-      generateLifeBatch(batch, chart, transit).catch((err) => {
-        console.error(`[life-report] batch "${batch.focus}" failed:`, err);
-        return [] as { heading: string; body: string }[];
-      }),
-    ),
-  );
+  const results = await Promise.all(LIFE_REPORT_BATCHES.map((batch) => checkedLifeBatch(batch, chart, transit, guard)));
   const sections = results.flat();
+  if (sections.length < LIFE_REPORT_MIN_SECTIONS) {
+    throw new ReportGenerationError(`only ${sections.length} of ${LIFE_REPORT_SECTION_COUNT} sections passed the quality check (minimum ${LIFE_REPORT_MIN_SECTIONS})`);
+  }
 
-  const summary =
-    sections.find((s) => /summary/i.test(s.heading))?.body ||
-    `A complete Vedic life analysis prepared from your birth chart — Lagna ${structured.birthDetails.ascendant || "—"}, Moon ${structured.birthDetails.moonSign || "—"}, Sun ${structured.birthDetails.sunSign || "—"}.`;
+  const summary = sections.find((s) => s.heading === "Executive Summary")?.body;
+  if (!summary) throw new ReportGenerationError("the Executive Summary did not pass the quality check");
 
   return {
-    title,
+    title: "Complete Life Report",
     summary,
     sections,
-    remedies: dedupeRemedies(chartRemedies),
+    remedies: dedupeRemedies(extractChartRemedies(kundli)),
     ...structured,
     generatedAt: new Date().toISOString(),
   };

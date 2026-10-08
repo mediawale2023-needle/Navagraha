@@ -77,6 +77,7 @@ import {
   generateDailyHoroscope,
   extractMemories,
 } from "./aiAstrologerService";
+import { fulfilReportOrder, isOfferedReportCategory, reportsAvailable } from "./reportOrders";
 import { computeJyotishChart } from "./astroEngine/jyotishEngine.js";
 import { streamTraditionReading, answerSessionQuery, type Tradition } from "./jyotishAiService.js";
 import { insertJyotishClientProfileSchema } from "@shared/schema";
@@ -1793,7 +1794,9 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
       const selection = selectChart(req.body);
       if (selection.kind === 'invalid') return res.status(400).json({ message: selection.message });
       const reportType = await storage.getReportTypeById(reportTypeId);
-      if (!reportType || !reportType.isActive) return res.status(404).json({ message: 'Report not available' });
+      if (!reportType || !reportType.isActive || !isOfferedReportCategory(reportType.category)) return res.status(404).json({ message: 'Report not available' });
+      // Paid reports are AI-written and quality-checked; nothing templated is ever sold in their place.
+      if (!reportsAvailable()) return res.status(503).json({ message: 'Reports are temporarily unavailable. You have not been charged.', code: 'reports_unavailable' });
 
       // Resolve a chart: an explicit saved chart, an on-the-fly chart computed
       // from entered birth details (NOT saved to the user's charts), or — only
@@ -1844,37 +1847,26 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
         return res.status(409).json({ message: chartVersionStatus(kundli).notes[0] ?? 'This chart needs to be recreated with its birth place before a report can be generated.', chartStatus: chartVersionStatus(kundli) });
       }
 
-      const price = parseFloat(reportType.price);
-      const debit = await storage.debitWallet(userId, price, `Report: ${reportType.name}`);
-      if (!debit) return res.status(402).json({ message: 'Insufficient wallet balance. Please recharge to order this report.' });
-
-      const order = await storage.createReportOrder({
+      if (reportType.category === 'life_complete' && (kundli.chartData as any)?.canonical?.birth?.timeAccuracy === 'approximate') {
+        return res.status(409).json({ message: 'The Complete Life Report reads every house, so it needs an exact birth time. You have not been charged.' });
+      }
+      const placed = await storage.placeReportOrder({
         userId,
         reportTypeId: reportType.id,
         kundliId: kundliRef,
         subjectName: (kundli as any).name || undefined,
-        amount: reportType.price,
+        price: parseFloat(reportType.price),
+        description: `Report: ${reportType.name}`,
       });
+      if (!placed) return res.status(402).json({ message: 'Insufficient wallet balance. Please recharge to order this report.' });
+      const { order } = placed;
 
-      // Generate asynchronously; client polls until status === 'ready'
-      (async () => {
-        try {
-          const content = reportType.category === 'life_complete'
-            ? await generateLifeReport(kundli)
-            : await generateReport(reportType.category || 'life', kundli);
-          await storage.setReportOrderContent(order.id, content);
-          await storage.createNotification({
-            userId, type: 'system', title: 'Report Ready',
-            body: `Your ${reportType.name} is ready to view.`,
-          });
-          sendPushToUser(userId, { title: 'Report Ready', body: `Your ${reportType.name} is ready.`, link: '/reports' });
-        } catch (genErr) {
-          console.error('Report generation failed:', genErr);
-          await storage.markReportOrderFailed(order.id).catch(() => {});
-        }
-      })();
+      // Generated asynchronously; the client polls until the order is ready or failed (refunded).
+      void fulfilReportOrder(order, reportType.name, () => reportType.category === 'life_complete'
+        ? generateLifeReport(kundli)
+        : generateReport(reportType.category || 'life', kundli));
 
-      res.status(201).json({ orderId: order.id, newBalance: debit.balance });
+      res.status(201).json({ orderId: order.id, newBalance: placed.balance });
     } catch (err) {
       if (err instanceof BirthInputError || err instanceof CalculationError) return res.status(400).json({ message: err.message });
       console.error('Report order error:', err);
@@ -2444,6 +2436,31 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
       console.error('Reconcile error:', err);
       res.status(500).json({ message: 'Reconciliation failed' });
     }
+  });
+
+  // Report orders that need a decision: failed orders never refunded, and delivered orders
+  // whose content is the old templated placeholder. Refunds are explicit, one order at a time.
+  app.get('/api/admin/reports/review', isAdmin, adminLimiter, async (_req, res) => {
+    try {
+      res.json(await storage.getReportOrdersNeedingReview());
+    } catch { res.status(500).json({ message: 'Failed to load report orders' }); }
+  });
+
+  app.post('/api/admin/reports/:id/refund', isAdmin, adminLimiter, async (req, res) => {
+    try {
+      const order = await storage.getReportOrderById(req.params.id);
+      if (!order) return res.status(404).json({ message: 'Report order not found' });
+      if (order.status === 'processing') return res.status(409).json({ message: 'This order is still being prepared.' });
+      const result = order.status === 'ready'
+        ? await storage.refundPlaceholderReport(order.id)
+        : await storage.failAndRefundReportOrder(order.id, order.failureReason ?? 'refunded by admin');
+      if (!result) return res.status(409).json({ message: 'This order has already been refunded.' });
+      await storage.createNotification({
+        userId: order.userId, type: 'system', title: 'Report refunded',
+        body: result.refunded > 0 ? `₹${result.refunded.toFixed(0)} for a report that did not meet our standard has been returned to your wallet.` : 'A report that did not meet our standard has been marked refunded.',
+      }).catch(() => {});
+      res.json({ orderId: order.id, refunded: result.refunded });
+    } catch { res.status(500).json({ message: 'Refund failed' }); }
   });
 
   app.get('/api/admin/stats', isAdmin, adminLimiter, async (_req, res) => {

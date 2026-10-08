@@ -381,6 +381,10 @@ CREATE TABLE IF NOT EXISTS report_orders (
 );
 CREATE INDEX IF NOT EXISTS idx_report_orders_user ON report_orders (user_id);
 ALTER TABLE report_orders ADD COLUMN IF NOT EXISTS subject_name varchar;
+ALTER TABLE report_orders ADD COLUMN IF NOT EXISTS charged_amount decimal(10, 2);
+ALTER TABLE report_orders ADD COLUMN IF NOT EXISTS refunded_at timestamp;
+ALTER TABLE report_orders ADD COLUMN IF NOT EXISTS failure_reason text;
+CREATE INDEX IF NOT EXISTS idx_report_orders_processing ON report_orders (created_at) WHERE status = 'processing';
 
 CREATE TABLE IF NOT EXISTS daily_horoscopes (
   id varchar PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -551,14 +555,13 @@ SELECT * FROM (VALUES
   ('career-report', 'Career & Profession Report', 'Detailed analysis of your career path, ideal fields, timing of growth and job vs business.', 'career', 299, 'Briefcase', 0),
   ('marriage-report', 'Marriage & Love Report', 'Insights on marriage timing, partner traits, married life and remedies for harmony.', 'marriage', 349, 'Heart', 1),
   ('finance-report', 'Wealth & Finance Report', 'Your money houses, income sources, investment windows and financial remedies.', 'finance', 299, 'Coins', 2),
-  ('year-ahead-report', 'Year Ahead Report', 'Month-by-month predictions for the next 12 months across all life areas.', 'year_ahead', 499, 'CalendarRange', 3),
-  ('health-report', 'Health & Wellbeing Report', 'Constitution analysis, vulnerable periods and lifestyle/astro remedies.', 'health', 249, 'Activity', 4)
+  ('year-ahead-report', 'Year Ahead Report', 'Month-by-month predictions for the next 12 months across career, money and relationships.', 'year_ahead', 499, 'CalendarRange', 3)
 ) AS v(slug, name, description, category, price, icon, sort_order)
 WHERE NOT EXISTS (SELECT 1 FROM report_types LIMIT 1);
 
 -- Premium Complete Life Report tier (idempotent: inserts once even on existing DBs)
 INSERT INTO report_types (slug, name, description, category, price, icon, sort_order)
-SELECT 'complete-life-report', 'Complete Life Report', 'A 50+ page in-depth life analysis: every planet & house, yogas, doshas, Sade Sati, the full Vimshottari dasha life-map and personalised remedies.', 'life_complete', 1499, 'BookOpen', -1
+SELECT 'complete-life-report', 'Complete Life Report', 'An in-depth life analysis in 40+ sections: every planet & house, yogas, doshas, Sade Sati, the full Vimshottari dasha life-map and personalised remedies.', 'life_complete', 1499, 'BookOpen', -1
 WHERE NOT EXISTS (SELECT 1 FROM report_types WHERE slug = 'complete-life-report');
 
 INSERT INTO poojas (slug, name, description, benefits, price, duration_text, sort_order)
@@ -594,6 +597,27 @@ export const FREE_CHAT_BANNER = {
  * support. Each statement matches the original seed text exactly, so rows an
  * admin has edited are never touched, and re-running changes nothing.
  */
+// Report catalogue corrections. Health and longevity are not predicted, so the Health report
+// is withdrawn (existing orders stay readable); descriptions are corrected only while they
+// still hold the original seed text.
+export const REPORT_CATALOGUE_FIXES: Array<{ text: string; values: unknown[] }> = [
+  { text: "UPDATE report_types SET is_active = false WHERE category = 'health' AND is_active IS DISTINCT FROM false", values: [] },
+  {
+    text: "UPDATE report_types SET description = $1 WHERE slug = 'complete-life-report' AND description = $2",
+    values: [
+      "An in-depth life analysis in 40+ sections: every planet & house, yogas, doshas, Sade Sati, the full Vimshottari dasha life-map and personalised remedies.",
+      "A 50+ page in-depth life analysis: every planet & house, yogas, doshas, Sade Sati, the full Vimshottari dasha life-map and personalised remedies.",
+    ],
+  },
+  {
+    text: "UPDATE report_types SET description = $1 WHERE slug = 'year-ahead-report' AND description = $2",
+    values: [
+      "Month-by-month predictions for the next 12 months across career, money and relationships.",
+      "Month-by-month predictions for the next 12 months across all life areas.",
+    ],
+  },
+];
+
 export const HOMEPAGE_COPY_FIXES: Array<{ text: string; values: unknown[] }> = [
   {
     // A generic horoscope presented as "Today's Insight", above a "First chat free" eyebrow.
@@ -756,6 +780,7 @@ export async function runMigrations(): Promise<void> {
   for (const fix of HOMEPAGE_COPY_FIXES) await pool.query(fix.text, fix.values);
   await pool.query(SEED_COUPONS_SQL);
   await pool.query(SEED_STORE_SQL);
+  for (const fix of REPORT_CATALOGUE_FIXES) await pool.query(fix.text, fix.values);
   await pool.query(EARNINGS_INDEX_SQL);
   await seedAdminUser();
   await seedProAstrologer();

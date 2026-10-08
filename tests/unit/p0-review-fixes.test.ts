@@ -7,7 +7,7 @@ import { explicitBirthDetailsSchema } from '../../server/birthDetails';
 const mocks = vi.hoisted(() => ({
   storage: {
     getKundliById: vi.fn(), getUser: vi.fn(), getUserKundlis: vi.fn(), createKundli: vi.fn(),
-    getReportTypeById: vi.fn(), debitWallet: vi.fn(), createReportOrder: vi.fn(),
+    getReportTypeById: vi.fn(), debitWallet: vi.fn(), createReportOrder: vi.fn(), placeReportOrder: vi.fn(), setReportOrderContent: vi.fn(), failAndRefundReportOrder: vi.fn(),
     setReportOrderContent: vi.fn(), createNotification: vi.fn(), markReportOrderFailed: vi.fn(),
     saveAiChatMessage: vi.fn(), getUserMemories: vi.fn(), addUserMemory: vi.fn(),
     getPredictionFeedbacksByUser: vi.fn(), getPatternStatistics: vi.fn(), createPredictionFeedback: vi.fn(),
@@ -61,6 +61,8 @@ beforeEach(() => {
   mocks.storage.getReportTypeById.mockResolvedValue({ id: 'type', name: 'Career', category: 'career', isActive: true, price: '100' });
   mocks.storage.debitWallet.mockResolvedValue({ balance: '0' });
   mocks.storage.createReportOrder.mockResolvedValue({ id: 'order' });
+  mocks.storage.placeReportOrder.mockResolvedValue({ order: { id: 'order', userId: 'u1' }, balance: '0' });
+  vi.stubEnv('OPENAI_API_KEY', 'test-key');
   mocks.storage.setReportOrderContent.mockResolvedValue(undefined);
   mocks.storage.createNotification.mockResolvedValue({});
   mocks.storage.getUserMemories.mockResolvedValue([]);
@@ -186,8 +188,8 @@ const routes = [
 function expectNoSideEffects() {
   expect(mocks.storage.getUserKundlis).not.toHaveBeenCalled();
   expect(mocks.storage.getKundliById).not.toHaveBeenCalled();
-  expect(mocks.storage.debitWallet).not.toHaveBeenCalled();
-  expect(mocks.storage.createReportOrder).not.toHaveBeenCalled();
+  expect(mocks.storage.placeReportOrder).not.toHaveBeenCalled();
+  expect(mocks.storage.placeReportOrder).not.toHaveBeenCalled();
   expect(mocks.generateReport).not.toHaveBeenCalled();
   expect(mocks.generateLifeReport).not.toHaveBeenCalled();
   expect(mocks.storage.saveAiChatMessage).not.toHaveBeenCalled();
@@ -225,7 +227,7 @@ for (const route of routes) describe(`${route.path} explicit chart selection`, (
     expect(res.status).toBe(404);
     expect(res.body).toEqual({ message: 'Kundli not found' });
     expect(mocks.storage.getUserKundlis).not.toHaveBeenCalled();
-    expect(mocks.storage.debitWallet).not.toHaveBeenCalled();
+    expect(mocks.storage.placeReportOrder).not.toHaveBeenCalled();
     expect(mocks.runCouncil).not.toHaveBeenCalled();
     expect(mocks.storage.saveAiChatMessage).not.toHaveBeenCalled();
   });
@@ -235,7 +237,7 @@ for (const route of routes) describe(`${route.path} explicit chart selection`, (
     const res = await post({ birthDetails: { dateOfBirth: '1992-05-13', timeOfBirth: '06:30', placeOfBirth: 'Nowhere' } });
     expect(res.status).toBe(400);
     expect(mocks.storage.getUserKundlis).not.toHaveBeenCalled();
-    expect(mocks.storage.debitWallet).not.toHaveBeenCalled();
+    expect(mocks.storage.placeReportOrder).not.toHaveBeenCalled();
     expect(mocks.runCouncil).not.toHaveBeenCalled();
   });
 
@@ -264,7 +266,7 @@ describe('chart actually used after selection', () => {
   it('report fallback bills for and generates from the saved chart only when birthDetails is omitted', async () => {
     const res = await request(app).post('/api/reports/order').set('x-user', 'owner').send({ reportTypeId: 'type' });
     expect(res.status).toBe(201);
-    expect(mocks.storage.createReportOrder).toHaveBeenCalledWith(expect.objectContaining({ kundliId: 'chart' }));
+    expect(mocks.storage.placeReportOrder).toHaveBeenCalledWith(expect.objectContaining({ kundliId: 'chart' }));
     await vi.waitFor(() => expect(mocks.generateReport).toHaveBeenCalledWith('career', saved));
   });
 
@@ -274,7 +276,7 @@ describe('chart actually used after selection', () => {
       birthDetails: { name: 'Guest', dateOfBirth: '1992-05-13', timeOfBirth: '06:30:45', ...coords, isBirthTimeApproximate: true },
     });
     expect(res.status).toBe(201);
-    expect(mocks.storage.createReportOrder).toHaveBeenCalledWith(expect.objectContaining({ kundliId: undefined, subjectName: 'Guest' }));
+    expect(mocks.storage.placeReportOrder).toHaveBeenCalledWith(expect.objectContaining({ kundliId: undefined, subjectName: 'Guest' }));
     await vi.waitFor(() => expect(mocks.generateReport).toHaveBeenCalled());
     const chart = mocks.generateReport.mock.calls[0][1];
     expect(chart.timeOfBirth).toBe('06:30:45');

@@ -6,7 +6,7 @@ import { getKundli } from '../../server/astroEngine';
 const mocks = vi.hoisted(() => ({
   storage: {
     getKundliById: vi.fn(), getUser: vi.fn(), getUserKundlis: vi.fn(), createKundli: vi.fn(),
-    getReportTypeById: vi.fn(), debitWallet: vi.fn(), createReportOrder: vi.fn(),
+    getReportTypeById: vi.fn(), debitWallet: vi.fn(), createReportOrder: vi.fn(), placeReportOrder: vi.fn(), setReportOrderContent: vi.fn(), failAndRefundReportOrder: vi.fn(),
     setReportOrderContent: vi.fn(), createNotification: vi.fn(),
     saveAiChatMessage: vi.fn(), getUserMemories: vi.fn(), getPredictionFeedbacksByUser: vi.fn(), getPatternStatistics: vi.fn(),
   },
@@ -60,6 +60,8 @@ beforeEach(() => {
   mocks.storage.getPatternStatistics.mockResolvedValue(null);
   mocks.storage.debitWallet.mockResolvedValue(true);
   mocks.storage.createReportOrder.mockResolvedValue({ id: 'order' });
+  mocks.storage.placeReportOrder.mockResolvedValue({ order: { id: 'order', userId: 'u1' }, balance: '0' });
+  vi.stubEnv('OPENAI_API_KEY', 'test-key');
   mocks.storage.setReportOrderContent.mockResolvedValue(undefined);
   mocks.storage.createNotification.mockResolvedValue({});
   mocks.runCouncil.mockResolvedValue('Reading');
@@ -92,10 +94,18 @@ describe('error responses name the field at fault', () => {
   });
 
   it('report orders keep the 402 shape the client maps to the recharge panel', async () => {
-    mocks.storage.debitWallet.mockResolvedValue(null);
+    mocks.storage.placeReportOrder.mockResolvedValue(null);
     const res = await request(app).post('/api/reports/order').set('x-user', 'owner').send({ kundliId: 'chart', reportTypeId: 'type' });
     expect(res.status).toBe(402);
     expect(res.body.message).toMatch(/insufficient wallet balance/i);
+  });
+
+  it('without the AI service no report is sold: 503 before any charge', async () => {
+    vi.stubEnv('OPENAI_API_KEY', '');
+    const res = await request(app).post('/api/reports/order').set('x-user', 'owner').send({ kundliId: 'chart', reportTypeId: 'type' });
+    expect(res.status).toBe(503);
+    expect(res.body).toMatchObject({ code: 'reports_unavailable', message: expect.stringMatching(/not been charged/) });
+    expect(mocks.storage.placeReportOrder).not.toHaveBeenCalled();
   });
 });
 
