@@ -45,6 +45,8 @@ import {
   callSynastryEngine,
   callRemediationEngine,
 } from "./astroEngineClient";
+import { isAdminEmail, normalizeEmail } from "./adminAccess";
+import { publicAstrologer } from "./publicAstrologer";
 import { resolveBirthCoords } from "./geocode";
 import { selectChart } from "./birthDetails";
 import { computePanchang } from "./astroEngine/panchang";
@@ -139,15 +141,19 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
 
   app.post('/api/auth/register', authLimiter, async (req: any, res) => {
     try {
-      const { email, password, firstName, lastName } = req.body;
-      if (!email || !password) {
+      const { password, firstName, lastName } = req.body;
+      const email = typeof req.body.email === 'string' ? normalizeEmail(req.body.email) : '';
+      if (!email || typeof password !== 'string' || !password) {
         return res.status(400).json({ message: "Email and password are required" });
       }
       if (password.length < 8) {
         return res.status(400).json({ message: "Password must be at least 8 characters" });
       }
 
-      const existing = await storage.getUserByEmail(email);
+      // Admin addresses are provisioned (ADMIN_EMAIL seed or Google sign-in), never
+      // self-registered: without email verification anyone could claim an unregistered one.
+      // Same reply as a taken address, so the admin list cannot be probed.
+      const existing = isAdminEmail(email) || await storage.getUserByEmail(email);
       if (existing) {
         return res.status(409).json({ message: "An account with this email already exists" });
       }
@@ -174,7 +180,7 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
   app.post('/api/auth/login', authLimiter, async (req: any, res) => {
     try {
       const { email, password } = req.body;
-      if (!email || !password) {
+      if (typeof email !== 'string' || !email || typeof password !== 'string' || !password) {
         return res.status(400).json({ message: "Email and password are required" });
       }
 
@@ -629,10 +635,9 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
   // ─── Astrologers ──────────────────────────────────────────
   app.get('/api/astrologers', async (_req, res) => {
     try {
+      // Only admin-verified astrologers are listed to the public.
       const list = await storage.getAllAstrologers();
-      // Don't expose passwordHash or bank details to public
-      const safe = list.map(({ passwordHash: _ph, bankAccountNumber: _ban, bankIfsc: _bi, ...a }) => a);
-      res.json(safe);
+      res.json(list.filter((a) => a.isVerified).map(publicAstrologer));
     } catch { res.status(500).json({ message: "Failed to fetch astrologers" }); }
   });
 
@@ -640,11 +645,10 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
     try {
       const astrologer = await storage.getAstrologerById(req.params.id);
       if (!astrologer) return res.status(404).json({ message: "Astrologer not found" });
-      const { passwordHash: _ph, bankAccountNumber: _ban, bankIfsc: _bi, ...safe } = astrologer;
       const followers = await storage.getFollowerUserIds(astrologer.id);
       const currentUserId = (req.user as any)?.id || req.session?.userId;
       const isFollowing = currentUserId ? followers.includes(currentUserId) : false;
-      res.json({ ...safe, followerCount: followers.length, isFollowing });
+      res.json({ ...publicAstrologer(astrologer), followerCount: followers.length, isFollowing });
     } catch { res.status(500).json({ message: "Failed to fetch astrologer" }); }
   });
 
@@ -953,21 +957,6 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
       });
       res.json({ balance: newBalance, wallet: updatedWallet, free: false });
     } catch { res.status(500).json({ message: "Failed to process deduction" }); }
-  });
-
-  // Legacy direct add (for testing / admin)
-  app.post('/api/wallet/add', isAuthenticated, async (req: any, res) => {
-    try {
-      const userId = (req.user as any).id;
-      const { amount } = req.body;
-      if (!amount || amount <= 0) return res.status(400).json({ message: "Invalid amount" });
-      let wallet = await storage.getWallet(userId);
-      if (!wallet) wallet = await storage.createWallet(userId);
-      const newBalance = (parseFloat(wallet.balance || "0") + parseFloat(amount)).toFixed(2);
-      const updatedWallet = await storage.updateWalletBalance(userId, newBalance);
-      await storage.createTransaction({ userId, amount: amount.toString(), type: 'recharge', description: 'Wallet recharge', status: 'completed' });
-      res.json(updatedWallet);
-    } catch { res.status(500).json({ message: "Failed to add money" }); }
   });
 
   app.get('/api/wallet/packs', (_req, res) => {

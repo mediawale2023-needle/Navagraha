@@ -16,7 +16,7 @@ import session from 'express-session';
 import connectPg from 'connect-pg-simple';
 import type { Express, RequestHandler } from 'express';
 import { storage } from './storage';
-import { getAdminEmails } from './adminAccess';
+import { isAdminAccount, normalizeEmail } from './adminAccess';
 import { pool } from './db';
 
 // ─── Session setup ────────────────────────────────────────────
@@ -135,7 +135,10 @@ export async function setupAuth(app: Express) {
       },
       async (_accessToken, _refreshToken, profile, done) => {
         try {
-          const email = profile.emails?.[0]?.value;
+          // An address Google has not verified proves nothing about who owns it.
+          if ((profile as any)._json?.email_verified === false) return done(null, false);
+          const rawEmail = profile.emails?.[0]?.value;
+          const email = rawEmail ? normalizeEmail(rawEmail) : undefined;
           const user = await storage.upsertUser({
             id: profile.id,          // Google's stable sub ID
             email,
@@ -207,16 +210,12 @@ export const isAuthenticated: RequestHandler = async (req: any, res, next) => {
 };
 
 export const isAdmin: RequestHandler = async (req: any, res, next) => {
-  const adminEmails = getAdminEmails();
-
   if (!req.isAuthenticated?.() && !req.session?.userId) {
     return res.status(401).json({ message: 'Unauthorized' });
   }
 
   const user = req.user || (req.session?.userId ? await storage.getUser(req.session.userId) : undefined);
-  const email = user?.email?.toLowerCase?.();
-
-  if (!email || !adminEmails.has(email)) {
+  if (!isAdminAccount(user)) {
     return res.status(403).json({ message: 'Admin access required' });
   }
 

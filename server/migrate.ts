@@ -645,7 +645,9 @@ async function seedAdminUser(): Promise<void> {
   }
 
   try {
-    const existing = await storage.getUserByEmail(email);
+    const found = await storage.getUserByEmail(email);
+    // Only the canonical lower-case row is the admin; a case variant is someone else's account.
+    const existing = found?.email === email ? found : undefined;
     if (!existing) {
       const user = await storage.createUserWithPassword({ email, password, firstName: 'Admin' });
       await storage.createWallet(user.id).catch(() => {});
@@ -667,10 +669,47 @@ async function seedAdminUser(): Promise<void> {
   }
 }
 
+// Published development defaults. In production they are never seeded, and an account
+// still holding them is locked (see retireDefaultProAstrologer).
+export const DEMO_PRO_EMAIL = 'pro@navagraha.app';
+export const DEMO_PRO_PASSWORD = 'ProDemo@2026';
+
+const sha256 = (value: string) => crypto.createHash('sha256').update(value).digest('hex');
+
+/**
+ * Locks a demo Pro astrologer that still has the published default password: unlisted,
+ * offline, unverified (login refuses it), password replaced, and its live sessions ended.
+ * The row and everything linked to it are kept, so it can be restored by setting
+ * PRO_ASTROLOGER_PASSWORD, which the seed then syncs.
+ */
+export async function retireDefaultProAstrologer(): Promise<void> {
+  const demo = await storage.getAstrologerByEmail(DEMO_PRO_EMAIL);
+  if (!demo || demo.passwordHash !== sha256(DEMO_PRO_PASSWORD)) return;
+  await storage.updateAstrologer(demo.id, {
+    passwordHash: sha256(crypto.randomBytes(32).toString('hex')),
+    isVerified: false,
+    isOnline: false,
+    availability: 'offline',
+  });
+  await pool.query(`DELETE FROM sessions WHERE sess->>'astrologerId' = $1`, [demo.id]);
+  console.warn(`[seed] locked the Pro demo astrologer ${DEMO_PRO_EMAIL}: it still had the published default password (record kept)`);
+}
+
 /** Verified Pro practice account — same login as marketplace, used on /astrologer/pro. */
-async function seedProAstrologer(): Promise<void> {
-  const email = (process.env.PRO_ASTROLOGER_EMAIL || 'pro@navagraha.app').trim().toLowerCase();
-  const password = process.env.PRO_ASTROLOGER_PASSWORD || 'ProDemo@2026';
+export async function seedProAstrologer(): Promise<void> {
+  const envPassword = process.env.PRO_ASTROLOGER_PASSWORD;
+  if (process.env.NODE_ENV === 'production' && (!envPassword || envPassword === DEMO_PRO_PASSWORD)) {
+    if (envPassword) console.warn('[seed] PRO_ASTROLOGER_PASSWORD is the published default — refusing to seed the Pro account in production');
+    try {
+      await retireDefaultProAstrologer();
+    } catch (err) {
+      console.error('[seed] could not lock the default Pro demo astrologer:', err);
+    }
+    return;
+  }
+
+  const email = (process.env.PRO_ASTROLOGER_EMAIL || DEMO_PRO_EMAIL).trim().toLowerCase();
+  const password = envPassword || DEMO_PRO_PASSWORD;
   const name = process.env.PRO_ASTROLOGER_NAME || 'Pro Demo Astrologer';
 
   if (password.length < 8) {
@@ -678,7 +717,7 @@ async function seedProAstrologer(): Promise<void> {
     return;
   }
 
-  const passwordHash = crypto.createHash('sha256').update(password).digest('hex');
+  const passwordHash = sha256(password);
 
   try {
     const existing = await storage.getAstrologerByEmail(email);
