@@ -17,6 +17,16 @@ describe('listedChart', () => {
     const listed = listedChart({ ...k, chartData: { ...(k.chartData as any), isBirthTimeApproximate: true } } as any);
     expect(listed).toMatchObject({ zodiacSign: 'Cancer', moonSign: 'Taurus', ascendant: null, timeAccuracy: 'approximate' });
   });
+  it('also withholds the Moon sign when the Moon changed sign during an approximate birth date', async () => {
+    for (let d = 1; d <= 31; d++) {
+      const k = await getKundli(`1990-01-${String(d).padStart(2, '0')}`, '12:00', 12.9716, 77.5946, { timeAccuracy: 'approximate' });
+      const stable = (k.chartData as any).canonical.uncertainty.moonSignStableAcrossBirthDate;
+      const listed = listedChart(k as any);
+      expect(listed.moonSign).toBe(stable ? k.moonSign : null);
+      if (!stable) return;
+    }
+    throw new Error('no unstable-Moon date in January 1990');
+  });
   it('hides every placement of a chart the V3 engine has not recalculated', () => {
     const listed = listedChart({ zodiacSign: 'Pisces', moonSign: 'Leo', ascendant: 'Gemini', chartData: { planetaryPositions: [] } } as any);
     expect(listed).toMatchObject({ zodiacSign: null, moonSign: null, ascendant: null, listStatus: 'limited' });

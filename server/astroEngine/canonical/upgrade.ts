@@ -104,7 +104,8 @@ export type ListedChartStatus = 'v3' | 'recalculated' | 'limited';
 /**
  * The chart-list view of a (possibly recalculated) chart: placements are shown
  * only when the V3 engine vouches for them. A limited chart's stored signs come
- * from the retired engine, and an approximate birth time leaves the Ascendant unknown.
+ * from the retired engine; an approximate birth time leaves the Ascendant unknown, and
+ * the Moon sign too when the Moon changed sign during the birth date.
  */
 export function listedChart<T extends Pick<Kundli, 'chartData' | 'zodiacSign' | 'moonSign' | 'ascendant'>>(kundli: T) {
   const cd = (kundli.chartData ?? {}) as Record<string, any>;
@@ -114,8 +115,11 @@ export function listedChart<T extends Pick<Kundli, 'chartData' | 'zodiacSign' | 
   if (listed === 'limited') {
     return { ...kundli, zodiacSign: null, moonSign: null, ascendant: null, timeAccuracy: approximate ? 'approximate' as const : 'exact' as const, listStatus: listed };
   }
+  // The Moon can change sign within the birth date; the engine records whether it did.
+  const moonUncertain = approximate && cd.canonical?.uncertainty?.moonSignStableAcrossBirthDate === false;
   return {
     ...kundli,
+    moonSign: moonUncertain ? null : kundli.moonSign,
     ascendant: approximate ? null : kundli.ascendant,
     timeAccuracy: approximate ? 'approximate' as const : 'exact' as const,
     listStatus: listed,
