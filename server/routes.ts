@@ -122,6 +122,9 @@ const insightsLimiter = rateLimit({
   max: 60,
 });
 
+/** How long after a consultation ends its end call may still finalise it (earning, notifications). */
+const FINALISE_WINDOW_MS = 5 * 60 * 1000;
+
 export async function registerRoutes(app: Express, existingServer?: Server): Promise<Server> {
 
   // Mount Swagger UI
@@ -1458,24 +1461,39 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
       if (!owned || owned.userId !== userId) return res.status(404).json({ message: "Not found" });
       const consultation = await storage.endConsultation(owned.id);
 
+      // Finalised once, as the session ends (the WebSocket stop usually closes it moments
+      // before this call). Ending an old consultation again only returns it: no earning,
+      // no availability change, no notifications.
+      const endedAt = consultation.endedAt ? new Date(consultation.endedAt).getTime() : 0;
+      const justEnded = owned.status === 'active' || (consultation.status === 'ended' && Date.now() - endedAt < FINALISE_WINDOW_MS);
+      if (!justEnded) return res.json(consultation);
+
       // Set astrologer back to online
       if (consultation.astrologerId) {
         await storage.updateAstrologer(consultation.astrologerId, { availability: 'online' });
       }
 
-      // Create earnings record for astrologer
-      // Ending is called more than once (WebSocket stop, then REST); earn once per consultation.
-      const gross = parseFloat(consultation.totalAmount || "0");
+      // The astrologer earns on what the user was actually charged, once per consultation.
+      const gross = await storage.getBilledAmountForConsultation(consultation.id);
+      let earned = false;
       if (gross > 0 && !(await storage.hasEarningForConsultation(consultation.id))) {
         const platformFee = (gross * PLATFORM_FEE_PERCENTAGE) / 100;
         const net = gross - platformFee;
-        await storage.createEarning({
-          astrologerId: consultation.astrologerId,
-          consultationId: consultation.id,
-          grossAmount: gross.toFixed(2),
-          platformFee: platformFee.toFixed(2),
-          netAmount: net.toFixed(2),
-        });
+        try {
+          await storage.createEarning({
+            astrologerId: consultation.astrologerId,
+            consultationId: consultation.id,
+            grossAmount: gross.toFixed(2),
+            platformFee: platformFee.toFixed(2),
+            netAmount: net.toFixed(2),
+          });
+          earned = true;
+        } catch (err: any) {
+          if (err?.code !== '23505') throw err; // a concurrent end already recorded it
+        }
+      }
+      if (earned) {
+        const net = gross - (gross * PLATFORM_FEE_PERCENTAGE) / 100;
 
         notifyAstrologer(consultation.astrologerId, {
           type: 'session_ended',
@@ -1488,7 +1506,7 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
         userId,
         type: 'session_start',
         title: 'Consultation Ended',
-        body: `Your consultation ended. Duration: ${Math.floor((consultation.durationSeconds || 0) / 60)} minutes. Total: ₹${consultation.totalAmount}`,
+        body: `Your consultation ended. Duration: ${Math.floor((consultation.durationSeconds || 0) / 60)} minutes. Charged: ₹${gross.toFixed(2)}`,
       });
 
       // Send consultation summary email (fire-and-forget)
@@ -1502,7 +1520,7 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
           astrologerName: endAstrologer.name,
           type: consultation.type,
           durationMinutes: Math.floor((consultation.durationSeconds || 0) / 60),
-          totalAmount: consultation.totalAmount || '0',
+          totalAmount: gross.toFixed(2),
         }).catch((err) => { console.error('[email] consultation summary failed:', err); });
       }
 

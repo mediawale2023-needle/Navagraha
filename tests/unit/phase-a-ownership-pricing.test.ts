@@ -7,7 +7,7 @@ import request from 'supertest';
 const mocks = vi.hoisted(() => ({
   storage: {
     getUser: vi.fn(), getUserKundlis: vi.fn(async () => []), getConsultationById: vi.fn(), endConsultation: vi.fn(), updateAstrologer: vi.fn(),
-    hasEarningForConsultation: vi.fn(), createEarning: vi.fn(), createNotification: vi.fn(), getAstrologerById: vi.fn(),
+    hasEarningForConsultation: vi.fn(), getBilledAmountForConsultation: vi.fn(), createEarning: vi.fn(), createNotification: vi.fn(), getAstrologerById: vi.fn(),
     cancelUserScheduledCall: vi.fn(), updateScheduledCallStatus: vi.fn(), markNotificationRead: vi.fn(),
     getWallet: vi.fn(), createWallet: vi.fn(), getUserTransactions: vi.fn(), updateWalletBalance: vi.fn(), tryDebitBalance: vi.fn(), createTransaction: vi.fn(),
   },
@@ -45,6 +45,7 @@ beforeEach(() => {
   mocks.storage.getConsultationById.mockResolvedValue(consultation);
   mocks.storage.endConsultation.mockResolvedValue({ ...consultation, status: 'completed', durationSeconds: 300, totalAmount: '100.00' });
   mocks.storage.hasEarningForConsultation.mockResolvedValue(false);
+  mocks.storage.getBilledAmountForConsultation.mockResolvedValue(100);
   mocks.storage.getUser.mockResolvedValue({ id: 'owner', email: null });
   mocks.storage.getAstrologerById.mockResolvedValue({ id: 'a1', name: 'Astro' });
   mocks.storage.getWallet.mockResolvedValue({ userId: 'owner', balance: '500.00' });
@@ -66,7 +67,9 @@ describe('consultations belong to the user who started them', () => {
     expect(mocks.storage.createEarning).not.toHaveBeenCalled();
   });
 
-  it('ending pays the astrologer once, however many times it is called', async () => {
+  it('ending pays the astrologer once, on what the user was actually charged', async () => {
+    // Wall-clock pricing says ₹9999; the user was billed ₹100.
+    mocks.storage.endConsultation.mockResolvedValue({ ...consultation, status: 'ended', endedAt: new Date(), durationSeconds: 300, totalAmount: '9999.00' });
     const first = await request(app).post('/api/consultations/c1/end').set('x-user', 'owner');
     expect(first.status).toBe(200);
     expect(mocks.storage.createEarning).toHaveBeenCalledTimes(1);
@@ -74,8 +77,36 @@ describe('consultations belong to the user who started them', () => {
 
     mocks.storage.hasEarningForConsultation.mockResolvedValue(true);
     await request(app).post('/api/consultations/c1/end').set('x-user', 'owner');
-    await request(app).post('/api/consultations/c1/end').set('x-user', 'owner');
     expect(mocks.storage.createEarning).toHaveBeenCalledTimes(1);
+  });
+
+  it('the usual flow (WebSocket stop ends it moments before the REST call) still finalises once', async () => {
+    mocks.storage.getConsultationById.mockResolvedValue({ ...consultation, status: 'ended', endedAt: new Date() });
+    mocks.storage.endConsultation.mockResolvedValue({ ...consultation, status: 'ended', endedAt: new Date(), durationSeconds: 300 });
+    await request(app).post('/api/consultations/c1/end').set('x-user', 'owner');
+    expect(mocks.storage.createEarning).toHaveBeenCalledWith(expect.objectContaining({ grossAmount: '100.00' }));
+  });
+
+  it('re-ending an old consultation days later earns nothing and changes nothing', async () => {
+    const old = { ...consultation, status: 'ended', endedAt: new Date(Date.now() - 3 * 86_400_000), durationSeconds: 120 };
+    mocks.storage.getConsultationById.mockResolvedValue(old);
+    mocks.storage.endConsultation.mockResolvedValue(old);
+    const res = await request(app).post('/api/consultations/c1/end').set('x-user', 'owner');
+    expect(res.status).toBe(200);
+    expect(mocks.storage.createEarning).not.toHaveBeenCalled();
+    expect(mocks.storage.updateAstrologer).not.toHaveBeenCalled();
+    expect(mocks.storage.createNotification).not.toHaveBeenCalled();
+  });
+
+  it('a concurrent end that loses the unique-index race is not an error', async () => {
+    mocks.storage.createEarning.mockRejectedValueOnce(Object.assign(new Error('duplicate'), { code: '23505' }));
+    expect((await request(app).post('/api/consultations/c1/end').set('x-user', 'owner')).status).toBe(200);
+  });
+
+  it('nothing is earned when nothing was billed (free minutes, admin access)', async () => {
+    mocks.storage.getBilledAmountForConsultation.mockResolvedValue(0);
+    await request(app).post('/api/consultations/c1/end').set('x-user', 'owner');
+    expect(mocks.storage.createEarning).not.toHaveBeenCalled();
   });
 });
 
