@@ -922,42 +922,13 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
       // amount is ignored so it cannot set its own price.
       const { description } = req.body;
       if (description !== PDF_DESCRIPTION) return res.status(400).json({ message: "Unknown purchase" });
-      const cost = PDF_PRICE;
-      let wallet = await storage.getWallet(userId);
-      if (!wallet) wallet = await storage.createWallet(userId);
-
-      // ── First PDF download is free ──────────────────────────────────────────
-      if (description === PDF_DESCRIPTION) {
-        const txns = await storage.getUserTransactions(userId);
-        const hasUsedFree = txns.some(
-          (t) => t.description === PDF_DESCRIPTION && t.status === 'completed',
-        );
-        if (!hasUsedFree) {
-          await storage.createTransaction({
-            userId,
-            amount: '0',
-            type: 'deduction',
-            description: PDF_DESCRIPTION,
-            status: 'completed',
-          });
-          return res.json({ balance: wallet.balance, wallet, free: true });
-        }
+      const result = await storage.purchaseKundliPdf(userId, PDF_PRICE, PDF_DESCRIPTION);
+      if (!result) {
+        const wallet = await storage.getWallet(userId);
+        return res.status(402).json({ message: "Insufficient balance", balance: parseFloat(wallet?.balance || "0"), required: PDF_PRICE });
       }
-      // ────────────────────────────────────────────────────────────────────────
-
-      const newBalance = await storage.tryDebitBalance(userId, cost);
-      if (newBalance === null) {
-        return res.status(402).json({ message: "Insufficient balance", balance: parseFloat(wallet.balance || "0"), required: cost });
-      }
-      const updatedWallet = { ...wallet, balance: newBalance };
-      await storage.createTransaction({
-        userId,
-        amount: (-cost).toString(),
-        type: 'deduction',
-        description: description || 'Service charge',
-        status: 'completed',
-      });
-      res.json({ balance: newBalance, wallet: updatedWallet, free: false });
+      const wallet = await storage.getWallet(userId);
+      res.json({ balance: result.balance, wallet: wallet && { ...wallet, balance: result.balance }, free: result.free });
     } catch { res.status(500).json({ message: "Failed to process deduction" }); }
   });
 

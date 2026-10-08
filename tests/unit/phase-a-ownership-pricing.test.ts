@@ -9,7 +9,7 @@ const mocks = vi.hoisted(() => ({
     getUser: vi.fn(), getUserKundlis: vi.fn(async () => []), getConsultationById: vi.fn(), endConsultation: vi.fn(), updateAstrologer: vi.fn(),
     hasEarningForConsultation: vi.fn(), getBilledAmountForConsultation: vi.fn(), createEarning: vi.fn(), createNotification: vi.fn(), getAstrologerById: vi.fn(),
     cancelUserScheduledCall: vi.fn(), updateScheduledCallStatus: vi.fn(), markNotificationRead: vi.fn(),
-    getWallet: vi.fn(), createWallet: vi.fn(), getUserTransactions: vi.fn(), updateWalletBalance: vi.fn(), tryDebitBalance: vi.fn(), createTransaction: vi.fn(),
+    getWallet: vi.fn(), createWallet: vi.fn(), getUserTransactions: vi.fn(), updateWalletBalance: vi.fn(), tryDebitBalance: vi.fn(), createTransaction: vi.fn(), purchaseKundliPdf: vi.fn(),
   },
 }));
 vi.mock('../../server/storage', () => ({ storage: mocks.storage }));
@@ -51,6 +51,7 @@ beforeEach(() => {
   mocks.storage.getWallet.mockResolvedValue({ userId: 'owner', balance: '500.00' });
   mocks.storage.getUserTransactions.mockResolvedValue([{ description: 'Kundli PDF download', status: 'completed' }]);
   mocks.storage.tryDebitBalance.mockResolvedValue('490.00');
+  mocks.storage.purchaseKundliPdf.mockResolvedValue({ balance: '490.00', free: false });
 });
 afterEach(() => { vi.unstubAllEnvs(); });
 
@@ -130,20 +131,25 @@ describe('the Kundli PDF is priced by the server', () => {
     const res = await request(app).post('/api/wallet/deduct').set('x-user', 'owner')
       .send({ amount: 0.01, description: 'Kundli PDF download' });
     expect(res.status).toBe(200);
-    expect(mocks.storage.tryDebitBalance).toHaveBeenCalledWith('owner', 10);
-    expect(mocks.storage.createTransaction).toHaveBeenCalledWith(expect.objectContaining({ amount: '-10' }));
+    expect(mocks.storage.purchaseKundliPdf).toHaveBeenCalledWith('owner', 10, 'Kundli PDF download');
   });
 
   it('nothing else can be bought through this route', async () => {
     const res = await request(app).post('/api/wallet/deduct').set('x-user', 'owner').send({ amount: 1, description: 'Complete Life Report' });
     expect(res.status).toBe(400);
-    expect(mocks.storage.tryDebitBalance).not.toHaveBeenCalled();
+    expect(mocks.storage.purchaseKundliPdf).not.toHaveBeenCalled();
   });
 
-  it('the first PDF stays free', async () => {
-    mocks.storage.getUserTransactions.mockResolvedValue([]);
+  it('reports a free first PDF as free', async () => {
+    mocks.storage.purchaseKundliPdf.mockResolvedValue({ balance: '500.00', free: true });
     const res = await request(app).post('/api/wallet/deduct').set('x-user', 'owner').send({ description: 'Kundli PDF download' });
-    expect(res.body.free).toBe(true);
-    expect(mocks.storage.tryDebitBalance).not.toHaveBeenCalled();
+    expect(res.body).toMatchObject({ free: true, balance: '500.00' });
+  });
+
+  it('an empty wallet gets 402 with the price', async () => {
+    mocks.storage.purchaseKundliPdf.mockResolvedValue(null);
+    const res = await request(app).post('/api/wallet/deduct').set('x-user', 'owner').send({ description: 'Kundli PDF download' });
+    expect(res.status).toBe(402);
+    expect(res.body.required).toBe(10);
   });
 });

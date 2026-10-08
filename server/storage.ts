@@ -1278,6 +1278,30 @@ export class DatabaseStorage implements IStorage {
     });
   }
 
+  /** Kundli PDF: the first completed download is free, later ones cost `price`. Serialised per
+   * user so concurrent requests cannot both claim the free download or lose a debit. */
+  async purchaseKundliPdf(userId: string, price: number, description: string): Promise<{ balance: string; free: boolean } | null> {
+    let wallet = await this.getWallet(userId);
+    if (!wallet) wallet = await this.createWallet(userId);
+    return db.transaction(async (tx) => {
+      await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${"kundli-pdf:" + userId}))`);
+      const [used] = await tx
+        .select({ id: transactions.id })
+        .from(transactions)
+        .where(and(eq(transactions.userId, userId), eq(transactions.description, description), eq(transactions.status, "completed")))
+        .limit(1);
+      if (!used) {
+        await tx.insert(transactions).values({ userId, amount: "0", type: "deduction", description, status: "completed" });
+        const [current] = await tx.select({ balance: wallets.balance }).from(wallets).where(eq(wallets.userId, userId));
+        return { balance: current?.balance ?? "0", free: true };
+      }
+      const balance = await this.tryDebitBalance(userId, price, tx);
+      if (balance === null) return null;
+      await tx.insert(transactions).values({ userId, amount: (-price).toString(), type: "deduction", description, status: "completed" });
+      return { balance, free: false };
+    });
+  }
+
   // ─── Astromall ─────────────────────────────────────────────
   async getProducts(): Promise<Product[]> {
     return await db

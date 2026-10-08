@@ -38,6 +38,17 @@ describe.skipIf(!url)('wallet money paths under concurrency (Postgres)', () => {
     expect(rows[0].n).toBe(10);
   });
 
+  it('concurrent Kundli PDF downloads grant one free copy and charge the rest exactly once each', async () => {
+    const id = await newUser('25.00');
+    const results = await Promise.all(Array.from({ length: 6 }, () => storage.purchaseKundliPdf(id, 10, 'Kundli PDF download')));
+    expect(results.filter((r) => r?.free)).toHaveLength(1);
+    expect(results.filter((r) => r && !r.free)).toHaveLength(2);
+    expect(results.filter((r) => r === null)).toHaveLength(3);
+    expect(await balanceOf(id)).toBe('5.00');
+    const { rows } = await pool.query("SELECT amount FROM transactions WHERE user_id = $1 ORDER BY amount", [id]);
+    expect(rows.map((r) => r.amount)).toEqual(['-10.00', '-10.00', '0.00']);
+  });
+
   it('interleaved credits and debits lose no update', async () => {
     const id = await newUser('50.00');
     await Promise.all([
