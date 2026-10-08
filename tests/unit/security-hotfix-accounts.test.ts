@@ -18,7 +18,7 @@ vi.mock('../../server/db', () => {
   return { db: { select: () => ({ from: () => ({ where }) }) }, pool: mocks.pool };
 });
 import { DatabaseStorage } from '../../server/storage';
-import { isAdminAccount, isAdminEmail, normalizeEmail } from '../../server/adminAccess';
+import { googleSignInEmail, isAdminAccount, isAdminEmail, normalizeEmail } from '../../server/adminAccess';
 
 const sha256 = (v: string) => crypto.createHash('sha256').update(v).digest('hex');
 
@@ -73,10 +73,20 @@ describe('email lookups are case-insensitive and prefer the real account', () =>
     expect((await storage.verifyUserPassword('admin@audit.test', 'wrong'))).toBeNull();
   });
 
-  it('Google sign-in refuses an address Google has not verified and stores the normalised address', () => {
+  it('Google sign-in needs Google to affirm the address is verified', () => {
+    const p = (verified: unknown, emails: object[] = [{ value: 'Admin@Audit.test' }]) => ({ emails, _json: { email_verified: verified } });
+    expect(googleSignInEmail(p(true), undefined)).toEqual({ email: 'admin@audit.test' });
+    expect(googleSignInEmail(p(false), undefined)).toBeNull();
+    expect(googleSignInEmail(p(undefined), undefined)).toBeNull();
+    expect(googleSignInEmail(p('true'), undefined)).toBeNull();
+    expect(googleSignInEmail(p(undefined, [{ value: 'a@x.test', verified: true }]), undefined)).toEqual({ email: 'a@x.test' });
+  });
+
+  it('a returning Google user keeps the stored address (no collision from re-normalising)', () => {
+    expect(googleSignInEmail({ emails: [{ value: 'Legacy@X.test' }], _json: { email_verified: true } }, 'Legacy@X.test')).toEqual({ email: 'Legacy@X.test' });
     const auth = readFileSync('server/auth.ts', 'utf8');
-    expect(auth).toMatch(/email_verified === false\) return done\(null, false\)/);
-    expect(auth).toMatch(/normalizeEmail\(rawEmail\)/);
+    expect(auth).toMatch(/googleSignInEmail\(profile as any, existing\?\.email\)/);
+    expect(auth).toMatch(/if \(!signIn\) return done\(null, false\)/);
     expect(auth).toMatch(/if \(!isAdminAccount\(user\)\)/);
   });
 

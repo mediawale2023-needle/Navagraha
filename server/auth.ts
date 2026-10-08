@@ -16,7 +16,7 @@ import session from 'express-session';
 import connectPg from 'connect-pg-simple';
 import type { Express, RequestHandler } from 'express';
 import { storage } from './storage';
-import { isAdminAccount, normalizeEmail } from './adminAccess';
+import { isAdminAccount, googleSignInEmail } from './adminAccess';
 import { pool } from './db';
 
 // ─── Session setup ────────────────────────────────────────────
@@ -135,13 +135,12 @@ export async function setupAuth(app: Express) {
       },
       async (_accessToken, _refreshToken, profile, done) => {
         try {
-          // An address Google has not verified proves nothing about who owns it.
-          if ((profile as any)._json?.email_verified === false) return done(null, false);
-          const rawEmail = profile.emails?.[0]?.value;
-          const email = rawEmail ? normalizeEmail(rawEmail) : undefined;
+          const existing = await storage.getUser(profile.id);
+          const signIn = googleSignInEmail(profile as any, existing?.email);
+          if (!signIn) return done(null, false);
           const user = await storage.upsertUser({
             id: profile.id,          // Google's stable sub ID
-            email,
+            email: signIn.email,
             firstName: profile.name?.givenName,
             lastName: profile.name?.familyName,
             profileImageUrl: profile.photos?.[0]?.value,

@@ -36,3 +36,20 @@ export function isAdminAccount(user: { email?: string | null } | null | undefine
   if (!stored || stored !== stored.toLowerCase()) return false;
   return getAdminEmails().has(stored);
 }
+
+/**
+ * The email to store for a Google sign-in, or null to refuse it. Google must affirm the
+ * address is verified: an unverified or unconfirmed address proves nothing about who
+ * owns it. A returning user keeps the address already stored, so normalising it cannot
+ * collide with another account's address.
+ */
+export function googleSignInEmail(
+  profile: { emails?: Array<{ value?: string; verified?: boolean | string }>; _json?: { email_verified?: unknown } },
+  storedEmail: string | null | undefined,
+): { email: string | undefined } | null {
+  const raw = profile.emails?.[0]?.value;
+  if (!raw) return { email: storedEmail ?? undefined };
+  const verified = profile._json?.email_verified === true || profile.emails?.[0]?.verified === true;
+  if (!verified) return null;
+  return { email: storedEmail ?? normalizeEmail(raw) };
+}
