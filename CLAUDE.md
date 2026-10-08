@@ -11,6 +11,7 @@ npm run dev      # dev server (client + server) on :5000
 npm run build    # vite build + esbuild server bundle — MUST pass before commit
 npm run check    # tsc typecheck (alias: npx tsc) — MUST pass before commit
 npm test         # vitest run — MUST pass before commit
+# Browser acceptance for the launch UX fixes (against a running build): scripts/acceptance/README.md
 npm run db:push  # push schema to DB (drizzle-kit)
 ```
 
@@ -44,6 +45,9 @@ Search `server/routes.ts` + `client/src/pages` before building anything below.
   - **Personalised daily horoscope**: `GET /api/horoscope/personal` (`generateDailyHoroscope` in `aiAstrologerService.ts`) derives a per-user daily card from the most recent chart's dasha, cached once/day per user in `dailyHoroscopes`. Shown atop the Horoscope page.
 - **Ask Your Kundli** (AI chat, `/ai-astrologer`, `server/agents/askKundli.ts`; deep questions use `runCouncil`; deep links `?q=&kundliId=`) — pick a saved chart **or enter birth details** (computed in-memory, not saved; `birthDetails` on `POST /api/ai/chat`), **per-chart conversation threads** (session per chart in localStorage; prior turns are read from the stored session, never from the client), **multi-language** replies (language directive injected into the council synthesizer/ethicist), life-area quick-question chips. `runCouncil` re-derives the running dasha from today's date and injects it + today as authoritative facts. **Long-term memory**: `extractMemories` pulls durable facts/goals/events from each message into `userMemories`; recent memories are injected into the council so the AI remembers the user across sessions.
 - **Kundli V3 experience** (`KundliView.tsx`): headline (Lagna · Moon · Sun, calculation method), **Chart at a Glance** (`components/v3/ChartGlance.tsx`), **Evidence Sheet** (`components/AIInsightSheet.tsx`, domain + planet modes), **Life Timeline** (`components/v3/LifeTimeline.tsx`, Insights tab). APIs: `GET /api/kundli/:id/insights` (owner), `POST /api/kundli/insights` (guest preview; validated canonical, no storage/AI, rate-limited). Home **Active Influences** (`components/v3/ActiveInfluences.tsx`) and **Remedies** read the user's own chart — never hard-code personal astrology.
+  - **Never state an unverified placement** (launch UX fixes): `GET /api/kundli` recalculates pre-V3 rows as read-only views and projects them through `listedChart` (`canonical/upgrade.ts`) — approximate time withholds the Ascendant (and the Moon sign when `uncertainty.moonSignStableAcrossBirthDate` is false); a `limited` chart lists no placements. A limited chart's page shows only birth details + **Recreate with birth place** (`lib/recreateChart.ts`, prefills `/kundli/new?name&gender&dob&tob`, never the place). With an approximate time the Chart tab (`lib/approximateChart.ts`) draws a Chandra Lagna chart only when the Moon's sign is stable across the birth date, else a sign-only table; D9/D10/D60, yogas and house bindus are withheld. `?tab=` deep-links a Kundli tab.
+  - Running periods anywhere in the UI (Home `RunningPeriodCard`, Active Influences, Ask) go through `selectRunningPeriods` (`lib/runningPeriods.ts`), which honours `insights.timing`. Birth-star gemstones are reconciled with the functional rules (`reconcileBirthStarRemedies`, applied at build and on read in `currentChart`).
+  - Chart labels: `lib/chartLabels.ts` (℞, no degrees, keyboard-operable planets).
 - Astrologer list/detail, **follow/favourite** (heart), **waitlist** when offline (`/astrologers`, `/api/astrologers/:id/follow`, `/waitlist`).
 - Chat (WebSocket), voice/video calls (Agora, `/call/:id`), per-minute billing in `websocketService.ts`.
 - Wallet + recharge: Razorpay, Snapmint (BNPL), LazyPay (`Wallet.tsx`, `paymentService.ts`).
@@ -75,7 +79,8 @@ users, astrologers, kundlis (`chartData.canonical` = CanonicalChart V3; `legacyS
 - New DB field → edit `shared/schema.ts` AND add idempotent DDL (`ADD COLUMN IF NOT EXISTS` / `CREATE TABLE IF NOT EXISTS`) to `server/migrate.ts`. They must match.
 - Paid in-app purchases use `storage.debitWallet(userId, cost, desc)` (returns null on insufficient balance). Compute totals server-side; never trust client prices.
 - Third-party integrations (Razorpay, Agora, Firebase, OpenAI, Google Maps) must **degrade gracefully** when their env keys are absent — never crash boot.
-- Client data fetching: TanStack Query with the URL as `queryKey`; mutations via `apiRequest`.
+- Client data fetching: TanStack Query with the URL as `queryKey`; mutations via `apiRequest`. Failures throw `ApiError` (`lib/apiError.ts`: readable `message`, `status`, optional `field`) — branch on `status`, never parse the message; show `field` errors on the form field. Never surface raw response bodies.
+- Promotional copy must match what billing does: the free-chat entitlement is `FREE_CHAT_MINUTES` (first chat only), exposed as `freeChatMinutes` in `/api/config`; seeded homepage copy is corrected only by guarded, idempotent UPDATEs (`HOMEPAGE_COPY_FIXES` in `migrate.ts`) that match untouched seed text.
 - Keep secrets out of logs and responses (astrologer `passwordHash`/`bankAccountNumber` are stripped from API output).
 - Comments: only explain non-obvious "why". No narration.
 

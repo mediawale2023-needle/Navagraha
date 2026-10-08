@@ -1,0 +1,12 @@
+{
+  "name": "navagraha-acceptance",
+  "private": true,
+  "type": "module",
+  "description": "Browser acceptance checks for the launch UX fixes (run against a running build).",
+  "scripts": {
+    "launch-ux": "node launch-ux.mjs"
+  },
+  "dependencies": {
+    "playwright-core": "1.56.1"
+  }
+}
