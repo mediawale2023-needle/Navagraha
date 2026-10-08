@@ -8,7 +8,10 @@ describe('report checkout handles payment problems in the dialog', () => {
   it('maps 402 to the shortfall panel with a recharge path instead of a raw toast', () => {
     expect(reports).toContain('err.status === 402');
     expect(reports).toContain("setOrderProblem({ kind: 'balance' })");
-    expect(reports).toContain('<BalanceShortfall balance={walletBalance ?? 0} required={parseFloat(selected.price)} />');
+    expect(reports).toContain('<BalanceShortfall balance={walletBalance} required={parseFloat(selected.price)} />');
+    // An unknown balance is never shown as ₹0 with the full price as the top-up.
+    expect(reports).not.toContain('walletBalance ?? 0');
+    expect(reports).toContain('data-testid="order-balance-unavailable"');
     expect(reports).toContain('data-testid="button-recharge-wallet"');
   });
   it('maps 409 (chart needs recreating) to a link to the chart', () => {

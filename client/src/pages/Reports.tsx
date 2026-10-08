@@ -295,7 +295,13 @@ export default function Reports() {
           {orderProblem?.kind === 'balance' && selected && (
             <div className="space-y-2" data-testid="order-insufficient-balance">
               <p className="text-sm font-medium text-foreground">Your wallet balance doesn't cover this report.</p>
-              <BalanceShortfall balance={walletBalance ?? 0} required={parseFloat(selected.price)} />
+              {walletBalance !== null ? (
+                <BalanceShortfall balance={walletBalance} required={parseFloat(selected.price)} />
+              ) : (
+                <p className="text-sm text-muted-foreground" data-testid="order-balance-unavailable">
+                  Your wallet balance is temporarily unavailable. Open the wallet to check your balance.
+                </p>
+              )}
               <Link href="/wallet">
                 <Button className="w-full rounded-[9px] bg-nava-navy text-primary hover:bg-nava-navy/90" data-testid="button-recharge-wallet">Recharge wallet</Button>
               </Link>
