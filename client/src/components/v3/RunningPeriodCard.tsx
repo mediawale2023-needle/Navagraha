@@ -3,10 +3,12 @@ import { useLocation } from 'wouter';
 import type { KundliInsights } from '@shared/v3/evidence';
 import { monthYear, selectRunningPeriods } from '@/lib/runningPeriods';
 import { isApiError } from '@/lib/apiError';
+import { useMarketplace } from '@/lib/marketplace';
 
 /** Home's running-period card: the Mahadasha/Antardasha actually running in the user's latest chart. */
 export function RunningPeriodCard() {
   const [, setLocation] = useLocation();
+  const marketplace = useMarketplace();
   const { data: kundlis, isLoading: listLoading } = useQuery<Array<{ id: string; name: string }>>({ queryKey: ['/api/kundli'] });
   const latest = kundlis?.[0];
   const { data: insights, isError, error } = useQuery<KundliInsights>({ queryKey: ['/api/kundli', latest?.id, 'insights'], enabled: !!latest });
@@ -59,11 +61,11 @@ export function RunningPeriodCard() {
           <p className="mt-1 text-xs text-primary-foreground/75">{primary.sub}</p>
         </button>
         <button
-          onClick={() => setLocation('/astrologers')}
+          onClick={() => setLocation(marketplace ? '/astrologers' : '/ai-astrologer')}
           className="rounded-[9px] border border-primary/40 bg-transparent px-4 py-4 text-left transition-colors hover:bg-white/5"
         >
-          <p className="font-display text-sm text-primary">Talk live</p>
-          <p className="mt-1 text-xs text-primary/70">Browse astrologers</p>
+          <p className="font-display text-sm text-primary">{marketplace ? 'Talk live' : 'Ask about it'}</p>
+          <p className="mt-1 text-xs text-primary/70">{marketplace ? 'Browse astrologers' : 'Ask Your Kundli'}</p>
         </button>
       </div>
     </div>

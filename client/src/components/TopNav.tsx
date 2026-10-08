@@ -1,5 +1,6 @@
 import { Link, useLocation } from "wouter";
 import { Sparkles, Wallet, User } from "lucide-react";
+import { isMarketplacePath, useMarketplace } from "@/lib/marketplace";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -20,6 +21,10 @@ const NAV_LINKS = [
 
 export default function TopNav() {
   const [location] = useLocation();
+  const marketplace = useMarketplace();
+  const links = marketplace
+    ? NAV_LINKS
+    : [NAV_LINKS[0], { label: "Ask", path: "/ai-astrologer" }, ...NAV_LINKS.slice(1).filter((l) => !isMarketplacePath(l.path))];
 
   return (
     <nav className="sticky top-0 z-50 hidden h-16 items-center justify-between border-b border-border bg-background/95 px-8 backdrop-blur-md md:flex lg:px-12">
@@ -34,7 +39,7 @@ export default function TopNav() {
 
       {/* Nav Links */}
       <div className="flex items-center gap-1">
-        {NAV_LINKS.map((item) => (
+        {links.map((item) => (
           <Link key={item.path} href={item.path}>
             <span
               className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors cursor-pointer ${

@@ -3,6 +3,8 @@ import crypto from 'crypto';
 import { pool } from './db';
 import { storage } from './storage';
 import { FREE_CHAT_MINUTES } from './paymentService';
+import { features } from './features';
+import { closeMarketplaceActivity } from './marketplace';
 
 const SCHEMA_SQL = `
 CREATE TABLE IF NOT EXISTS sessions (
@@ -757,5 +759,12 @@ export async function runMigrations(): Promise<void> {
   await pool.query(EARNINGS_INDEX_SQL);
   await seedAdminUser();
   await seedProAstrologer();
+  if (!features.marketplace()) {
+    try {
+      await closeMarketplaceActivity();
+    } catch (err) {
+      console.error('[marketplace] closing open activity failed:', err);
+    }
+  }
   console.log('[migrate] Schema initialised successfully');
 }

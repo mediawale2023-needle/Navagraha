@@ -7,6 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest } from '@/lib/queryClient';
+import { useMarketplace } from '@/lib/marketplace';
 import {
   ArrowLeft, Hash, Star, Sparkles, Heart,
   TrendingUp, User, Calendar, ChevronRight, Loader2
@@ -75,6 +76,7 @@ export default function Numerology() {
   const [form, setForm] = useState({ firstName: '', lastName: '', dateOfBirth: '', system: 'pythagorean' });
   const [result, setResult] = useState<NumerologyResult | null>(null);
   const { toast } = useToast();
+  const marketplace = useMarketplace();
 
   const mutation = useMutation({
     mutationFn: async (data: typeof form) => {
@@ -238,6 +240,7 @@ export default function Numerology() {
               </CardContent>
             </Card>
 
+            {marketplace && (
             <div className="rounded-[12px] bg-primary p-4 text-center text-[var(--nava-navy)]">
               <p className="mb-3 text-sm text-[var(--nava-navy)]/85">Want a deeper numerology reading from an expert?</p>
               <Link href="/astrologers">
@@ -246,6 +249,7 @@ export default function Numerology() {
                 </Button>
               </Link>
             </div>
+            )}
 
             <Button
               variant="outline"

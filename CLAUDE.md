@@ -1,6 +1,6 @@
 # CLAUDE.md — Navagraha
 
-Vedic astrology marketplace (Astrotalk-style). Full-stack TypeScript: React + Vite client, Express + Drizzle + Postgres server, shared Zod schema.
+Vedic astrology app: AI Kundli + reports, with an Astrotalk-style astrologer marketplace that is **paused by default** (`FEATURE_MARKETPLACE`). Full-stack TypeScript: React + Vite client, Express + Drizzle + Postgres server, shared Zod schema.
 
 > Read this file before making changes. Its main job is to stop features being **rebuilt** or **broken**. If you add/remove a feature, update the Feature Inventory below in the same change.
 
@@ -30,9 +30,14 @@ Before every commit: `npx tsc && npm run build && npm test` must all be green.
 - **Evidence → Resolution → Timeline** (`server/astroEngine/evidence/*`, types in `shared/v3/evidence.ts`): deterministic per-domain evidence (9 domains; health deliberately excluded) with rule, chart fact, source, provenance and birth-time dependence; qualitative verdicts + confidence (no percentages); Life Timeline from canonical Vimshottari. `buildInsights(chart, asOf)`.
 - **Golden-chart suite**: `tests/unit/golden-astronomy.test.ts` (44 charts; expected values from the independent pipeline in `scripts/golden/*`, provenance in `tests/golden/README.md`) and `tests/unit/golden-jyotish-rules.test.ts`. Regenerate fixtures with `npx tsx scripts/golden/generate.ts` only deliberately.
 - **Legacy charts**: `canonical/upgrade.ts` (pure) recalculates pre-V3 saved charts on owner access and routes serve that as a **read-only view** via `currentChart()` (single-flight, after the ownership check) — the DB row is NOT written unless `V3_PERSIST_LEGACY_UPGRADES=true`, and then only by compare-and-swap (`storage.persistLegacyUpgrade`) keeping `legacySnapshot` + `legacyColumns` for exact rollback (SQL in `docs/V3_IMPLEMENTATION_REPORT.md`). Charts without coordinates/valid time are `limited`, never guessed. AI context (horoscope, briefs, matching, follow-ups) uses `verifiedChart()` (V3 only); paid report orders return 409 before any debit for a non-V3 chart; reports for an approximate birth time omit Lagna/houses/dasha dates and carry `disclosure`.
-- **Feature gates** (`server/features.ts`, all default off): `FEATURE_AI_COUNCIL` (deep questions → council), `FEATURE_CHARA_DASHA` (Chara in pro AI), `V3_PERSIST_LEGACY_UPGRADES`. **Boot self-check** `astroEngine/selfCheck.ts` must pass before routes register (no approximate-astronomy fallback).
+- **Feature gates** (`server/features.ts`, all default off): `FEATURE_AI_COUNCIL` (deep questions → council), `FEATURE_CHARA_DASHA` (Chara in pro AI), `V3_PERSIST_LEGACY_UPGRADES`, `FEATURE_MARKETPLACE` (see below). **Boot self-check** `astroEngine/selfCheck.ts` must pass before routes register (no approximate-astronomy fallback).
 - `server/agents/*` — **Ask Your Kundli** (`askKundli.ts`): deterministic router → evidence packet → one explanation call (simple; also deep while `FEATURE_AI_COUNCIL` is off) or the council `runCouncil` (deep, fed only the packet) → **guard v2** (`answerGuard.ts`: sign/house/Lagna, yogas, doshas, running dasha, nakshatra, retrograde, dignity, combustion, years) → regenerate once → deterministic fallback (also used without `OPENAI_API_KEY`). Evidence items are `core` (decide verdicts) or `experimental` (shown, never counted); verdicts include `Insufficient evidence`. `astro-engine-rs/` — Rust service: only `/synastry` (koota scoring on canonical inputs) and `/remediation` are called; `/calculate` (heuristic Shadbala, mixed-frame vargas) and `/prashna` are **retired** — `callAstroEngine` stays fail-closed.
 - Services: `paymentService.ts`, `pushService.ts`, `agoraService.ts`, `emailService.ts`, `aiAstrologerService.ts`, `websocketService.ts`.
+
+- **Marketplace pause** (`FEATURE_MARKETPLACE` off by default; `server/marketplace.ts`). Consultations, chat, voice/video, scheduling, live, Pooja and Astromall are hidden and refused — the code and data stay for restoration; set `FEATURE_MARKETPLACE=true` to bring them back.
+  - Server: `marketplaceGate` (after `setupAuth`) answers `PAUSED_ROUTES` with 503 `{code:'marketplace_paused'}`; paths are matched case-insensitively without a trailing slash; reading history and ending an open session stay allowed. WebSocket `chat_message`/`astrologer_reply`/`start_billing`/`call_request`/`call_accepted` are refused and an astrologer connecting is not marked online. Every billing tick re-reads its consultation and stops without charging unless the marketplace is on and the consultation is still `active`; `start_billing` needs an `active` consultation.
+  - Boot (`runMigrations`, when off): `closeMarketplaceActivity()` — active consultations → `cancelled` (totals untouched; a later `/end` cannot bill or earn on them), astrologers set offline, a cut-short free first chat restored (`freeChatUsed=false`), live streams ended, pending/confirmed bookings and the waitlist cancelled, affected users notified. Paid Pooja bookings, store orders and **closed consultations with billed minutes but no earning/refund** are only reported: `GET /api/admin/marketplace/open-items`.
+  - Client: `useMarketplace()` (`lib/marketplace.ts`, from `/api/config` `marketplaceEnabled`); `App.tsx` wraps marketplace routes so they render `MarketplacePaused`; TopNav/BottomNav/Home/Landing/Wallet/Numerology hide marketplace entry points (BottomNav centre → Ask Your Kundli).
 
 ## Feature Inventory — these ALREADY EXIST. Do not rebuild; extend.
 
@@ -50,13 +55,13 @@ Search `server/routes.ts` + `client/src/pages` before building anything below.
   - Running periods anywhere in the UI (Home `RunningPeriodCard`, Active Influences, Ask) go through `selectRunningPeriods` (`lib/runningPeriods.ts`), which honours `insights.timing`. Birth-star gemstones are reconciled with the functional rules (`reconcileBirthStarRemedies`, applied at build and on read in `currentChart`).
   - Chart labels: `lib/chartLabels.ts` (℞, no degrees, keyboard-operable planets).
 - Astrologer list/detail, **follow/favourite** (heart), **waitlist** when offline (`/astrologers`, `/api/astrologers/:id/follow`, `/waitlist`).
-- Chat (WebSocket), voice/video calls (Agora, `/call/:id`), per-minute billing in `websocketService.ts`.
+- Chat (WebSocket), voice/video calls (Agora, `/call/:id`), per-minute billing in `websocketService.ts`. *(Paused with the marketplace.)*
 - Wallet + recharge: Razorpay, Snapmint (BNPL), LazyPay (`Wallet.tsx`, `paymentService.ts`).
 - **Offers/coupons** (`/api/coupons`, admin CRUD), **referrals** (`/api/referral`), **first-chat-free** (free minutes in billing loop).
-- **Astromall** store (`/store`), **paid reports** (`/reports`, async AI gen), **book a pooja** (`/pooja`) — all wallet checkout via `storage.debitWallet`.
+- **Astromall** store (`/store`), **paid reports** (`/reports`, async AI gen), **book a pooja** (`/pooja`) — all wallet checkout via `storage.debitWallet`. Store and Pooja are paused with the marketplace; reports stay live.
   - Report `content` (JSONB) embeds structured chart data (birthDetails, planetaryPositions, houses, dashaTimeline) alongside AI narrative; `generateReport` in `aiAstrologerService.ts` derives these from the kundli. Client renders the North Indian chart + tables and offers **Download PDF** (`client/src/lib/reportPdf.ts`, lazy `jspdf`).
   - **Complete Life Report** (premium ₹1499, category `life_complete`, seeded idempotently in `migrate.ts`): `generateLifeReport` runs ~11 parallel gpt-4o batches (every planet & house, yogas, doshas + live Saturn-transit Sade Sati, life domains, dasha life-map, remedies) → ~50 sections / 50+ pages. Order route dispatches on `category === 'life_complete'`. PDF adds a Contents page when sections > 12.
-- **Live streaming** viewer (`/live`, `/live/:id`) — chat (polling) + paid gifting.
+- **Live streaming** viewer (`/live`, `/live/:id`) — chat (polling) + paid gifting. *(Paused with the marketplace.)*
 - Reviews, scheduled calls, notifications (in-app + **FCM push** `pushService.ts`).
 
 **Astrologer** (`/astrologer/*`, session via `req.session.astrologerId`, `isAstrologerAuthenticated`)
@@ -94,7 +99,7 @@ users, astrologers, kundlis (`chartData.canonical` = CanonicalChart V3; `legacyS
 - Hand-edit `tests/golden/fixtures.json` or regenerate it from the engine under test.
 
 - Re-add the "Corporate/Boardroom" AI subsystem (removed: it wrote files + ran `git push` via shell = injection risk). No `child_process` git automation.
-- Break the per-minute billing loop in `websocketService.ts` or the first-chat-free skip.
+- Break the per-minute billing loop in `websocketService.ts` or the first-chat-free skip, or let it charge while `FEATURE_MARKETPLACE` is off.
 - Add a second copy of a route/page that already exists (check the Inventory first).
 - Change auth to Replit OIDC (docs once claimed this; it's wrong).
 
