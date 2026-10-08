@@ -180,3 +180,34 @@ export function checkGemstoneContraindications(
 
   return flags;
 }
+
+/** A planet that rules a dusthana (6/8/12) and no trikona (1/5/9): pacified, never strengthened with its gemstone. */
+export function isFunctionalMaleficLord(planet: string, houseLords: Array<{ house: number; lord: string }>): boolean {
+  const owned = houseLords.filter((h) => h.lord === planet).map((h) => h.house);
+  return owned.some((h) => [6, 8, 12].includes(h)) && !owned.some((h) => [1, 5, 9].includes(h));
+}
+
+type BirthStarRemedy = { title: string; description: string; type: string };
+const GEM_CAUTION = 'Consult an astrologer before wearing any gemstone.';
+
+/**
+ * The birth-star (Moon-nakshatra lord) remedy list, reconciled with the
+ * functional rules above: no gemstone for a planet that rules a dusthana
+ * without a trikona (those are pacified, never strengthened), none at all when
+ * the birth time is approximate (lordships are then unknown), and a caution on
+ * any gemstone that remains.
+ */
+export function reconcileBirthStarRemedies(
+  remedies: BirthStarRemedy[],
+  nakshatraLord: string,
+  houseLords: Array<{ house: number; lord: string }>,
+  approximate: boolean,
+): BirthStarRemedy[] {
+  const functionalMalefic = isFunctionalMaleficLord(nakshatraLord, houseLords);
+  return remedies.flatMap((r) => {
+    if (r.type !== 'gemstone') return [r];
+    if (approximate || functionalMalefic) return [];
+    if (r.description.includes(GEM_CAUTION)) return [r];
+    return [{ ...r, description: `${r.description} — birth-star gemstone for ${nakshatraLord}. ${GEM_CAUTION}` }];
+  });
+}

@@ -13,6 +13,8 @@ import { PlacesAutocomplete } from '@/components/PlacesAutocomplete';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest } from '@/lib/queryClient';
+import { isApiError } from '@/lib/apiError';
+import { BalanceShortfall } from '@/components/BalanceShortfall';
 import { downloadReportPdf, type ReportContent } from '@/lib/reportPdf';
 import { ArrowLeft, FileText, Sparkles, Clock, CheckCircle2, Download } from 'lucide-react';
 
@@ -47,9 +49,14 @@ export default function Reports() {
   const [birthCoords, setBirthCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [viewing, setViewing] = useState<ReportOrder | null>(null);
   const [downloading, setDownloading] = useState(false);
+  // Why the last order attempt failed, when the dialog can offer a way forward.
+  const [orderProblem, setOrderProblem] = useState<{ kind: 'balance' } | { kind: 'chart'; message: string } | null>(null);
+  const { data: wallet } = useQuery<{ balance: number | string }>({ queryKey: ['/api/wallet'] });
+  const walletBalance = wallet ? Number(wallet.balance) || 0 : null;
 
   const openOrder = (t: ReportType) => {
     setSelected(t);
+    setOrderProblem(null);
     setOrderMode(kundlis && kundlis.length > 0 ? 'saved' : 'details');
     setKundliId('');
     setBirth(emptyBirth);
@@ -108,7 +115,19 @@ export default function Reports() {
       queryClient.invalidateQueries({ queryKey: ['/api/reports/orders'] });
       setTab('mine');
     },
-    onError: (err: any) => toast({ title: 'Could not order', description: err?.message || 'Please try again', variant: 'destructive' }),
+    onError: (err: any) => {
+      // Payment and chart problems stay in the dialog with a way forward; the server decides (admins ride free).
+      if (isApiError(err) && err.status === 402) {
+        setOrderProblem({ kind: 'balance' });
+        queryClient.invalidateQueries({ queryKey: ['/api/wallet'] });
+        return;
+      }
+      if (isApiError(err) && err.status === 409) {
+        setOrderProblem({ kind: 'chart', message: err.message });
+        return;
+      }
+      toast({ title: 'Could not order', description: err?.message || 'Please try again', variant: 'destructive' });
+    },
   });
 
   if (isLoading) return <LoadingSpinner />;
@@ -194,7 +213,7 @@ export default function Reports() {
       </div>
 
       {/* Order dialog */}
-      <Dialog open={!!selected} onOpenChange={(o) => !o && setSelected(null)}>
+      <Dialog open={!!selected} onOpenChange={(o) => { if (!o) { setSelected(null); setOrderProblem(null); } }}>
         <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>{selected?.name}</DialogTitle></DialogHeader>
           <p className="text-sm text-muted-foreground">{selected?.description}</p>
@@ -226,7 +245,7 @@ export default function Reports() {
             <div className="space-y-2">
               <label className="text-sm font-medium">Select birth chart</label>
               {kundlis && kundlis.length > 0 ? (
-                <select className="w-full rounded-[10px] border border-border bg-background px-3 py-2 text-sm" value={kundliId} onChange={(e) => setKundliId(e.target.value)} data-testid="select-kundli">
+                <select className="w-full rounded-[10px] border border-border bg-background px-3 py-2 text-sm" value={kundliId} onChange={(e) => { setKundliId(e.target.value); setOrderProblem(null); }} data-testid="select-kundli">
                   <option value="">Most recent chart</option>
                   {kundlis.map((k) => <option key={k.id} value={k.id}>{k.name}</option>)}
                 </select>
@@ -273,6 +292,30 @@ export default function Reports() {
             </div>
           )}
 
+          {orderProblem?.kind === 'balance' && selected && (
+            <div className="space-y-2" data-testid="order-insufficient-balance">
+              <p className="text-sm font-medium text-foreground">Your wallet balance doesn't cover this report.</p>
+              {walletBalance !== null ? (
+                <BalanceShortfall balance={walletBalance} required={parseFloat(selected.price)} />
+              ) : (
+                <p className="text-sm text-muted-foreground" data-testid="order-balance-unavailable">
+                  Your wallet balance is temporarily unavailable. Open the wallet to check your balance.
+                </p>
+              )}
+              <Link href="/wallet">
+                <Button className="w-full rounded-[9px] bg-nava-navy text-primary hover:bg-nava-navy/90" data-testid="button-recharge-wallet">Recharge wallet</Button>
+              </Link>
+            </div>
+          )}
+          {orderProblem?.kind === 'chart' && (
+            <div className="rounded-[8px] border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-800" data-testid="order-chart-problem">
+              <p>{orderProblem.message}</p>
+              {(kundliId || kundlis?.[0]?.id) && (
+                <Link href={`/kundli/${kundliId || kundlis![0].id}`}><span className="mt-1 inline-block font-semibold underline">Open the chart to recreate it</span></Link>
+              )}
+            </div>
+          )}
+
           <Button
             className="w-full rounded-[9px] bg-primary text-primary-foreground hover:bg-primary/90"
             disabled={orderReport.isPending || (orderMode === 'saved' ? (!kundlis || kundlis.length === 0) : !birthValid)}
@@ -281,7 +324,9 @@ export default function Reports() {
           >
             {orderReport.isPending ? 'Generating…' : `Pay ₹${selected ? parseFloat(selected.price).toFixed(0) : ''} from Wallet`}
           </Button>
-          <p className="text-[11px] text-center text-muted-foreground">Paid from your wallet. <Link href="/wallet"><span className="font-medium text-[var(--primary-border)]">Recharge</span></Link> if needed.</p>
+          <p className="text-[11px] text-center text-muted-foreground" data-testid="order-wallet-balance">
+            Paid from your wallet{walletBalance !== null ? ` · balance ₹${walletBalance.toFixed(2)}` : ''}. <Link href="/wallet"><span className="font-medium text-[var(--primary-border)]">Recharge</span></Link> if needed.
+          </p>
         </DialogContent>
       </Dialog>
 

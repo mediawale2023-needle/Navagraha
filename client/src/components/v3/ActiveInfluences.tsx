@@ -3,9 +3,10 @@ import { Link } from 'wouter';
 import { ArrowRight } from 'lucide-react';
 import { ActiveInfluenceCard } from '@/components/ActiveInfluenceCard';
 import type { KundliInsights } from '@shared/v3/evidence';
+import { monthYear, selectRunningPeriods } from '@/lib/runningPeriods';
+import { isApiError } from '@/lib/apiError';
 
 const GLYPH: Record<string, string> = { Sun: '☉', Moon: '☽', Mars: '♂', Mercury: '☿', Jupiter: '♃', Venus: '♀', Saturn: '♄', Rahu: '☊', Ketu: '☋' };
-const monthYear = (iso: string) => new Date(iso).toLocaleDateString(undefined, { month: 'short', year: 'numeric' });
 
 type Transits = { sadeSati: { active: boolean; phase: string; note: string; saturnSign: string; untilApprox?: string } };
 
@@ -13,7 +14,7 @@ type Transits = { sadeSati: { active: boolean; phase: string; note: string; satu
 export function ActiveInfluences() {
   const { data: kundlis } = useQuery<Array<{ id: string; name: string }>>({ queryKey: ['/api/kundli'] });
   const latest = kundlis?.[0];
-  const { data: insights, isError } = useQuery<KundliInsights>({ queryKey: ['/api/kundli', latest?.id, 'insights'], enabled: !!latest });
+  const { data: insights, isError, error } = useQuery<KundliInsights>({ queryKey: ['/api/kundli', latest?.id, 'insights'], enabled: !!latest });
   const { data: transits } = useQuery<Transits>({ queryKey: ['/api/kundli', latest?.id, 'transits'], enabled: !!latest });
 
   if (!latest) {
@@ -21,6 +22,13 @@ export function ActiveInfluences() {
       <div className="rounded-[12px] border border-border bg-card p-4 text-sm text-muted-foreground">
         Create your Kundli to see the planetary periods actually running in your chart.
         <Link href="/kundli/new" className="ml-1 inline-flex items-center gap-1 font-semibold text-foreground">Create chart <ArrowRight className="h-3.5 w-3.5" /></Link>
+      </div>
+    );
+  }
+  if (isError && !(isApiError(error) && error.status === 409)) {
+    return (
+      <div className="rounded-[12px] border border-border bg-card p-4 text-sm text-muted-foreground" data-testid="active-influences-load-error">
+        Your current periods could not be loaded right now. Please try again shortly.
       </div>
     );
   }
@@ -35,10 +43,8 @@ export function ActiveInfluences() {
   if (!insights) return <div className="rounded-[12px] border border-border bg-card p-4 text-sm text-muted-foreground">Loading your current periods…</div>;
 
   // An approximate birth time can move the period boundaries: show only what is certain, without dates.
-  const timing = insights.timing ?? { mahadashaReliable: true, antardashaReliable: true, note: null };
-  const approximate = insights.headline.timeAccuracy === 'approximate';
-  const maha = timing.mahadashaReliable ? insights.timeline.find((p) => p.status === 'current') : undefined;
-  const antar = timing.antardashaReliable ? maha?.antardashas?.find((a) => a.status === 'current') : undefined;
+  const { maha, antar, showDates, note } = selectRunningPeriods(insights);
+  const approximate = !showDates;
   const link = `/kundli/${latest.id}`;
   return (
     <>
@@ -75,7 +81,7 @@ export function ActiveInfluences() {
           linkTo={link}
         />
       )}
-      {timing.note && <p className="text-[11px] text-amber-700" data-testid="active-influences-timing-note">{timing.note}</p>}
+      {note && <p className="text-[11px] text-amber-700" data-testid="active-influences-timing-note">{note}</p>}
       <p className="text-[11px] text-muted-foreground">From {latest.name}'s chart. Jyotish describes tendencies, not certainties.</p>
     </>
   );

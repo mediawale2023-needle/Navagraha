@@ -10,6 +10,8 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest } from '@/lib/queryClient';
+import { isApiError } from '@/lib/apiError';
+import { prefillFromSearch } from '@/lib/recreateChart';
 import { ArrowLeft, Calendar, Clock, User, Loader2, Sparkles, Check, HelpCircle, Info } from 'lucide-react';
 import { Link } from 'wouter';
 import { PlacesAutocomplete } from '@/components/PlacesAutocomplete';
@@ -39,8 +41,9 @@ export default function KundliNew() {
       name: '',
       dateOfBirth: '',
       timeOfBirth: '',
-      placeOfBirth: '',
       gender: 'male',
+      ...prefillFromSearch(typeof window === 'undefined' ? '' : window.location.search),
+      placeOfBirth: '',
     },
   });
 
@@ -68,6 +71,11 @@ export default function KundliNew() {
       }
     },
     onError: (error: Error) => {
+      if (isApiError(error) && error.field === 'placeOfBirth') {
+        setStep(3);
+        form.setError('placeOfBirth', { message: error.message });
+        return;
+      }
       toast({
         title: 'Error',
         description: error.message || 'Failed to generate kundli. Please try again.',

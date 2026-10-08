@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { isAstrologerAvailable } from '@/lib/astrologerPresence';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { Link } from 'wouter';
 import { Button } from '@/components/ui/button';
@@ -33,7 +34,9 @@ export default function Landing() {
   const [firstName, setFirstName] = useState('');
   const { toast } = useToast();
 
-  const onlineCount = astrologers?.filter((a: Astrologer) => a.availability === 'online').length ?? 0;
+  const onlineCount = astrologers?.filter(isAstrologerAvailable).length;
+  const { data: config } = useQuery<{ freeChatMinutes?: number }>({ queryKey: ['/api/config'] });
+  const freeChatMinutes = config?.freeChatMinutes;
   const featuredAstrologers = astrologers?.slice(0, 4) || [];
 
   const authMutation = useMutation({
@@ -146,8 +149,10 @@ export default function Landing() {
                 <Sparkles className="w-4 h-4 text-white/70" />
               </div>
               
-              <h3 className="font-display text-[var(--nava-navy)] text-2xl mb-2">First Consultation Free</h3>
-              <p className="text-[var(--nava-navy)]/80 text-sm font-medium mb-4">Connect with expert astrologers</p>
+              <h3 className="font-display text-[var(--nava-navy)] text-2xl mb-2">{freeChatMinutes ? 'Your first chat starts free' : 'Talk to an expert astrologer'}</h3>
+              <p className="text-[var(--nava-navy)]/80 text-sm font-medium mb-4" data-testid="landing-free-chat-terms">
+                {freeChatMinutes ? `The first ${freeChatMinutes} minutes of your first chat are free` : 'Verified astrologers, by chat or call'}
+              </p>
               
               <button className="rounded-[9px] bg-nava-navy px-6 py-2.5 font-bold text-primary transition-all hover:scale-105 shadow-md">
                 Talk to Astrologer
@@ -165,9 +170,9 @@ export default function Landing() {
               <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">Live</p>
               <div className="mt-2 flex items-center gap-2">
                 <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
-                <span className="text-xl font-bold text-foreground">{onlineCount || '24+'}</span>
+                {typeof onlineCount === 'number' && <span className="text-xl font-bold text-foreground" data-testid="landing-online-count">{onlineCount}</span>}
               </div>
-              <p className="mt-1 text-sm text-muted-foreground">Astrologers available right now</p>
+              <p className="mt-1 text-sm text-muted-foreground">{onlineCount === 1 ? 'Astrologer available right now' : 'Astrologers available right now'}</p>
             </div>
             <div
               className="yantra-card cursor-pointer border-primary/30 bg-primary/10 p-4 transition-colors hover:bg-primary/15"
@@ -178,7 +183,7 @@ export default function Landing() {
                 <p className="text-xs font-semibold uppercase tracking-[0.18em]">Bonus</p>
               </div>
               <p className="mt-2 font-display text-lg text-foreground">Up to 25% extra</p>
-              <p className="mt-1 text-sm text-muted-foreground">On your first wallet recharge</p>
+              <p className="mt-1 text-sm text-muted-foreground">On wallet recharge packs</p>
             </div>
           </motion.div>
           </div>

@@ -6,6 +6,7 @@ import { HeroBanner } from '@/components/HeroBanner';
 import { SectionHeader } from '@/components/SectionHeader';
 import { GreetingCard } from '@/components/GreetingCard';
 import { ActiveInfluences } from '@/components/v3/ActiveInfluences';
+import { RunningPeriodCard } from '@/components/v3/RunningPeriodCard';
 import { AstrologerCard } from '@/components/astrologer-card';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -42,6 +43,11 @@ export default function Home() {
   const { data: cmsContent } = useQuery<CmsHomepageContent>({
     queryKey: ['/api/homepage-content'],
   });
+
+  const { data: kundlis } = useQuery<Array<{ id: string; name: string }>>({
+    queryKey: ['/api/kundli'],
+  });
+  const latestChart = kundlis?.[0];
 
   const cmsBanner = cmsContent?.banners?.[0];
   const cmsServices = cmsContent?.services ?? [];
@@ -142,29 +148,7 @@ export default function Home() {
               href={cmsBanner?.href ?? undefined}
               className="h-full"
             />
-            <div className="yantra-card-dark p-5">
-              <p className="yantra-eyebrow text-primary/75">Today&apos;s dasha</p>
-              <h2 className="font-display mt-2 text-2xl text-primary">Mars</h2>
-              <p className="mt-2 text-sm text-muted-foreground">
-                Mahadasha in motion. Good for courage, work, and clear action. Avoid impulsive decisions.
-              </p>
-              <div className="mt-4 grid grid-cols-2 gap-3">
-                <button
-                  onClick={() => setLocation('/kundli/new')}
-                  className="rounded-[9px] bg-primary px-4 py-4 text-left text-primary-foreground transition-colors hover:opacity-90"
-                >
-                  <p className="font-display text-sm">Create chart</p>
-                  <p className="mt-1 text-xs text-primary-foreground/75">Get your kundli</p>
-                </button>
-                <button
-                  onClick={() => setLocation('/astrologers')}
-                  className="rounded-[9px] border border-primary/40 bg-transparent px-4 py-4 text-left transition-colors hover:bg-white/5"
-                >
-                  <p className="font-display text-sm text-primary">Talk live</p>
-                  <p className="mt-1 text-xs text-primary/70">Browse astrologers</p>
-                </button>
-              </div>
-            </div>
+            <RunningPeriodCard />
           </div>
         </div>
 
@@ -246,13 +230,15 @@ export default function Home() {
               <p className="yantra-eyebrow">Today&apos;s Guidance</p>
               <h3 className="font-display mt-2 text-xl text-foreground">Guidance from your own chart</h3>
               <p className="mt-3 text-sm text-muted-foreground">
-                Generate your kundli to unlock chart-specific guidance, stronger remedies, and better astrologer matching.
+                {latestChart
+                  ? `See the evidence behind each area of ${latestChart.name}'s chart, and ask about it.`
+                  : 'Generate your kundli to unlock chart-specific guidance, stronger remedies, and better astrologer matching.'}
               </p>
               <button
-                onClick={() => setLocation('/kundli/new')}
+                onClick={() => setLocation(latestChart ? `/kundli/${latestChart.id}` : '/kundli/new')}
                 className="mt-5 inline-flex items-center gap-2 rounded-[9px] bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground transition-colors hover:opacity-90"
               >
-                Create Your Chart
+                {latestChart ? 'Open Your Chart' : 'Create Your Chart'}
                 <ArrowRight className="w-4 h-4" />
               </button>
             </div>

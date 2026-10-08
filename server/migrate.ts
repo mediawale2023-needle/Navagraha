@@ -2,6 +2,7 @@ import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
 import { pool } from './db';
 import { storage } from './storage';
+import { FREE_CHAT_MINUTES } from './paymentService';
 
 const SCHEMA_SQL = `
 CREATE TABLE IF NOT EXISTS sessions (
@@ -579,11 +580,41 @@ WHERE NOT EXISTS (SELECT 1 FROM coupons LIMIT 1);
 `;
 
 
+/** Homepage free-chat banner; its minutes come from the same constant the billing loop uses. */
+export const FREE_CHAT_BANNER = {
+  title: 'Your first chat starts free',
+  subtitle: `The first ${FREE_CHAT_MINUTES} minutes of your first chat with an astrologer are free. After that, chat is billed per minute.`,
+  cta: 'Browse astrologers',
+} as const;
+
+/**
+ * Corrections to seeded homepage copy that made claims the product does not
+ * support. Each statement matches the original seed text exactly, so rows an
+ * admin has edited are never touched, and re-running changes nothing.
+ */
+export const HOMEPAGE_COPY_FIXES: Array<{ text: string; values: unknown[] }> = [
+  {
+    // A generic horoscope presented as "Today's Insight", above a "First chat free" eyebrow.
+    text: `UPDATE homepage_content SET title = $1, subtitle = $2, cta = $3, href = '/astrologers'
+           WHERE section = 'banner' AND title = 'Today''s Insight'
+             AND subtitle = 'Venus guides you toward love and creative flow. Open yourself to positive energy.'
+             AND cta = 'Read More'`,
+    values: [FREE_CHAT_BANNER.title, FREE_CHAT_BANNER.subtitle, FREE_CHAT_BANNER.cta],
+  },
+  {
+    // There is no premium plan.
+    text: `UPDATE homepage_content SET enabled = false
+           WHERE section = 'banner' AND title = 'Premium Plan'
+             AND subtitle = 'Get unlimited AI insights, priority booking, and exclusive content.'
+             AND cta = 'Upgrade Plan' AND enabled = true`,
+    values: [],
+  },
+];
+
 const SEED_HOMEPAGE_SQL = `
 INSERT INTO homepage_content (section, title, subtitle, icon, href, gradient, cta, sort_order, enabled)
 SELECT * FROM (VALUES
-  ('banner', 'Today''s Insight', 'Venus guides you toward love and creative flow. Open yourself to positive energy.', NULL, '/astrologers', 'bg-gradient-to-br from-[#8B2252] via-[#C0506A] to-[#D4847A]', 'Read More', 0, true),
-  ('banner', 'Premium Plan', 'Get unlimited AI insights, priority booking, and exclusive content.', NULL, '/wallet', 'bg-gradient-to-br from-[#8B2252] via-[#C0506A] to-[#D4847A]', 'Upgrade Plan', 1, true),
+  ('banner', '${FREE_CHAT_BANNER.title}', '${FREE_CHAT_BANNER.subtitle}', NULL, '/astrologers', 'bg-gradient-to-br from-[#8B2252] via-[#C0506A] to-[#D4847A]', '${FREE_CHAT_BANNER.cta}', 0, true),
   ('banner', 'Your Birth Chart', 'Discover your exact planetary positions and dashas for accurate predictions.', NULL, '/kundli/new', 'bg-gradient-to-br from-[#4A1A6B] via-[#6B3FA0] to-[#8B6CC1]', 'Generate', 2, true),
   ('service', 'Chat with Astrologer', NULL, 'MessageCircle', '/astrologers', 'from-pink-500/20 to-rose-500/10', NULL, 0, true),
   ('service', 'Talk to Astrologer', NULL, 'Phone', '/astrologers', 'from-amber-500/20 to-yellow-500/10', NULL, 1, true),
@@ -689,6 +720,7 @@ async function seedProAstrologer(): Promise<void> {
 export async function runMigrations(): Promise<void> {
   await pool.query(SCHEMA_SQL);
   await pool.query(SEED_HOMEPAGE_SQL);
+  for (const fix of HOMEPAGE_COPY_FIXES) await pool.query(fix.text, fix.values);
   await pool.query(SEED_COUPONS_SQL);
   await pool.query(SEED_STORE_SQL);
   await seedAdminUser();

@@ -7,6 +7,8 @@ interface HeroBannerProps {
   subtitle?: string;
   cta?: string;
   href?: string;
+  /** Optional small label above the title; omitted by default so it cannot contradict CMS copy. */
+  eyebrow?: string;
   className?: string;
 }
 
@@ -21,10 +23,11 @@ export function HeroBanner({
   subtitle = 'Discover what the stars have planned for you',
   cta = 'Generate Your Kundli',
   href = '/kundli/new',
+  eyebrow,
   className = '',
 }: HeroBannerProps) {
   return (
-    <Link href={href}>
+    <Link href={href} className="block rounded-[12px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--nava-navy)] focus-visible:ring-offset-2">
       <div
         className={`gradient-spiritual relative overflow-hidden rounded-[12px] border border-[var(--primary-border)] p-6 transition-all duration-200 hover:shadow-md ${className}`}
       >
@@ -40,15 +43,15 @@ export function HeroBanner({
           <circle cx="80" cy="80" r="3.8" fill="currentColor" />
         </svg>
         <div className="relative max-w-[70%] text-[var(--nava-navy)]">
-          <p className="yantra-eyebrow text-[var(--nava-navy)]/80">पहली चर्चा मुफ़्त · First chat free</p>
+          {eyebrow && <p className="yantra-eyebrow text-[var(--nava-navy)]/80">{eyebrow}</p>}
           <h2 className="font-display mt-2 text-[1.65rem] leading-[1.12] text-[var(--nava-navy)]">
             {title}
           </h2>
           <p className="mt-2 text-sm text-[var(--nava-navy)]/80">{subtitle}</p>
-          <span className="mt-4 inline-flex items-center gap-2 rounded-[9px] bg-[var(--nava-navy)] px-4 py-2 text-sm font-semibold text-primary-foreground">
-            <Sparkles className="h-4 w-4" />
+          <span className="mt-4 inline-flex items-center gap-2 rounded-[9px] bg-[var(--nava-navy)] px-4 py-2 text-sm font-semibold text-primary" data-testid="hero-banner-cta">
+            <Sparkles className="h-4 w-4" aria-hidden="true" />
             {cta}
-            <ArrowRight className="h-4 w-4" />
+            <ArrowRight className="h-4 w-4" aria-hidden="true" />
           </span>
         </div>
       </div>

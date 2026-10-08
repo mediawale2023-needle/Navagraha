@@ -1,4 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from "react";
+import type { KundliInsights } from '@shared/v3/evidence';
+import { selectRunningPeriods } from '@/lib/runningPeriods';
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link } from "wouter";
 import { Send, Sparkles, Stars, ChevronDown, BookOpen, Loader2, ArrowLeft, Plus, RotateCcw } from "lucide-react";
@@ -48,6 +50,8 @@ interface ChatMessage {
   content: string;
   id?: string;
   evidence?: EvidenceSummary | null;
+  /** Who wrote the answer: the language model (guarded against the chart) or the deterministic evidence summary. */
+  answerSource?: "llm" | "deterministic";
 }
 
 interface AiInterpretation {
@@ -180,6 +184,11 @@ export default function AIAstrologer() {
     queryKey: [`/api/kundli/${selectedKundliId}`],
     enabled: selectedKundliId !== "none" && selectedKundliId !== DETAILS_KEY,
   });
+  // Running periods come from the evidence engine, which withholds what an approximate birth time could move.
+  const { data: chartInsights } = useQuery<KundliInsights>({
+    queryKey: ['/api/kundli', selectedKundliId, 'insights'],
+    enabled: selectedKundliId !== "none" && selectedKundliId !== DETAILS_KEY,
+  });
 
   // Load previous messages from the persisted session on mount
   const { data: savedMessages } = useQuery<{ role: string; content: string }[]>({
@@ -231,7 +240,7 @@ export default function AIAstrologer() {
       if (data.questionsUsed !== undefined) setQuestionsUsed(data.questionsUsed);
       setMessages((prev) => [
         ...prev,
-        { role: "assistant", content: data.reply, id: crypto.randomUUID(), evidence: data.evidence ?? null },
+        { role: "assistant", content: data.reply, id: crypto.randomUUID(), evidence: data.evidence ?? null, answerSource: data.answerSource },
       ]);
     },
     onError: (err: any) => {
@@ -291,8 +300,10 @@ export default function AIAstrologer() {
   }
 
   const selectedKundli = kundlis.find((k) => k.id === selectedKundliId);
-  const currentMahadasha = fullKundli?.dashas?.find((d) => d.status === "current");
-  const currentAntardasha = currentMahadasha?.antardashas?.find((a) => a.status === "current");
+  const running = chartInsights ? selectRunningPeriods(chartInsights) : null;
+  const periodDates = (p: { start: string; end: string }) => running?.showDates ? `${p.start.slice(0, 7)} – ${p.end.slice(0, 7)}` : "";
+  const currentMahadasha = running?.maha ? { planet: running.maha.lord, period: periodDates(running.maha) } : undefined;
+  const currentAntardasha = running?.antar ? { planet: running.antar.lord, period: periodDates(running.antar) } : undefined;
 
   return (
     <div className="min-h-screen bg-background flex flex-col w-full max-w-7xl mx-auto">
@@ -308,7 +319,7 @@ export default function AIAstrologer() {
             <h1 className="font-bold text-lg text-foreground">Ask Your Kundli</h1>
             <div className="flex items-center gap-1.5">
               <Sparkles className="w-3 h-3 text-nava-amber" />
-              <span className="text-xs text-muted-foreground">Powered by AI</span>
+              <span className="text-xs text-muted-foreground">Answers checked against your chart</span>
               {freeRemaining !== null && freeRemaining > 0 && (
                 <Badge className="bg-emerald-500/10 text-emerald-600 border-0 text-[10px] ml-1">
                   {freeRemaining} free {freeRemaining === 1 ? 'question' : 'questions'} left
@@ -449,6 +460,9 @@ export default function AIAstrologer() {
         </Card>
 
         {/* Live Dasha Timeline — shown when a kundli with dasha data is selected */}
+        {!detailsMode && selectedKundliId !== "none" && running && !running.maha && running.note && (
+          <p className="mb-4 rounded-[10px] border border-border bg-card px-4 py-3 text-xs text-muted-foreground" data-testid="ask-periods-withheld">{running.note}</p>
+        )}
         {!detailsMode && selectedKundliId !== "none" && (currentMahadasha || currentAntardasha) && (
           <Card className="mb-4 bg-card border-border/50 shadow-sm">
             <CardContent className="p-4">
@@ -468,7 +482,7 @@ export default function AIAstrologer() {
                 {currentAntardasha && (
                   <div className="flex items-center justify-between bg-nava-magenta/5 border border-nava-magenta/20 rounded-xl px-4 py-2.5 ml-4">
                     <div>
-                      <span className="text-[10px] font-semibold text-nava-magenta uppercase tracking-wider">Antardasha · Pratidasha</span>
+                      <span className="text-[10px] font-semibold text-nava-magenta uppercase tracking-wider">Antardasha</span>
                       <p className="font-bold text-foreground text-sm">{currentAntardasha.planet}</p>
                     </div>
                     <span className="text-xs text-muted-foreground">{currentAntardasha.period}</span>
@@ -598,6 +612,11 @@ export default function AIAstrologer() {
                         {msg.content}
                       </ReactMarkdown>
                     </div>
+                    {msg.answerSource && (
+                      <p className="mt-2 text-[11px] font-medium text-muted-foreground" data-testid="answer-source">
+                        {msg.answerSource === "deterministic" ? "From your chart's evidence" : "AI explanation · checked against your chart"}
+                      </p>
+                    )}
                     {msg.evidence?.domains?.length ? (
                       <div className="mt-3 border-t border-border/50 pt-2 text-[11px] text-muted-foreground" data-testid="answer-evidence">
                         Based on your chart:{" "}

@@ -3,6 +3,7 @@ import { createServer } from "http";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import { runMigrations } from "./migrate";
+import { FREE_CHAT_MINUTES } from "./paymentService";
 import { waitForDatabase } from "./db";
 import { setupWebSocket } from "./websocketService";
 import { runAstronomySelfCheck } from "./astroEngine/selfCheck";
@@ -102,6 +103,7 @@ app.get("/api/config", (_req, res) => {
     razorpayKeyId: process.env.RAZORPAY_KEY_ID || "",
     agoraAppId: process.env.AGORA_APP_ID || "",
     posthogKey: process.env.POSTHOG_API_KEY || "",
+    freeChatMinutes: FREE_CHAT_MINUTES,
     firebase: {
       apiKey: process.env.FIREBASE_API_KEY || "",
       authDomain: process.env.FIREBASE_AUTH_DOMAIN || "",

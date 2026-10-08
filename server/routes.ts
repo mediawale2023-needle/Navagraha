@@ -37,7 +37,7 @@ import {
 } from "./astroEngine/index.js";
 import { computePrashna, PRASHNA_CATEGORIES } from "./astroEngine/prashna.js";
 import { CalculationError } from "./astroEngine/canonical/compute.js";
-import { upgradeLegacyKundli, chartVersionStatus } from "./astroEngine/canonical/upgrade.js";
+import { upgradeLegacyKundli, chartVersionStatus, listedChart, withReconciledRemedies } from "./astroEngine/canonical/upgrade.js";
 import { buildInsights } from "./astroEngine/evidence/insights.js";
 import { routeQuestion, buildEvidencePacket, answerSimple, answerWithoutChart, guardAnswer, packetSummary, limitedChartReply } from "./agents/askKundli.js";
 import { canonicalChartSchema, isCurrentCanonicalChart } from "@shared/v3/canonical";
@@ -232,7 +232,7 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
   const upgradesInFlight = new Map<string, Promise<Kundli>>();
   async function currentChart<T extends Kundli | null | undefined>(kundli: T): Promise<T> {
     if (!kundli?.id) return kundli;
-    if (isCurrentCanonicalChart((kundli.chartData as any)?.canonical)) return kundli;
+    if (isCurrentCanonicalChart((kundli.chartData as any)?.canonical)) return withReconciledRemedies(kundli) as T;
     const id = kundli.id;
     let pending = upgradesInFlight.get(id);
     if (!pending) {
@@ -284,7 +284,7 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
       // Never fabricate a location — a wrong Ascendant ruins every prediction.
       const coords = await resolveBirthCoords(req.body.latitude, req.body.longitude, req.body.placeOfBirth);
       if (!coords) {
-        return res.status(400).json({ message: "Please pick your exact birth place from the suggestions. An approximate location produces a wrong Ascendant and unreliable predictions." });
+        return res.status(400).json({ message: "Please pick your exact birth place from the suggestions. An approximate location produces a wrong Ascendant and unreliable predictions.", field: "placeOfBirth" });
       }
       const lat = coords.lat;
       const lon = coords.lng;
@@ -333,7 +333,9 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
       if (!req.user?.id && !req.session?.userId) return res.json([]);
       const userId = req.user?.id || req.session?.userId;
       const kundlis = await storage.getUserKundlis(userId);
-      res.json(kundlis);
+      // Recalculate pre-V3 rows as read-only views so the list never shows retired-engine placements.
+      const current = await Promise.all(kundlis.map((k) => currentChart(k)));
+      res.json(current.map((k) => listedChart(k)));
     } catch { res.status(500).json({ message: "Failed to fetch kundlis" }); }
   });
 
@@ -466,7 +468,12 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
 
       const c1 = await resolveBirthCoords(person1Lat, person1Lon, req.body.person1Place);
       const c2 = await resolveBirthCoords(person2Lat, person2Lon, req.body.person2Place);
-      if (!c1 || !c2) return res.status(400).json({ message: 'Valid coordinates or a resolvable birthplace are required for both people.' });
+      if (!c1 || !c2) {
+        return res.status(400).json({
+          message: 'Valid coordinates or a resolvable birthplace are required for both people.',
+          field: !c1 ? 'person1Place' : 'person2Place',
+        });
+      }
       const p1 = { dateOfBirth: person1Date, timeOfBirth: person1Time, latitude: c1.lat, longitude: c1.lng };
       const p2 = { dateOfBirth: person2Date, timeOfBirth: person2Time, latitude: c2.lat, longitude: c2.lng };
       const result = await getKundliMatching(p1, p2);

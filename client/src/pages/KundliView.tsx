@@ -9,7 +9,10 @@ import { LoadingSpinner } from '@/components/LoadingSpinner';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
 } from '@/components/ui/dialog';
-import { ArrowLeft, Calendar, Clock, MapPin, Download, ChevronDown, ChevronRight, Wallet, Sparkles, Info } from 'lucide-react';
+import { ArrowLeft, Calendar, Clock, MapPin, Download, ChevronDown, ChevronRight, Wallet, Sparkles, Info, ArrowRight } from 'lucide-react';
+import { recreateHref } from '@/lib/recreateChart';
+import { BalanceShortfall } from '@/components/BalanceShortfall';
+import { chartTabView, type ChartTabView } from '@/lib/approximateChart';
 import type { Kundli } from '@shared/schema';
 import { useAuth } from '@/hooks/useAuth';
 import { apiRequest } from '@/lib/queryClient';
@@ -91,7 +94,6 @@ function ConfirmModal({ open, balance, isFree, onConfirm, onCancel, loading }: {
 }
 
 function InsufficientModal({ open, balance, onClose, onRecharge }: { open: boolean; balance: number; onClose: () => void; onRecharge: () => void }) {
-  const shortfall = (PDF_PRICE - balance).toFixed(2);
   return (
     <Dialog open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
       <DialogContent className="max-w-sm">
@@ -104,20 +106,7 @@ function InsufficientModal({ open, balance, onClose, onRecharge }: { open: boole
             You don't have enough wallet balance to download this report.
           </DialogDescription>
         </DialogHeader>
-        <div className="rounded-lg bg-muted px-4 py-3 text-sm space-y-1">
-          <div className="flex justify-between">
-            <span className="text-muted-foreground">Your balance</span>
-            <span className="font-medium text-nava-burgundy">₹{balance.toFixed(2)}</span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-muted-foreground">Required</span>
-            <span className="font-medium">₹{PDF_PRICE}</span>
-          </div>
-          <div className="border-t border-border pt-1 flex justify-between">
-            <span className="text-muted-foreground">Add at least</span>
-            <span className="font-semibold">₹{shortfall}</span>
-          </div>
-        </div>
+        <BalanceShortfall balance={balance} required={PDF_PRICE} />
         <DialogFooter className="gap-2 sm:gap-0">
           <Button variant="outline" onClick={onClose}>Later</Button>
           <Button onClick={onRecharge} className="bg-nava-royal-purple hover:bg-nava-royal-purple/90">
@@ -262,6 +251,12 @@ export default function KundliView() {
   const dashas = (kundli.dashas as any[]) || [];
   const doshas = (kundli.doshas as any) || {};
   const remedies = (kundli.remedies as any[]) || [];
+  // A chart the V3 engine could not recalculate: its stored placements are unverified, so none are shown.
+  const limited = (kundli as any).chartStatus?.version === 'limited';
+  const requestedTab = typeof window === 'undefined' ? null : new URLSearchParams(window.location.search).get('tab');
+  const initialTab = requestedTab && ['overview', 'chart', 'insights', 'dashas', 'remedies'].includes(requestedTab) ? requestedTab : 'overview';
+  const chartView: ChartTabView = canonical ? chartTabView(canonical) : { mode: 'exact' };
+  const moonSignUncertain = chartView.mode === 'table';
 
   return (
     <div className="yantra-shell min-h-screen pb-20">
@@ -274,11 +269,13 @@ export default function KundliView() {
             </Button>
           </Link>
           <div className="flex items-center gap-2">
-            <Button variant="outline" onClick={handleDownloadPDF} disabled={pdfChecking || pdfConfirming} className="hidden rounded-[9px] border-border bg-card sm:flex">
-              <Download className="w-4 h-4 mr-2" />
-              {pdfChecking ? 'Checking…' : 'Download PDF'}
-            </Button>
-            <TrustBadge variant="calculated" />
+            {!limited && (
+              <Button variant="outline" onClick={handleDownloadPDF} disabled={pdfChecking || pdfConfirming} className="hidden rounded-[9px] border-border bg-card sm:flex">
+                <Download className="w-4 h-4 mr-2" />
+                {pdfChecking ? 'Checking…' : 'Download PDF'}
+              </Button>
+            )}
+            {!limited && <TrustBadge variant="calculated" />}
           </div>
         </div>
 
@@ -293,7 +290,9 @@ export default function KundliView() {
                   <div className="mb-2" data-testid="kundli-headline">
                     <p className="font-display text-lg text-foreground">
                       {canonical.birth.timeAccuracy === 'approximate' ? 'Lagna unknown' : `${canonical.ascendant.sign} Lagna`}
-                      {' · '}{canonical.planets.find((p) => p.name === 'Moon')?.sign} Moon
+                      {' · '}{canonical.birth.timeAccuracy === 'approximate' && !canonical.uncertainty.moonSignStableAcrossBirthDate
+                        ? 'Moon sign uncertain'
+                        : `${canonical.planets.find((p) => p.name === 'Moon')?.sign} Moon`}
                       {' · '}{canonical.planets.find((p) => p.name === 'Sun')?.sign} Sun
                     </p>
                     <p className="text-xs text-muted-foreground">Calculated using Swiss Ephemeris · {canonical.meta.ayanamsa} Ayanamsa · {canonical.birth.timezone} (UTC{canonical.birth.utcOffset})</p>
@@ -304,9 +303,16 @@ export default function KundliView() {
                     {(kundli as any).chartStatus.notes.map((n: string) => <p key={n}>{n}</p>)}
                   </div>
                 )}
-                {(kundli as any).chartStatus?.version === 'limited' && (
-                  <div className="mb-2 rounded-[8px] border border-amber-500/30 bg-amber-500/10 p-2.5 text-xs text-amber-800">
-                    {(kundli as any).chartStatus.notes[0]}
+                {limited && (
+                  <div className="mb-3 space-y-2 rounded-[8px] border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-800" data-testid="limited-chart-notice">
+                    <p>{(kundli as any).chartStatus.notes[0]}</p>
+                    <p>Its placements are hidden because they cannot be verified. This saved chart stays in your list unchanged.</p>
+                    <Link href={recreateHref(kundli as any)}>
+                      <Button size="sm" className="rounded-[9px] bg-primary text-primary-foreground hover:bg-primary/90" data-testid="button-recreate-chart">
+                        Recreate with birth place
+                        <ArrowRight className="w-4 h-4 ml-1" />
+                      </Button>
+                    </Link>
                   </div>
                 )}
                 {chartData?.isBirthTimeApproximate && (
@@ -327,20 +333,23 @@ export default function KundliView() {
                   </div>
                 </div>
               </div>
-              <div className="flex flex-wrap gap-2">
-                <Badge variant="secondary" className="bg-primary/15 text-[var(--primary-border)]">
-                  {kundli.zodiacSign || '—'}
-                </Badge>
-                <Badge variant="secondary" className="bg-nava-teal/10 text-nava-teal">
-                  Moon: {kundli.moonSign || '—'}
-                </Badge>
-              </div>
+              {!limited && (
+                <div className="flex flex-wrap gap-2">
+                  <Badge variant="secondary" className="bg-primary/15 text-[var(--primary-border)]">
+                    {kundli.zodiacSign || '—'}
+                  </Badge>
+                  <Badge variant="secondary" className="bg-nava-teal/10 text-nava-teal">
+                    Moon: {moonSignUncertain ? 'uncertain' : kundli.moonSign || '—'}
+                  </Badge>
+                </div>
+              )}
             </div>
           </CardHeader>
         </Card>
 
+        {!limited && (<>
         {/* Tabs */}
-        <Tabs defaultValue="overview" className="w-full mb-6">
+        <Tabs defaultValue={initialTab} className="w-full mb-6">
           <TabsList className="grid w-full grid-cols-5 bg-muted p-1">
             <TabsTrigger value="overview" className="rounded-[6px] data-[state=active]:bg-nava-navy data-[state=active]:text-primary">Overview</TabsTrigger>
             <TabsTrigger value="chart" className="rounded-[6px] data-[state=active]:bg-nava-navy data-[state=active]:text-primary">Chart</TabsTrigger>
@@ -380,11 +389,19 @@ export default function KundliView() {
                       </div>
                       <div className="flex justify-between">
                         <span className="text-muted-foreground">Moon Sign:</span>
-                        <span className="font-medium">{kundli.moonSign || '—'}</span>
+                        {moonSignUncertain ? (
+                          <span className="text-right text-muted-foreground">Uncertain — the Moon changed sign on this birth date</span>
+                        ) : (
+                          <span className="font-medium">{kundli.moonSign || '—'}</span>
+                        )}
                       </div>
                       <div className="flex justify-between">
                         <span className="text-muted-foreground">Ascendant (Lagna):</span>
-                        <span className="font-medium">{kundli.ascendant || '—'}</span>
+                        {canonical?.birth.timeAccuracy === 'approximate' ? (
+                          <span className="text-right text-muted-foreground" data-testid="overview-ascendant">Unknown — birth time approximate</span>
+                        ) : (
+                          <span className="font-medium" data-testid="overview-ascendant">{canonical?.ascendant.sign ?? '—'}</span>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -394,7 +411,7 @@ export default function KundliView() {
                       {chartData?.planetaryPositions?.filter((p: any) => p.planet !== 'Ascendant').slice(0, 5).map((p: any) => (
                         <div key={p.planet} className="flex justify-between">
                           <span className="text-muted-foreground">{p.planet}:</span>
-                          <span className="font-medium">{p.sign} {p.degree}°{p.isRetrograde ? ' (R)' : ''}</span>
+                          <span className="font-medium">{moonSignUncertain && p.planet === 'Moon' ? 'Uncertain' : `${p.sign} ${p.degree}°${p.isRetrograde ? ' (R)' : ''}`}</span>
                         </div>
                       ))}
                     </div>
@@ -409,7 +426,7 @@ export default function KundliView() {
             <Card className="card-clean">
               <CardHeader>
                 <div className="flex items-center justify-between flex-wrap gap-3">
-                  <CardTitle className="font-display">Birth Chart</CardTitle>
+                  <CardTitle className="font-display">{chartView.mode === 'chandra' ? 'Moon Chart (Chandra Lagna)' : chartView.mode === 'table' ? 'Planet Positions' : 'Birth Chart'}</CardTitle>
                   <div className="flex rounded-lg border border-border overflow-hidden">
                     <button onClick={() => setChartStyle('north')} className={`px-4 py-1.5 text-sm font-medium transition-colors ${chartStyle === 'north' ? 'bg-nava-navy text-primary' : 'bg-card hover:bg-muted'}`}>
                       North Indian
@@ -421,29 +438,51 @@ export default function KundliView() {
                 </div>
               </CardHeader>
               <CardContent>
-                <div className="flex flex-col items-center gap-4 p-4">
-                  {chartStyle === 'north' ? (
-                    <NorthIndianChartEnhanced chartData={chartData} onPlanetClick={handlePlanetClick} />
+                <div className="flex flex-col items-center gap-4 p-1 sm:p-4">
+                  {chartView.mode === 'table' ? (
+                    <div className="w-full" data-testid="approximate-planet-table">
+                      <p className="mb-3 text-xs text-muted-foreground">Birth time is approximate and the Moon changed sign on this birth date, so no house chart can be drawn. Only sign positions are shown.</p>
+                      <table className="w-full text-sm">
+                        <thead><tr className="text-left text-xs text-muted-foreground"><th className="py-1.5 font-medium">Planet</th><th className="py-1.5 font-medium">Sign</th><th className="py-1.5 font-medium text-right">Degree</th></tr></thead>
+                        <tbody>
+                          {chartView.rows.map((r) => (
+                            <tr key={r.planet} className="border-t border-border/50">
+                              <td className="py-1.5">{r.planet}{r.retrograde && r.planet !== 'Rahu' && r.planet !== 'Ketu' ? ' ℞' : ''}</td>
+                              <td className="py-1.5">{r.signUncertain ? `${r.sign} at the entered time · may differ` : r.sign}</td>
+                              <td className="py-1.5 text-right tabular-nums">{r.signUncertain ? '—' : `${r.degree.toFixed(2)}°`}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : chartStyle === 'north' ? (
+                    <NorthIndianChartEnhanced chartData={chartView.mode === 'chandra' ? chartView.chartData : chartData} onPlanetClick={handlePlanetClick} />
                   ) : (
                     <div className="text-center text-muted-foreground">South Indian chart coming soon</div>
                   )}
-                  <p className="text-xs text-muted-foreground text-center">Tap any planet for detailed insights</p>
+                  {chartView.mode === 'chandra' && (
+                    <p className="text-xs text-muted-foreground text-center" data-testid="chandra-lagna-note">Birth time is approximate, so houses are counted from the Moon ({chartView.moonSign}), not from the Lagna.</p>
+                  )}
+                  {chartView.mode !== 'table' && <p className="text-xs text-muted-foreground text-center">Tap any planet for detailed insights</p>}
+                  {chartView.mode !== 'exact' && (
+                    <p className="w-full border-t border-border/40 pt-4 text-xs text-muted-foreground text-center" data-testid="vargas-withheld">Divisional charts (D9, D10, D60), yogas and house bindus depend on the exact Lagna, so they are not shown for an approximate birth time.</p>
+                  )}
 
-                  {chartData?.navamsa?.planetaryPositions && (
+                  {chartView.mode === 'exact' && chartData?.navamsa?.planetaryPositions && (
                     <div className="w-full pt-4 mt-2 border-t border-border/40">
                       <h3 className="text-sm font-semibold text-nava-royal-purple text-center mb-1">Navamsa (D9)</h3>
                       <p className="text-xs text-muted-foreground text-center mb-3">Marriage, dharma & true planetary strength</p>
                       <NorthIndianChartEnhanced chartData={chartData.navamsa} />
                     </div>
                   )}
-                  {chartData?.dasamsa?.planetaryPositions && (
+                  {chartView.mode === 'exact' && chartData?.dasamsa?.planetaryPositions && (
                     <div className="w-full pt-4 mt-2 border-t border-border/40">
                       <h3 className="text-sm font-semibold text-nava-royal-purple text-center mb-1">Dasamsa (D10)</h3>
                       <p className="text-xs text-muted-foreground text-center mb-3">Career & profession</p>
                       <NorthIndianChartEnhanced chartData={chartData.dasamsa} />
                     </div>
                   )}
-                  {chartData?.shashtiamsa?.planetaryPositions && (
+                  {chartView.mode === 'exact' && chartData?.shashtiamsa?.planetaryPositions && (
                     <div className="w-full pt-4 mt-2 border-t border-border/40">
                       <h3 className="text-sm font-semibold text-nava-royal-purple text-center mb-1">Shashtiamsa (D60)</h3>
                       <p className="text-xs text-muted-foreground text-center mb-3">Past-life karma — accurate only with an exact birth time</p>
@@ -454,7 +493,7 @@ export default function KundliView() {
               </CardContent>
             </Card>
 
-            {chartData?.ashtakavarga?.savByHouse && (
+            {chartView.mode === 'exact' && chartData?.ashtakavarga?.savByHouse && (
               <Card className="mt-4">
                 <CardHeader>
                   <CardTitle className="text-base">Ashtakavarga</CardTitle>
@@ -529,7 +568,7 @@ export default function KundliView() {
               </Card>
             )}
 
-            {chartData?.yogas?.length > 0 && (
+            {chartView.mode === 'exact' && chartData?.yogas?.length > 0 && (
               <Card className="mt-4">
                 <CardHeader>
                   <CardTitle className="text-base">Yogas</CardTitle>
@@ -782,6 +821,7 @@ export default function KundliView() {
             </Link>
           </CardContent>
         </Card>
+        </>)}
       </div>
 
       {/* PDF Payment Modals */}
