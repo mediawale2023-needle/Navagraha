@@ -30,3 +30,19 @@ Checks that need something the environment lacks are reported as `SKIP` with the
 reason (for example F13 without `DATABASE_URL`, or F08b when a Google key lets the
 server geocode the typed place). It creates test users and charts, so point it at a
 local or staging database, never production.
+
+## Birth-place field — `birthplace.mjs`
+
+Drives Generate Kundli → Location at both viewports with Google Maps replaced by a
+deterministic Places API (New) double (coordinates recorded from the live API), so it
+needs no key or network access to Google. Checks continuous typing keeps focus and
+every character (BP1), mouse/touch selection sends the exact coordinates and the
+server resolves the time zone (BP2), keyboard selection (BP3), editing after a pick
+drops the coordinates (BP4), empty results (BP5), a search API error (BP6), a Maps
+script that fails to load (BP7) and that the icons do not overlap the text (BP8).
+
+```bash
+BASE_URL=http://127.0.0.1:5000 OUT_DIR=./out node birthplace.mjs
+```
+
+It accepts `CHROMIUM_PATH` and `FORWARDED_PROTO` as above and creates guest charts only.
