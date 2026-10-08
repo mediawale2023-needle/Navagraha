@@ -37,7 +37,7 @@ import {
 } from "./astroEngine/index.js";
 import { computePrashna, PRASHNA_CATEGORIES } from "./astroEngine/prashna.js";
 import { CalculationError } from "./astroEngine/canonical/compute.js";
-import { upgradeLegacyKundli, chartVersionStatus } from "./astroEngine/canonical/upgrade.js";
+import { upgradeLegacyKundli, chartVersionStatus, listedChart } from "./astroEngine/canonical/upgrade.js";
 import { buildInsights } from "./astroEngine/evidence/insights.js";
 import { routeQuestion, buildEvidencePacket, answerSimple, answerWithoutChart, guardAnswer, packetSummary, limitedChartReply } from "./agents/askKundli.js";
 import { canonicalChartSchema, isCurrentCanonicalChart } from "@shared/v3/canonical";
@@ -333,7 +333,9 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
       if (!req.user?.id && !req.session?.userId) return res.json([]);
       const userId = req.user?.id || req.session?.userId;
       const kundlis = await storage.getUserKundlis(userId);
-      res.json(kundlis);
+      // Recalculate pre-V3 rows as read-only views so the list never shows retired-engine placements.
+      const current = await Promise.all(kundlis.map((k) => currentChart(k)));
+      res.json(current.map((k) => listedChart(k)));
     } catch { res.status(500).json({ message: "Failed to fetch kundlis" }); }
   });
 

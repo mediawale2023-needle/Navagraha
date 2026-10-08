@@ -9,7 +9,8 @@ import { LoadingSpinner } from '@/components/LoadingSpinner';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
 } from '@/components/ui/dialog';
-import { ArrowLeft, Calendar, Clock, MapPin, Download, ChevronDown, ChevronRight, Wallet, Sparkles, Info } from 'lucide-react';
+import { ArrowLeft, Calendar, Clock, MapPin, Download, ChevronDown, ChevronRight, Wallet, Sparkles, Info, ArrowRight } from 'lucide-react';
+import { recreateHref } from '@/lib/recreateChart';
 import type { Kundli } from '@shared/schema';
 import { useAuth } from '@/hooks/useAuth';
 import { apiRequest } from '@/lib/queryClient';
@@ -262,6 +263,8 @@ export default function KundliView() {
   const dashas = (kundli.dashas as any[]) || [];
   const doshas = (kundli.doshas as any) || {};
   const remedies = (kundli.remedies as any[]) || [];
+  // A chart the V3 engine could not recalculate: its stored placements are unverified, so none are shown.
+  const limited = (kundli as any).chartStatus?.version === 'limited';
 
   return (
     <div className="yantra-shell min-h-screen pb-20">
@@ -274,11 +277,13 @@ export default function KundliView() {
             </Button>
           </Link>
           <div className="flex items-center gap-2">
-            <Button variant="outline" onClick={handleDownloadPDF} disabled={pdfChecking || pdfConfirming} className="hidden rounded-[9px] border-border bg-card sm:flex">
-              <Download className="w-4 h-4 mr-2" />
-              {pdfChecking ? 'Checking…' : 'Download PDF'}
-            </Button>
-            <TrustBadge variant="calculated" />
+            {!limited && (
+              <Button variant="outline" onClick={handleDownloadPDF} disabled={pdfChecking || pdfConfirming} className="hidden rounded-[9px] border-border bg-card sm:flex">
+                <Download className="w-4 h-4 mr-2" />
+                {pdfChecking ? 'Checking…' : 'Download PDF'}
+              </Button>
+            )}
+            {!limited && <TrustBadge variant="calculated" />}
           </div>
         </div>
 
@@ -304,9 +309,16 @@ export default function KundliView() {
                     {(kundli as any).chartStatus.notes.map((n: string) => <p key={n}>{n}</p>)}
                   </div>
                 )}
-                {(kundli as any).chartStatus?.version === 'limited' && (
-                  <div className="mb-2 rounded-[8px] border border-amber-500/30 bg-amber-500/10 p-2.5 text-xs text-amber-800">
-                    {(kundli as any).chartStatus.notes[0]}
+                {limited && (
+                  <div className="mb-3 space-y-2 rounded-[8px] border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-800" data-testid="limited-chart-notice">
+                    <p>{(kundli as any).chartStatus.notes[0]}</p>
+                    <p>Its placements are hidden because they cannot be verified. This saved chart stays in your list unchanged.</p>
+                    <Link href={recreateHref(kundli as any)}>
+                      <Button size="sm" className="rounded-[9px] bg-primary text-primary-foreground hover:bg-primary/90" data-testid="button-recreate-chart">
+                        Recreate with birth place
+                        <ArrowRight className="w-4 h-4 ml-1" />
+                      </Button>
+                    </Link>
                   </div>
                 )}
                 {chartData?.isBirthTimeApproximate && (
@@ -327,18 +339,21 @@ export default function KundliView() {
                   </div>
                 </div>
               </div>
-              <div className="flex flex-wrap gap-2">
-                <Badge variant="secondary" className="bg-primary/15 text-[var(--primary-border)]">
-                  {kundli.zodiacSign || '—'}
-                </Badge>
-                <Badge variant="secondary" className="bg-nava-teal/10 text-nava-teal">
-                  Moon: {kundli.moonSign || '—'}
-                </Badge>
-              </div>
+              {!limited && (
+                <div className="flex flex-wrap gap-2">
+                  <Badge variant="secondary" className="bg-primary/15 text-[var(--primary-border)]">
+                    {kundli.zodiacSign || '—'}
+                  </Badge>
+                  <Badge variant="secondary" className="bg-nava-teal/10 text-nava-teal">
+                    Moon: {kundli.moonSign || '—'}
+                  </Badge>
+                </div>
+              )}
             </div>
           </CardHeader>
         </Card>
 
+        {!limited && (<>
         {/* Tabs */}
         <Tabs defaultValue="overview" className="w-full mb-6">
           <TabsList className="grid w-full grid-cols-5 bg-muted p-1">
@@ -384,7 +399,11 @@ export default function KundliView() {
                       </div>
                       <div className="flex justify-between">
                         <span className="text-muted-foreground">Ascendant (Lagna):</span>
-                        <span className="font-medium">{kundli.ascendant || '—'}</span>
+                        {canonical?.birth.timeAccuracy === 'approximate' ? (
+                          <span className="text-right text-muted-foreground" data-testid="overview-ascendant">Unknown — birth time approximate</span>
+                        ) : (
+                          <span className="font-medium" data-testid="overview-ascendant">{canonical?.ascendant.sign ?? '—'}</span>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -782,6 +801,7 @@ export default function KundliView() {
             </Link>
           </CardContent>
         </Card>
+        </>)}
       </div>
 
       {/* PDF Payment Modals */}

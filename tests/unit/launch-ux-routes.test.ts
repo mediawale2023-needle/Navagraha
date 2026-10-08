@@ -98,3 +98,30 @@ describe('error responses name the field at fault', () => {
     expect(res.body.message).toMatch(/insufficient wallet balance/i);
   });
 });
+
+describe('GET /api/kundli lists only placements the V3 engine vouches for', () => {
+  it('hides the Ascendant of an approximate-time chart', async () => {
+    const approx = { ...saved, id: 'approx', ascendant: 'Leo', chartData: { ...(saved.chartData as any), isBirthTimeApproximate: true } };
+    mocks.storage.getUserKundlis.mockResolvedValue([saved, approx]);
+    const res = await request(app).get('/api/kundli').set('x-user', 'owner');
+    expect(res.status).toBe(200);
+    const [exact, rough] = res.body;
+    expect(exact).toMatchObject({ id: 'chart', ascendant: 'Leo', timeAccuracy: 'exact', listStatus: 'v3' });
+    expect(rough).toMatchObject({ id: 'approx', ascendant: null, timeAccuracy: 'approximate', zodiacSign: 'Cancer', moonSign: 'Taurus' });
+  });
+
+  it('recalculates a legacy chart with coordinates and hides a legacy chart without them', async () => {
+    const legacyBase = { userId: 'owner', name: 'Old', gender: 'female', dateOfBirth: '1990-08-15', timeOfBirth: '06:30', placeOfBirth: 'Bengaluru',
+      zodiacSign: 'Pisces', moonSign: 'Leo', ascendant: 'Gemini', dashas: [], doshas: {}, remedies: [], chartData: { planetaryPositions: [], houses: [] } };
+    mocks.storage.getUserKundlis.mockResolvedValue([
+      { ...legacyBase, id: 'legacy-coords', latitude: '12.9716000', longitude: '77.5946000' },
+      { ...legacyBase, id: 'legacy-none', latitude: null, longitude: null },
+    ]);
+    const res = await request(app).get('/api/kundli').set('x-user', 'owner');
+    const [withCoords, without] = res.body;
+    expect(withCoords).toMatchObject({ id: 'legacy-coords', listStatus: 'recalculated', zodiacSign: 'Cancer', moonSign: 'Taurus', ascendant: 'Leo' });
+    expect(without).toMatchObject({ id: 'legacy-none', listStatus: 'limited', zodiacSign: null, moonSign: null, ascendant: null });
+    // Read-only view: nothing is written back.
+    expect(mocks.storage.createKundli).not.toHaveBeenCalled();
+  });
+});

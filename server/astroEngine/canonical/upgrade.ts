@@ -97,3 +97,26 @@ export async function upgradeLegacyKundli(kundli: Kundli, now = new Date()): Pro
     throw err;
   }
 }
+
+export type ListedChartStatus = 'v3' | 'recalculated' | 'limited';
+
+/**
+ * The chart-list view of a (possibly recalculated) chart: placements are shown
+ * only when the V3 engine vouches for them. A limited chart's stored signs come
+ * from the retired engine, and an approximate birth time leaves the Ascendant unknown.
+ */
+export function listedChart<T extends Pick<Kundli, 'chartData' | 'zodiacSign' | 'moonSign' | 'ascendant'>>(kundli: T) {
+  const cd = (kundli.chartData ?? {}) as Record<string, any>;
+  const status = chartVersionStatus(kundli);
+  const listed: ListedChartStatus = status.version === 'limited' ? 'limited' : status.version === 'v3' ? 'v3' : 'recalculated';
+  const approximate = cd.isBirthTimeApproximate === true || cd.canonical?.birth?.timeAccuracy === 'approximate';
+  if (listed === 'limited') {
+    return { ...kundli, zodiacSign: null, moonSign: null, ascendant: null, timeAccuracy: approximate ? 'approximate' as const : 'exact' as const, listStatus: listed };
+  }
+  return {
+    ...kundli,
+    ascendant: approximate ? null : kundli.ascendant,
+    timeAccuracy: approximate ? 'approximate' as const : 'exact' as const,
+    listStatus: listed,
+  };
+}

@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest } from '@/lib/queryClient';
 import { isApiError } from '@/lib/apiError';
+import { prefillFromSearch } from '@/lib/recreateChart';
 import { ArrowLeft, Calendar, Clock, User, Loader2, Sparkles, Check, HelpCircle, Info } from 'lucide-react';
 import { Link } from 'wouter';
 import { PlacesAutocomplete } from '@/components/PlacesAutocomplete';
@@ -40,8 +41,9 @@ export default function KundliNew() {
       name: '',
       dateOfBirth: '',
       timeOfBirth: '',
-      placeOfBirth: '',
       gender: 'male',
+      ...prefillFromSearch(typeof window === 'undefined' ? '' : window.location.search),
+      placeOfBirth: '',
     },
   });
 
