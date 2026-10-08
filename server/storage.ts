@@ -102,6 +102,7 @@ export interface IStorage {
   createKundli(kundli: InsertKundli): Promise<Kundli>;
   getUserKundlis(userId: string): Promise<Kundli[]>;
   getKundliById(id: string): Promise<Kundli | undefined>;
+  persistLegacyUpgrade(id: string, expectedChartData: unknown, data: Pick<Kundli, 'zodiacSign' | 'moonSign' | 'ascendant' | 'chartData' | 'dashas' | 'doshas' | 'remedies'>): Promise<Kundli | undefined>;
 
   // Astrologer operations
   createAstrologer(astrologer: InsertAstrologer): Promise<Astrologer>;
@@ -233,6 +234,15 @@ export class DatabaseStorage implements IStorage {
 
   async getKundliById(id: string): Promise<Kundli | undefined> {
     const [kundli] = await db.select().from(kundlis).where(eq(kundlis.id, id));
+    return kundli;
+  }
+
+  // Compare-and-swap: writes only if the stored chartData is still exactly what the upgrade was
+  // computed from, so a concurrent writer (another instance, a retry) can never be overwritten.
+  async persistLegacyUpgrade(id: string, expectedChartData: unknown, data: Pick<Kundli, 'zodiacSign' | 'moonSign' | 'ascendant' | 'chartData' | 'dashas' | 'doshas' | 'remedies'>): Promise<Kundli | undefined> {
+    const [kundli] = await db.update(kundlis).set(data)
+      .where(and(eq(kundlis.id, id), sql`${kundlis.chartData} = ${JSON.stringify(expectedChartData ?? null)}::jsonb`))
+      .returning();
     return kundli;
   }
 

@@ -2,7 +2,7 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vite
 import express, { type Express } from 'express';
 import request from 'supertest';
 import { getKundli } from '../../server/astroEngine';
-import { buildRustChartRequest } from '../../server/rustChartAdapter';
+import { isCurrentCanonicalChart } from '../../shared/v3/canonical';
 
 const mocks = vi.hoisted(() => ({
   storage: {
@@ -12,7 +12,7 @@ const mocks = vi.hoisted(() => ({
     saveAiChatMessage: vi.fn(), getUserMemories: vi.fn(), getPredictionFeedbacksByUser: vi.fn(), getPatternStatistics: vi.fn(),
   },
   runCouncil: vi.fn(), interpretKundli: vi.fn(), generateReport: vi.fn(), extractMemories: vi.fn(),
-  callSynastryEngine: vi.fn(), callPrashnaEngine: vi.fn(),
+  callSynastryEngine: vi.fn(),
 }));
 vi.mock('../../server/storage', () => ({ storage: mocks.storage }));
 vi.mock('../../server/db', () => ({ db: {} }));
@@ -29,7 +29,7 @@ vi.mock('../../server/aiAstrologerService', () => ({
 }));
 vi.mock('../../server/pushService', () => ({ sendPushToUser: vi.fn(), sendPushToAstrologer: vi.fn() }));
 vi.mock('../../server/astroEngineClient', () => ({
-  callSynastryEngine: mocks.callSynastryEngine, callPrashnaEngine: mocks.callPrashnaEngine, callRemediationEngine: vi.fn(),
+  callSynastryEngine: mocks.callSynastryEngine, callRemediationEngine: vi.fn(),
 }));
 import { registerRoutes } from '../../server/routes';
 
@@ -68,7 +68,6 @@ beforeEach(() => {
   mocks.generateReport.mockResolvedValue('Report');
   mocks.extractMemories.mockResolvedValue([]);
   mocks.callSynastryEngine.mockResolvedValue({ total_score: 20 });
-  mocks.callPrashnaEngine.mockResolvedValue({ answer_indicator: 'test' });
 });
 afterEach(() => { vi.unstubAllEnvs(); vi.unstubAllGlobals(); });
 
@@ -112,11 +111,12 @@ describe('P0 route regressions', () => {
     expect(mocks.runCouncil).not.toHaveBeenCalled();
     expect(mocks.storage.getUserKundlis).not.toHaveBeenCalled();
   });
-  it('passes the adapted actual chart and a planetary array to the council', async () => {
-    await request(app).post('/api/ai/chat').set('x-user', 'owner').send({ message: 'Career', kundliId: 'chart' });
+  it('passes the actual chart and a planetary array to the council (deep questions)', async () => {
+    vi.stubEnv('FEATURE_AI_COUNCIL', 'true'); // the council is gated off by default; this exercises the gated path
+    await request(app).post('/api/ai/chat').set('x-user', 'owner').send({ message: 'Career', kundliId: 'chart', depth: 'deep' });
     expect(mocks.runCouncil).toHaveBeenCalledWith(expect.objectContaining({
-      rustChartInput: buildRustChartRequest(saved),
       chartData: expect.objectContaining({ planets: saved.chartData.planetaryPositions }),
+      evidencePacket: expect.stringContaining(`Lagna: ${saved.chartData.canonical.ascendant.sign}`),
     }));
   });
   const birth = { name: 'Guest', gender: 'male', dateOfBirth: '1990-08-15', timeOfBirth: '06:00', placeOfBirth: 'Bengaluru', latitude: 12.9716, longitude: 77.5946, isBirthTimeApproximate: true };
@@ -124,7 +124,8 @@ describe('P0 route regressions', () => {
     const res = await request(app).post('/api/kundli').send(birth);
     expect(res.status).toBe(200);
     expect(res.body).toMatchObject({ id: null, saved: false, chartData: { isBirthTimeApproximate: true } });
-    expect(buildRustChartRequest(res.body).available).toBe(true);
+    expect(isCurrentCanonicalChart(res.body.chartData.canonical)).toBe(true);
+    expect(res.body.chartData.canonical.birth.timeAccuracy).toBe('approximate');
     expect(mocks.storage.createKundli).not.toHaveBeenCalled();
     expect((await request(app).get('/api/kundli')).body).toEqual([]);
   });
@@ -145,8 +146,8 @@ describe('P0 route regressions', () => {
     const loaded = await request(app).get('/api/kundli/created').set('x-user', 'owner');
     expect(loaded.status).toBe(200);
     expect(loaded.body.chartData.isBirthTimeApproximate).toBe(true);
-    expect(loaded.body.chartData.calculationInputs).toEqual(created.body.chartData.calculationInputs);
-    expect(buildRustChartRequest(loaded.body)).toEqual(buildRustChartRequest(created.body));
+    expect(loaded.body.chartData.canonical).toEqual(created.body.chartData.canonical);
+    expect(isCurrentCanonicalChart(loaded.body.chartData.canonical)).toBe(true);
   });
   it.each(['/api/kundli', '/api/ai/chat', '/api/reports/order'])('%s stops after failed birth-place resolution', async path => {
     const body = { ...birth, latitude: undefined, longitude: undefined };
@@ -185,8 +186,8 @@ describe('P0 route regressions', () => {
   });
   it('Prashna refuses missing coordinates and accepts genuine zero coordinates', async () => {
     expect((await request(app).post('/api/prashna').send({ question_category: 'career' })).status).toBe(400);
-    expect(mocks.callPrashnaEngine).not.toHaveBeenCalled();
-    expect((await request(app).post('/api/prashna').send({ question_category: 'career', latitude: 0, longitude: 0 })).status).toBe(200);
-    expect(mocks.callPrashnaEngine).toHaveBeenCalledWith(expect.objectContaining({ latitude: 0, longitude: 0 }));
+    const res = await request(app).post('/api/prashna').send({ question_category: 'career', latitude: 0, longitude: 0 });
+    expect(res.status).toBe(200);
+    expect(res.body.panchang.hora_lord).toMatch(/^(Sun|Moon|Mars|Mercury|Jupiter|Venus|Saturn)$/);
   });
 });

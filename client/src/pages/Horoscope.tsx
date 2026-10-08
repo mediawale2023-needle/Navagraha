@@ -11,6 +11,7 @@ import { useAuth } from "@/hooks/useAuth";
 
 interface PersonalDailyData {
   hasChart: boolean;
+  limitedReason?: string;
   date?: string;
   person?: string;
   content?: {
@@ -53,7 +54,7 @@ function PersonalDaily() {
         <CardContent className="p-5 flex items-center justify-between gap-3">
           <div>
             <p className="font-semibold text-foreground">Get your personalised daily horoscope</p>
-            <p className="text-sm text-muted-foreground">Generate your birth chart to unlock guidance tailored to you.</p>
+            <p className="text-sm text-muted-foreground">{data.limitedReason ?? 'Generate your birth chart to unlock guidance tailored to you.'}</p>
           </div>
           <Link href="/kundli/new">
             <Button className="shrink-0 rounded-[9px] bg-primary text-primary-foreground hover:bg-primary/90">Create Kundli</Button>

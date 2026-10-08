@@ -4,20 +4,16 @@
  * All calculations are performed locally with zero external dependencies.
  */
 
-import { julianDay, toSidereal, lahiriAyanamsa } from './core.js';
-import { allPlanetPositions, ascendant }          from './planets.js';
-import {
-  SIGNS, signFromLon, degreeInSign, nakshatraFromLon, houseFromLon, signOfHouse, getRemedies,
-  navamsaSign, navamsaDegree, dasamsaSign, shashtiamsaSign,
-} from './vedic.js';
-import { calculateDashas, calculateYoginiDasha } from './dasha.js';
-import { computeAshtakavarga } from './ashtakavarga.js';
-import { computeDignities } from './dignity.js';
-import { computeBhava } from './bhava.js';
-import { detectYogas } from './yogas.js';
-import { computeRemedies } from './remedies.js';
-import { hasMangalDosha, hasKaalSarpDosha, hasPitraDosha } from './doshas.js';
+import { SIGNS } from './vedic.js';
+import { lonOf } from './lon.js';
 import { ashtakootMatch }      from './matching.js';
+import { resolveBirthWithCoordinates, type TimeAccuracy } from './birthResolver.js';
+import { computeCanonicalChart, siderealPositions, CalculationError } from './canonical/compute.js';
+import { legacyView, type LegacyKundli } from './canonical/legacy.js';
+import { BirthInputError } from './errors.js';
+import type { CanonicalChart } from '@shared/v3/canonical';
+
+export { BirthInputError };
 import { calculateNumerology } from './numerology.js';
 import { getDailyHoroscope as _getDailyHoroscope } from './horoscope.js';
 
@@ -26,55 +22,8 @@ export { getDailyHoroscope } from './horoscope.js';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-export interface NativeKundliResult {
-  zodiacSign:  string;
-  moonSign:    string;
-  ascendant:   string;
-  nakshatra:   string;
-  chartData: {
-    isBirthTimeApproximate?: boolean;
-    calculationInputs?: {
-      julianDay: number; latitude: number; longitude: number;
-      ascendantLongitude: number; // Tropical degrees, matching the Rust input contract
-      ayanamsa: number;
-      tropicalLongitudes: Record<string, number>;
-    };
-    houses:             Array<{ house: number; sign: string; planets: string[] }>;
-    planetaryPositions: Array<{ planet: string; sign: string; degree: number; house: number; isRetrograde: boolean }>;
-    navamsa?: {
-      houses:             Array<{ house: number; sign: string; planets: string[] }>;
-      planetaryPositions: Array<{ planet: string; sign: string; degree: number; house: number; isRetrograde: boolean }>;
-    };
-    dasamsa?: {
-      houses:             Array<{ house: number; sign: string; planets: string[] }>;
-      planetaryPositions: Array<{ planet: string; sign: string; degree: number; house: number; isRetrograde: boolean }>;
-    };
-    shashtiamsa?: {
-      houses:             Array<{ house: number; sign: string; planets: string[] }>;
-      planetaryPositions: Array<{ planet: string; sign: string; degree: number; house: number; isRetrograde: boolean }>;
-    };
-    ashtakavarga?: {
-      ascSignIndex: number;
-      bav: Record<string, number[]>;  // planet -> bindus per sign (0=Aries)
-      sav: number[];                  // per sign (0=Aries)
-      savByHouse: number[];           // index 0 = 1st house (Lagna sign)
-    };
-    dignities?: Array<{ planet: string; sign: string; degree: number; dignity: string; retrograde: boolean; combust: boolean; planetaryWar?: string; avastha: string; neechaBhanga?: boolean }>;
-    bhava?: {
-      houseLords: Array<{ house: number; sign: string; lord: string; lordSign: string; lordHouse: number }>;
-      aspects: Array<{ planet: string; aspectsHouses: number[]; aspectsPlanets: string[] }>;
-      chalit: Array<{ planet: string; rasiHouse: number; chalitHouse: number; shifted: boolean }>;
-      karakas: Record<number, string>;
-    };
-    yoginiDasha?: Array<{ yogini: string; lord: string; period: string; status: string; startDate: string; endDate: string }>;
-    yogas?: Array<{ name: string; category: string; planets: string[]; cancelled?: boolean; description: string }>;
-    functionalRemedies?: Array<{ focus: string; action: string; gemstone?: string; mantra: string; japaCount: number; donation?: string; day: string; deity: string; reason: string }>;
-  };
-  dashas:   Array<{ planet: string; period: string; status: string; startDate: string; endDate: string }>;
-  doshas:   { mangalDosha: boolean; kaalSarpDosha: boolean; pitruDosha: boolean };
-  remedies: Array<{ title: string; description: string; type: string }>;
-  raw: Record<string, unknown>;
-}
+/** Pre-V3 response shape, now a projection of the CanonicalChart (chartData.canonical). */
+export type NativeKundliResult = LegacyKundli;
 
 export interface NativeMatchResult {
   score:          number;
@@ -105,231 +54,47 @@ export interface NativeNumerology {
   raw: Record<string, unknown>;
 }
 
-// ─── Datetime Parsing ─────────────────────────────────────────────────────────
-
-export class BirthInputError extends Error {}
-
-/**
- * Parse a birth date/time combination into a UTC Date.
- *
- * @param dateOfBirth  JS Date or ISO date string (date part used)
- * @param timeOfBirth  "HH:MM" or "HH:MM:SS" in IST (+05:30)
- */
-function parseBirthDateTime(dateOfBirth: Date | string, timeOfBirth: string): Date {
-  const d   = new Date(dateOfBirth);
-  const y   = d.getUTCFullYear();
-  const mo  = d.getUTCMonth() + 1;
-  const day = d.getUTCDate();
-
-  // Reject malformed/out-of-range times instead of normalizing another instant.
-  if (!Number.isFinite(d.getTime()) || typeof timeOfBirth !== 'string' ||
-      !/^\d{2}:\d{2}(?::\d{2})?$/.test(timeOfBirth)) {
-    throw new BirthInputError('A valid birth date and time (HH:MM or HH:MM:SS) are required');
-  }
-  const [hh, mm, ss = 0] = timeOfBirth.split(':').map(Number);
-  if (hh > 23 || mm > 59 || ss > 59) {
-    throw new BirthInputError('Birth time must be between 00:00:00 and 23:59:59');
-  }
-  // Preserve the consumer engine's IST assumption, including supplied seconds.
-  return new Date(Date.UTC(y, mo - 1, day, hh, mm - 330, ss));
-}
-
 // ─── Kundli ───────────────────────────────────────────────────────────────────
 
+export interface KundliOptions {
+  timeAccuracy?: TimeAccuracy;
+  timezone?: string | null;   // explicit IANA zone; otherwise looked up from the coordinates
+  utcOffset?: string | null;  // only to disambiguate a DST fall-back hour
+  place?: string | null;
+}
+
+/** Local calendar date (YYYY-MM-DD) from a date-only string or a midnight-UTC Date. */
+export function birthDateString(dateOfBirth: Date | string): string {
+  if (typeof dateOfBirth === 'string' && /^\d{4}-\d{2}-\d{2}/.test(dateOfBirth.trim())) return dateOfBirth.trim().slice(0, 10);
+  const d = new Date(dateOfBirth);
+  if (!Number.isFinite(d.getTime())) throw new BirthInputError('A valid birth date is required');
+  return d.toISOString().slice(0, 10);
+}
+
 /**
- * Generate a complete Vedic birth chart (Kundli).
- *
- * @param dateOfBirth  Date or ISO string of birth
- * @param timeOfBirth  "HH:MM" in IST
- * @param latitude     Geographic latitude (+N)
- * @param longitude    Geographic longitude (+E)
+ * Generate a complete Vedic birth chart. The local birth time is interpreted in
+ * the birthplace's historical time zone (looked up from the coordinates unless
+ * one is given) — never a global IST assumption. Returns the legacy shape with
+ * the CanonicalChart embedded at chartData.canonical.
  */
 export async function getKundli(
   dateOfBirth: Date | string,
   timeOfBirth: string,
   latitude: number,
   longitude: number,
+  opts: KundliOptions = {},
 ): Promise<NativeKundliResult> {
-  if (!Number.isFinite(latitude) || Math.abs(latitude) > 90 ||
-      !Number.isFinite(longitude) || Math.abs(longitude) > 180) {
-    throw new Error("Valid birth coordinates are required");
-  }
-  const birthUTC = parseBirthDateTime(dateOfBirth, timeOfBirth);
-  if (!Number.isFinite(birthUTC.getTime())) throw new Error("Valid birth date and time are required");
-  const jd = julianDay(birthUTC);
-
-  // All tropical longitudes
-  const tropical = allPlanetPositions(jd);
-
-  // Sidereal longitudes
-  const ayanamsa = lahiriAyanamsa(jd);
-  const sidereal: Record<string, number> = {};
-  for (const [name, pos] of Object.entries(tropical)) {
-    sidereal[name] = ((pos.lon - ayanamsa) % 360 + 360) % 360;
-  }
-
-  // Ascendant (tropical → sidereal)
-  const ascTropical  = ascendant(jd, latitude, longitude);
-  const ascSidereal  = ((ascTropical - ayanamsa) % 360 + 360) % 360;
-
-  // Signs
-  const sunSign    = signFromLon(sidereal['Sun']);
-  const moonSign   = signFromLon(sidereal['Moon']);
-  const lagnaSign  = signFromLon(ascSidereal);
-  const nakshatra  = nakshatraFromLon(sidereal['Moon']);
-
-  // Planetary positions array
-  const PLANET_NAMES = ['Sun', 'Moon', 'Mars', 'Mercury', 'Jupiter', 'Venus', 'Saturn', 'Rahu', 'Ketu'];
-  const planetaryPositions = PLANET_NAMES.map(name => ({
-    planet:       name,
-    sign:         signFromLon(sidereal[name] ?? 0),
-    degree:       parseFloat(degreeInSign(sidereal[name] ?? 0).toFixed(2)),
-    house:        houseFromLon(sidereal[name] ?? 0, ascSidereal),
-    isRetrograde: tropical[name]?.isRetrograde ?? false,
-  }));
-
-  // Ascendant as a pseudo-planet for house calculation
-  const ascEntry = {
-    planet: 'Ascendant', sign: lagnaSign,
-    degree: parseFloat(degreeInSign(ascSidereal).toFixed(2)),
-    house: 1, isRetrograde: false,
-  };
-
-  // 12 houses (Whole Sign)
-  const houses = Array.from({ length: 12 }, (_, i) => ({
-    house:   i + 1,
-    sign:    signOfHouse(i + 1, ascSidereal),
-    planets: planetaryPositions
-      .filter(p => p.house === i + 1)
-      .map(p => p.planet),
-  }));
-
-  // ─── Navamsa (D9) — Parashari ─────────────────────────────────
-  const ascNavSign = navamsaSign(ascSidereal);
-  const navamsaPositions = PLANET_NAMES.map(name => {
-    const navSign = navamsaSign(sidereal[name] ?? 0);
-    return {
-      planet:       name,
-      sign:         SIGNS[navSign],
-      degree:       parseFloat(navamsaDegree(sidereal[name] ?? 0).toFixed(2)),
-      house:        ((navSign - ascNavSign + 12) % 12) + 1,
-      isRetrograde: tropical[name]?.isRetrograde ?? false,
-    };
+  const birth = resolveBirthWithCoordinates({
+    date: birthDateString(dateOfBirth),
+    time: timeOfBirth,
+    latitude,
+    longitude,
+    place: opts.place ?? '',
+    timezone: opts.timezone ?? null,
+    utcOffset: opts.utcOffset ?? null,
+    timeAccuracy: opts.timeAccuracy ?? 'exact',
   });
-  const navAscEntry = {
-    planet: 'Ascendant', sign: SIGNS[ascNavSign],
-    degree: parseFloat(navamsaDegree(ascSidereal).toFixed(2)), house: 1, isRetrograde: false,
-  };
-  const navamsaHouses = Array.from({ length: 12 }, (_, i) => {
-    const signIdx = (ascNavSign + i) % 12;
-    return {
-      house:   i + 1,
-      sign:    SIGNS[signIdx],
-      planets: navamsaPositions.filter(p => p.house === i + 1).map(p => p.planet),
-    };
-  });
-
-  // ─── Divisional charts D10 (career) & D60 (karma) ─────────────
-  const buildVarga = (signFn: (lon: number) => number) => {
-    const ascV = signFn(ascSidereal);
-    const positions = PLANET_NAMES.map(name => {
-      const vs = signFn(sidereal[name] ?? 0);
-      return {
-        planet:       name,
-        sign:         SIGNS[vs],
-        degree:       0,
-        house:        ((vs - ascV + 12) % 12) + 1,
-        isRetrograde: tropical[name]?.isRetrograde ?? false,
-      };
-    });
-    const housesV = Array.from({ length: 12 }, (_, i) => {
-      const s = (ascV + i) % 12;
-      return { house: i + 1, sign: SIGNS[s], planets: positions.filter(p => p.house === i + 1).map(p => p.planet) };
-    });
-    return { houses: housesV, planetaryPositions: [{ planet: 'Ascendant', sign: SIGNS[ascV], degree: 0, house: 1, isRetrograde: false }, ...positions] };
-  };
-  const dasamsa = buildVarga(dasamsaSign);
-  const shashtiamsa = buildVarga(shashtiamsaSign);
-
-  // ─── Ashtakavarga (BAV + SAV) ─────────────────────────────────
-  const avSignIndex: Record<string, number> = { Ascendant: Math.floor((ascSidereal % 360) / 30) % 12 };
-  for (const p of ['Sun', 'Moon', 'Mars', 'Mercury', 'Jupiter', 'Venus', 'Saturn']) {
-    avSignIndex[p] = Math.floor(((sidereal[p] ?? 0) % 360) / 30) % 12;
-  }
-  const av = computeAshtakavarga(avSignIndex);
-  const ashtakavarga = {
-    ascSignIndex: avSignIndex.Ascendant,
-    bav: av.bav,
-    sav: av.sav,
-    savByHouse: Array.from({ length: 12 }, (_, h) => av.sav[(avSignIndex.Ascendant + h) % 12]),
-  };
-
-  // ─── Planetary dignity & avastha ──────────────────────────────
-  const retroMap: Record<string, boolean> = {};
-  for (const [name, pos] of Object.entries(tropical)) retroMap[name] = (pos as any).isRetrograde ?? false;
-  const dignities = computeDignities(sidereal, avSignIndex.Ascendant, retroMap);
-
-  // ─── Bhava: house lords, aspects, karakas, chalit ─────────────
-  const bhava = computeBhava(sidereal, ascSidereal);
-
-  // ─── Yogas (with cancellation) ────────────────────────────────
-  const moonSignIdx = Math.floor(((sidereal['Moon'] ?? 0) % 360) / 30) % 12;
-  const yogas = detectYogas(sidereal, avSignIndex.Ascendant, moonSignIdx, dignities, bhava.houseLords);
-
-  // ─── Ascendant-specific (functional) remedies ─────────────────
-  const functionalRemedies = computeRemedies(dignities, bhava.houseLords);
-
-  // Vimshottari Dasha (+ Yogini cross-confirming dasha)
-  const dashas = calculateDashas(sidereal['Moon'], birthUTC);
-  const yoginiDasha = calculateYoginiDasha(sidereal['Moon'], birthUTC);
-
-  // Doshas
-  const marsHouse = planetaryPositions.find(p => p.planet === 'Mars')?.house ?? 0;
-  const mangalDosha  = hasMangalDosha(marsHouse);
-  const kaalSarpDosha = hasKaalSarpDosha(sidereal);
-  const pitruDosha   = hasPitraDosha(sidereal['Sun'] ?? 0, sidereal['Rahu'] ?? 0);
-
-  // Remedies based on Moon nakshatra lord
-  const remedies = getRemedies(nakshatra.lord);
-
-  return {
-    zodiacSign:  sunSign,
-    moonSign,
-    ascendant:   lagnaSign,
-    nakshatra:   nakshatra.name,
-    chartData: {
-      // Persist exact inputs in existing JSON; display positions are rounded.
-      calculationInputs: {
-        julianDay: jd, latitude, longitude, ascendantLongitude: ascTropical, ayanamsa,
-        tropicalLongitudes: Object.fromEntries(Object.entries(tropical).map(([name, p]) => [name, p.lon])),
-      },
-      houses,
-      planetaryPositions: [ascEntry, ...planetaryPositions],
-      navamsa: {
-        houses: navamsaHouses,
-        planetaryPositions: [navAscEntry, ...navamsaPositions],
-      },
-      dasamsa,
-      shashtiamsa,
-      ashtakavarga,
-      dignities,
-      bhava,
-      yoginiDasha,
-      yogas,
-      functionalRemedies,
-    },
-    dashas: dashas.map(d => ({
-      planet:      d.planet,
-      period:      d.period,
-      status:      d.status,
-      startDate:   d.startDate,
-      endDate:     d.endDate,
-      antardashas: d.antardashas,
-    })),
-    doshas: { mangalDosha, kaalSarpDosha, pitruDosha },
-    remedies,
-    raw: { ayanamsa, jd },
-  };
+  return legacyView(computeCanonicalChart(birth));
 }
 
 // ─── Transits (Gochar) + Sade Sati ────────────────────────────────────────────
@@ -337,8 +102,9 @@ export async function getKundli(
 export interface TransitInfo {
   date: string;
   natalMoonSign: string;
-  natalLagnaSign: string;
-  planets: Array<{ planet: string; sign: string; houseFromMoon: number; houseFromLagna: number; sav: number | null; retrograde: boolean }>;
+  /** Null when the birth time is approximate: houses are then counted from the Moon only. */
+  natalLagnaSign: string | null;
+  planets: Array<{ planet: string; sign: string; houseFromMoon: number; houseFromLagna: number | null; sav: number | null; retrograde: boolean }>;
   sadeSati: { active: boolean; phase: string; saturnSign: string; houseFromMoon: number; note: string; sinceApprox?: string; untilApprox?: string };
   jupiter: { sign: string; houseFromMoon: number; favourable: boolean };
 }
@@ -347,20 +113,15 @@ const TRANSIT_PLANETS = ['Sun', 'Moon', 'Mars', 'Mercury', 'Jupiter', 'Venus', '
 const signIdxOf = (lon: number) => Math.floor((((lon % 360) + 360) % 360) / 30) % 12;
 
 function siderealLongitudesOn(date: Date): Record<string, number> {
-  const jd = julianDay(date);
-  const tropical = allPlanetPositions(jd);
-  const ayan = lahiriAyanamsa(jd);
-  const out: Record<string, number> = {};
-  for (const [name, pos] of Object.entries(tropical)) {
-    out[name] = (((pos as any).lon - ayan) % 360 + 360) % 360;
-  }
-  return out;
+  const { bodies } = siderealPositions(date);
+  return Object.fromEntries(Object.entries(bodies).map(([name, b]) => [name, b.longitude]));
 }
 
 function resolveSignIndex(s: string | number): number {
   if (typeof s === 'number') return ((Math.round(s) % 12) + 12) % 12;
   const i = (SIGNS as readonly string[]).indexOf(s);
-  return i >= 0 ? i : 0;
+  if (i < 0) throw new CalculationError(`Unknown sign "${s}"`);
+  return i;
 }
 
 /**
@@ -370,14 +131,14 @@ function resolveSignIndex(s: string | number): number {
  */
 export function getTransits(
   natalMoonSign: string | number,
-  natalLagnaSign: string | number,
+  natalLagnaSign: string | number | null,
   savBySign?: number[],
   when: Date = new Date(),
 ): TransitInfo {
   const moonIdx = resolveSignIndex(natalMoonSign);
-  const lagnaIdx = resolveSignIndex(natalLagnaSign);
-  const lons = siderealLongitudesOn(when);
-  const tropical = allPlanetPositions(julianDay(when));
+  const lagnaIdx = natalLagnaSign == null ? null : resolveSignIndex(natalLagnaSign);
+  const { bodies } = siderealPositions(when);
+  const lons = Object.fromEntries(Object.entries(bodies).map(([name, b]) => [name, b.longitude]));
 
   const planets = TRANSIT_PLANETS.filter((p) => lons[p] != null).map((p) => {
     const s = signIdxOf(lons[p]);
@@ -385,13 +146,13 @@ export function getTransits(
       planet: p,
       sign: SIGNS[s],
       houseFromMoon: ((s - moonIdx + 12) % 12) + 1,
-      houseFromLagna: ((s - lagnaIdx + 12) % 12) + 1,
+      houseFromLagna: lagnaIdx == null ? null : ((s - lagnaIdx + 12) % 12) + 1,
       sav: savBySign && savBySign.length === 12 ? savBySign[s] : null,
-      retrograde: (tropical as any)[p]?.isRetrograde ?? false,
+      retrograde: (bodies as any)[p].speed < 0,
     };
   });
 
-  const satSign = signIdxOf(lons['Saturn'] ?? 0);
+  const satSign = signIdxOf(lonOf(lons, 'Saturn'));
   const hMoonSat = ((satSign - moonIdx + 12) % 12) + 1;
   let active = false;
   let phase = 'Not in Sade Sati';
@@ -409,40 +170,48 @@ export function getTransits(
   let b = new Date(when);
   for (let i = 0; i < 36; i++) {
     const prev = new Date(b); prev.setMonth(prev.getMonth() - 1);
-    if (signIdxOf(siderealLongitudesOn(prev)['Saturn'] ?? 0) !== satSign) break;
+    if (signIdxOf(lonOf(siderealLongitudesOn(prev), 'Saturn')) !== satSign) break;
     b = prev;
   }
   let e = new Date(when);
   for (let i = 0; i < 36; i++) {
     const next = new Date(e); next.setMonth(next.getMonth() + 1); e = next;
-    if (signIdxOf(siderealLongitudesOn(next)['Saturn'] ?? 0) !== satSign) break;
+    if (signIdxOf(lonOf(siderealLongitudesOn(next), 'Saturn')) !== satSign) break;
   }
   sinceApprox = monthFmt(b);
   untilApprox = monthFmt(e);
 
-  const jupSign = signIdxOf(lons['Jupiter'] ?? 0);
+  const jupSign = signIdxOf(lonOf(lons, 'Jupiter'));
   const hMoonJup = ((jupSign - moonIdx + 12) % 12) + 1;
 
   return {
     date: when.toISOString().split('T')[0],
     natalMoonSign: SIGNS[moonIdx],
-    natalLagnaSign: SIGNS[lagnaIdx],
+    natalLagnaSign: lagnaIdx == null ? null : SIGNS[lagnaIdx],
     planets,
     sadeSati: { active, phase, saturnSign: SIGNS[satSign], houseFromMoon: hMoonSat, note, sinceApprox, untilApprox },
     jupiter: { sign: SIGNS[jupSign], houseFromMoon: hMoonJup, favourable: [2, 5, 7, 9, 11].includes(hMoonJup) },
   };
 }
 
+/** Transits for a canonical chart; with an approximate birth time the Lagna is not used. */
+export function transitsForChart(canonical: CanonicalChart, savBySign?: number[], when?: Date): TransitInfo {
+  const moon = canonical.planets.find((p) => p.name === 'Moon')!;
+  const lagna = canonical.birth.timeAccuracy === 'approximate' ? null : canonical.ascendant.sign;
+  return getTransits(moon.sign, lagna, savBySign, when);
+}
+
 /** Compact text summary of transits for AI prompts. */
 export function transitSummary(t: TransitInfo): string {
   const lines = t.planets
-    .map((p) => `- ${p.planet}: ${p.sign} (${p.houseFromMoon}th from Moon, ${p.houseFromLagna}th from Lagna${p.sav != null ? `, SAV ${p.sav}` : ''}${p.retrograde ? ', retrograde' : ''})`)
+    .map((p) => `- ${p.planet}: ${p.sign} (${p.houseFromMoon}th from Moon${p.houseFromLagna != null ? `, ${p.houseFromLagna}th from Lagna` : ''}${p.sav != null ? `, SAV ${p.sav}` : ''}${p.retrograde ? ', retrograde' : ''})`)
     .join('\n');
   const ss = t.sadeSati.active
     ? `Sade Sati ACTIVE — ${t.sadeSati.phase}. Saturn in ${t.sadeSati.saturnSign} (~${t.sadeSati.sinceApprox} to ~${t.sadeSati.untilApprox}).`
     : `Sade Sati not active. ${t.sadeSati.phase}.${t.sadeSati.note ? ' ' + t.sadeSati.note : ''}`;
   const jup = `Jupiter transiting ${t.jupiter.sign} (${t.jupiter.houseFromMoon}th from Moon) — ${t.jupiter.favourable ? 'favourable' : 'mixed'}.`;
-  return `Current transits as of ${t.date} (natal Moon ${t.natalMoonSign}, Lagna ${t.natalLagnaSign}):\n${lines}\n${ss}\n${jup}`;
+  const lagna = t.natalLagnaSign ? `Lagna ${t.natalLagnaSign}` : 'Lagna not used — birth time approximate';
+  return `Current transits as of ${t.date} (natal Moon ${t.natalMoonSign}, ${lagna}):\n${lines}\n${ss}\n${jup}`;
 }
 
 // ─── Kundli Matching ──────────────────────────────────────────────────────────
@@ -457,11 +226,12 @@ export async function getKundliMatching(
   person1: { dateOfBirth: Date | string; timeOfBirth: string; latitude: number; longitude: number },
   person2: { dateOfBirth: Date | string; timeOfBirth: string; latitude: number; longitude: number },
 ): Promise<NativeMatchResult> {
+  // Each person's Moon at their own resolved UTC birth instant.
   const moonLon = (p: typeof person1) => {
-    const utc = parseBirthDateTime(p.dateOfBirth, p.timeOfBirth);
-    const jd  = julianDay(utc);
-    const tropical = allPlanetPositions(jd);
-    return toSidereal(tropical['Moon'].lon, jd);
+    const birth = resolveBirthWithCoordinates({
+      date: birthDateString(p.dateOfBirth), time: p.timeOfBirth, latitude: p.latitude, longitude: p.longitude, timeAccuracy: 'exact',
+    });
+    return siderealPositions(new Date(birth.birthUTC)).bodies.Moon.longitude;
   };
 
   const girlMoon = moonLon(person1);

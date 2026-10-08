@@ -279,23 +279,28 @@ describe('chart actually used after selection', () => {
     const chart = mocks.generateReport.mock.calls[0][1];
     expect(chart.timeOfBirth).toBe('06:30:45');
     expect(chart.chartData.isBirthTimeApproximate).toBe(true);
-    expect(chart.chartData.calculationInputs.latitude).toBe(coords.latitude);
+    expect(chart.chartData.canonical.birth.latitude).toBe(coords.latitude);
+    expect(chart.chartData.canonical.birth.localTime).toBe('06:30:45');
   });
 
   it('chat with explicit details passes that chart, not the saved one, to the council', async () => {
+    vi.stubEnv('FEATURE_AI_COUNCIL', 'true'); // the council is gated off by default; this exercises the gated path
     const res = await request(app).post('/api/ai/chat').set('x-user', 'owner').send({
-      message: 'Career', birthDetails: { dateOfBirth: '1992-05-13', timeOfBirth: '06:30', ...coords },
+      message: 'Career', depth: 'deep', birthDetails: { dateOfBirth: '1992-05-13', timeOfBirth: '06:30', ...coords },
     });
     expect(res.status).toBe(200);
     expect(mocks.runCouncil).toHaveBeenCalledWith(expect.objectContaining({
       birthDetails: { date: '1992-05-13', time: '06:30', place: 'Bengaluru' },
+      evidencePacket: expect.stringContaining('Birth: 1992-05-13 06:30:00'),
     }));
   });
 
   it('chat fallback uses the saved chart when birthDetails is omitted', async () => {
-    await request(app).post('/api/ai/chat').set('x-user', 'owner').send({ message: 'Career' });
+    vi.stubEnv('FEATURE_AI_COUNCIL', 'true'); // the council is gated off by default; this exercises the gated path
+    await request(app).post('/api/ai/chat').set('x-user', 'owner').send({ message: 'Career', depth: 'deep' });
     expect(mocks.runCouncil).toHaveBeenCalledWith(expect.objectContaining({
       birthDetails: { date: '1990-08-15', time: '06:30', place: 'Bengaluru' },
+      evidencePacket: expect.stringContaining('Birth: 1990-08-15 06:30:00'),
     }));
   });
 });

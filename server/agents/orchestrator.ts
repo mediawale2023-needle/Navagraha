@@ -1,7 +1,5 @@
 import OpenAI from 'openai';
 import { AGENT_PROMPTS } from './prompts';
-import { callAstroEngine, formatShadbalaSummary, RUST_CHART_UNAVAILABLE_REASON } from '../astroEngineClient';
-import type { RustChartInput } from '../rustChartAdapter';
 
 // Ensure OPENAI_API_KEY is available in the environment
 const openai = new OpenAI({
@@ -18,7 +16,6 @@ export interface UserContext {
     ascendant?: string | null; sunSign?: string | null; moonSign?: string | null;
     planets?: unknown; calculatedChart?: unknown; dashas?: unknown; doshas?: unknown;
   } | null;
-  rustChartInput?: RustChartInput;
   profession?: string;
   pastEvents?: string[];
   language?: string;
@@ -26,31 +23,34 @@ export interface UserContext {
   transits?: string;
   verifiedEvents?: string[];
   accuracyNote?: string;
+  /** Deterministic evidence packet (Ask Your Kundli). When present, agents see only this, not raw chart JSON. */
+  evidencePacket?: string;
   currentQuery: string;
 }
 
-const PREDICTION_DISCIPLINE = `PREDICTION DISCIPLINE (mandatory — a master astrologer's rules):
-- A yoga or placement is only a PROMISE. Predict an outcome ONLY when it is activated by the relevant Dasha/Antardasha/Pratyantardasha AND supported by transit (especially the Saturn–Jupiter double transit). Always give the timing window.
-- Never predict from a single factor. Require at least TWO further confirmations (Navamsa/Dasamsa, Ashtakavarga bindus, the house lord, the karaka, or an aspect) and name them.
-- Weigh strength: a debilitated, combust or weak planet cannot fully deliver its promise (note Neecha-bhanga if it applies). A cancelled yoga (bhanga) does not give full results.
-- Calibrated confidence: if the chart is genuinely ambiguous or the birth time is uncertain, say so plainly instead of inventing certainty.
-- Adapt classical rules to the person's modern context (Desha-Kaala-Patra); avoid archaic literalism.
-ETHICS: Never predict death or the end of longevity. Never frighten. Frame every dosha or Sade Sati with a remedy and realistic hope. Respect free will and effort — the chart shows tendency and timing, not fixed fate. Recommend only the remedies the chart's functional needs justify; never push gemstones.`;
+const PREDICTION_DISCIPLINE = `PREDICTION DISCIPLINE (mandatory):
+- A yoga or placement is only a promise; tie any timing to the supplied dasha periods and transits.
+- Never predict from a single factor; name the supplied confirmations and contradictions.
+- Keep the engine's verdict and confidence labels. If the chart is ambiguous or the birth time is approximate, say so plainly.
+- Adapt classical rules to the person's modern context (Desha-Kaala-Patra).
+ETHICS: Never predict death, lifespan, serious illness, guaranteed pregnancy, guaranteed marriage/divorce or guaranteed financial outcomes. Never frighten, never sell remedies through fear, never push gemstones. The chart shows tendency and timing as the tradition reads it, not fixed fate.`;
 
 /**
- * Super-Astrologer Council: Parallel `$team` Orchestrator (v2 Shadbala Edition)
+ * Super-Astrologer Council — the DEEP path of Ask Your Kundli.
  *
- * Step 0 (NEW): Calls the Rust astro-engine for deterministic Shadbala/Yoga/Varga math.
- * Step 1: Injects the Rust matrix into all 5 agents' prompt payloads.
- * Step 2: Runs 5 specialist LLM agents in parallel.
- * Step 3: Jyotishi Synthesizer compiles the final reading from pure math, not guesses.
+ * Step 1: Every agent receives the same deterministic evidence packet.
+ * Step 2: Five specialist agents interpret it in parallel.
+ * Step 3: The Jyotishi synthesizes; the Ethicist gate reviews safety.
+ * Simple questions do not reach this function (see askKundli.ts).
  */
 export async function runCouncil(context: UserContext): Promise<string> {
   const today = new Date().toISOString().split('T')[0];
 
   // Recompute the running periods from TODAY (not the stored status, which is
   // frozen at chart-generation time) so the council can't anchor to a stale year.
-  const currentPeriod = deriveCurrentPeriod(context.chartData?.dashas, today);
+  // With an evidence packet, the packet's running-period line is the only source (it says when an
+  // approximate birth time makes the period uncertain); raw dasha JSON is used only without one.
+  const currentPeriod = context.evidencePacket ? null : deriveCurrentPeriod(context.chartData?.dashas, today);
   const currentPeriodLine = currentPeriod
     ? ` As of today the running Mahadasha is ${currentPeriod.maha}${currentPeriod.antar ? ` and the running Antardasha is ${currentPeriod.antar}` : ''}${currentPeriod.period ? ` (${currentPeriod.period})` : ''} — treat this as authoritative and do not contradict it.`
     : '';
@@ -63,34 +63,12 @@ export async function runCouncil(context: UserContext): Promise<string> {
     ? `\n\nLANGUAGE DIRECTIVE: Write the entire final response in ${lang}, using natural, fluent, everyday ${lang}. Astrological proper nouns (planet, sign and dasha names) may stay recognizable.`
     : '';
 
-  // ─── Step 0: Deterministic Rust Math ──────────────────────────────────────
-  let shadbalaSummary = '';
-  const rustInput = context.rustChartInput;
-  if (rustInput?.available && !RUST_CHART_UNAVAILABLE_REASON) {
-    console.log('[Orchestrator] Calling Rust astro-engine for Shadbala/Yoga math...');
-    const astroResult = await callAstroEngine(rustInput.request);
-    if (astroResult) {
-      shadbalaSummary = formatShadbalaSummary(astroResult);
-      console.log(
-        `[Orchestrator] Rust engine: GlobalStrength=${astroResult.global_strength_score} Rupas, ` +
-        `${astroResult.yogas.filter(y => y.fires).length} active Yogas`
-      );
-    } else {
-      console.warn('[Orchestrator] Rust engine unavailable — agents will operate without Shadbala data.');
-    }
-  } else {
-    console.warn('[Orchestrator] Skipping Rust deterministic calculations:',
-      rustInput && !rustInput.available ? rustInput.reason :
-        rustInput?.available ? RUST_CHART_UNAVAILABLE_REASON : 'No deterministic chart input supplied');
-  }
+  // Agents see the deterministic evidence packet; raw chart JSON only when no packet exists.
+  const contextPayload = context.evidencePacket
+    ? `${context.evidencePacket}\n\nQUESTION: ${context.currentQuery}\nMEMORIES: ${(context.memories ?? []).join(' | ') || '(none)'}\nCONFIRMED PAST EVENTS: ${(context.verifiedEvents ?? []).join(' | ') || '(none)'}`
+    : JSON.stringify({ ...context, note: 'No deterministic evidence packet: use supplied chart facts only; never invent missing chart facts or strengths.' }, null, 2);
 
-  // Combine chart + shadbala for agents
-  const contextPayload = JSON.stringify({
-    ...context,
-    shadbalaMath: shadbalaSummary || 'Deterministic calculations unavailable — use supplied chart facts only; never invent missing chart facts or strengths.',
-  }, null, 2);
-
-  console.log('[Orchestrator] Spinning up the $team council...');
+  console.log('[Orchestrator] Running the council...');
 
   // ─── Step 1+2: Parallel 5-Agent Council ────────────────────────────────────
   const [
@@ -120,7 +98,7 @@ export async function runCouncil(context: UserContext): Promise<string> {
   const synthesisPayload = `
 ### Authoritative Temporal Facts (DO NOT contradict):
 - Today's date: ${today}
-${currentPeriod ? `- Running Mahadasha: ${currentPeriod.maha}\n- Running Antardasha: ${currentPeriod.antar || '—'}${currentPeriod.period ? `\n- Mahadasha period: ${currentPeriod.period}` : ''}` : '- (Dasha periods unavailable)'}
+${currentPeriod ? `- Running Mahadasha: ${currentPeriod.maha}\n- Running Antardasha: ${currentPeriod.antar || '—'}${currentPeriod.period ? `\n- Mahadasha period: ${currentPeriod.period}` : ''}` : context.evidencePacket ? '- Running period: as stated in the evidence packet (if it says UNCERTAIN, do not name one)' : '- (Dasha periods unavailable)'}
 
 ### What we know about this person (from past conversations — use to personalise; don't recite verbatim):
 ${memoryBlock}
@@ -135,8 +113,8 @@ ${context.transits || '(transits unavailable)'}
 ### User Query:
 ${context.currentQuery}
 
-### Deterministic Rust Math (Tier 1 — NO LLM, pure arithmetic):
-${shadbalaSummary || '(Deterministic calculations unavailable; do not infer missing strengths)'}
+### Deterministic evidence packet (authoritative):
+${context.evidencePacket ?? '(none — use only the supplied chart facts; do not infer missing strengths)'}
 
 ### Council Findings (Tier 2 — LLM Agents):
 1. **Chronos (Timing):** ${chronosResult}
@@ -147,14 +125,14 @@ ${shadbalaSummary || '(Deterministic calculations unavailable; do not infer miss
 
 ${PREDICTION_DISCIPLINE}
 
-Now synthesize into the final reading. Be specific and confident where the chart supports it, honest where it does not.${languageDirective}
+Now synthesize into the final reading. Be specific where the supplied evidence supports it and plain about uncertainty; never use words of certainty such as "definitely", "guaranteed" or "will surely".${languageDirective}
 `;
 
   const jyotishiOutput = await callAgent("jyotishi", temporalInjector(AGENT_PROMPTS.jyotishi), synthesisPayload);
 
   // ─── Step 4: Ethicist Gate (Safety Filter) ────────────────────────────────
   console.log('[Orchestrator] Running Ethicist Gate...');
-  const ethicsReinforce = "\n\nSTRICT: Remove any prediction of death or end of longevity entirely. Remove fear-mongering. Ensure every challenge (dosha, Sade Sati, malefic period) is paired with a concrete remedy and realistic hope. Do not add gemstone sales pressure.";
+  const ethicsReinforce = "\n\nSTRICT: Remove any prediction of death or longevity. Remove fear-mongering. Pair challenges with realistic, practical guidance; remedies are optional and never a condition for a good outcome. No gemstone sales pressure.";
   const finalReading = await callAgent("ethicist", temporalInjector(AGENT_PROMPTS.ethicist) + ethicsReinforce + languageDirective, jyotishiOutput);
 
   return finalReading;

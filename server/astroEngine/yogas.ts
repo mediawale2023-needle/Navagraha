@@ -4,6 +4,7 @@
  * its cancellation). Deterministic, from the natal chart.
  */
 import type { PlanetDignity } from './dignity.js';
+import { lonOf } from './lon.js';
 
 const KENDRA = [1, 4, 7, 10];
 const TRIKONA = [1, 5, 9];
@@ -19,6 +20,7 @@ export interface Yoga {
   description: string;
 }
 
+const ord = (n: number) => `${n}${n === 1 ? 'st' : n === 2 ? 'nd' : n === 3 ? 'rd' : 'th'}`;
 const signOf = (lon: number) => Math.floor((((lon % 360) + 360) % 360) / 30) % 12;
 
 export function detectYogas(
@@ -34,7 +36,7 @@ export function detectYogas(
   const houseL: Record<string, number> = {};
   const houseM: Record<string, number> = {};
   for (const p of PLANETS) {
-    sign[p] = signOf(sidereal[p] ?? 0);
+    sign[p] = signOf(lonOf(sidereal, p));
     houseL[p] = hL(sign[p]);
     houseM[p] = hM(sign[p]);
   }
@@ -79,7 +81,7 @@ export function detectYogas(
         const key = [lk, lt].sort().join('-');
         if (seenRaja.has(key)) continue;
         seenRaja.add(key);
-        yogas.push({ name: 'Raja Yoga', category: 'Raja', planets: [lk, lt], description: `Lords of the ${k}th (kendra) and ${t}th (trikona) unite in house ${lordHouseByHouse[k]} — status and success.` });
+        yogas.push({ name: 'Raja Yoga', category: 'Raja', planets: [lk, lt], description: `Lords of the ${ord(k)} (kendra) and ${ord(t)} (trikona) unite in the ${ord(lordHouseByHouse[k])} house — status and success.` });
       }
     }
   }
@@ -96,7 +98,7 @@ export function detectYogas(
         const key = [la, lb].sort().join('-');
         if (seenDhana.has(key)) continue;
         seenDhana.add(key);
-        yogas.push({ name: 'Dhana Yoga', category: 'Dhana', planets: [la, lb], description: `Wealth-house lords (${a}th & ${b}th) combine in house ${lordHouseByHouse[a]} — financial gain.` });
+        yogas.push({ name: 'Dhana Yoga', category: 'Dhana', planets: [la, lb], description: `Wealth-house lords (${ord(a)} & ${ord(b)}) combine in the ${ord(lordHouseByHouse[a])} house — financial gain.` });
       }
     }
   }
@@ -115,7 +117,7 @@ export function detectYogas(
         name: `${VIPREETA_NAME[dh]} Vipreeta Raja Yoga`,
         category: 'Raja',
         planets: [lord],
-        description: `${dh}th lord (${lord}) sits in the ${lordHouse}th (also a dusthana) — Vipreeta Raja Yoga: setbacks convert into unexpected gains, often after the difficulty has already run its course.`,
+        description: `${ord(dh)} lord (${lord}) sits in the ${ord(lordHouse)} (also a dusthana) — Vipreeta Raja Yoga: setbacks convert into unexpected gains, often after the difficulty has already run its course.`,
       });
     }
   }
@@ -124,7 +126,9 @@ export function detectYogas(
   const occ = (h: number) => PLANETS.some((p) => p !== 'Moon' && p !== 'Sun' && houseM[p] === h);
   const conjMoon = PLANETS.some((p) => p !== 'Moon' && sign[p] === sign['Moon']);
   if (!occ(2) && !occ(12) && !conjMoon) {
-    const cancelled = KENDRA.includes(houseL['Moon']) || PLANETS.some((p) => p !== 'Moon' && (KENDRA.includes(houseM[p]) || KENDRA.includes(houseL[p])));
+    // Cancelled when the Moon is in a kendra from the Lagna, or a planet (other
+    // than the Sun) occupies a kendra (4th/7th/10th) from the Moon.
+    const cancelled = KENDRA.includes(houseL['Moon']) || PLANETS.some((p) => p !== 'Moon' && p !== 'Sun' && [4, 7, 10].includes(houseM[p]));
     yogas.push({
       name: 'Kemadruma Yoga',
       category: 'Dosha',
@@ -132,7 +136,7 @@ export function detectYogas(
       cancelled,
       description: cancelled
         ? 'Moon is isolated (Kemadruma) but cancelled by supportive kendra placements.'
-        : 'Moon is isolated (Kemadruma) — emotional ups and downs; remedies advised.',
+        : 'Moon is isolated (Kemadruma) — traditionally read as a need to build steady emotional support.',
     });
   }
 

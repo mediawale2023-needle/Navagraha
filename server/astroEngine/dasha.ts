@@ -49,148 +49,105 @@ export interface DashaEntry {
   antardashas:  AntardashaEntry[];
 }
 
-/**
- * Calculate the Vimshottari Dasha timeline from birth, including Antardashas.
- *
- * @param moonSiderealLon  Moon's sidereal longitude (degrees)
- * @param birthDate        Date of birth
- * @returns                Array of dasha entries (birth dasha + 8 following), each with 9 antardashas
- */
-export function calculateDashas(moonSiderealLon: number, birthDate: Date): DashaEntry[] {
-  const lon = ((moonSiderealLon % 360) + 360) % 360;
-
-  // Which nakshatra is Moon in?
-  const nakIdx = nakshatraIndex(lon);
-  const nak = NAKSHATRAS[nakIdx];
-
-  // Fraction of the nakshatra already traversed at birth
-  const posInNak = (lon % NAKSHATRA_SPAN) / NAKSHATRA_SPAN;
-
-  // Remaining years of the current mahadasha at birth
-  const dashaYears = DASHA_YEARS[nak.lord];
-  const remainingYears = dashaYears * (1 - posInNak);
-
-  // Index of the dasha lord in the ordered sequence
-  const startIdx = DASHA_ORDER.indexOf(nak.lord);
-
-  const dashas: DashaEntry[] = [];
-  let current = new Date(birthDate.getTime());
-  const now = Date.now();
-
-  // First (possibly partial) dasha
-  const firstEnd = new Date(current.getTime() + remainingYears * MS_PER_YEAR);
-  dashas.push(makeDasha(nak.lord, current, firstEnd, now, posInNak));
-  current = firstEnd;
-
-  // Eight complete dashas following the first
-  for (let i = 1; i < 9; i++) {
-    const planet = DASHA_ORDER[(startIdx + i) % 9];
-    const years  = DASHA_YEARS[planet];
-    const end    = new Date(current.getTime() + years * MS_PER_YEAR);
-    dashas.push(makeDasha(planet, current, end, now, 0));
-    current = end;
-  }
-
-  return dashas;
+export interface DashaPeriod {
+  lord:  string;
+  start: string; // ISO instant
+  end:   string; // ISO instant
+}
+export interface VimshottariMahadasha extends DashaPeriod { antardashas: DashaPeriod[] }
+export interface VimshottariResult {
+  yearLengthDays: number;
+  moonNakshatraIndex: number;
+  birthLord: string;
+  /** Fraction of the birth nakshatra (and so of the birth Mahadasha) already elapsed at birth. */
+  elapsedFractionAtBirth: number;
+  balanceAtBirthYears: number;
+  mahadashas: VimshottariMahadasha[];
 }
 
-/**
- * Calculate 9 Antardashas within a Mahadasha.
- * Antardasha duration = (mahadasha_years × antardasha_lord_years) / 120
- * For a partial mahadasha (first dasha), scale proportionally.
- */
-function calculateAntardashas(
-  mahaLord: string,
-  mahaStart: Date,
-  mahaEnd: Date,
-  now: number,
-  startFraction: number,  // how far into the first antardasha we are (0 for full dashas)
-): AntardashaEntry[] {
-  const mahaYears = DASHA_YEARS[mahaLord];
-  const mahaStartIdx = DASHA_ORDER.indexOf(mahaLord);
-  const totalMahaMs = mahaEnd.getTime() - mahaStart.getTime();
-
-  const antardashas: AntardashaEntry[] = [];
-  let cursor = new Date(mahaStart.getTime());
-
+/** Sub-periods of a period, proportional to Vimshottari years, starting from its own lord. */
+export function vimshottariSubPeriods(lord: string, startMs: number, endMs: number): DashaPeriod[] {
+  const startIdx = DASHA_ORDER.indexOf(lord);
+  const total = endMs - startMs;
+  const out: DashaPeriod[] = [];
+  let cursor = startMs;
   for (let i = 0; i < 9; i++) {
-    const antarLord = DASHA_ORDER[(mahaStartIdx + i) % 9];
-    const antarYears = (mahaYears * DASHA_YEARS[antarLord]) / TOTAL_YEARS;
-
-    let antarMs: number;
-    if (i === 0 && startFraction > 0) {
-      // First antardasha is partial — scale by (1 - fraction already elapsed)
-      antarMs = antarYears * MS_PER_YEAR * (1 - startFraction);
-    } else if (i === 8) {
-      // Last antardasha: use remaining time to avoid floating-point drift
-      antarMs = mahaEnd.getTime() - cursor.getTime();
-    } else {
-      antarMs = antarYears * MS_PER_YEAR;
-    }
-
-    const antarEnd = new Date(cursor.getTime() + antarMs);
-    antardashas.push(makeAntardasha(antarLord, cursor, antarEnd, now, true));
-    cursor = antarEnd;
-  }
-
-  return antardashas;
-}
-
-/** 9 Pratyantardashas within an Antardasha (proportional sub-division). */
-function calculatePratyantardashas(antarLord: string, start: Date, end: Date, now: number): AntardashaEntry[] {
-  const startIdx = DASHA_ORDER.indexOf(antarLord);
-  const totalMs = end.getTime() - start.getTime();
-  const out: AntardashaEntry[] = [];
-  let cursor = new Date(start.getTime());
-  for (let i = 0; i < 9; i++) {
-    const lord = DASHA_ORDER[(startIdx + i) % 9];
-    const ms = i === 8 ? end.getTime() - cursor.getTime() : totalMs * (DASHA_YEARS[lord] / TOTAL_YEARS);
-    const pEnd = new Date(cursor.getTime() + ms);
-    out.push(makeAntardasha(lord, cursor, pEnd, now, false));
-    cursor = pEnd;
+    const sub = DASHA_ORDER[(startIdx + i) % 9];
+    const next = i === 8 ? endMs : cursor + total * (DASHA_YEARS[sub] / TOTAL_YEARS);
+    out.push({ lord: sub, start: new Date(cursor).toISOString(), end: new Date(next).toISOString() });
+    cursor = next;
   }
   return out;
 }
 
-function makeDasha(
-  planet: string,
-  start: Date,
-  end: Date,
-  now: number,
-  startFraction: number,
-): DashaEntry {
-  const s = start.toISOString().slice(0, 10);
-  const e = end.toISOString().slice(0, 10);
-  const status: DashaEntry['status'] =
-    now >= start.getTime() && now <= end.getTime() ? 'current'
-    : now > end.getTime() ? 'past' : 'upcoming';
-
+/**
+ * Vimshottari Mahadashas from the Moon's sidereal longitude. The birth
+ * Mahadasha is placed at its true (virtual) start before birth, so its
+ * Antardashas fall on their correct dates; callers clip at birth for display.
+ */
+export function vimshottariDasha(moonSiderealLon: number, birthUTC: Date, count = 9): VimshottariResult {
+  const lon = ((moonSiderealLon % 360) + 360) % 360;
+  const nakIdx = nakshatraIndex(lon);
+  const lord = NAKSHATRAS[nakIdx].lord;
+  const elapsed = (lon % NAKSHATRA_SPAN) / NAKSHATRA_SPAN;
+  const birthMs = birthUTC.getTime();
+  let cursor = birthMs - elapsed * DASHA_YEARS[lord] * MS_PER_YEAR;
+  const startIdx = DASHA_ORDER.indexOf(lord);
+  const mahadashas: VimshottariMahadasha[] = [];
+  for (let i = 0; i < count; i++) {
+    const p = DASHA_ORDER[(startIdx + i) % 9];
+    const end = cursor + DASHA_YEARS[p] * MS_PER_YEAR;
+    mahadashas.push({ lord: p, start: new Date(cursor).toISOString(), end: new Date(end).toISOString(), antardashas: vimshottariSubPeriods(p, cursor, end) });
+    cursor = end;
+  }
   return {
-    planet,
-    period:      `${s.slice(0, 7)} – ${e.slice(0, 7)}`,
-    status,
-    startDate:   s,
-    endDate:     e,
-    antardashas: calculateAntardashas(planet, start, end, now, startFraction),
+    yearLengthDays: MS_PER_YEAR / 86_400_000,
+    moonNakshatraIndex: nakIdx,
+    birthLord: lord,
+    elapsedFractionAtBirth: elapsed,
+    balanceAtBirthYears: DASHA_YEARS[lord] * (1 - elapsed),
+    mahadashas,
   };
+}
+
+/**
+ * Legacy display shape (birth Mahadasha + 8 following, each with Antardashas),
+ * derived from vimshottariDasha and clipped at birth.
+ */
+export function calculateDashas(moonSiderealLon: number, birthDate: Date): DashaEntry[] {
+  const birthMs = birthDate.getTime();
+  const now = Date.now();
+  return vimshottariDasha(moonSiderealLon, birthDate).mahadashas.map((m) => {
+    const start = Math.max(Date.parse(m.start), birthMs);
+    const end = Date.parse(m.end);
+    const antardashas = m.antardashas
+      .filter((a) => Date.parse(a.end) > birthMs)
+      .map((a) => makeAntardasha(a.lord, new Date(Math.max(Date.parse(a.start), birthMs)), new Date(a.end), now, true));
+    const s = new Date(start).toISOString().slice(0, 10);
+    const e = new Date(end).toISOString().slice(0, 10);
+    return {
+      planet: m.lord,
+      period: `${s.slice(0, 7)} – ${e.slice(0, 7)}`,
+      status: periodStatus(start, end, now),
+      startDate: s,
+      endDate: e,
+      antardashas,
+    };
+  });
+}
+
+function periodStatus(start: number, end: number, now: number): 'past' | 'current' | 'upcoming' {
+  return now >= start && now <= end ? 'current' : now > end ? 'past' : 'upcoming';
 }
 
 function makeAntardasha(planet: string, start: Date, end: Date, now: number, withPratyantar = false): AntardashaEntry {
   const s = start.toISOString().slice(0, 10);
   const e = end.toISOString().slice(0, 10);
-  const status: AntardashaEntry['status'] =
-    now >= start.getTime() && now <= end.getTime() ? 'current'
-    : now > end.getTime() ? 'past' : 'upcoming';
-
-  const entry: AntardashaEntry = {
-    planet,
-    period:    `${s.slice(0, 7)} – ${e.slice(0, 7)}`,
-    status,
-    startDate: s,
-    endDate:   e,
-  };
+  const status = periodStatus(start.getTime(), end.getTime(), now);
+  const entry: AntardashaEntry = { planet, period: `${s.slice(0, 7)} – ${e.slice(0, 7)}`, status, startDate: s, endDate: e };
   if (withPratyantar && status === 'current') {
-    entry.pratyantardashas = calculatePratyantardashas(planet, start, end, now);
+    entry.pratyantardashas = vimshottariSubPeriods(planet, start.getTime(), end.getTime())
+      .map((p) => makeAntardasha(p.lord, new Date(p.start), new Date(p.end), now, false));
   }
   return entry;
 }
@@ -243,4 +200,24 @@ function makeYogini(y: { name: string; lord: string }, start: Date, end: Date, n
     now >= start.getTime() && now <= end.getTime() ? 'current'
     : now > end.getTime() ? 'past' : 'upcoming';
   return { yogini: y.name, lord: y.lord, period: `${s.slice(0, 7)} – ${e.slice(0, 7)}`, status, startDate: s, endDate: e };
+}
+
+export interface YoginiPeriod extends DashaPeriod { yogini: string; years: number }
+
+/** Yogini Mahadashas with the birth period placed at its true (virtual) start. */
+export function yoginiDasha(moonSiderealLon: number, birthUTC: Date, count = 14): { birthYogini: string; elapsedFractionAtBirth: number; periods: YoginiPeriod[] } {
+  const lon = ((moonSiderealLon % 360) + 360) % 360;
+  const nakIdx = nakshatraIndex(lon);
+  const elapsed = (lon % NAKSHATRA_SPAN) / NAKSHATRA_SPAN;
+  const r = ((nakIdx + 1) + 3) % 8;
+  const startIdx = r === 0 ? 7 : r - 1;
+  let cursor = birthUTC.getTime() - elapsed * YOGINIS[startIdx].years * MS_PER_YEAR;
+  const periods: YoginiPeriod[] = [];
+  for (let i = 0; i < count; i++) {
+    const y = YOGINIS[(startIdx + i) % 8];
+    const end = cursor + y.years * MS_PER_YEAR;
+    periods.push({ yogini: y.name, lord: y.lord, years: y.years, start: new Date(cursor).toISOString(), end: new Date(end).toISOString() });
+    cursor = end;
+  }
+  return { birthYogini: YOGINIS[startIdx].name, elapsedFractionAtBirth: elapsed, periods };
 }

@@ -5,6 +5,7 @@
  * retrogression and Baladi avastha.
  */
 import { SIGNS } from './vedic.js';
+import { lonOf } from './lon.js';
 
 const DIGNITY_PLANETS = ['Sun', 'Moon', 'Mars', 'Mercury', 'Jupiter', 'Venus', 'Saturn'];
 
@@ -55,13 +56,13 @@ export function computeDignities(
   ascSignIndex: number,
   retro: Record<string, boolean> = {},
 ): PlanetDignity[] {
-  const sunLon = sidereal['Sun'] ?? 0;
+  const sunLon = lonOf(sidereal, 'Sun');
   const houseFromLagna = (s: number) => ((s - ascSignIndex + 12) % 12) + 1;
   const planetHouse: Record<string, number> = {};
-  for (const p of DIGNITY_PLANETS) planetHouse[p] = houseFromLagna(signOf(sidereal[p] ?? 0));
+  for (const p of DIGNITY_PLANETS) planetHouse[p] = houseFromLagna(signOf(lonOf(sidereal, p)));
 
   return DIGNITY_PLANETS.map((p) => {
-    const lon = sidereal[p] ?? 0;
+    const lon = lonOf(sidereal, p);
     const s = signOf(lon);
     const d = degOf(lon);
 
@@ -83,7 +84,7 @@ export function computeDignities(
     let planetaryWar: string | undefined;
     if (WAR_PLANETS.includes(p)) {
       for (const q of WAR_PLANETS) {
-        if (q !== p && angSep(lon, sidereal[q] ?? 0) <= 1) { planetaryWar = q; break; }
+        if (q !== p && angSep(lon, lonOf(sidereal, q)) <= 1) { planetaryWar = q; break; }
       }
     }
 
@@ -112,4 +113,16 @@ export function computeDignities(
       neechaBhanga,
     };
   });
+}
+
+/** Dignity of a planet placed in a sign (no degree-dependent Moolatrikona), e.g. for a varga placement. */
+export function signDignity(planet: string, signIndex: number): 'Exalted' | 'Debilitated' | 'Own sign' | "Friend's sign" | "Enemy's sign" | 'Neutral sign' | null {
+  if (!DIGNITY_PLANETS.includes(planet)) return null;
+  if (EXALT[planet] === signIndex) return 'Exalted';
+  if (DEBIL[planet] === signIndex) return 'Debilitated';
+  if (OWN[planet].includes(signIndex)) return 'Own sign';
+  const lord = SIGN_LORDS[signIndex];
+  if (FRIENDS[planet].includes(lord)) return "Friend's sign";
+  if (ENEMIES[planet].includes(lord)) return "Enemy's sign";
+  return 'Neutral sign';
 }

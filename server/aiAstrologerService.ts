@@ -13,10 +13,14 @@
 
 import OpenAI from "openai";
 import type { Kundli } from "@shared/schema";
-import { getKundli, getTransits, transitSummary } from "./astroEngine/index.js";
+import { transitsForChart, transitSummary } from "./astroEngine/index.js";
+import { siderealPositions } from "./astroEngine/canonical/compute.js";
+import { SIGNS } from "./astroEngine/vedic.js";
+import { isCurrentCanonicalChart } from "@shared/v3/canonical";
+import { buildInsights } from "./astroEngine/evidence/insights.js";
 
 // Shared prediction discipline + ethics for all paid-report generation.
-const REPORT_DISCIPLINE = `Discipline: a yoga/placement is only a promise — tie predictions to the activating dasha + transit and at least two confirmations (Navamsa/Dasamsa, Ashtakavarga, house lord, karaka); weigh planetary strength (a weak/debilitated/combust planet under-delivers; note Neecha-bhanga and yoga cancellation). Give realistic timing windows. Ethics: never predict death or end of longevity; never frighten; pair every difficulty with a remedy and hope; respect the person's free will and effort; recommend only justified remedies, never push gemstones.`;
+const REPORT_DISCIPLINE = `Discipline: a yoga/placement is only a promise — tie predictions to the activating dasha + transit and at least two confirmations (Navamsa/Dasamsa, Ashtakavarga, house lord, karaka); weigh planetary strength (a weak/debilitated/combust planet under-delivers; note Neecha-bhanga and yoga cancellation). Give realistic timing windows. Grounding: use only the chart facts and deterministic evidence supplied; never invent a placement, yoga, dosha, strength or date; keep the engine's verdicts; never cite chapter/verse numbers or quote scriptures; if the birth time is approximate, say so and do not build on the Lagna or houses. Ethics: Jyotish is a traditional interpretive system, not certainty — describe tendencies and timing; never predict death, lifespan, serious illness, guaranteed pregnancy, guaranteed marriage/divorce or guaranteed financial outcomes; never frighten; pair difficulty with realistic guidance (remedies are optional, never a condition); respect free will; recommend only justified remedies, never push gemstones.`;
 
 // Lazy-init so the server starts without the key (degraded mode)
 let _client: OpenAI | null = null;
@@ -37,7 +41,7 @@ function chartSummary(kundli: Partial<Kundli>): string {
   const { birthDetails, planetaryPositions, dashaTimeline } = deriveStructured(kundli);
 
   const posLines = planetaryPositions
-    .map((p) => `- ${p.planet}: ${p.sign ?? "—"} (House ${p.house ?? "—"}, ${p.degree ?? "—"}°${p.retrograde ? ", retrograde" : ""})`)
+    .map((p) => `- ${p.planet}: ${p.sign ?? "—"} (${p.house != null ? `House ${p.house}, ` : ""}${p.degree ?? "—"}°${p.retrograde ? ", retrograde" : ""})`)
     .join("\n");
 
   const currentMd = dashaTimeline.find((d) => d.status === "current");
@@ -45,15 +49,19 @@ function chartSummary(kundli: Partial<Kundli>): string {
 
   // Running Pratyantardasha (finer timing) + cross-confirming Yogini dasha.
   const rawDashas: any[] = Array.isArray((kundli as any).dashas) ? (kundli as any).dashas : [];
-  const curMdRaw = rawDashas.find((d) => d.status === "current");
-  const curAdRaw = curMdRaw?.antardashas?.find((a: any) => a.status === "current");
-  const curPdRaw = curAdRaw?.pratyantardashas?.find((p: any) => p.status === "current");
+  // Running periods from the dates as of today (the stored status froze when the chart was saved).
+  const today = new Date().toISOString().slice(0, 10);
+  const running = (x: any) => x?.startDate && x?.endDate ? x.startDate <= today && today < x.endDate : x?.status === "current";
+  const approx = isApproximate(kundli);
+  const curMdRaw = approx ? undefined : rawDashas.find(running);
+  const curAdRaw = curMdRaw?.antardashas?.find(running);
+  const curPdRaw = curAdRaw?.pratyantardashas?.find(running);
   const pratyantarLine = curPdRaw ? `Current Pratyantardasha: ${curPdRaw.planet} (${curPdRaw.period})` : "";
   const yogini: any[] = (kundli as any).chartData?.yoginiDasha || [];
-  const curYogini = yogini.find((y) => y.status === "current");
+  const curYogini = approx ? undefined : yogini.find(running);
   const yoginiLine = curYogini ? `Yogini Dasha (cross-check): ${curYogini.yogini} / ${curYogini.lord} (${curYogini.period})` : "";
 
-  const dashaLines = [
+  const dashaLines = approx ? "Not stated: the birth time is approximate, so the dasha dates could shift." : [
     currentMd
       ? `Current Mahadasha: ${currentMd.planet} (${currentMd.period})${currentMd.currentAntardasha ? `, Antardasha ${currentMd.currentAntardasha.planet} (${currentMd.currentAntardasha.period})` : ""}`
       : "Current Mahadasha: not available",
@@ -65,20 +73,20 @@ function chartSummary(kundli: Partial<Kundli>): string {
   const doshas = ((kundli as any).doshas || {}) as Record<string, unknown>;
   const doshaList = Object.entries(doshas).filter(([, v]) => v).map(([k]) => k).join(", ") || "None detected";
 
-  const navPositions: any[] = (kundli as any).chartData?.navamsa?.planetaryPositions || [];
+  const navPositions: any[] = approx ? [] : (kundli as any).chartData?.navamsa?.planetaryPositions || [];
   const navLines = navPositions
     .filter((p) => p.planet !== "Ascendant")
     .map((p) => `- ${p.planet}: ${p.sign} (D9 House ${p.house})`)
     .join("\n");
 
-  const dasamsaPos: any[] = (kundli as any).chartData?.dasamsa?.planetaryPositions || [];
+  const dasamsaPos: any[] = approx ? [] : (kundli as any).chartData?.dasamsa?.planetaryPositions || [];
   const dasamsaLines = dasamsaPos
     .filter((p) => p.planet !== "Ascendant")
     .map((p) => `- ${p.planet}: ${p.sign} (D10 House ${p.house})`)
     .join("\n");
 
   const savByHouse: number[] = (kundli as any).chartData?.ashtakavarga?.savByHouse || [];
-  const savLine = savByHouse.length === 12
+  const savLine = !approx && savByHouse.length === 12
     ? savByHouse.map((b, i) => `H${i + 1}:${b}`).join("  ")
     : "";
 
@@ -92,12 +100,13 @@ function chartSummary(kundli: Partial<Kundli>): string {
     .map((y) => `- ${y.name}${y.cancelled ? " (cancelled/bhanga)" : ""}: ${y.description}`)
     .join("\n");
 
-  const funcRemedies: any[] = (kundli as any).chartData?.functionalRemedies || [];
+  // Functional remedies are ascendant-specific, so they need an exact birth time.
+  const funcRemedies: any[] = approx ? [] : (kundli as any).chartData?.functionalRemedies || [];
   const remedyLines = funcRemedies
     .map((r) => `- ${r.action} ${r.focus}: ${r.gemstone ? `gemstone ${r.gemstone}; ` : ""}${r.donation ? `donate ${r.donation}; ` : ""}mantra "${r.mantra}" (${r.japaCount}x) on ${r.day}; worship ${r.deity}. ${r.reason}`)
     .join("\n");
 
-  const bhava: any = (kundli as any).chartData?.bhava || {};
+  const bhava: any = approx ? {} : (kundli as any).chartData?.bhava || {};
   const lordLines = Array.isArray(bhava.houseLords)
     ? bhava.houseLords.map((h: any) => `- House ${h.house} (${h.sign}) lord ${h.lord} sits in house ${h.lordHouse} (${h.lordSign})`).join("\n")
     : "";
@@ -113,7 +122,7 @@ Name: ${birthDetails.name || "Unknown"}
 Date of Birth: ${birthDetails.dateOfBirth || "Unknown"}
 Time of Birth: ${birthDetails.timeOfBirth || "Unknown"}
 Place of Birth: ${birthDetails.placeOfBirth || "Unknown"}
-Ascendant (Lagna): ${birthDetails.ascendant || "Unknown"}
+Ascendant (Lagna): ${birthDetails.ascendant || (approx ? "Not stated — birth time approximate (do not mention the Lagna, houses or dasha dates)" : "Unknown")}
 Moon Sign (Rashi): ${birthDetails.moonSign || "Unknown"}
 Sun Sign: ${birthDetails.sunSign || "Unknown"}
 
@@ -150,7 +159,26 @@ Doshas: ${doshaList}
 
 Ascendant-specific Remedies (functional — prefer these over generic advice):
 ${remedyLines || "Not available"}
+${canonicalContext(kundli)}
 `.trim();
+}
+
+/** V3 additions: calculation provenance, birth-time accuracy, today's running period and the evidence graph. */
+function canonicalContext(kundli: Partial<Kundli>): string {
+  const canonical = (kundli as any).chartData?.canonical;
+  if (!isCurrentCanonicalChart(canonical)) return "";
+  const insights = buildInsights(canonical);
+  const rp = insights.currentPeriod;
+  const domainLines = insights.domains
+    .map((d) => `- ${d.label}: ${d.verdict} (confidence ${d.confidence}) — ${d.conclusion}`)
+    .join("\n");
+  return `
+Calculation: ${insights.headline.calculation}; birth time ${canonical.birth.timeAccuracy.toUpperCase()} (${canonical.birth.timezone}, UTC${canonical.birth.utcOffset}).
+${canonical.uncertainty.notes.length ? `Uncertainty: ${canonical.uncertainty.notes.join(" ")}` : ""}
+Running period TODAY (authoritative; supersedes any status above): ${rp ? `${rp.mahadasha} Mahadasha${rp.antardasha ? ` / ${rp.antardasha} Antardasha` : ""}` : "not available"}
+
+Deterministic evidence verdicts (authoritative; explain, do not change):
+${domainLines}`;
 }
 
 // ─── Kundli Interpretation (used in KundliView page) ──────────────────────────
@@ -251,6 +279,7 @@ export interface ReportBirthDetails {
   ascendant?: string;
   moonSign?: string;
   sunSign?: string;
+  timeAccuracy?: "exact" | "approximate";
 }
 
 export interface GeneratedReport {
@@ -270,7 +299,13 @@ interface StructuredChart {
   planetaryPositions: ReportPlanetPosition[];
   chartData: { houses?: any[]; planetaryPositions?: any[] };
   dashaTimeline: ReportDashaPeriod[];
+  /** Set when the birth time is approximate: what was withheld and why. */
+  disclosure?: string;
 }
+
+const APPROXIMATE_DISCLOSURE =
+  "The birth time is approximate, so the Lagna (Ascendant), house positions, the Lagna-based charts and dasha dates are not shown: they could all change with the exact time. Planet signs and the readings below that do not depend on the birth time still apply.";
+const isApproximate = (kundli: Partial<Kundli>) => (kundli as any).chartData?.canonical?.birth?.timeAccuracy === "approximate";
 
 // Turn a stored Kundli (chartData/dashas JSONB) into the structured shapes the
 // report renderer and PDF need: birth details, a planetary-position table, the
@@ -288,12 +323,16 @@ function deriveStructured(kundli: Partial<Kundli>): StructuredChart {
     retrograde: !!p.isRetrograde,
   }));
 
+  // Status is derived from the dates as of today; the stored status froze when the chart was created.
+  const today = new Date().toISOString().slice(0, 10);
+  const statusOf = (x: any): "past" | "current" | "upcoming" =>
+    x?.startDate && x?.endDate ? (x.startDate <= today && today < x.endDate ? "current" : today >= x.endDate ? "past" : "upcoming") : x?.status;
   const dashaTimeline: ReportDashaPeriod[] = rawDashas.map((d) => {
-    const current = Array.isArray(d.antardashas) ? d.antardashas.find((a: any) => a.status === "current") : null;
+    const current = Array.isArray(d.antardashas) ? d.antardashas.find((a: any) => statusOf(a) === "current") : null;
     return {
       planet: d.planet,
       period: d.period,
-      status: d.status,
+      status: statusOf(d),
       startDate: d.startDate,
       endDate: d.endDate,
       currentAntardasha: current
@@ -312,6 +351,15 @@ function deriveStructured(kundli: Partial<Kundli>): StructuredChart {
     sunSign: kundli.zodiacSign || undefined,
   };
 
+  if (isApproximate(kundli)) {
+    return {
+      birthDetails: { ...birthDetails, ascendant: undefined, timeAccuracy: "approximate" },
+      planetaryPositions: planetaryPositions.filter((p) => p.planet !== "Ascendant").map((p) => ({ ...p, house: undefined })),
+      chartData: {},
+      dashaTimeline: [],
+      disclosure: APPROXIMATE_DISCLOSURE,
+    };
+  }
   return { birthDetails, planetaryPositions, chartData: cd, dashaTimeline };
 }
 
@@ -469,9 +517,9 @@ const LIFE_REPORT_BATCHES: { focus: string; sections: string[] }[] = [
 
 async function currentTransitContext(): Promise<string> {
   try {
-    const nk: any = await getKundli(new Date(), "12:00", 28.6139, 77.2090);
-    const positions: any[] = nk?.chartData?.planetaryPositions || [];
-    const sign = (p: string) => positions.find((x) => x.planet === p)?.sign || "—";
+    // Geocentric sidereal signs need no observer location.
+    const { bodies } = siderealPositions(new Date());
+    const sign = (p: keyof typeof bodies) => SIGNS[Math.floor(bodies[p].longitude / 30)];
     return `\nCurrent planetary transits (as of ${new Date().toDateString()}): Saturn in ${sign("Saturn")}, Jupiter in ${sign("Jupiter")}, Rahu in ${sign("Rahu")}, Ketu in ${sign("Ketu")}. Assess Sade Sati from Saturn's transit relative to the natal Moon sign.`;
   } catch {
     return "";
@@ -527,8 +575,9 @@ export async function generateLifeReport(kundli: Partial<Kundli>): Promise<Gener
   }
 
   const chart = chartSummary(kundli);
-  const transit = (kundli.moonSign && kundli.ascendant)
-    ? "\n\n" + transitSummary(getTransits(kundli.moonSign, kundli.ascendant, (kundli as any).chartData?.ashtakavarga?.sav))
+  const canonical = (kundli as any).chartData?.canonical;
+  const transit = isCurrentCanonicalChart(canonical)
+    ? "\n\n" + transitSummary(transitsForChart(canonical, (kundli as any).chartData?.ashtakavarga?.sav))
     : await currentTransitContext();
 
   // Parallel batches; a failed batch degrades to empty (filtered out) rather than
@@ -647,7 +696,7 @@ export async function generateDailyHoroscope(
     const dashaCtx = currentMd
       ? `, currently running the ${currentMd.planet} Mahadasha${currentMd.currentAntardasha ? ` / ${currentMd.currentAntardasha.planet} Antardasha` : ""}`
       : "";
-    const prompt = `You are an expert Vedic astrologer writing today's PERSONALISED daily horoscope for ${dateStr}. Base it specifically on this person's chart — Lagna ${birthDetails.ascendant || "—"}, Moon ${birthDetails.moonSign || "—"}, Sun ${birthDetails.sunSign || "—"}${dashaCtx}. Make it specific and actionable for today — not generic sun-sign text.${lang ? ` Write every text field in ${lang}.` : ""}
+    const prompt = `You are an expert Vedic astrologer writing today's PERSONALISED daily horoscope for ${dateStr}. Base it specifically on this person's chart — ${birthDetails.ascendant ? `Lagna ${birthDetails.ascendant}, ` : 'Lagna not known (birth time approximate: do not mention the Lagna or houses), '}Moon ${birthDetails.moonSign || "—"}, Sun ${birthDetails.sunSign || "—"}${dashaCtx}. Make it specific and actionable for today — not generic sun-sign text.${lang ? ` Write every text field in ${lang}.` : ""}
 
 Return ONLY valid JSON: {"headline":"short uplifting headline","overall":"2-3 sentence personalised summary for today","rating":<integer 1-5>,"career":"1-2 sentences","love":"1-2 sentences","health":"1-2 sentences","finance":"1-2 sentences","luckyColor":"a colour","luckyNumber":<integer 1-9>,"advice":"one practical tip for today"}`;
 

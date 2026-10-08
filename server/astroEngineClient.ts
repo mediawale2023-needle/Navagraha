@@ -139,44 +139,6 @@ export function formatShadbalaSummary(data: AstroEngineResponse): string {
 
 // ─── Sprint 3: Prashna, Synastry, Remediation ────────────────────────────────
 
-export interface PrashnaRequest {
-  julian_day: number;
-  latitude: number;
-  longitude: number;
-  question_category: string;
-}
-
-export interface PrashnaResponse {
-  panchang: {
-    tithi: string;
-    vara: string;
-    nakshatra: string;
-    nakshatra_deity: string;
-    karana: string;
-    yoga: string;
-    hora_lord: string;
-  };
-  prashna_ascendant_sign: number;
-  arudha_lagna_sign: number;
-  answer_indicator: string;
-  timing_window: string;
-  key_significator: string;
-  prashna_analysis: string[];
-}
-
-export async function callPrashnaEngine(request: PrashnaRequest): Promise<PrashnaResponse | null> {
-  try {
-    const res = await fetch(`${ASTRO_ENGINE_URL}/prashna`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(request), signal: AbortSignal.timeout(10000),
-    });
-    return res.ok ? await res.json() : null;
-  } catch (err) {
-    console.error('[AstroEngine] Prashna Request Failed:', err);
-    return null;
-  }
-}
-
 export interface SynastryRequest {
   person_a_nakshatra: number;
   person_a_moon_sign: number;

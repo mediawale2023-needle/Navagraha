@@ -1,3 +1,5 @@
-export function isUnauthorizedError(error: Error): boolean {
-  return /^401: .*Unauthorized/.test(error.message);
+import { isApiError } from "./apiError";
+
+export function isUnauthorizedError(error: unknown): boolean {
+  return isApiError(error) && error.status === 401;
 }

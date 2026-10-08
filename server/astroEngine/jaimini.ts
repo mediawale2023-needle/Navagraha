@@ -13,6 +13,7 @@
  * (rasi-level) dates follow the standard, uncontested rule.
  */
 import { SIGNS, SIGN_LORDS, navamsaSign } from './vedic.js';
+import { lonOf } from './lon.js';
 
 const MS_PER_YEAR = 365.25 * 24 * 3600 * 1000;
 
@@ -54,7 +55,7 @@ const KARAKA_ABBR: Record<KarakaName, string> = {
 export function computeCharKarakas(sidereal: Record<string, number>): CharKaraka[] {
   const CANDIDATES = ['Sun', 'Moon', 'Mars', 'Mercury', 'Jupiter', 'Venus', 'Saturn', 'Rahu'];
   const ranked = CANDIDATES.map((planet) => {
-    const lon = ((sidereal[planet] ?? 0) % 360 + 360) % 360;
+    const lon = (lonOf(sidereal, planet) % 360 + 360) % 360;
     const degInSign = lon % 30;
     const rankDegree = planet === 'Rahu' ? 30 - degInSign : degInSign;
     return { planet, rankDegree };
@@ -105,7 +106,7 @@ export function computeKarakamsha(
   charKarakas: CharKaraka[],
 ): KarakamshaResult {
   const ak = charKarakas.find((k) => k.karaka === 'Atmakaraka')!;
-  const akNavSign = navamsaSign(sidereal[ak.planet] ?? 0);
+  const akNavSign = navamsaSign(lonOf(sidereal, ak.planet));
   const twelfthFromKarakamsha = (akNavSign + 11) % 12; // 12th house = 11 signs ahead
 
   // Which planet(s) sit in that navamsa sign? (by navamsa sign, not rasi sign)
@@ -161,7 +162,7 @@ export interface CharaDashaEntry {
  */
 function charaYearsForSign(signIdx: number, sidereal: Record<string, number>): number {
   const lordPlanet = SIGN_LORDS[SIGNS[signIdx]];
-  const lordSignIdx = Math.floor((((sidereal[lordPlanet] ?? 0) % 360) + 360) % 360 / 30);
+  const lordSignIdx = Math.floor(((lonOf(sidereal, lordPlanet) % 360) + 360) % 360 / 30);
   const isOdd = signIdx % 2 === 0; // index 0 (Aries) = 1st sign = odd
 
   let count: number;

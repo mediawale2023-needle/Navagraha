@@ -13,6 +13,8 @@ interface ChartPlanetPos {
 export interface ReportContent {
   title?: string;
   summary?: string;
+  /** Present when the birth time is approximate (Lagna, houses and dasha dates withheld). */
+  disclosure?: string;
   sections?: { heading: string; body: string }[];
   remedies?: string[];
   birthDetails?: {
@@ -113,8 +115,9 @@ export async function downloadReportPdf(content: ReportContent) {
     heading("Birth Details");
     para(`Name: ${bd.name || "—"}        Date of Birth: ${bd.dateOfBirth || "—"}        Time: ${bd.timeOfBirth || "—"}`);
     para(`Place: ${bd.placeOfBirth || "—"}`);
-    para(`Ascendant (Lagna): ${bd.ascendant || "—"}        Moon Sign: ${bd.moonSign || "—"}        Sun Sign: ${bd.sunSign || "—"}`);
+    para(`Ascendant (Lagna): ${bd.ascendant || (content.disclosure ? "not stated (approximate birth time)" : "—")}        Moon Sign: ${bd.moonSign || "—"}        Sun Sign: ${bd.sunSign || "—"}`);
   }
+  if (content.disclosure) para(content.disclosure);
 
   // ── Contents (for long reports) ──────────────────────────────
   if ((content.sections?.length || 0) > 12) {

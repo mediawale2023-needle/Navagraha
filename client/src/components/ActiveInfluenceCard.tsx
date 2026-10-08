@@ -10,6 +10,8 @@ interface ActiveInfluenceCardProps {
   endDate?: string;
   linkTo?: string;
   className?: string;
+  /** Glyph override, e.g. the period lord's planetary symbol. */
+  icon?: string;
 }
 
 /**
@@ -26,6 +28,7 @@ export function ActiveInfluenceCard({
   endDate,
   linkTo,
   className = '',
+  icon,
 }: ActiveInfluenceCardProps) {
   const typeConfig = {
     dasha: {
@@ -61,7 +64,7 @@ export function ActiveInfluenceCard({
       className={`${config.bgColor} ${config.borderColor} rounded-[12px] border p-4 ${className}`}
     >
       <div className="flex items-start gap-3">
-        <span className={`${config.iconColor} font-display flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-[6px] bg-card text-lg`}>{config.icon}</span>
+        <span className={`${config.iconColor} font-display flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-[6px] bg-card text-lg`}>{icon ?? config.icon}</span>
         <div className="flex-1 min-w-0">
           <div className="flex items-center justify-between gap-2 mb-1">
             <h3 className="font-display text-sm truncate text-foreground">

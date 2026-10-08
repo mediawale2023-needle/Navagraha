@@ -3,8 +3,10 @@ import { createServer } from "http";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import { runMigrations } from "./migrate";
+import { FREE_CHAT_MINUTES } from "./paymentService";
 import { waitForDatabase } from "./db";
 import { setupWebSocket } from "./websocketService";
+import { runAstronomySelfCheck } from "./astroEngine/selfCheck";
 import client from "prom-client";
 
 // Prevent unhandled errors from killing the process before the port binds
@@ -101,6 +103,7 @@ app.get("/api/config", (_req, res) => {
     razorpayKeyId: process.env.RAZORPAY_KEY_ID || "",
     agoraAppId: process.env.AGORA_APP_ID || "",
     posthogKey: process.env.POSTHOG_API_KEY || "",
+    freeChatMinutes: FREE_CHAT_MINUTES,
     firebase: {
       apiKey: process.env.FIREBASE_API_KEY || "",
       authDomain: process.env.FIREBASE_AUTH_DOMAIN || "",
@@ -124,6 +127,15 @@ httpServer.listen({ port, host: "0.0.0.0", reusePort: true }, () => {
 // crash-looping (Render would otherwise restart forever and login would show a generic failure).
 waitForDatabase()
   .then(async () => {
+    // Fail closed: nothing but /api/health is served unless the canonical astronomy stack works; never degrade.
+    const astro = runAstronomySelfCheck();
+    if (!astro.ok) {
+      startupError = `astronomy self-check failed: ${astro.failures.join('; ')}`;
+      console.error("[startup] FATAL astronomy self-check failed — no API routes registered (fail-closed); /api/health reports 503:", astro.failures);
+      return;
+    }
+    log("astronomy self-check passed (Swiss Ephemeris, Lahiri, geo-tz/all, ICU)");
+
     try {
       await registerRoutes(app, httpServer);
     } catch (err) {

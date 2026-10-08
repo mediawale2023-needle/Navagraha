@@ -13,7 +13,9 @@ interface Kundli {
   placeOfBirth?: string;
   zodiacSign?: string;
   moonSign?: string;
-  ascendant?: string;
+  ascendant?: string | null;
+  timeAccuracy?: 'exact' | 'approximate';
+  listStatus?: 'v3' | 'recalculated' | 'limited';
 }
 
 export default function MyCharts() {
@@ -92,6 +94,12 @@ export default function MyCharts() {
                     {k.zodiacSign && <Badge className="border-0 bg-primary/15 text-[var(--primary-border)] text-xs">Sun: {k.zodiacSign}</Badge>}
                     {k.moonSign && <Badge className="border-0 bg-nava-teal/10 text-nava-teal text-xs">Moon: {k.moonSign}</Badge>}
                     {k.ascendant && <Badge className="border-0 bg-nava-magenta/10 text-nava-magenta text-xs">Asc: {k.ascendant}</Badge>}
+                    {k.listStatus !== 'limited' && k.timeAccuracy === 'approximate' && (
+                      <Badge className="border-0 bg-muted text-muted-foreground text-xs" data-testid={`chart-approx-${k.id}`}>Lagna unknown · approx. time</Badge>
+                    )}
+                    {k.listStatus === 'limited' && (
+                      <Badge className="border-0 bg-amber-500/10 text-amber-800 text-xs" data-testid={`chart-limited-${k.id}`}>Older chart · needs birth place</Badge>
+                    )}
                   </div>
                 </CardContent>
               </Card>
