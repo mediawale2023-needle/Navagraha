@@ -177,7 +177,7 @@ export interface IStorage {
     grossAmount: string;
     platformFee: string;
     netAmount: string;
-  }): Promise<AstrologerEarning>;
+  }): Promise<AstrologerEarning | null>;
   getAstrologerEarnings(astrologerId: string): Promise<AstrologerEarning[]>;
   getAstrologerTotalEarnings(astrologerId: string): Promise<{ total: number; pending: number }>;
 
@@ -669,22 +669,29 @@ export class DatabaseStorage implements IStorage {
     grossAmount: string;
     platformFee: string;
     netAmount: string;
-  }): Promise<AstrologerEarning> {
-    const [earning] = await db
-      .insert(astrologerEarnings)
-      .values(data)
-      .returning();
-
-    // Update astrologer's total and pending earnings
-    await db
-      .update(astrologers)
-      .set({
-        totalEarnings: sql`${astrologers.totalEarnings} + ${data.netAmount}`,
-        pendingPayout: sql`${astrologers.pendingPayout} + ${data.netAmount}`,
-      })
-      .where(eq(astrologers.id, data.astrologerId));
-
-    return earning;
+  }): Promise<AstrologerEarning | null> {
+    // The earning and the astrologer's totals move together. A consultation earns once: the
+    // per-consultation lock holds even where the unique index could not be created.
+    return db.transaction(async (tx) => {
+      if (data.consultationId) {
+        await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${"earning:" + data.consultationId}))`);
+        const [existing] = await tx
+          .select({ id: astrologerEarnings.id })
+          .from(astrologerEarnings)
+          .where(eq(astrologerEarnings.consultationId, data.consultationId))
+          .limit(1);
+        if (existing) return null;
+      }
+      const [earning] = await tx.insert(astrologerEarnings).values(data).returning();
+      await tx
+        .update(astrologers)
+        .set({
+          totalEarnings: sql`${astrologers.totalEarnings} + ${data.netAmount}`,
+          pendingPayout: sql`${astrologers.pendingPayout} + ${data.netAmount}`,
+        })
+        .where(eq(astrologers.id, data.astrologerId));
+      return earning;
+    });
   }
 
   async getAstrologerEarnings(astrologerId: string): Promise<AstrologerEarning[]> {
