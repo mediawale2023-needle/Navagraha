@@ -125,3 +125,20 @@ describe('GET /api/kundli lists only placements the V3 engine vouches for', () =
     expect(mocks.storage.createKundli).not.toHaveBeenCalled();
   });
 });
+
+describe('stored charts are served with current rules', () => {
+  it('GET /api/kundli/:id drops a stored birth-star gemstone the functional rules forbid', async () => {
+    const withPearl = { ...saved, remedies: [{ title: 'Gemstone', description: 'Pearl', type: 'gemstone' }, { title: 'Mantra', description: 'Om', type: 'mantra' }] };
+    mocks.storage.getKundliById.mockResolvedValue(withPearl);
+    const res = await request(app).get('/api/kundli/chart').set('x-user', 'owner');
+    expect(res.status).toBe(200);
+    expect(res.body.remedies).toEqual([{ title: 'Mantra', description: 'Om', type: 'mantra' }]);
+  });
+
+  it('POST /api/ai/chat reports where the answer came from', async () => {
+    vi.stubEnv('OPENAI_API_KEY', '');
+    const res = await request(app).post('/api/ai/chat').set('x-user', 'owner').send({ kundliId: 'chart', message: 'How is my career?' });
+    expect(res.status).toBe(200);
+    expect(res.body.answerSource).toBe('deterministic');
+  });
+});

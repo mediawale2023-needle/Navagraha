@@ -128,6 +128,12 @@ export function AIInsightSheet({ open, onOpenChange, subject, onAskQuestion }: A
                   <ul className="mt-1 list-disc pl-5">{subject.resolution.excluded.map((e) => <li key={e.id}>{e.explanation}</li>)}</ul>
                 </details>
               )}
+              {subject.resolution.experimental.length > 0 && (
+                <details className="mb-3 text-xs text-muted-foreground" data-testid="experimental-evidence">
+                  <summary className="cursor-pointer">Experimental — shown for context, not counted ({subject.resolution.experimental.length})</summary>
+                  <ul className="mt-1 opacity-80">{subject.resolution.experimental.map((e) => <EvidenceRow key={e.id} e={e} />)}</ul>
+                </details>
+              )}
             </>
           )}
 

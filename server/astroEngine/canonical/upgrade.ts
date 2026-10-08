@@ -17,6 +17,7 @@ import { validCoordinates } from '../../geocode.js';
 import { BirthInputError } from '../errors.js';
 import { getKundli, birthDateString } from '../index.js';
 import { CalculationError } from './compute.js';
+import { reconcileBirthStarRemedies } from '../remedies.js';
 
 export interface ChartVersionStatus {
   version: 'v3' | 'v3-recalculated-from-legacy' | 'limited';
@@ -119,4 +120,20 @@ export function listedChart<T extends Pick<Kundli, 'chartData' | 'zodiacSign' | 
     timeAccuracy: approximate ? 'approximate' as const : 'exact' as const,
     listStatus: listed,
   };
+}
+
+/**
+ * Applies the current birth-star remedy rules to a V3 chart's stored remedies,
+ * so charts saved before the rule changed are served consistently. Read-only
+ * and idempotent; non-V3 charts are returned unchanged.
+ */
+export function withReconciledRemedies<T extends Pick<Kundli, 'chartData' | 'remedies'>>(kundli: T): T {
+  const cd = (kundli.chartData ?? {}) as Record<string, any>;
+  if (!isCurrentCanonicalChart(cd.canonical) || !Array.isArray(kundli.remedies)) return kundli;
+  const chart = cd.canonical as CanonicalChart;
+  const lord = chart.planets.find((p) => p.name === 'Moon')?.nakshatra.lord;
+  const houseLords = cd.bhava?.houseLords;
+  if (!lord || !Array.isArray(houseLords)) return kundli;
+  const remedies = reconcileBirthStarRemedies(kundli.remedies as any[], lord, houseLords, chart.birth.timeAccuracy === 'approximate');
+  return { ...kundli, remedies };
 }

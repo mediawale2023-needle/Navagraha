@@ -6,7 +6,7 @@
 import { GRAHAS, SIGN_NAMES, type CanonicalChart, type Graha } from '@shared/v3/canonical';
 import { navamsaDegree, getRemedies } from '../vedic.js';
 import { computeBhava } from '../bhava.js';
-import { computeRemedies } from '../remedies.js';
+import { computeRemedies, reconcileBirthStarRemedies } from '../remedies.js';
 import { calculateDashas } from '../dasha.js';
 
 const r2 = (x: number) => parseFloat(x.toFixed(2));
@@ -88,7 +88,7 @@ export function legacyView(chart: CanonicalChart) {
       planet: d.planet, period: d.period, status: d.status, startDate: d.startDate, endDate: d.endDate, antardashas: d.antardashas,
     })),
     doshas: { mangalDosha: dosha('mangal'), kaalSarpDosha: dosha('kaalSarp'), pitruDosha: dosha('pitru') },
-    remedies: getRemedies(moon.nakshatra.lord),
+    remedies: reconcileBirthStarRemedies(getRemedies(moon.nakshatra.lord), moon.nakshatra.lord, bhava.houseLords, chart.birth.timeAccuracy === 'approximate'),
     raw: { ayanamsa: chart.meta.ayanamsaDegrees, jd: chart.meta.julianDayUT },
   };
 }

@@ -37,7 +37,7 @@ import {
 } from "./astroEngine/index.js";
 import { computePrashna, PRASHNA_CATEGORIES } from "./astroEngine/prashna.js";
 import { CalculationError } from "./astroEngine/canonical/compute.js";
-import { upgradeLegacyKundli, chartVersionStatus, listedChart } from "./astroEngine/canonical/upgrade.js";
+import { upgradeLegacyKundli, chartVersionStatus, listedChart, withReconciledRemedies } from "./astroEngine/canonical/upgrade.js";
 import { buildInsights } from "./astroEngine/evidence/insights.js";
 import { routeQuestion, buildEvidencePacket, answerSimple, answerWithoutChart, guardAnswer, packetSummary, limitedChartReply } from "./agents/askKundli.js";
 import { canonicalChartSchema, isCurrentCanonicalChart } from "@shared/v3/canonical";
@@ -232,7 +232,7 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
   const upgradesInFlight = new Map<string, Promise<Kundli>>();
   async function currentChart<T extends Kundli | null | undefined>(kundli: T): Promise<T> {
     if (!kundli?.id) return kundli;
-    if (isCurrentCanonicalChart((kundli.chartData as any)?.canonical)) return kundli;
+    if (isCurrentCanonicalChart((kundli.chartData as any)?.canonical)) return withReconciledRemedies(kundli) as T;
     const id = kundli.id;
     let pending = upgradesInFlight.get(id);
     if (!pending) {
