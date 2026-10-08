@@ -426,8 +426,16 @@ function RemediesTab({ chartData }: { chartData: any }) {
       </Card>
 
       <Card>
-        <CardHeader><CardTitle className="text-sm">Nakshatra-based Remedy (Moon)</CardTitle></CardHeader>
-        <CardContent className="text-sm">
+        <CardHeader><CardTitle className="text-sm">Nakshatra-based Remedy (Moon) — generic reference</CardTitle></CardHeader>
+        <CardContent className="space-y-2 text-sm">
+          <p className="text-xs text-muted-foreground" data-testid="nakshatra-remedy-caution">
+            A generic list keyed to the Moon's nakshatra lord{chartData.remedies.nakshatraLord ? ` (${chartData.remedies.nakshatraLord})` : ''}, not to this chart's lordships. It is not a gemstone recommendation: weigh the functional remedies and contraindications above before advising any stone.
+          </p>
+          {chartData.remedies.nakshatraGemstoneAdvisedAgainst && (
+            <p className="rounded-lg border border-red-400 bg-red-50 p-2 text-xs text-red-800 dark:bg-red-950/20 dark:text-red-300" data-testid="nakshatra-gemstone-advised-against">
+              This chart's functional rules advise against the listed gemstone: {chartData.remedies.nakshatraLord} rules a dusthana and no trikona for this Lagna, so it is pacified, not strengthened.
+            </p>
+          )}
           <pre className="whitespace-pre-wrap text-xs">{JSON.stringify(chartData.remedies.nakshatraBased, null, 2)}</pre>
         </CardContent>
       </Card>

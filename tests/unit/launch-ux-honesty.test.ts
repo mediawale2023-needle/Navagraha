@@ -72,3 +72,25 @@ describe('labels say only what is true', () => {
     expect(ask).toContain('"AI explanation · checked against your chart"');
   });
 });
+
+describe('Pro workspace birth-star gemstone list is not a recommendation', () => {
+  it('flags the listed stone when this chart\'s functional rules forbid it (Leo Lagna, Rohini Moon → Pearl)', async () => {
+    const { computeJyotishChart } = await import('../../server/astroEngine/jyotishEngine');
+    const { chartData } = computeJyotishChart('1990-08-15', '06:30', 12.9716, 77.5946) as any;
+    expect(chartData.remedies.nakshatraLord).toBe('Moon');
+    expect(JSON.stringify(chartData.remedies.nakshatraBased)).toContain('Pearl');
+    expect(chartData.remedies.nakshatraGemstoneAdvisedAgainst).toBe(true);
+  });
+  it('one rule decides it for consumers and practitioners', async () => {
+    const { isFunctionalMaleficLord } = await import('../../server/astroEngine/remedies');
+    expect(isFunctionalMaleficLord('Moon', leoLords)).toBe(true);
+    expect(isFunctionalMaleficLord('Jupiter', leoLords)).toBe(false); // 5th and 8th: trikona wins
+    expect(isFunctionalMaleficLord('Sun', leoLords)).toBe(false);
+  });
+  it('the Pro panel labels the list as generic and shows the conflict', () => {
+    const pro = read('pages/admin/JyotishReading.tsx');
+    expect(pro).toContain('Nakshatra-based Remedy (Moon) — generic reference');
+    expect(pro).toContain('It is not a gemstone recommendation');
+    expect(pro).toContain('chartData.remedies.nakshatraGemstoneAdvisedAgainst &&');
+  });
+});

@@ -22,6 +22,7 @@ BASE_URL=http://127.0.0.1:5000 OUT_DIR=./out node launch-ux.mjs
 | `CHROMIUM_PATH` | an existing Chromium executable instead of the downloaded one |
 | `FORWARDED_PROTO=https` | send `X-Forwarded-Proto`, for a production build (secure cookies) served over plain HTTP locally |
 | `ADMIN_EMAIL`, `ADMIN_PASSWORD` | an admin (free access) account: checks admins can still order reports with no balance |
+| `PRO_EMAIL`, `PRO_PASSWORD` | a Pro astrologer account: checks the Pro workspace labels its birth-star gemstone list (F16b) |
 | `DATABASE_URL` | with `psql` on `PATH`: inserts a pre-V3 chart without coordinates for the legacy-chart checks (F11, F13) |
 | `FONTS_VIA_CURL=1` | fetch Google font files with `curl` (for sandboxes whose proxy strips CORS headers) |
 

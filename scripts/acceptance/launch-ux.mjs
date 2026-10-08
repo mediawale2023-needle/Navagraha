@@ -350,6 +350,34 @@ async function run(browser, label, viewport) {
     } catch (e) { record(label, 'F29b', 'admin free access still orders without a balance', 'FAIL', String(e.message).slice(0, 200)); }
     await actx.close();
   } else record(label, 'F29b', 'admin free access', 'SKIP', 'ADMIN_EMAIL/ADMIN_PASSWORD not set');
+
+  // ── Pro workspace: the birth-star gemstone list is labelled, and flagged when the chart forbids it ─
+  if (process.env.PRO_EMAIL && process.env.PRO_PASSWORD) {
+    const pctx = await newContext(browser, viewport);
+    const ppage = await pctx.newPage();
+    const pshot = async (name) => { await ppage.waitForTimeout(500); await ppage.screenshot({ path: join(OUT, `${label}-${name}.png`) }); };
+    try {
+      await ppage.goto(`${BASE}/`, { waitUntil: 'networkidle' });
+      const login = await api(ppage, 'POST', '/api/astrologer/auth/login', { email: process.env.PRO_EMAIL, password: process.env.PRO_PASSWORD });
+      assert(login.status === 200, `pro login ${login.status}`);
+      const clientName = `Acceptance client ${label} ${Date.now()}`;
+      const prof = await api(ppage, 'POST', '/api/astrologer/pro/profiles', { name: clientName, gender: 'female', dateOfBirth: '1990-08-15', timeOfBirth: '06:30', placeOfBirth: 'Bengaluru', latitude: '12.9716', longitude: '77.5946' });
+      assert(prof.status === 200 || prof.status === 201, `profile ${prof.status}`);
+      await ppage.goto(`${BASE}/astrologer/pro`, { waitUntil: 'networkidle' });
+      await ppage.getByText(clientName).first().click();
+      await ppage.getByRole('button', { name: /compute chart only/i }).first().click();
+      await ppage.getByRole('tab', { name: 'Remedies' }).first().click();
+      await ppage.getByTestId('nakshatra-remedy-caution').waitFor({ timeout: 15000 });
+      await ppage.getByTestId('nakshatra-gemstone-advised-against').waitFor({ timeout: 5000 });
+      await ppage.getByTestId('nakshatra-remedy-caution').scrollIntoViewIfNeeded();
+      await pshot('pro-nakshatra-gemstone');
+      record(label, 'F16b', 'Pro birth-star gemstone list is labelled generic and flagged when the chart forbids it', 'PASS');
+    } catch (e) {
+      record(label, 'F16b', 'Pro birth-star gemstone list is labelled generic and flagged when the chart forbids it', 'FAIL', String(e.message).split('\n')[0].slice(0, 200));
+      await pshot('FAIL-F16b').catch(() => {});
+    }
+    await pctx.close();
+  } else record(label, 'F16b', 'Pro birth-star gemstone list', 'SKIP', 'PRO_EMAIL/PRO_PASSWORD not set');
 }
 
 const browser = await chromium.launch(process.env.CHROMIUM_PATH ? { executablePath: process.env.CHROMIUM_PATH } : {});

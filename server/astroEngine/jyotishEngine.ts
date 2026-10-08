@@ -13,7 +13,7 @@ import { navamsaDegree, getRemedies, NAKSHATRAS } from './vedic.js';
 import { calculateDashas, calculateYoginiDasha } from './dasha.js';
 import { computeDignities } from './dignity.js';
 import { computeBhava } from './bhava.js';
-import { computeRemedies, checkGemstoneContraindications } from './remedies.js';
+import { computeRemedies, checkGemstoneContraindications, isFunctionalMaleficLord } from './remedies.js';
 import { computeCharKarakas, computeKarakamsha, calculateCharaDasha } from './jaimini.js';
 import { computeMahavidyaMapping } from './mahavidya.js';
 import { resolveBirthWithCoordinates, type TimeAccuracy } from './birthResolver.js';
@@ -61,6 +61,9 @@ export interface JyotishChartData {
   remedies: {
     functional: ReturnType<typeof computeRemedies>;
     nakshatraBased: ReturnType<typeof getRemedies>;
+    nakshatraLord: string;
+    /** True when this chart's functional rules forbid the birth-star gemstone (see isFunctionalMaleficLord). */
+    nakshatraGemstoneAdvisedAgainst: boolean;
     gemstoneContraindications: ReturnType<typeof checkGemstoneContraindications>;
   };
 }
@@ -153,7 +156,10 @@ export function projectJyotishChart(canonical: CanonicalChart): JyotishChartSumm
       doshas: { mangalDosha: dosha('mangal'), kaalSarpDosha: dosha('kaalSarp'), pitruDosha: dosha('pitru'), vishaYoga: dosha('vishaYoga') },
       remedies: {
         functional: computeRemedies(dignities, bhava.houseLords),
+        // Generic birth-star list, kept for the practitioner; flagged when this chart's functional rules forbid its stone.
         nakshatraBased: getRemedies(moon.nakshatra.lord),
+        nakshatraLord: moon.nakshatra.lord,
+        nakshatraGemstoneAdvisedAgainst: isFunctionalMaleficLord(moon.nakshatra.lord, bhava.houseLords),
         gemstoneContraindications: checkGemstoneContraindications(ascSignIndex, sidereal, dignities),
       },
       canonical,
