@@ -284,7 +284,7 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
       // Never fabricate a location — a wrong Ascendant ruins every prediction.
       const coords = await resolveBirthCoords(req.body.latitude, req.body.longitude, req.body.placeOfBirth);
       if (!coords) {
-        return res.status(400).json({ message: "Please pick your exact birth place from the suggestions. An approximate location produces a wrong Ascendant and unreliable predictions." });
+        return res.status(400).json({ message: "Please pick your exact birth place from the suggestions. An approximate location produces a wrong Ascendant and unreliable predictions.", field: "placeOfBirth" });
       }
       const lat = coords.lat;
       const lon = coords.lng;
@@ -466,7 +466,12 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
 
       const c1 = await resolveBirthCoords(person1Lat, person1Lon, req.body.person1Place);
       const c2 = await resolveBirthCoords(person2Lat, person2Lon, req.body.person2Place);
-      if (!c1 || !c2) return res.status(400).json({ message: 'Valid coordinates or a resolvable birthplace are required for both people.' });
+      if (!c1 || !c2) {
+        return res.status(400).json({
+          message: 'Valid coordinates or a resolvable birthplace are required for both people.',
+          field: !c1 ? 'person1Place' : 'person2Place',
+        });
+      }
       const p1 = { dateOfBirth: person1Date, timeOfBirth: person1Time, latitude: c1.lat, longitude: c1.lng };
       const p2 = { dateOfBirth: person2Date, timeOfBirth: person2Time, latitude: c2.lat, longitude: c2.lng };
       const result = await getKundliMatching(p1, p2);

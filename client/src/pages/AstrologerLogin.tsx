@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
+import { isApiError } from '@/lib/apiError';
 import { apiRequest } from '@/lib/queryClient';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
 import { Star, Eye, EyeOff, ArrowLeft, Sparkles } from 'lucide-react';
@@ -47,15 +48,16 @@ export default function AstrologerLogin() {
       navigate(destination === 'pro' ? '/astrologer/pro' : '/astrologer/dashboard');
     } catch (err: any) {
       const raw = String(err?.message || '');
+      const status = isApiError(err) ? err.status : undefined;
       let description = 'Login failed. Please try again.';
-      if (/503|502|Cannot POST|Failed to fetch|NetworkError/i.test(raw)) {
+      if (status === 502 || status === 503 || /Cannot POST|Failed to fetch|NetworkError/i.test(raw)) {
         description = 'Server is unavailable (database not connected). Check Render DATABASE_URL, then retry.';
-      } else if (/403/.test(raw)) {
-        description = raw.replace(/^\d{3}:\s*/, '') || 'Account pending admin approval.';
-      } else if (/401/.test(raw)) {
+      } else if (status === 403) {
+        description = raw || 'Account pending admin approval.';
+      } else if (status === 401) {
         description = 'Invalid email or password.';
       } else if (raw) {
-        description = raw.replace(/^\d{3}:\s*/, '');
+        description = raw;
       }
       toast({ title: 'Error', description, variant: 'destructive' });
     } finally {

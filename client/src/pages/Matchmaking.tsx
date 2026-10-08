@@ -12,6 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Progress } from '@/components/ui/progress';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest } from '@/lib/queryClient';
+import { isApiError } from '@/lib/apiError';
 import { ArrowLeft, Heart, Loader2 } from 'lucide-react';
 import { PlacesAutocomplete } from '@/components/PlacesAutocomplete';
 
@@ -32,6 +33,7 @@ type MatchmakingFormData = z.infer<typeof matchmakingSchema>;
 
 export default function Matchmaking() {
   const [result, setResult] = useState<any>(null);
+  const [coords, setCoords] = useState<{ person1?: { lat: number; lng: number }; person2?: { lat: number; lng: number } }>({});
   const { toast } = useToast();
 
   const form = useForm<MatchmakingFormData>({
@@ -52,7 +54,11 @@ export default function Matchmaking() {
 
   const mutation = useMutation({
     mutationFn: async (data: MatchmakingFormData) => {
-      return await apiRequest('POST', '/api/matchmaking', data);
+      return await apiRequest('POST', '/api/matchmaking', {
+        ...data,
+        person1Lat: coords.person1?.lat, person1Lon: coords.person1?.lng,
+        person2Lat: coords.person2?.lat, person2Lon: coords.person2?.lng,
+      });
     },
     onSuccess: (data) => {
       setResult(data);
@@ -62,6 +68,10 @@ export default function Matchmaking() {
       });
     },
     onError: (error: Error) => {
+      if (isApiError(error) && (error.field === 'person1Place' || error.field === 'person2Place')) {
+        form.setError(error.field, { message: 'Pick this birth place from the suggestions so we can find its exact location.' });
+        return;
+      }
       toast({
         title: 'Error',
         description: error.message || 'Failed to calculate compatibility. Please try again.',
@@ -188,7 +198,8 @@ export default function Matchmaking() {
                           <FormControl>
                             <PlacesAutocomplete
                               value={field.value}
-                              onChange={field.onChange}
+                              onChange={(v) => { field.onChange(v); setCoords((c) => ({ ...c, person1: undefined })); }}
+                              onPlaceSelect={(place) => setCoords((c) => ({ ...c, person1: { lat: place.lat, lng: place.lng } }))}
                               placeholder="City, State, Country"
                               testId="input-person1-place"
                             />
@@ -281,7 +292,8 @@ export default function Matchmaking() {
                           <FormControl>
                             <PlacesAutocomplete
                               value={field.value}
-                              onChange={field.onChange}
+                              onChange={(v) => { field.onChange(v); setCoords((c) => ({ ...c, person2: undefined })); }}
+                              onPlaceSelect={(place) => setCoords((c) => ({ ...c, person2: { lat: place.lat, lng: place.lng } }))}
                               placeholder="City, State, Country"
                               testId="input-person2-place"
                             />
