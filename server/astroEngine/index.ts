@@ -33,6 +33,9 @@ export interface NativeMatchResult {
   compatibility:  string;
   recommendation: string;
   dosha:          { hasDosha: boolean; type: string; description: string };
+  doshas:         Array<{ type: string; cancelled: boolean; cancellation: string | null }>;
+  /** Which person was scored as the bride; `assumed` when the genders did not decide it. */
+  roles:          { bride: 'person1' | 'person2'; assumed: boolean };
   raw: Record<string, unknown>;
 }
 
@@ -237,24 +240,34 @@ export function transitSummary(t: TransitInfo): string {
  * Both persons' Moon positions are needed. We compute them from their
  * birth data so the caller only needs to supply the same fields as for getKundli.
  */
-export async function getKundliMatching(
-  person1: { dateOfBirth: Date | string; timeOfBirth: string; latitude: number; longitude: number },
-  person2: { dateOfBirth: Date | string; timeOfBirth: string; latitude: number; longitude: number },
-): Promise<NativeMatchResult> {
+type MatchPerson = { dateOfBirth: Date | string; timeOfBirth: string; latitude: number; longitude: number; gender?: string | null };
+
+/** Ashtakoota is defined for a bride and a groom; with any other pair, person 1 is scored as the bride and that is disclosed. */
+export function matchRoles(person1: MatchPerson, person2: MatchPerson): NativeMatchResult['roles'] {
+  const g1 = person1.gender?.toLowerCase();
+  const g2 = person2.gender?.toLowerCase();
+  if (g1 === 'male' && g2 === 'female') return { bride: 'person2', assumed: false };
+  if (g1 === 'female' && g2 === 'male') return { bride: 'person1', assumed: false };
+  return { bride: 'person1', assumed: true };
+}
+
+export async function getKundliMatching(person1: MatchPerson, person2: MatchPerson): Promise<NativeMatchResult> {
   // Each person's Moon at their own resolved UTC birth instant.
-  const moonLon = (p: typeof person1) => {
+  const moonLon = (p: MatchPerson) => {
     const birth = resolveBirthWithCoordinates({
       date: birthDateString(p.dateOfBirth), time: p.timeOfBirth, latitude: p.latitude, longitude: p.longitude, timeAccuracy: 'exact',
     });
     return siderealPositions(new Date(birth.birthUTC)).bodies.Moon.longitude;
   };
 
-  const girlMoon = moonLon(person1);
-  const boyMoon  = moonLon(person2);
+  const roles = matchRoles(person1, person2);
+  const [bride, groom] = roles.bride === 'person1' ? [person1, person2] : [person2, person1];
+  const girlMoon = moonLon(bride);
+  const boyMoon  = moonLon(groom);
 
   const result = ashtakootMatch(girlMoon, boyMoon);
 
-  return { ...result, raw: { girlMoon, boyMoon } };
+  return { ...result, roles, raw: { girlMoon, boyMoon } };
 }
 
 // ─── Daily Horoscope ──────────────────────────────────────────────────────────

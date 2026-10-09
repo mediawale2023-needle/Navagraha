@@ -487,8 +487,8 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
           field: !c1 ? 'person1Place' : 'person2Place',
         });
       }
-      const p1 = { dateOfBirth: person1Date, timeOfBirth: person1Time, latitude: c1.lat, longitude: c1.lng };
-      const p2 = { dateOfBirth: person2Date, timeOfBirth: person2Time, latitude: c2.lat, longitude: c2.lng };
+      const p1 = { dateOfBirth: person1Date, timeOfBirth: person1Time, latitude: c1.lat, longitude: c1.lng, gender: req.body.person1Gender };
+      const p2 = { dateOfBirth: person2Date, timeOfBirth: person2Time, latitude: c2.lat, longitude: c2.lng, gender: req.body.person2Gender };
       const result = await getKundliMatching(p1, p2);
       res.json({
         totalScore: result.percentage,
@@ -498,6 +498,13 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
         recommendation: result.recommendation,
         details: result.details,
         dosha: result.dosha,
+        doshas: result.doshas,
+        roles: {
+          ...result.roles,
+          note: result.roles.assumed
+            ? `Ashtakoota scores a bride and a groom; ${person1Name || 'Person 1'} was scored as the bride. Varna, Vashya and Gana can change if the roles are swapped.`
+            : null,
+        },
         person1: person1Name,
         person2: person2Name,
       });

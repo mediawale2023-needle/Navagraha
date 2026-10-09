@@ -5,14 +5,17 @@
  * Maximum score: 36 points.
  *
  * Factors:
- *  1. Varna     (1 pt)  — spiritual / caste compatibility
- *  2. Vashya    (2 pts) — dominance / control
+ *  1. Varna     (1 pt)  — spiritual temperament
+ *  2. Vashya    (2 pts) — mutual attraction / influence
  *  3. Tara      (3 pts) — birth star compatibility
- *  4. Yoni      (4 pts) — sexual / intimate compatibility
- *  5. Graha Maitri (5 pts) — mental / lord friendship
+ *  4. Yoni      (4 pts) — instinctive / physical compatibility
+ *  5. Graha Maitri (5 pts) — friendship of the Moon-sign lords
  *  6. Gana      (6 pts) — temperament
- *  7. Bhakoot   (7 pts) — health / prosperity
- *  8. Nadi      (8 pts) — health / genetics
+ *  7. Bhakoot   (7 pts) — relative placement of the Moon signs
+ *  8. Nadi      (8 pts) — Nadi of the birth stars
+ *
+ * Varna, Vashya and Gana are asymmetric: the first argument is always the
+ * bride's Moon, the second the groom's.
  */
 
 import {
@@ -24,6 +27,7 @@ import {
   signFromLon,
   type Sign,
 } from './vedic.js';
+import { naturalRelation } from './dignity.js';
 
 // ─── Supporting Lookup Tables ─────────────────────────────────────────────────
 
@@ -44,37 +48,29 @@ const VASHYA_CONTROLS: Record<string, string[]> = {
   Keeta:     ['Jalchar'],
 };
 
-// Yoni (animal symbol) per nakshatra — index maps to NAKSHATRAS order
-// Compatibility: same yoni = 4, friendly yoni = 2-3, neutral = 1, enemy = 0
-const YONI_ENEMIES: Record<string, string> = {
-  Horse: 'Buffalo', Buffalo: 'Horse',
-  Elephant: 'Lion', Lion: 'Elephant',
-  Sheep: 'Dog', Dog: 'Sheep',
-  Serpent: 'Mongoose', Mongoose: 'Serpent',
-  Cat: 'Rat', Rat: 'Cat',
-  Cow: 'Tiger', Tiger: 'Cow',
-  Rabbit: 'Monkey', Monkey: 'Rabbit',
-};
+// Yoni compatibility, the standard 14 × 14 table: 4 for the same yoni, 0 for
+// the sworn enemies (Horse–Buffalo, Elephant–Lion, Sheep–Monkey,
+// Serpent–Mongoose, Dog–Deer, Cat–Rat, Cow–Tiger). `Rabbit` is this
+// codebase's name for the Mriga (deer) yoni of Anuradha and Jyeshtha.
+const YONI_ORDER = ['Horse', 'Elephant', 'Sheep', 'Serpent', 'Dog', 'Cat', 'Rat', 'Cow', 'Buffalo', 'Tiger', 'Rabbit', 'Monkey', 'Mongoose', 'Lion'];
+const YONI_TABLE: number[][] = [
+  [4, 2, 2, 3, 2, 2, 2, 1, 0, 1, 3, 3, 2, 1],
+  [2, 4, 3, 3, 2, 2, 2, 2, 3, 1, 2, 3, 2, 0],
+  [2, 3, 4, 2, 1, 2, 1, 3, 3, 1, 2, 0, 3, 1],
+  [3, 3, 2, 4, 2, 1, 1, 1, 1, 2, 2, 2, 0, 2],
+  [2, 2, 1, 2, 4, 2, 1, 2, 2, 1, 0, 2, 1, 1],
+  [2, 2, 2, 1, 2, 4, 0, 2, 2, 1, 3, 3, 2, 1],
+  [2, 2, 1, 1, 1, 0, 4, 2, 2, 2, 2, 2, 1, 2],
+  [1, 2, 3, 1, 2, 2, 2, 4, 3, 0, 3, 2, 2, 1],
+  [0, 3, 3, 1, 2, 2, 2, 3, 4, 1, 2, 2, 2, 1],
+  [1, 1, 1, 2, 1, 1, 2, 0, 1, 4, 1, 1, 2, 1],
+  [3, 2, 2, 2, 0, 3, 2, 3, 2, 1, 4, 2, 2, 1],
+  [3, 3, 0, 2, 2, 3, 2, 2, 2, 1, 2, 4, 3, 2],
+  [2, 2, 3, 0, 1, 2, 1, 2, 2, 2, 2, 3, 4, 2],
+  [1, 0, 1, 2, 1, 1, 2, 1, 1, 1, 1, 2, 2, 4],
+];
 
-// Graha Maitri — planetary friendship table (sign lord → lord → friendship)
-// 2 = best friends, 1 = friends, 0 = neutral, -1 = enemies
-const PLANET_FRIENDSHIP: Record<string, Record<string, number>> = {
-  Sun:     { Sun: 2, Moon: 1, Mars: 1, Mercury: -1, Jupiter: 1, Venus: -1, Saturn: -1, Rahu: -1, Ketu: -1 },
-  Moon:    { Sun: 1, Moon: 2, Mars: 0, Mercury: 1,  Jupiter: 1, Venus: 0,  Saturn: 0,  Rahu: -1, Ketu: -1 },
-  Mars:    { Sun: 1, Moon: 1, Mars: 2, Mercury: -1, Jupiter: 1, Venus: 0,  Saturn: 0,  Rahu: -1, Ketu: 1  },
-  Mercury: { Sun: 1, Moon: 0, Mars: 0, Mercury: 2,  Jupiter: 0, Venus: 1,  Saturn: 1,  Rahu: 1,  Ketu: -1 },
-  Jupiter: { Sun: 1, Moon: 1, Mars: 1, Mercury: -1, Jupiter: 2, Venus: -1, Saturn: 0,  Rahu: -1, Ketu: 1  },
-  Venus:   { Sun: 0, Moon: 0, Mars: 0, Mercury: 1,  Jupiter: 0, Venus: 2,  Saturn: 1,  Rahu: 1,  Ketu: -1 },
-  Saturn:  { Sun: -1, Moon: -1, Mars: -1, Mercury: 1, Jupiter: -1, Venus: 1, Saturn: 2, Rahu: 1, Ketu: -1 },
-  Rahu:    { Sun: -1, Moon: -1, Mars: -1, Mercury: 1, Jupiter: -1, Venus: 1, Saturn: 1, Rahu: 2, Ketu: -1 },
-  Ketu:    { Sun: -1, Moon: -1, Mars: 1,  Mercury: -1, Jupiter: 1, Venus: -1, Saturn: -1, Rahu: -1, Ketu: 2 },
-};
-
-// Gana groups per nakshatra
-const GANA_ORDER = ['Deva', 'Manushya', 'Rakshasa'];
-
-// Bhakoot (moon sign number compatibility)
-// Incompatible pairs (sum of sign numbers): 6/8, 9/5, 12/2 counted from girl to boy
+// Bhakoot: Moon signs 2/12, 5/9 or 6/8 from each other score 0.
 const BHAKOOT_INCOMPATIBLE = new Set(['6/8', '8/6', '9/5', '5/9', '12/2', '2/12']);
 
 // Nadi types per nakshatra (repeating pattern of 3, 9 nakshatras each)
@@ -89,9 +85,8 @@ const NADI: ('Aadi' | 'Madhya' | 'Antya')[] = [
 // ─── Individual Factor Calculations ──────────────────────────────────────────
 
 function calcVarna(girlSign: Sign, boySign: Sign): number {
-  const g = SIGN_VARNA[girlSign];
-  const b = SIGN_VARNA[boySign];
-  return b <= g ? 1 : 0; // boy's varna must be <= girl's
+  // 1 when the groom's varna is the same as or higher than the bride's.
+  return SIGN_VARNA[boySign] >= SIGN_VARNA[girlSign] ? 1 : 0;
 }
 
 function calcVashya(girlSign: Sign, boySign: Sign): number {
@@ -109,7 +104,7 @@ function calcTara(girlNakIdx: number, boyNakIdx: number): number {
   const girlToBoy = ((boyNakIdx - girlNakIdx + 27) % 27) % 9 + 1;
   const boyToGirl = ((girlNakIdx - boyNakIdx + 27) % 27) % 9 + 1;
 
-  // Auspicious tara: 1(Janma), 3(Vipat), 5(Pratyak), 7(Naidhana) = bad
+  // Vipat (3), Pratyak (5) and Naidhana (7) are inauspicious.
   const inauspicious = new Set([3, 5, 7]);
   const gScore = inauspicious.has(girlToBoy) ? 0 : 1.5;
   const bScore = inauspicious.has(boyToGirl) ? 0 : 1.5;
@@ -117,32 +112,23 @@ function calcTara(girlNakIdx: number, boyNakIdx: number): number {
 }
 
 function calcYoni(girlNakIdx: number, boyNakIdx: number): number {
-  const gYoni = NAKSHATRAS[girlNakIdx].yoni;
-  const bYoni = NAKSHATRAS[boyNakIdx].yoni;
-
-  if (gYoni === bYoni) return 4;
-  if (YONI_ENEMIES[gYoni] === bYoni) return 0;
-  // Friendly yonis: same gender animals
-  const gGender = NAKSHATRAS[girlNakIdx].gender;
-  const bGender = NAKSHATRAS[boyNakIdx].gender;
-  if (gGender === bGender) return 2;
-  return 1;
+  const g = YONI_ORDER.indexOf(NAKSHATRAS[girlNakIdx].yoni);
+  const b = YONI_ORDER.indexOf(NAKSHATRAS[boyNakIdx].yoni);
+  if (g < 0 || b < 0) throw new Error(`Unknown yoni for nakshatra ${girlNakIdx}/${boyNakIdx}`);
+  return YONI_TABLE[g][b];
 }
 
+/** Graha Maitri from the natural relationships of the two Moon-sign lords. */
 function calcGrahaMaitri(girlSign: Sign, boySign: Sign): number {
   const gLord = SIGN_LORDS[girlSign];
   const bLord = SIGN_LORDS[boySign];
-
-  const gToB = PLANET_FRIENDSHIP[gLord]?.[bLord] ?? 0;
-  const bToG = PLANET_FRIENDSHIP[bLord]?.[gLord] ?? 0;
-
-  if (gToB >= 1 && bToG >= 1) return 5;
-  if (gToB >= 1 && bToG === 0) return 4;
-  if (gToB === 0 && bToG >= 1) return 4;
-  if (gToB === 0 && bToG === 0) return 3;
-  if (gToB < 0 && bToG >= 1) return 1;
-  if (gToB >= 1 && bToG < 0) return 1;
-  return 0;
+  if (gLord === bLord) return 5;
+  const pair = [naturalRelation(gLord, bLord), naturalRelation(bLord, gLord)].sort().join('+');
+  const POINTS: Record<string, number> = {
+    'friend+friend': 5, 'friend+neutral': 4, 'neutral+neutral': 3,
+    'enemy+friend': 1, 'enemy+neutral': 0.5, 'enemy+enemy': 0,
+  };
+  return POINTS[pair];
 }
 
 function calcGana(girlNakIdx: number, boyNakIdx: number): number {
@@ -162,9 +148,9 @@ function calcBhakoot(girlSignIdx: number, boySignIdx: number): number {
   const g = girlSignIdx + 1; // 1-based
   const b = boySignIdx  + 1;
 
-  // Count from girl to boy and boy to girl
-  const gToB = ((b - g + 12) % 12) || 12;
-  const bToG = ((g - b + 12) % 12) || 12;
+  // Inclusive counts (the sign itself is 1st), from girl to boy and back.
+  const gToB = ((b - g + 12) % 12) + 1;
+  const bToG = ((g - b + 12) % 12) + 1;
 
   const key = `${gToB}/${bToG}`;
   return BHAKOOT_INCOMPATIBLE.has(key) ? 0 : 7;
@@ -176,7 +162,32 @@ function calcNadi(girlNakIdx: number, boyNakIdx: number): number {
   return gNadi !== bNadi ? 8 : 0;
 }
 
+// ─── Dosha exceptions ────────────────────────────────────────────────────────
+
+/** Bhakoot Dosha is cancelled when the two Moon-sign lords are the same planet or mutual natural friends. */
+function bhakootCancellation(girlSign: Sign, boySign: Sign): string | null {
+  const g = SIGN_LORDS[girlSign];
+  const b = SIGN_LORDS[boySign];
+  if (g === b) return `both Moon signs are ruled by ${g}`;
+  if (naturalRelation(g, b) === 'friend' && naturalRelation(b, g) === 'friend') return `the Moon-sign lords ${g} and ${b} are mutual friends`;
+  return null;
+}
+
+/** Nadi Dosha is cancelled when the Moons share a sign but not a nakshatra, or a nakshatra but not a sign. */
+function nadiCancellation(girlNakIdx: number, boyNakIdx: number, girlSign: Sign, boySign: Sign): string | null {
+  if (girlSign === boySign && girlNakIdx !== boyNakIdx) return `both Moons are in ${girlSign} but in different nakshatras`;
+  if (girlNakIdx === boyNakIdx && girlSign !== boySign) return `both Moons are in ${NAKSHATRAS[girlNakIdx].name} but in different signs`;
+  return null;
+}
+
 // ─── Main Matching Function ───────────────────────────────────────────────────
+
+export interface MatchingDosha {
+  type: 'Nadi Dosha' | 'Bhakoot Dosha';
+  cancelled: boolean;
+  /** Why the dosha is cancelled, when it is. */
+  cancellation: string | null;
+}
 
 export interface AshtakootResult {
   score:       number;
@@ -185,14 +196,22 @@ export interface AshtakootResult {
   compatibility: string;
   recommendation: string;
   details: Array<{ koot: string; score: number; maxScore: number; description: string }>;
+  /** The doshas that stand after their exceptions. */
   dosha: { hasDosha: boolean; type: string; description: string };
+  /** Every matching dosha found, cancelled or not. The koota keeps 0 points either way. */
+  doshas: MatchingDosha[];
 }
+
+const DOSHA_TEXT: Record<MatchingDosha['type'], string> = {
+  'Nadi Dosha': 'Both Moons fall in the same Nadi, which tradition treats as the most serious koota mismatch.',
+  'Bhakoot Dosha': 'The two Moon signs are 2/12, 5/9 or 6/8 from each other, which tradition reads as friction in shared life.',
+};
 
 /**
  * Calculate Ashtakoot compatibility between two people.
  *
- * @param girlMoonSiderealLon  Girl's Moon sidereal longitude (degrees)
- * @param boyMoonSiderealLon   Boy's Moon sidereal longitude (degrees)
+ * @param girlMoonSiderealLon  Bride's Moon sidereal longitude (degrees)
+ * @param boyMoonSiderealLon   Groom's Moon sidereal longitude (degrees)
  */
 export function ashtakootMatch(
   girlMoonSiderealLon: number,
@@ -206,14 +225,14 @@ export function ashtakootMatch(
   const boySignIdx  = SIGNS.indexOf(boySign);
 
   const factors = [
-    { koot: 'Varna',        max: 1,  score: calcVarna(girlSign, boySign),                description: 'Spiritual and caste compatibility' },
-    { koot: 'Vashya',       max: 2,  score: calcVashya(girlSign, boySign),               description: 'Dominance and control between partners' },
-    { koot: 'Tara',         max: 3,  score: calcTara(gNakIdx, bNakIdx),                  description: 'Birth star and fortune compatibility' },
-    { koot: 'Yoni',         max: 4,  score: calcYoni(gNakIdx, bNakIdx),                  description: 'Sexual and physical compatibility' },
-    { koot: 'Graha Maitri', max: 5,  score: calcGrahaMaitri(girlSign, boySign),          description: 'Mental compatibility through planetary lords' },
-    { koot: 'Gana',         max: 6,  score: calcGana(gNakIdx, bNakIdx),                  description: 'Temperament and nature compatibility' },
-    { koot: 'Bhakoot',      max: 7,  score: calcBhakoot(girlSignIdx, boySignIdx),        description: 'Health and prosperity compatibility' },
-    { koot: 'Nadi',         max: 8,  score: calcNadi(gNakIdx, bNakIdx),                  description: 'Health, genes, and progeny compatibility' },
+    { koot: 'Varna',        max: 1,  score: calcVarna(girlSign, boySign),                description: "Spiritual temperament (groom's varna the same as or higher than the bride's)" },
+    { koot: 'Vashya',       max: 2,  score: calcVashya(girlSign, boySign),               description: 'Mutual attraction and influence' },
+    { koot: 'Tara',         max: 3,  score: calcTara(gNakIdx, bNakIdx),                  description: 'Birth-star harmony, counted both ways' },
+    { koot: 'Yoni',         max: 4,  score: calcYoni(gNakIdx, bNakIdx),                  description: 'Instinctive and physical compatibility' },
+    { koot: 'Graha Maitri', max: 5,  score: calcGrahaMaitri(girlSign, boySign),          description: 'Friendship of the two Moon-sign lords' },
+    { koot: 'Gana',         max: 6,  score: calcGana(gNakIdx, bNakIdx),                  description: 'Temperament (Deva, Manushya, Rakshasa)' },
+    { koot: 'Bhakoot',      max: 7,  score: calcBhakoot(girlSignIdx, boySignIdx),        description: 'Relative placement of the two Moon signs' },
+    { koot: 'Nadi',         max: 8,  score: calcNadi(gNakIdx, bNakIdx),                  description: 'Nadi of the two birth stars' },
   ];
 
   const score    = factors.reduce((s, f) => s + f.score, 0);
@@ -231,16 +250,16 @@ export function ashtakootMatch(
     score >= 18 ? 'This is an average match. Some adjustments may be needed.' :
     'This match has some challenges. Consulting an astrologer is recommended.';
 
-  // Check for dosha cancellations / presence
-  const nadiDosha  = factors[7].score === 0;
-  const bhakootDosha = factors[6].score === 0;
-
-  const doshaType = nadiDosha ? 'Nadi Dosha' : bhakootDosha ? 'Bhakoot Dosha' : '';
-  const doshaDesc = nadiDosha
-    ? 'Nadi Dosha is present. Both partners share the same Nadi, which may affect health and progeny.'
-    : bhakootDosha
-    ? 'Bhakoot Dosha is present. Differences in moon signs may cause obstacles in married life.'
-    : '';
+  const doshas: MatchingDosha[] = [];
+  if (factors[7].score === 0) {
+    const c = nadiCancellation(gNakIdx, bNakIdx, girlSign, boySign);
+    doshas.push({ type: 'Nadi Dosha', cancelled: c != null, cancellation: c });
+  }
+  if (factors[6].score === 0) {
+    const c = bhakootCancellation(girlSign, boySign);
+    doshas.push({ type: 'Bhakoot Dosha', cancelled: c != null, cancellation: c });
+  }
+  const standing = doshas.filter((d) => !d.cancelled);
 
   return {
     score,
@@ -255,9 +274,10 @@ export function ashtakootMatch(
       description: f.description,
     })),
     dosha: {
-      hasDosha:    nadiDosha || bhakootDosha,
-      type:        doshaType,
-      description: doshaDesc,
+      hasDosha:    standing.length > 0,
+      type:        standing.map((d) => d.type).join(' and '),
+      description: standing.map((d) => DOSHA_TEXT[d.type]).join(' '),
     },
+    doshas,
   };
 }
