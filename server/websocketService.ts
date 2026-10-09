@@ -12,6 +12,8 @@
 import { WebSocketServer, WebSocket } from "ws";
 import type { IncomingMessage, Server } from "http";
 import { storage } from "./storage";
+import { features } from "./features";
+import { MARKETPLACE_PAUSED_MESSAGE } from "./marketplace";
 import { getSession, getSessionIdentity } from "./auth";
 
 interface WSClient {
@@ -27,6 +29,9 @@ type WSMessage = Record<string, unknown> & { type: string };
 // Maps userId/astrologerId → WSClient
 const userClients = new Map<string, WSClient>();
 const astrologerClients = new Map<string, WSClient>();
+
+// Messages that start or carry a consultation; refused while the marketplace is paused.
+const PAUSED_MESSAGES = new Set(["chat_message", "astrologer_reply", "start_billing", "call_request", "call_accepted"]);
 
 // Active billing timers: consultationId → NodeJS.Timeout
 const billingTimers = new Map<string, NodeJS.Timeout>();
@@ -46,6 +51,11 @@ export function setupWebSocket(server: Server) {
         return;
       }
 
+      if (PAUSED_MESSAGES.has(msg.type) && !features.marketplace()) {
+        send(ws, { type: "marketplace_paused", message: MARKETPLACE_PAUSED_MESSAGE });
+        return;
+      }
+
       switch (msg.type) {
         case "auth": {
           await hydrateSession(req, sessionMiddleware);
@@ -56,10 +66,11 @@ export function setupWebSocket(server: Server) {
             client.role = "astrologer";
             client.astrologerId = astrologerId;
             astrologerClients.set(astrologerId, client);
-            // Update DB presence
-            await storage.updateAstrologerOnlineStatus(astrologerId, true);
-            // Broadcast updated status
-            broadcastAstrologerStatus(astrologerId, "online");
+            // Connecting only marks an astrologer available while consultations are open.
+            if (features.marketplace()) {
+              await storage.updateAstrologerOnlineStatus(astrologerId, true);
+              broadcastAstrologerStatus(astrologerId, "online");
+            }
             send(ws, { type: "auth_ok", astrologerId });
           } else if (userId) {
             client.role = "user";
@@ -151,9 +162,8 @@ export function setupWebSocket(server: Server) {
 
           if (billingTimers.has(consultationId)) break; // already running
           if (!userId || !astrologerId) break;
-
           const consultation = await storage.getConsultationById(consultationId);
-          if (!consultation || consultation.userId !== userId || consultation.astrologerId !== astrologerId) {
+          if (!consultation || consultation.userId !== userId || consultation.astrologerId !== astrologerId || consultation.status !== "active") {
             send(ws, { type: "billing_error", message: "Invalid consultation" });
             break;
           }
@@ -168,6 +178,15 @@ export function setupWebSocket(server: Server) {
           // Deduct every 60 seconds
           const timer = setInterval(async () => {
             try {
+              // Never charge for a marketplace that has been switched off, or for a
+              // consultation that has been closed (by the user, the pause, or another instance).
+              const live = features.marketplace() ? await storage.getConsultationById(consultationId) : null;
+              if (live?.status !== "active") {
+                clearInterval(timer);
+                billingTimers.delete(consultationId);
+                return;
+              }
+
               const cost = parseFloat(consultation.pricePerMinute || "0");
 
               // Free-access (admin) account: tick without charging.

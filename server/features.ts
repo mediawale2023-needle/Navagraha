@@ -12,4 +12,10 @@ export const features = {
   charaDasha: () => on('FEATURE_CHARA_DASHA'),
   /** Persist recalculated legacy charts (compare-and-swap, reversible). Off: legacy charts are recalculated on read only. */
   persistLegacyUpgrades: () => on('V3_PERSIST_LEGACY_UPGRADES'),
+  /**
+   * Astrologer marketplace: consultations (chat, voice/video), scheduling, live streams,
+   * Pooja and Astromall. Off: hidden from users and closed server-side (server/marketplace.ts);
+   * records and code are kept for when it returns. On only with the billing rebuild (audit A3).
+   */
+  marketplace: () => on('FEATURE_MARKETPLACE'),
 };

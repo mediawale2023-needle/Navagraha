@@ -83,8 +83,8 @@ import {
   type PredictionFeedback,
   type InsertPredictionFeedback,
 } from "@shared/schema";
-import { db } from "./db";
-import { eq, desc, and, sql, asc } from "drizzle-orm";
+import { db, pool } from "./db";
+import { eq, desc, and, sql, asc, inArray } from "drizzle-orm";
 import crypto from "crypto";
 import bcrypt from "bcryptjs";
 import { isAdminEmail } from "./adminAccess";
@@ -164,6 +164,17 @@ export interface IStorage {
   cancelUserScheduledCall(id: string, userId: string): Promise<ScheduledCall | undefined>;
 
   // Notification operations
+  closeActiveConsultations(): Promise<Array<{ id: string; userId: string; astrologerId: string; isFree: boolean | null }>>;
+  setAllAstrologersOffline(): Promise<number>;
+  restoreFreeChat(userIds: string[]): Promise<void>;
+  endActiveLiveStreams(): Promise<number>;
+  cancelOpenScheduledCalls(): Promise<Array<{ id: string; userId: string }>>;
+  cancelWaitingQueue(): Promise<number>;
+  getOpenPaidMarketplaceItems(): Promise<{
+    poojaBookings: Array<{ id: string; userId: string; poojaName: string; amount: string; status: string | null; createdAt: Date | null }>;
+    storeOrders: Array<{ id: string; userId: string; totalAmount: string; status: string | null; createdAt: Date | null }>;
+    billedClosedConsultations: Array<{ id: string; userId: string; astrologerId: string; endedAt: Date | null; billed: string }>;
+  }>;
   createNotification(data: {
     userId: string;
     recipientType?: string;
@@ -622,6 +633,86 @@ export class DatabaseStorage implements IStorage {
       })
       .returning();
     return notification;
+  }
+
+  // ─── Pausing the marketplace ───────────────────────────────
+  // Closes open marketplace activity without touching money: totals, transactions and
+  // earnings are left exactly as billed. "cancelled" (not "ended") marks a consultation
+  // closed by the pause, so a late end call from a client cannot bill or earn on it.
+
+  async closeActiveConsultations(): Promise<Array<{ id: string; userId: string; astrologerId: string; isFree: boolean | null }>> {
+    return db
+      .update(consultations)
+      .set({ status: "cancelled", endedAt: new Date() })
+      .where(eq(consultations.status, "active"))
+      .returning({ id: consultations.id, userId: consultations.userId, astrologerId: consultations.astrologerId, isFree: consultations.isFree });
+  }
+
+  async setAllAstrologersOffline(): Promise<number> {
+    const rows = await db
+      .update(astrologers)
+      .set({ isOnline: false, availability: "offline" })
+      .where(sql`${astrologers.isOnline} = true or ${astrologers.availability} <> 'offline'`)
+      .returning({ id: astrologers.id });
+    return rows.length;
+  }
+
+  async restoreFreeChat(userIds: string[]): Promise<void> {
+    if (!userIds.length) return;
+    await db.update(users).set({ freeChatUsed: false }).where(inArray(users.id, userIds));
+  }
+
+  async endActiveLiveStreams(): Promise<number> {
+    const rows = await db
+      .update(liveStreams)
+      .set({ status: "ended", endedAt: new Date() })
+      .where(eq(liveStreams.status, "live"))
+      .returning({ id: liveStreams.id });
+    return rows.length;
+  }
+
+  async cancelOpenScheduledCalls(): Promise<Array<{ id: string; userId: string }>> {
+    return db
+      .update(scheduledCalls)
+      .set({ status: "cancelled" })
+      .where(sql`${scheduledCalls.status} in ('pending', 'confirmed')`)
+      .returning({ id: scheduledCalls.id, userId: scheduledCalls.userId });
+  }
+
+  async cancelWaitingQueue(): Promise<number> {
+    const rows = await db
+      .update(consultationQueue)
+      .set({ status: "cancelled" })
+      .where(eq(consultationQueue.status, "waiting"))
+      .returning({ id: consultationQueue.id });
+    return rows.length;
+  }
+
+  /** Paid marketplace purchases not yet fulfilled: each needs fulfilling or refunding. */
+  async getOpenPaidMarketplaceItems() {
+    const [poojaRows, orderRows] = await Promise.all([
+      db.select({
+        id: poojaBookings.id, userId: poojaBookings.userId, poojaName: poojaBookings.poojaName,
+        amount: poojaBookings.amount, status: poojaBookings.status, createdAt: poojaBookings.createdAt,
+      }).from(poojaBookings).where(sql`${poojaBookings.status} in ('booked', 'scheduled')`).orderBy(asc(poojaBookings.createdAt)),
+      db.select({
+        id: orders.id, userId: orders.userId, totalAmount: orders.totalAmount, status: orders.status, createdAt: orders.createdAt,
+      }).from(orders).where(sql`${orders.status} in ('placed', 'confirmed', 'shipped')`).orderBy(asc(orders.createdAt)),
+    ]);
+    // Consultations closed by the pause whose billed minutes were neither paid to the
+    // astrologer nor refunded: each needs one of the two.
+    const { rows: billedRows } = await pool.query(`
+      SELECT c.id, c.user_id AS "userId", c.astrologer_id AS "astrologerId", c.ended_at AS "endedAt",
+             sum(abs(t.amount::numeric))::text AS billed
+        FROM consultations c
+        JOIN transactions t ON t.consultation_id = c.id AND t.type = 'debit' AND t.status = 'completed'
+       WHERE c.status = 'cancelled'
+         AND NOT EXISTS (SELECT 1 FROM astrologer_earnings e WHERE e.consultation_id = c.id)
+         AND NOT EXISTS (SELECT 1 FROM transactions r WHERE r.consultation_id = c.id AND r.type = 'refund')
+       GROUP BY c.id
+      HAVING sum(abs(t.amount::numeric)) > 0
+       ORDER BY c.ended_at`);
+    return { poojaBookings: poojaRows, storeOrders: orderRows, billedClosedConsultations: billedRows as Array<{ id: string; userId: string; astrologerId: string; endedAt: Date | null; billed: string }> };
   }
 
   async getUserNotifications(userId: string): Promise<Notification[]> {

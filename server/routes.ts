@@ -6,6 +6,7 @@ import { sql, eq, asc, desc, and, inArray } from "drizzle-orm";
 import { setupAuth, isAuthenticated, isAdmin } from "./auth";
 import { runCouncil } from "./agents/orchestrator";
 import { features } from "./features";
+import { marketplaceGate } from "./marketplace";
 import { setupSwagger } from "./swagger";
 import rateLimit from "express-rate-limit";
 import {
@@ -138,6 +139,9 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
 
   // NOTE: /api/config is registered in index.ts (before async init) so it
   // responds immediately for Railway healthchecks. Do NOT duplicate here.
+
+  // While the marketplace is off, nothing can start, book or charge for it (server/marketplace.ts).
+  app.use(marketplaceGate);
 
   // ─── User Email Auth ──────────────────────────────────────
 
@@ -2418,6 +2422,14 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
   });
 
   // ─── Admin / Developer Dashboard ──────────────────────────
+  // Paid Pooja bookings and store orders still open while the marketplace is paused:
+  // each needs fulfilling or refunding.
+  app.get('/api/admin/marketplace/open-items', isAdmin, adminLimiter, async (_req, res) => {
+    try {
+      res.json({ marketplaceEnabled: features.marketplace(), ...(await storage.getOpenPaidMarketplaceItems()) });
+    } catch { res.status(500).json({ message: 'Failed to load open marketplace items' }); }
+  });
+
   // Settle pending Razorpay recharges whose confirmation never arrived (also runs on a timer).
   // Dry run unless ?apply=1; ?days=N (default 7) limits it to recharges from the last N days.
   app.post('/api/admin/payments/reconcile', isAdmin, adminLimiter, async (req, res) => {

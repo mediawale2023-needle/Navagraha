@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
 import { useToast } from '@/hooks/use-toast';
+import { useMarketplace } from '@/lib/marketplace';
 import { apiRequest } from '@/lib/queryClient';
 import {
   ArrowLeft, Wallet as WalletIcon, Plus,
@@ -51,6 +52,7 @@ interface OfferType {
 }
 
 export default function Wallet() {
+  const marketplace = useMarketplace();
   const [customAmount, setCustomAmount] = useState('');
   const [selectedPack, setSelectedPack] = useState<RechargePackType | null>(null);
   const [couponCode, setCouponCode] = useState('');
@@ -258,11 +260,13 @@ export default function Wallet() {
           <div className="mb-1 font-display text-4xl text-[var(--nava-navy)]" data-testid="text-balance">
             ₹{balance.toFixed(2)}
           </div>
+          {marketplace && (
           <p className="text-sm text-[var(--nava-navy)]/75">
             {balance < 100
               ? 'Low balance - recharge to continue consultations'
               : `Approx. ${Math.floor(balance / 25)} minutes of consultation time`}
           </p>
+          )}
         </div>
 
         {/* Recharge Section */}
@@ -297,9 +301,11 @@ export default function Wallet() {
                       {pack.bonus > 0 && (
                         <div className="text-xs text-emerald-600 font-semibold">+ ₹{pack.bonus} bonus</div>
                       )}
+                      {marketplace && (
                       <div className="text-xs text-muted-foreground mt-1">
                         ~{Math.floor(pack.amount / 25)} mins
                       </div>
+                      )}
                     </button>
                   ))}
                 </div>
