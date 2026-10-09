@@ -18,7 +18,7 @@ export function VimshottariNow({ chartId, chartName, insights, loading, failed, 
   const running = insights ? selectRunningPeriods(insights) : null;
   const maha = running?.maha;
   const antar = running?.antar;
-  const href = chartId ? `/kundli/${chartId}?tab=dashas` : '/kundli/new';
+  const href = chartId ? `/kundli/${chartId}/dasha` : '/kundli/new';
   const names = maha ? [maha.lord, antar?.lord].filter(Boolean).map((l) => grahaSanskrit(l as string)).join(' · ') : null;
   const share = maha && running?.showDates ? elapsedShare(maha.start, maha.end) : null;
 

@@ -9,7 +9,7 @@ import { LoadingSpinner } from '@/components/LoadingSpinner';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
 } from '@/components/ui/dialog';
-import { ArrowLeft, Calendar, Clock, MapPin, Download, ChevronDown, ChevronRight, Wallet, Sparkles, Info, ArrowRight } from 'lucide-react';
+import { ArrowLeft, Calendar, Clock, MapPin, Download, Wallet, Sparkles, Info, ArrowRight } from 'lucide-react';
 import { PageHeader, PageBody } from '@/components/shell/PageHeader';
 import { recreateHref } from '@/lib/recreateChart';
 import { BalanceShortfall } from '@/components/BalanceShortfall';
@@ -32,7 +32,6 @@ import { SIGN_HI } from '@/lib/jyotishNames';
 import type { ChartLabels } from '@/lib/rashiChart';
 import { AIInsightSheet, type InsightSubject } from '@/components/AIInsightSheet';
 import { ChartGlance } from '@/components/v3/ChartGlance';
-import { LifeTimeline } from '@/components/v3/LifeTimeline';
 import { selectRunningPeriods, monthYear } from '@/lib/runningPeriods';
 import type { KundliInsights, EvidenceItem } from '@shared/v3/evidence';
 import type { CanonicalChart } from '@shared/v3/canonical';
@@ -131,7 +130,6 @@ function InsufficientModal({ open, balance, onClose, onRecharge }: { open: boole
 export default function KundliView() {
   const [chartStyle, setChartStyle] = useState<'north' | 'south'>('north');
   const [labels, setLabels] = useState<ChartLabels>('hi');
-  const [expandedDasha, setExpandedDasha] = useState<number | null>(null);
   const [pdfChecking, setPdfChecking] = useState(false);
   const [pdfConfirming, setPdfConfirming] = useState(false);
   const [modal, setModal] = useState<PdfModal>(null);
@@ -212,13 +210,11 @@ export default function KundliView() {
     enabled: isPreview ? !!canonical : !!kundliId,
   });
 
+  // The dasha periods and life timeline moved to their own page; old ?tab= links land there.
   useEffect(() => {
-    if (kundli) {
-      const dashas = (kundli.dashas as any[]) || [];
-      const idx = dashas.findIndex(isRunning);
-      setExpandedDasha(idx >= 0 ? idx : null);
-    }
-  }, [kundli]);
+    const tab = new URLSearchParams(window.location.search).get('tab');
+    if (kundliId && !isPreview && (tab === 'dashas' || tab === 'insights')) navigate(`/kundli/${kundliId}/dasha`, { replace: true });
+  }, [kundliId, isPreview, navigate]);
 
   const handlePlanetClick = (planet: any) => {
     if (!canonical || !canonical.planets.some((p) => p.name === planet.planet)) return;
@@ -264,13 +260,12 @@ export default function KundliView() {
     ? legacyAd?.pratyantardashas?.find(isRunning) : undefined;
   const curYogini = exactTime ? (chartData?.yoginiDasha as any[] | undefined)?.find(isRunning) : undefined;
   const periodRange = (p: { start: string; end: string }) => (running?.showDates ? ` (${monthYear(p.start)} – ${monthYear(p.end)})` : '');
-  const dashas = (kundli.dashas as any[]) || [];
   const doshas = (kundli.doshas as any) || {};
   const remedies = (kundli.remedies as any[]) || [];
   // A chart the V3 engine could not recalculate: its stored placements are unverified, so none are shown.
   const limited = (kundli as any).chartStatus?.version === 'limited';
   const requestedTab = typeof window === 'undefined' ? null : new URLSearchParams(window.location.search).get('tab');
-  const initialTab = requestedTab && ['overview', 'chart', 'insights', 'dashas', 'remedies'].includes(requestedTab) ? requestedTab : 'overview';
+  const initialTab = requestedTab && ['overview', 'chart', 'remedies'].includes(requestedTab) ? requestedTab : 'overview';
   const chartView: ChartTabView = canonical ? chartTabView(canonical) : { mode: 'exact' };
   const moonSignUncertain = chartView.mode === 'table';
 
@@ -408,13 +403,16 @@ export default function KundliView() {
             note={insights.timing?.note}
           />
         )}
+        {insights && canonical && !isPreview && kundliId && (
+          <Link href={`/kundli/${kundliId}/dasha`} className="-mt-4 self-start text-sm underline hover:text-amber-text" data-testid="link-dasha-timeline">
+            Every Mahadasha and Antardasha, with what each engages →
+          </Link>
+        )}
 
         {/* Tabs */}
         <Tabs defaultValue={initialTab} className="w-full" id="kundli-tabs">
           <TabsList aria-label="More about this chart">
             <TabsTrigger value="overview">Life areas</TabsTrigger>
-            <TabsTrigger value="insights">Life timeline</TabsTrigger>
-            <TabsTrigger value="dashas">Dasha periods</TabsTrigger>
             <TabsTrigger value="chart">Divisional charts &amp; strength</TabsTrigger>
             <TabsTrigger value="remedies">Remedies</TabsTrigger>
           </TabsList>
@@ -683,66 +681,7 @@ export default function KundliView() {
             )}
           </TabsContent>
 
-          {/* Insights */}
-          <TabsContent value="insights">
-            <div className="space-y-3">
-              <Card className="card-clean">
-                <CardHeader>
-                  <CardTitle className="font-display">Life Timeline</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  {insights ? (
-                    <LifeTimeline periods={insights.timeline} timingNote={insights.timing?.note} />
-                  ) : (
-                    <p className="text-sm text-muted-foreground">
-                      {canonical ? 'Loading your timeline…' : 'This chart predates the V3 engine. Open it again after it has been recalculated, or create it anew.'}
-                    </p>
-                  )}
-                </CardContent>
-              </Card>
-            </div>
-          </TabsContent>
 
-          {/* Dashas */}
-          <TabsContent value="dashas">
-            <Card className="card-clean">
-              <CardHeader>
-                <CardTitle className="font-display">Vimshottari Dashas</CardTitle>
-                {insights?.timing?.note && <p className="text-xs text-amber-text" data-testid="dashas-timing-note">{insights.timing.note} Dates below are for the time entered.</p>}
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-2">
-                  {dashas.length > 0 ? dashas.map((dasha: any, i: number) => (
-                    <div key={i} className={`overflow-hidden rounded-[10px] border ${isRunning(dasha) ? 'border-primary/60' : 'border-border'}`}>
-                      <button className="w-full flex items-center justify-between p-4 text-left hover:bg-muted/40 transition-colors" onClick={() => setExpandedDasha(expandedDasha === i ? null : i)}>
-                        <div className="flex items-center gap-3">
-                          {expandedDasha === i ? <ChevronDown className="w-4 h-4 text-muted-foreground" /> : <ChevronRight className="w-4 h-4 text-muted-foreground" />}
-                          <div>
-                            <div className="font-semibold">{dasha.planet} Mahadasha</div>
-                            <div className="text-sm text-muted-foreground">{dasha.period}</div>
-                          </div>
-                        </div>
-                        {isRunning(dasha) && <Badge className="bg-ink text-primary">Current</Badge>}
-                      </button>
-                      {expandedDasha === i && dasha.antardashas?.length > 0 && (
-                        <div className="border-t border-border bg-muted/30">
-                          {dasha.antardashas.map((ad: any, j: number) => (
-                            <div key={j} className={`flex items-center justify-between border-b border-border/50 px-6 py-2.5 text-sm last:border-0 ${isRunning(ad) ? 'bg-primary/10' : ''}`}>
-                              <div>
-                                <span className="font-medium">{dasha.planet}/{ad.planet}</span>
-                                <span className="text-muted-foreground ml-2">{ad.period}</span>
-                              </div>
-                              {isRunning(ad) && <Badge variant="outline" className="text-xs">Active</Badge>}
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  )) : <p className="text-muted-foreground text-sm">No dasha data available.</p>}
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
 
           {/* Remedies */}
           <TabsContent value="remedies">

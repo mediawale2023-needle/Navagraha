@@ -62,7 +62,7 @@ export default function MyCharts() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
           {kundlis.map((k) => (
-            <Link key={k.id} href={forDasha ? `/kundli/${k.id}?tab=dashas` : `/kundli/${k.id}`}>
+            <Link key={k.id} href={forDasha ? `/kundli/${k.id}/dasha` : `/kundli/${k.id}`}>
               <Card className="yantra-card cursor-pointer transition-shadow" data-testid={`chart-${k.id}`}>
                 <CardContent className="p-4">
                   <div className="flex items-start justify-between gap-2">

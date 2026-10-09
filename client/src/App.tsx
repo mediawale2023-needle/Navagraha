@@ -9,6 +9,7 @@ import Landing from "@/pages/Landing";
 import Home from "@/pages/Home";
 import KundliNew from "@/pages/KundliNew";
 import KundliView from "@/pages/KundliView";
+import DashaTimeline from "@/pages/DashaTimeline";
 import MyCharts from "@/pages/MyCharts";
 import Matchmaking from "@/pages/Matchmaking";
 import Prashna from "@/pages/Prashna";
@@ -96,6 +97,7 @@ function Router() {
       <Route path="/prashna" component={Prashna} />
       <Route path="/kundli" component={MyCharts} />
       <Route path="/kundli/new" component={KundliNew} />
+      <Route path="/kundli/:id/dasha" component={DashaTimeline} />
       <Route path="/kundli/:id" component={KundliView} />
       <Route path="/numerology" component={Numerology} />
       <Route path="/ai-astrologer" component={AIAstrologer} />

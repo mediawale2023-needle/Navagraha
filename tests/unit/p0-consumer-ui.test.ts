@@ -4,12 +4,14 @@ import { describe, expect, it } from 'vitest';
 // Source guards supplement route tests without introducing a DOM test dependency.
 const page = (name: string) => readFileSync(new URL(`../../client/src/pages/${name}.tsx`, import.meta.url), 'utf8');
 describe('P0 consumer UI source regressions', () => {
-  it('removes static personalized chart claims while preserving the insights tab', () => {
+  it('removes static personalized chart claims while keeping the evidence life timeline', () => {
     const view = page('KundliView');
     for (const claim of ['Moon in 4th House', 'Mars in 10th House', 'Jupiter in 7th House']) expect(view).not.toContain(claim);
-    expect(view).toContain('<TabsContent value="insights">');
-    // V3: the tab shows the evidence-driven Life Timeline, never pre-written chart claims.
-    expect(view).toContain('<LifeTimeline periods={insights.timeline} timingNote={insights.timing?.note} />');
+    // V3: the life timeline (its own Dasha page) is the evidence engine's, never pre-written chart claims.
+    expect(view).toContain('/kundli/${kundliId}/dasha');
+    const dasha = page('DashaTimeline');
+    expect(dasha).toContain('timelineView(insights)');
+    expect(dasha).toContain('<PeriodEvidence p={sel} />');
     expect(view).not.toMatch(/\|\| 'Aries'|\|\| 'Taurus'/);
   });
   it('the evidence sheet carries no fabricated citations or indicator counts', () => {

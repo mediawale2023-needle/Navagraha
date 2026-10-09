@@ -35,7 +35,7 @@ export function RunningPeriodCard() {
   } else {
     const { maha, antar, showDates, note } = selectRunningPeriods(insights);
     eyebrow = `Running now · ${latest.name}'s chart`;
-    primary = { label: 'Life Timeline', sub: 'Your periods, explained', href: `/kundli/${latest.id}?tab=insights` };
+    primary = { label: 'Dasha timeline', sub: 'Your periods, explained', href: `/kundli/${latest.id}/dasha` };
     if (!maha) {
       title = 'Period uncertain';
       body = note ?? 'The current period could not be determined from this chart.';
