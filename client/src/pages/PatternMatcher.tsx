@@ -90,7 +90,7 @@ export default function PatternMatcher() {
                   return (
                     <Card key={system} className={`relative overflow-hidden ${isTop && sysData.total > 0 ? 'border-amber-400 ring-1 ring-amber-400' : ''}`}>
                       {isTop && sysData.total > 0 && (
-                        <div className="absolute top-0 right-0 bg-amber-400 text-amber-950 text-[10px] font-bold px-2 py-1 rounded-bl-lg">
+                        <div className="absolute top-0 right-0 bg-amber text-amber-text text-xs font-bold px-2 py-1 rounded-bl-lg">
                           MOST ACCURATE
                         </div>
                       )}

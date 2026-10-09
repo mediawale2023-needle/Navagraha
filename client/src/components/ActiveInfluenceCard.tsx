@@ -33,27 +33,27 @@ export function ActiveInfluenceCard({
   const typeConfig = {
     dasha: {
       icon: '♂',
-      bgColor: 'bg-[#f4e6ff]',
-      borderColor: 'border-[#dbc5f4]',
-      iconColor: 'text-[#5b47a8]',
+      bgColor: 'bg-surface',
+      borderColor: 'border-line',
+      iconColor: 'text-ink',
     },
     transit: {
       icon: '♄',
-      bgColor: 'bg-[#eaf6f5]',
-      borderColor: 'border-[#c7ebe8]',
-      iconColor: 'text-[#1f7a77]',
+      bgColor: 'bg-surface',
+      borderColor: 'border-line',
+      iconColor: 'text-ink',
     },
     dosha: {
       icon: '⚠',
-      bgColor: 'bg-[#fdeceb]',
-      borderColor: 'border-[#f2c7c5]',
-      iconColor: 'text-[#8b1a1a]',
+      bgColor: 'bg-surface',
+      borderColor: 'border-line',
+      iconColor: 'text-negative',
     },
     remedy: {
       icon: '🕉',
-      bgColor: 'bg-[#f7e2b6]',
-      borderColor: 'border-[#e7c57f]',
-      iconColor: 'text-[#8c6b2a]',
+      bgColor: 'bg-highlight',
+      borderColor: 'border-line',
+      iconColor: 'text-amber-text',
     },
   };
 
@@ -76,7 +76,7 @@ export function ActiveInfluenceCard({
           </div>
           <p className="text-sm text-muted-foreground mb-2">{description}</p>
           {endDate && (
-            <p className="mb-3 text-[0.65rem] font-bold uppercase tracking-[0.12em] text-muted-foreground">
+            <p className="mb-3 text-xs font-bold uppercase tracking-[0.12em] text-muted-foreground">
               Until {endDate}
             </p>
           )}

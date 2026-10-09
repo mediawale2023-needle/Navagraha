@@ -69,13 +69,13 @@ function KycCard({ astrologer }: { astrologer: any }) {
   }
 
   return (
-    <div className="mb-6 rounded-xl border border-amber-200 bg-amber-50 p-4" data-testid="kyc-card">
+    <div className="mb-6 rounded-xl border border-line bg-highlight p-4" data-testid="kyc-card">
       <div className="flex items-center justify-between">
         <div className="text-sm">
-          <p className="font-semibold text-amber-800">
+          <p className="font-semibold text-amber-text">
             {status === 'pending' ? 'KYC under review' : status === 'rejected' ? 'KYC rejected — please resubmit' : 'Complete your KYC to get verified'}
           </p>
-          <p className="text-amber-700/80 text-xs">Verified astrologers rank higher and build more trust with seekers.</p>
+          <p className="text-amber-text/80 text-xs">Verified astrologers rank higher and build more trust with seekers.</p>
         </div>
         {status !== 'pending' && (
           <Button size="sm" className="rounded-lg bg-amber-600 hover:bg-amber-700 text-white" onClick={() => setOpen((o) => !o)} data-testid="button-toggle-kyc">
@@ -358,7 +358,7 @@ export default function AstrologerDashboard() {
           <div className="flex items-center gap-3">
             <Avatar className="w-10 h-10 border-2 border-border">
               <AvatarImage src={astrologer.profileImageUrl} />
-              <AvatarFallback className="bg-nava-royal-purple text-white font-bold">
+              <AvatarFallback className="bg-ink text-white font-bold">
                 {astrologer.name?.charAt(0)}
               </AvatarFallback>
             </Avatar>
@@ -430,11 +430,11 @@ export default function AstrologerDashboard() {
 
       {/* Active Session Banner */}
       {activeSession && (
-        <div className="bg-amber-50 border-b border-amber-200 px-4 py-3">
+        <div className="bg-highlight border-b border-line px-4 py-3">
           <div className="max-w-6xl mx-auto flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <Clock className="w-4 h-4 text-amber-600" />
-              <span className="font-medium text-amber-800">Active Session — {formatTime(sessionTime)}</span>
+              <Clock className="w-4 h-4 text-amber-text" />
+              <span className="font-medium text-amber-text">Active Session — {formatTime(sessionTime)}</span>
             </div>
             <Badge className="bg-amber-600">Session in progress</Badge>
           </div>
@@ -450,9 +450,9 @@ export default function AstrologerDashboard() {
           {[
             { label: "Today's Earnings", value: `₹${stats.todayEarnings.toFixed(0)}`, icon: IndianRupee, color: 'text-green-600' },
             { label: 'Pending Payout', value: `₹${stats.pendingPayout.toFixed(0)}`, icon: TrendingUp, color: 'text-blue-600' },
-            { label: 'Total Earned', value: `₹${stats.totalEarnings.toFixed(0)}`, icon: IndianRupee, color: 'text-amber-600' },
+            { label: 'Total Earned', value: `₹${stats.totalEarnings.toFixed(0)}`, icon: IndianRupee, color: 'text-amber-text' },
             { label: "Today's Sessions", value: stats.todayConsultations, icon: Users, color: 'text-purple-600' },
-            { label: 'Total Sessions', value: stats.totalConsultations, icon: Star, color: 'text-amber-600' },
+            { label: 'Total Sessions', value: stats.totalConsultations, icon: Star, color: 'text-amber-text' },
           ].map(({ label, value, icon: Icon, color }) => (
             <Card key={label}>
               <CardContent className="pt-4 pb-3">
@@ -498,7 +498,7 @@ export default function AstrologerDashboard() {
                         <div className="flex items-center gap-3">
                           {c.type === 'voice' ? <Phone className="w-4 h-4 text-blue-500" /> :
                             c.type === 'video' ? <Video className="w-4 h-4 text-green-500" /> :
-                            <MessageCircle className="w-4 h-4 text-amber-500" />}
+                            <MessageCircle className="w-4 h-4 text-amber" />}
                           <div>
                             <p className="font-medium text-sm capitalize">{c.type} Consultation</p>
                             <p className="text-xs text-muted-foreground">
@@ -670,7 +670,7 @@ export default function AstrologerDashboard() {
                   <div className="space-y-4">
                     <div className="flex items-center gap-4">
                       <Avatar className="w-16 h-16">
-                        <AvatarFallback className="text-xl bg-amber-100 text-amber-800">{astrologer.name?.charAt(0)}</AvatarFallback>
+                        <AvatarFallback className="text-xl bg-highlight text-amber-text">{astrologer.name?.charAt(0)}</AvatarFallback>
                       </Avatar>
                       <div>
                         <h3 className="text-xl font-bold">{astrologer.name}</h3>

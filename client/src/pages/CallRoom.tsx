@@ -250,7 +250,7 @@ export default function CallRoom() {
           {error?.includes('Agora') && (
             <p className="text-xs text-gray-500 mb-6">
               Voice/video calls require an Agora account. Sign up free at{' '}
-              <a href="https://www.agora.io" target="_blank" rel="noreferrer" className="text-amber-400 underline">agora.io</a>
+              <a href="https://www.agora.io" target="_blank" rel="noreferrer" className="text-amber underline">agora.io</a>
               {' '}— 10,000 free minutes/month.
             </p>
           )}
@@ -285,7 +285,7 @@ export default function CallRoom() {
           <div className="flex-1 flex flex-col items-center justify-center py-10 px-4">
             <Avatar className="w-24 h-24 mb-4">
               <AvatarImage src={astrologer?.profileImageUrl || undefined} />
-              <AvatarFallback className="text-3xl bg-amber-100 text-amber-800">
+              <AvatarFallback className="text-3xl bg-highlight text-amber-text">
                 {astrologer?.name?.charAt(0) || '?'}
               </AvatarFallback>
             </Avatar>
@@ -305,7 +305,7 @@ export default function CallRoom() {
             {callState === 'connecting' && brief && !briefDismissed && (
               <div className="mt-6 w-full max-w-sm bg-card border border-border/60 rounded-2xl p-4 shadow-sm">
                 <div className="flex items-center gap-2 mb-2">
-                  <Lightbulb className="w-4 h-4 text-nava-amber shrink-0" />
+                  <Lightbulb className="w-4 h-4 text-amber shrink-0" />
                   <span className="text-xs font-bold text-foreground uppercase tracking-wide">Before you start</span>
                   <button
                     className="ml-auto text-muted-foreground hover:text-foreground text-xs"
@@ -316,15 +316,15 @@ export default function CallRoom() {
                 </div>
                 <p className="text-sm text-muted-foreground mb-3">{brief.intro}</p>
                 {brief.currentFocus && (
-                  <div className="bg-nava-amber/10 rounded-lg px-3 py-2 mb-3">
-                    <p className="text-xs font-semibold text-nava-amber">{brief.currentFocus}</p>
+                  <div className="bg-amber/10 rounded-lg px-3 py-2 mb-3">
+                    <p className="text-xs font-semibold text-amber-text">{brief.currentFocus}</p>
                   </div>
                 )}
                 <p className="text-xs font-semibold text-foreground mb-1.5">Suggested topics:</p>
                 <ul className="space-y-1">
                   {brief.suggestedTopics.map((topic, i) => (
                     <li key={i} className="flex items-start gap-2 text-xs text-muted-foreground">
-                      <span className="text-nava-teal font-bold shrink-0">{i + 1}.</span>
+                      <span className="text-positive font-bold shrink-0">{i + 1}.</span>
                       {topic}
                     </li>
                   ))}

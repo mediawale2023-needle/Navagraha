@@ -56,7 +56,7 @@ function ConfirmModal({ open, balance, isFree, onConfirm, onCancel, loading }: {
       <DialogContent className="max-w-sm">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Download className="w-5 h-5 text-nava-royal-purple" />
+            <Download className="w-5 h-5 text-amber-text" />
             Download Kundli PDF
           </DialogTitle>
           <DialogDescription className="pt-1">
@@ -76,7 +76,7 @@ function ConfirmModal({ open, balance, isFree, onConfirm, onCancel, loading }: {
             </div>
             <div className="flex justify-between">
               <span className="text-muted-foreground">PDF download charge</span>
-              <span className="font-medium text-nava-burgundy">− ₹{PDF_PRICE}</span>
+              <span className="font-medium text-negative">− ₹{PDF_PRICE}</span>
             </div>
             <div className="border-t border-border pt-1 flex justify-between">
               <span className="text-muted-foreground">Balance after</span>
@@ -86,7 +86,7 @@ function ConfirmModal({ open, balance, isFree, onConfirm, onCancel, loading }: {
         )}
         <DialogFooter className="gap-2 sm:gap-0">
           <Button variant="outline" onClick={onCancel} disabled={loading}>Cancel</Button>
-          <Button onClick={onConfirm} disabled={loading} className="bg-nava-royal-purple hover:bg-nava-royal-purple/90">
+          <Button onClick={onConfirm} disabled={loading} className="bg-ink hover:bg-highlight">
             {loading ? 'Processing…' : isFree ? 'Download Free' : 'Confirm & Download'}
           </Button>
         </DialogFooter>
@@ -101,7 +101,7 @@ function InsufficientModal({ open, balance, onClose, onRecharge }: { open: boole
       <DialogContent className="max-w-sm">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Wallet className="w-5 h-5 text-nava-burgundy" />
+            <Wallet className="w-5 h-5 text-negative" />
             Insufficient Balance
           </DialogTitle>
           <DialogDescription className="pt-1">
@@ -111,7 +111,7 @@ function InsufficientModal({ open, balance, onClose, onRecharge }: { open: boole
         <BalanceShortfall balance={balance} required={PDF_PRICE} />
         <DialogFooter className="gap-2 sm:gap-0">
           <Button variant="outline" onClick={onClose}>Later</Button>
-          <Button onClick={onRecharge} className="bg-nava-royal-purple hover:bg-nava-royal-purple/90">
+          <Button onClick={onRecharge} className="bg-ink hover:bg-highlight">
             <Wallet className="w-4 h-4 mr-2" />
             Recharge Now
           </Button>
@@ -238,7 +238,7 @@ export default function KundliView() {
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">
           <p className="text-muted-foreground mb-4">Kundli not found</p>
-          <Link href="/"><Button className="bg-nava-royal-purple">Go Home</Button></Link>
+          <Link href="/"><Button className="bg-ink">Go Home</Button></Link>
         </div>
       </div>
     );
@@ -291,7 +291,7 @@ export default function KundliView() {
           <CardHeader>
             <div className="flex items-start justify-between flex-wrap gap-3">
               <div>
-                <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">Your Kundli</p>
+                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">Your Kundli</p>
                 <CardTitle className="font-display text-2xl mb-1">{kundli.name}</CardTitle>
                 {canonical && (
                   <div className="mb-2" data-testid="kundli-headline">
@@ -311,7 +311,7 @@ export default function KundliView() {
                   </div>
                 )}
                 {limited && (
-                  <div className="mb-3 space-y-2 rounded-[8px] border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-800" data-testid="limited-chart-notice">
+                  <div className="mb-3 space-y-2 rounded-[8px] border border-line bg-highlight p-3 text-xs text-amber-text" data-testid="limited-chart-notice">
                     <p>{(kundli as any).chartStatus.notes[0]}</p>
                     <p>Its placements are hidden because they cannot be verified. This saved chart stays in your list unchanged.</p>
                     <Link href={recreateHref(kundli as any)}>
@@ -345,7 +345,7 @@ export default function KundliView() {
                   <Badge variant="secondary" className="bg-primary/15 text-[var(--primary-border)]">
                     {kundli.zodiacSign || '—'}
                   </Badge>
-                  <Badge variant="secondary" className="bg-nava-teal/10 text-nava-teal">
+                  <Badge variant="secondary" className="bg-positive/10 text-positive">
                     Moon: {moonSignUncertain ? 'uncertain' : kundli.moonSign || '—'}
                   </Badge>
                 </div>
@@ -358,11 +358,11 @@ export default function KundliView() {
         {/* Tabs */}
         <Tabs defaultValue={initialTab} className="w-full mb-6">
           <TabsList className="grid w-full grid-cols-5 bg-muted p-1">
-            <TabsTrigger value="overview" className="rounded-[6px] data-[state=active]:bg-nava-navy data-[state=active]:text-primary">Overview</TabsTrigger>
-            <TabsTrigger value="chart" className="rounded-[6px] data-[state=active]:bg-nava-navy data-[state=active]:text-primary">Chart</TabsTrigger>
-            <TabsTrigger value="insights" className="rounded-[6px] data-[state=active]:bg-nava-navy data-[state=active]:text-primary">Insights</TabsTrigger>
-            <TabsTrigger value="dashas" className="rounded-[6px] data-[state=active]:bg-nava-navy data-[state=active]:text-primary">Dashas</TabsTrigger>
-            <TabsTrigger value="remedies" className="rounded-[6px] data-[state=active]:bg-nava-navy data-[state=active]:text-primary">Remedies</TabsTrigger>
+            <TabsTrigger value="overview" className="rounded-[6px] data-[state=active]:bg-ink data-[state=active]:text-primary">Overview</TabsTrigger>
+            <TabsTrigger value="chart" className="rounded-[6px] data-[state=active]:bg-ink data-[state=active]:text-primary">Chart</TabsTrigger>
+            <TabsTrigger value="insights" className="rounded-[6px] data-[state=active]:bg-ink data-[state=active]:text-primary">Insights</TabsTrigger>
+            <TabsTrigger value="dashas" className="rounded-[6px] data-[state=active]:bg-ink data-[state=active]:text-primary">Dashas</TabsTrigger>
+            <TabsTrigger value="remedies" className="rounded-[6px] data-[state=active]:bg-ink data-[state=active]:text-primary">Remedies</TabsTrigger>
           </TabsList>
 
           {/* Overview */}
@@ -377,7 +377,7 @@ export default function KundliView() {
                 </CardHeader>
                 <CardContent>
                   <ChartGlance domains={insights.domains} onWhy={(d) => { setSheetSubject({ kind: 'domain', resolution: d }); setAiSheetOpen(true); }} />
-                  <p className="mt-3 text-[11px] text-muted-foreground">{insights.notes[insights.notes.length - 1]}</p>
+                  <p className="mt-3 text-xs text-muted-foreground">{insights.notes[insights.notes.length - 1]}</p>
                 </CardContent>
               </Card>
             )}
@@ -435,10 +435,10 @@ export default function KundliView() {
                 <div className="flex items-center justify-between flex-wrap gap-3">
                   <CardTitle className="font-display">{chartView.mode === 'chandra' ? 'Moon Chart (Chandra Lagna)' : chartView.mode === 'table' ? 'Planet Positions' : 'Birth Chart'}</CardTitle>
                   <div className="flex rounded-lg border border-border overflow-hidden">
-                    <button onClick={() => setChartStyle('north')} className={`px-4 py-1.5 text-sm font-medium transition-colors ${chartStyle === 'north' ? 'bg-nava-navy text-primary' : 'bg-card hover:bg-muted'}`}>
+                    <button onClick={() => setChartStyle('north')} className={`px-4 py-1.5 text-sm font-medium transition-colors ${chartStyle === 'north' ? 'bg-ink text-primary' : 'bg-card hover:bg-muted'}`}>
                       North Indian
                     </button>
-                    <button onClick={() => setChartStyle('south')} className={`px-4 py-1.5 text-sm font-medium transition-colors ${chartStyle === 'south' ? 'bg-nava-navy text-primary' : 'bg-card hover:bg-muted'}`}>
+                    <button onClick={() => setChartStyle('south')} className={`px-4 py-1.5 text-sm font-medium transition-colors ${chartStyle === 'south' ? 'bg-ink text-primary' : 'bg-card hover:bg-muted'}`}>
                       South Indian
                     </button>
                   </div>
@@ -477,21 +477,21 @@ export default function KundliView() {
 
                   {chartView.mode === 'exact' && chartData?.navamsa?.planetaryPositions && (
                     <div className="w-full pt-4 mt-2 border-t border-border/40">
-                      <h3 className="text-sm font-semibold text-nava-royal-purple text-center mb-1">Navamsa (D9)</h3>
+                      <h3 className="text-sm font-semibold text-amber-text text-center mb-1">Navamsa (D9)</h3>
                       <p className="text-xs text-muted-foreground text-center mb-3">Marriage, dharma & true planetary strength</p>
                       <NorthIndianChartEnhanced chartData={chartData.navamsa} />
                     </div>
                   )}
                   {chartView.mode === 'exact' && chartData?.dasamsa?.planetaryPositions && (
                     <div className="w-full pt-4 mt-2 border-t border-border/40">
-                      <h3 className="text-sm font-semibold text-nava-royal-purple text-center mb-1">Dasamsa (D10)</h3>
+                      <h3 className="text-sm font-semibold text-amber-text text-center mb-1">Dasamsa (D10)</h3>
                       <p className="text-xs text-muted-foreground text-center mb-3">Career & profession</p>
                       <NorthIndianChartEnhanced chartData={chartData.dasamsa} />
                     </div>
                   )}
                   {chartView.mode === 'exact' && chartData?.shashtiamsa?.planetaryPositions && (
                     <div className="w-full pt-4 mt-2 border-t border-border/40">
-                      <h3 className="text-sm font-semibold text-nava-royal-purple text-center mb-1">Shashtiamsa (D60)</h3>
+                      <h3 className="text-sm font-semibold text-amber-text text-center mb-1">Shashtiamsa (D60)</h3>
                       <p className="text-xs text-muted-foreground text-center mb-3">Past-life karma — accurate only with an exact birth time</p>
                       <NorthIndianChartEnhanced chartData={chartData.shashtiamsa} />
                     </div>
@@ -507,24 +507,24 @@ export default function KundliView() {
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div>
-                    <p className="text-xs font-semibold text-nava-royal-purple mb-2">Sarvashtakavarga (SAV) — strength by house</p>
+                    <p className="text-xs font-semibold text-amber-text mb-2">Sarvashtakavarga (SAV) — strength by house</p>
                     <div className="grid grid-cols-6 gap-1.5">
                       {chartData.ashtakavarga.savByHouse.map((b: number, i: number) => (
                         <div key={i} className={`rounded-lg p-2 text-center ${b >= 30 ? 'bg-green-600/15 text-green-700' : b < 25 ? 'bg-red-600/10 text-red-700' : 'bg-muted text-foreground'}`}>
-                          <div className="text-[10px] text-muted-foreground">H{i + 1}</div>
+                          <div className="text-xs text-muted-foreground">H{i + 1}</div>
                           <div className="text-sm font-bold">{b}</div>
                         </div>
                       ))}
                     </div>
-                    <p className="text-[11px] text-muted-foreground mt-1.5">Higher bindus = stronger house. Total across all houses = 337.</p>
+                    <p className="text-xs text-muted-foreground mt-1.5">Higher bindus = stronger house. Total across all houses = 337.</p>
                   </div>
 
                   {chartData.ashtakavarga.bav && (
                     <div className="overflow-x-auto">
-                      <p className="text-xs font-semibold text-nava-royal-purple mb-2">Bhinnashtakavarga (BAV) — by sign</p>
+                      <p className="text-xs font-semibold text-amber-text mb-2">Bhinnashtakavarga (BAV) — by sign</p>
                       <table className="w-full text-xs border-collapse">
                         <thead>
-                          <tr className="bg-nava-lavender/40">
+                          <tr className="bg-highlight/40">
                             <th className="p-1.5 text-left font-medium">Planet</th>
                             {['Ar','Ta','Ge','Cn','Le','Vi','Li','Sc','Sg','Cp','Aq','Pi'].map((s) => (
                               <th key={s} className="p-1.5 font-medium">{s}</th>
@@ -561,14 +561,14 @@ export default function KundliView() {
                   {chartData.functionalRemedies.map((r: any, i: number) => (
                     <div key={i} className="rounded-lg border border-border/40 p-2.5">
                       <div className="flex items-center gap-2">
-                        <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${r.action === 'Strengthen' ? 'bg-green-600/15 text-green-700' : 'bg-amber-500/15 text-amber-700'}`}>{r.action}</span>
+                        <span className={`text-xs px-1.5 py-0.5 rounded-full ${r.action === 'Strengthen' ? 'bg-green-600/15 text-green-700' : 'bg-highlight text-amber-text'}`}>{r.action}</span>
                         <span className="font-semibold text-sm text-foreground">{r.focus}</span>
                         {r.gemstone && <span className="text-xs text-muted-foreground">· {r.gemstone}</span>}
                       </div>
                       <p className="text-xs text-muted-foreground mt-1">
                         {r.donation ? `Donate ${r.donation}. ` : ''}Chant <span className="italic">{r.mantra}</span> ({r.japaCount.toLocaleString()}×) on {r.day}; worship {r.deity}.
                       </p>
-                      <p className="text-[11px] text-muted-foreground/80 mt-0.5">{r.reason}</p>
+                      <p className="text-xs text-muted-foreground/80 mt-0.5">{r.reason}</p>
                     </div>
                   ))}
                 </CardContent>
@@ -585,8 +585,8 @@ export default function KundliView() {
                     <div key={i} className="rounded-lg border border-border/40 p-2.5">
                       <div className="flex items-center gap-2">
                         <span className="font-semibold text-sm text-foreground">{y.name}</span>
-                        <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-nava-lavender/60 text-nava-royal-purple">{y.category}</span>
-                        {y.cancelled && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-red-600/10 text-red-700">cancelled</span>}
+                        <span className="text-xs px-1.5 py-0.5 rounded-full bg-highlight/60 text-amber-text">{y.category}</span>
+                        {y.cancelled && <span className="text-xs px-1.5 py-0.5 rounded-full bg-red-600/10 text-red-700">cancelled</span>}
                       </div>
                       <p className="text-xs text-muted-foreground mt-1">{y.description}</p>
                     </div>
@@ -603,7 +603,7 @@ export default function KundliView() {
                 <CardContent className="overflow-x-auto">
                   <table className="w-full text-xs border-collapse">
                     <thead>
-                      <tr className="bg-nava-lavender/40 text-left">
+                      <tr className="bg-highlight/40 text-left">
                         <th className="p-1.5 font-medium">Planet</th>
                         <th className="p-1.5 font-medium">Sign</th>
                         <th className="p-1.5 font-medium">Dignity</th>
@@ -637,7 +637,7 @@ export default function KundliView() {
                 <CardContent className="overflow-x-auto">
                   <table className="w-full text-xs border-collapse">
                     <thead>
-                      <tr className="bg-nava-lavender/40 text-left">
+                      <tr className="bg-highlight/40 text-left">
                         <th className="p-1.5 font-medium">House</th>
                         <th className="p-1.5 font-medium">Sign</th>
                         <th className="p-1.5 font-medium">Lord</th>
@@ -669,7 +669,7 @@ export default function KundliView() {
                   {running?.antar && <p><span className="text-muted-foreground">Antardasha:</span> <span className="font-medium">{running.antar.lord}</span> <span className="text-xs text-muted-foreground">{periodRange(running.antar)}</span></p>}
                   {curPd && <p><span className="text-muted-foreground">Pratyantardasha:</span> <span className="font-medium">{curPd.planet}</span> <span className="text-xs text-muted-foreground">({curPd.period})</span></p>}
                   {curYogini && <p><span className="text-muted-foreground">Yogini Dasha:</span> <span className="font-medium">{curYogini.yogini} / {curYogini.lord}</span> <span className="text-xs text-muted-foreground">({curYogini.period})</span></p>}
-                  {running?.note && <p className="text-xs text-amber-700">{running.note}</p>}
+                  {running?.note && <p className="text-xs text-amber-text">{running.note}</p>}
                 </CardContent>
               </Card>
             )}
@@ -680,7 +680,7 @@ export default function KundliView() {
                   <CardTitle className="text-base">Current Transits (Gochar)</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <div className={`rounded-xl p-3 ${transits.sadeSati.active ? 'bg-amber-500/10 border border-amber-500/30' : 'bg-muted'}`}>
+                  <div className={`rounded-xl p-3 ${transits.sadeSati.active ? 'bg-highlight border border-line' : 'bg-muted'}`}>
                     <p className="text-sm font-semibold text-foreground">
                       Sade Sati: {transits.sadeSati.determined === false ? 'Undetermined' : transits.sadeSati.active ? 'Active' : 'Not active'}
                     </p>
@@ -695,7 +695,7 @@ export default function KundliView() {
                   <div className="overflow-x-auto">
                     <table className="w-full text-xs border-collapse">
                       <thead>
-                        <tr className="bg-nava-lavender/40 text-left">
+                        <tr className="bg-highlight/40 text-left">
                           <th className="p-1.5 font-medium">Planet</th>
                           <th className="p-1.5 font-medium">Sign</th>
                           <th className="p-1.5 font-medium">From Moon</th>
@@ -716,7 +716,7 @@ export default function KundliView() {
                       </tbody>
                     </table>
                   </div>
-                  <p className="text-[11px] text-muted-foreground">As of {transits.date}. {transits.natalLagnaSign ? 'Houses counted from natal Moon and Lagna' : 'Birth time is approximate, so houses are counted from the natal Moon only'}; SAV = bindus of the transited sign.</p>
+                  <p className="text-xs text-muted-foreground">As of {transits.date}. {transits.natalLagnaSign ? 'Houses counted from natal Moon and Lagna' : 'Birth time is approximate, so houses are counted from the natal Moon only'}; SAV = bindus of the transited sign.</p>
                 </CardContent>
               </Card>
             )}
@@ -747,7 +747,7 @@ export default function KundliView() {
             <Card className="card-clean">
               <CardHeader>
                 <CardTitle className="font-display">Vimshottari Dashas</CardTitle>
-                {insights?.timing?.note && <p className="text-xs text-amber-700" data-testid="dashas-timing-note">{insights.timing.note} Dates below are for the time entered.</p>}
+                {insights?.timing?.note && <p className="text-xs text-amber-text" data-testid="dashas-timing-note">{insights.timing.note} Dates below are for the time entered.</p>}
               </CardHeader>
               <CardContent>
                 <div className="space-y-2">
@@ -761,7 +761,7 @@ export default function KundliView() {
                             <div className="text-sm text-muted-foreground">{dasha.period}</div>
                           </div>
                         </div>
-                        {isRunning(dasha) && <Badge className="bg-nava-navy text-primary">Current</Badge>}
+                        {isRunning(dasha) && <Badge className="bg-ink text-primary">Current</Badge>}
                       </button>
                       {expandedDasha === i && dasha.antardashas?.length > 0 && (
                         <div className="border-t border-border bg-muted/30">
@@ -814,7 +814,7 @@ export default function KundliView() {
         <Card className="card-clean bg-primary/10 border-primary/30">
           <CardContent className="p-5">
             <div className="flex items-center gap-3 mb-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-[8px] bg-nava-navy">
+              <div className="flex h-10 w-10 items-center justify-center rounded-[8px] bg-ink">
                 <Sparkles className="w-5 h-5 text-primary" />
               </div>
               <div>

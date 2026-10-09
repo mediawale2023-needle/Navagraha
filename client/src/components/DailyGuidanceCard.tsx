@@ -62,7 +62,7 @@ export function DailyGuidanceCard({
           </p>
         </div>
         <div className="rounded-[8px] bg-muted p-3 text-center">
-          <Sun className="w-4 h-4 mx-auto mb-1 text-nava-burnt-orange" />
+          <Sun className="w-4 h-4 mx-auto mb-1 text-amber-text" />
           <p className="text-xs text-muted-foreground">Sun</p>
           <p className="font-semibold text-foreground text-sm">
             {sunSign}
@@ -72,7 +72,7 @@ export function DailyGuidanceCard({
           </p>
         </div>
         <div className="rounded-[8px] bg-muted p-3 text-center">
-          <Star className="w-4 h-4 mx-auto mb-1 text-nava-burgundy" />
+          <Star className="w-4 h-4 mx-auto mb-1 text-negative" />
           <p className="text-xs text-muted-foreground">Mars</p>
           <p className="font-semibold text-foreground text-sm">
             {marsSign}
@@ -102,7 +102,7 @@ export function DailyGuidanceCard({
           </ul>
         </div>
         <div>
-          <p className="text-xs font-medium text-nava-burgundy mb-2 flex items-center gap-1">
+          <p className="text-xs font-medium text-negative mb-2 flex items-center gap-1">
             <XCircle className="w-3.5 h-3.5" />
             Avoid:
           </p>

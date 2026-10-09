@@ -5,7 +5,7 @@ export function BalanceShortfall({ balance, required }: { balance: number; requi
     <div className="rounded-lg bg-muted px-4 py-3 text-sm space-y-1" data-testid="balance-shortfall">
       <div className="flex justify-between">
         <span className="text-muted-foreground">Your balance</span>
-        <span className="font-medium text-nava-burgundy">₹{balance.toFixed(2)}</span>
+        <span className="font-medium text-negative">₹{balance.toFixed(2)}</span>
       </div>
       <div className="flex justify-between">
         <span className="text-muted-foreground">Required</span>

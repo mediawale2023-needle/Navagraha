@@ -26,7 +26,7 @@ export function RemedyCard({ title, image, price }: RemedyCardProps) {
                 </div>
 
                 <h4 className="font-bold text-sm text-foreground text-center mb-0.5">{title}</h4>
-                <p className="text-[11px] font-semibold text-[var(--teal)]">
+                <p className="text-xs font-semibold text-[var(--teal)]">
                     From {price} <ChevronRight className="w-3 h-3 inline -mt-0.5" />
                 </p>
             </div>

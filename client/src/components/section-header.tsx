@@ -13,7 +13,7 @@ export function SectionHeader({ title, subtitle, showViewAll = true, viewAllLink
         <div className="flex items-center justify-between mb-4 px-1">
             <div>
                 <h3 className="font-bold text-lg text-foreground tracking-tight">{title}</h3>
-                {subtitle && <p className="text-[11px] text-foreground/50 font-medium mt-0.5">{subtitle}</p>}
+                {subtitle && <p className="text-xs text-foreground/50 font-medium mt-0.5">{subtitle}</p>}
             </div>
             {showViewAll && (
                 <Link href={viewAllLink}>

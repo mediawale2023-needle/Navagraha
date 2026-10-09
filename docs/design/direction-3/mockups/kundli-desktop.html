@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Contemporary Vedic — Kundli</title>
+<!-- Approved Direction 3 mockup (D3-Kundli.dc.html, canvas version 1791530006-8131). Do not edit: this is the reference the app is compared against. -->
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Eczar:wght@500;600;700&amp;family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600&amp;display=swap">
+<style>
+body{margin:0;background:#fbf1dc}
+a{color:#1a1a2e}a:hover{color:#8a5a12}
+</style>
+</head>
+<body>
+<div style="background: #fbf1dc; color: #1a1a2e; font-family: 'DM Sans', 'Noto Sans', sans-serif; font-size: 16px; line-height: 1.55; min-height: 1040px">
+<div style="background: #1a1a2e">
+<nav aria-label="Primary" style="max-width: 1240px; margin: 0 auto; padding: 18px 40px; display: flex; flex-wrap: wrap; align-items: center; gap: 32px">
+<a href="#" style="font-family: 'Eczar', serif; font-weight: 600; font-size: 24px; text-decoration: none; color: #e9a84d">Navagraha <span style="font-size: 18px; color: #e8dcc0">नवग्रह</span></a>
+<div style="display: flex; flex-wrap: wrap; gap: 26px; flex: 1 1 auto; font-size: 15px">
+<a href="#" style="text-decoration: none; color: #e8dcc0">Today</a>
+<a href="#" aria-current="page" style="text-decoration: none; color: #fbf1dc; font-weight: 600; border-bottom: 2px solid #e9a84d; padding-bottom: 4px">Kundli</a>
+<a href="#" style="text-decoration: none; color: #e8dcc0">Ask</a>
+<a href="#" style="text-decoration: none; color: #e8dcc0">Dasha</a>
+<a href="#" style="text-decoration: none; color: #e8dcc0">Panchang</a>
+<a href="#" style="text-decoration: none; color: #e8dcc0">Reports</a>
+</div>
+<button type="button" style="font: inherit; font-size: 14px; background: transparent; border: 1px solid #4a4a66; border-radius: 999px; padding: 8px 14px; color: #fbf1dc; min-height: 40px">Ananya</button>
+</nav>
+</div>
+
+<main style="max-width: 1240px; margin: 0 auto; padding: 36px 40px 48px; display: flex; flex-direction: column; gap: 32px">
+<div style="display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: 48px; align-items: start">
+<section aria-label="Rashi chart" style="display: flex; flex-direction: column; gap: 14px; align-items: center">
+<p style="margin: 0; font-family: 'Eczar', serif; font-size: 18px; color: #6b5a33; align-self: flex-start">राशि चक्र · Rashi chart</p>
+<div style="border: 1px solid #b6791e; padding: 8px; background: #fffaf0">
+<div style="border: 3px double #b6791e; padding: 10px">
+<svg viewBox="0 0 300 300" width="380" height="380" role="img" aria-label="North Indian chart for Ananya. Leo Lagna with Mercury; Saturn retrograde in the 5th; Rahu in the 6th; Mars in the 9th; Moon in the 10th; Sun, Jupiter, Venus and Ketu in the 12th." style="display: block">
+<rect x="1" y="1" width="298" height="298" fill="#fffaf0" stroke="#1a1a2e" stroke-width="1.2"/>
+<path d="M150 1 L225 75 L150 150 L75 75 Z" fill="#f6ead0"/>
+<path d="M150 1 L299 150 L150 299 L1 150 Z M1 1 L299 299 M299 1 L1 299" fill="none" stroke="#1a1a2e" stroke-width="1"/>
+<g font-family="DM Sans, sans-serif" font-size="11" fill="#6b5a33" text-anchor="middle"><text x="150" y="137">5</text><text x="75" y="63">6</text><text x="62" y="79">7</text><text x="134" y="154">8</text><text x="62" y="229">9</text><text x="75" y="244">10</text><text x="150" y="172">11</text><text x="225" y="244">12</text><text x="238" y="229">1</text><text x="166" y="154">2</text><text x="238" y="79">3</text><text x="225" y="63">4</text></g>
+<g font-family="Eczar, serif" font-size="15" font-weight="600" fill="#1a1a2e" text-anchor="middle"><text x="150" y="66" fill="#8a5a12">लग्न</text><text x="150" y="88">बु</text><text x="30" y="229">श℞</text><text x="75" y="284">रा</text><text x="274" y="229">मं</text><text x="225" y="155">चं</text><text x="225" y="22">सू गु</text><text x="225" y="41">शु के</text></g>
+</svg>
+</div>
+</div>
+<div role="group" aria-label="Chart labels" style="display: flex; gap: 8px; font-size: 14px">
+<button type="button" aria-pressed="true" style="font: inherit; background: #1a1a2e; color: #fbf1dc; border: 0; border-radius: 8px; padding: 8px 14px; min-height: 40px">देवनागरी</button>
+<button type="button" aria-pressed="false" style="font: inherit; background: transparent; border: 1px solid #e5d29a; border-radius: 8px; padding: 8px 14px">English</button>
+<button type="button" aria-pressed="false" style="font: inherit; background: transparent; border: 1px solid #e5d29a; border-radius: 8px; padding: 8px 14px">South Indian</button>
+</div>
+</section>
+
+<section aria-labelledby="d3k-grahas" style="display: flex; flex-direction: column; gap: 14px">
+<div style="display: flex; justify-content: space-between; align-items: baseline">
+<h1 id="d3k-grahas" style="margin: 0; font-family: 'Eczar', serif; font-weight: 600; font-size: 34px">Nine grahas <span style="font-size: 22px; color: #6b5a33">नवग्रह</span></h1>
+<span style="font-size: 14px; color: #6b5a33">Leo Lagna · Taurus Moon</span>
+</div>
+<div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px">
+<a href="#" style="text-decoration: none; background: #fffaf0; border: 1px solid #e5d29a; border-radius: 10px; padding: 12px 14px; display: flex; flex-direction: column; gap: 2px"><span style="font-family: 'Eczar', serif; font-size: 20px; font-weight: 600">सूर्य <span style="font-size: 14px; color: #6b5a33; font-family: 'DM Sans', sans-serif; font-weight: 400">Sun</span></span><span style="font-size: 14px">Cancer · 12th</span><span style="font-size: 13px; color: #6b5a33">Friend's sign</span></a>
+<a href="#" style="text-decoration: none; background: #fffaf0; border: 1.5px solid #b6791e; border-radius: 10px; padding: 12px 14px; display: flex; flex-direction: column; gap: 2px"><span style="font-family: 'Eczar', serif; font-size: 20px; font-weight: 600">चन्द्र <span style="font-size: 14px; color: #6b5a33; font-family: 'DM Sans', sans-serif; font-weight: 400">Moon</span></span><span style="font-size: 14px">Taurus · 10th · Rohini</span><span style="font-size: 13px; font-weight: 600">Exalted</span></a>
+<a href="#" style="text-decoration: none; background: #fffaf0; border: 1.5px solid #b6791e; border-radius: 10px; padding: 12px 14px; display: flex; flex-direction: column; gap: 2px"><span style="font-family: 'Eczar', serif; font-size: 20px; font-weight: 600">मंगल <span style="font-size: 14px; color: #6b5a33; font-family: 'DM Sans', sans-serif; font-weight: 400">Mars</span></span><span style="font-size: 14px">Aries · 9th</span><span style="font-size: 13px; font-weight: 600">Own sign</span></a>
+<a href="#" style="text-decoration: none; background: #fffaf0; border: 1px solid #e5d29a; border-radius: 10px; padding: 12px 14px; display: flex; flex-direction: column; gap: 2px"><span style="font-family: 'Eczar', serif; font-size: 20px; font-weight: 600">बुध <span style="font-size: 14px; color: #6b5a33; font-family: 'DM Sans', sans-serif; font-weight: 400">Mercury</span></span><span style="font-size: 14px">Leo · 1st</span><span style="font-size: 13px; color: #6b5a33">Friend's sign · Antardasha lord</span></a>
+<a href="#" style="text-decoration: none; background: #1a1a2e; color: #fbf1dc; border-radius: 10px; padding: 12px 14px; display: flex; flex-direction: column; gap: 2px"><span style="font-family: 'Eczar', serif; font-size: 20px; font-weight: 600; color: #e9a84d">गुरु <span style="font-size: 14px; color: #e8dcc0; font-family: 'DM Sans', sans-serif; font-weight: 400">Jupiter</span></span><span style="font-size: 14px">Cancer · 12th · Pushya</span><span style="font-size: 13px; font-weight: 600">Exalted · Mahadasha lord</span></a>
+<a href="#" style="text-decoration: none; background: #fffaf0; border: 1px solid #e5d29a; border-radius: 10px; padding: 12px 14px; display: flex; flex-direction: column; gap: 2px"><span style="font-family: 'Eczar', serif; font-size: 20px; font-weight: 600">शुक्र <span style="font-size: 14px; color: #6b5a33; font-family: 'DM Sans', sans-serif; font-weight: 400">Venus</span></span><span style="font-size: 14px">Cancer · 12th</span><span style="font-size: 13px; color: #6b5a33">Enemy's sign</span></a>
+<a href="#" style="text-decoration: none; background: #fffaf0; border: 1px solid #e5d29a; border-radius: 10px; padding: 12px 14px; display: flex; flex-direction: column; gap: 2px"><span style="font-family: 'Eczar', serif; font-size: 20px; font-weight: 600">शनि <span style="font-size: 14px; color: #6b5a33; font-family: 'DM Sans', sans-serif; font-weight: 400">Saturn ℞</span></span><span style="font-size: 14px">Sagittarius · 5th</span><span style="font-size: 13px; color: #6b5a33">Neutral sign</span></a>
+<a href="#" style="text-decoration: none; background: #fffaf0; border: 1px solid #e5d29a; border-radius: 10px; padding: 12px 14px; display: flex; flex-direction: column; gap: 2px"><span style="font-family: 'Eczar', serif; font-size: 20px; font-weight: 600">राहु <span style="font-size: 14px; color: #6b5a33; font-family: 'DM Sans', sans-serif; font-weight: 400">Rahu</span></span><span style="font-size: 14px">Capricorn · 6th</span><span style="font-size: 13px; color: #6b5a33">Shravana</span></a>
+<a href="#" style="text-decoration: none; background: #fffaf0; border: 1px solid #e5d29a; border-radius: 10px; padding: 12px 14px; display: flex; flex-direction: column; gap: 2px"><span style="font-family: 'Eczar', serif; font-size: 20px; font-weight: 600">केतु <span style="font-size: 14px; color: #6b5a33; font-family: 'DM Sans', sans-serif; font-weight: 400">Ketu</span></span><span style="font-size: 14px">Cancer · 12th</span><span style="font-size: 13px; color: #6b5a33">Pushya</span></a>
+</div>
+<p style="margin: 0; font-size: 15px">Yogas: <b>Raja Yoga ×3</b>, <b>Sarala Vipreeta Raja Yoga</b>. No Mangal, Kaal Sarp or Pitru Dosha.</p>
+</section>
+</div>
+
+<section aria-labelledby="d3k-dasha" style="display: flex; flex-direction: column; gap: 10px">
+<div style="display: flex; justify-content: space-between; align-items: baseline"><h2 id="d3k-dasha" style="margin: 0; font-family: 'Eczar', serif; font-weight: 600; font-size: 24px">Vimshottari, to scale <span style="font-size: 17px; color: #6b5a33">विंशोत्तरी</span></h2><span style="font-size: 14px; color: #6b5a33">1990 → 2105 · marker: today</span></div>
+<div style="position: relative; display: flex; height: 44px; border: 1px solid #1a1a2e; border-radius: 8px; overflow: hidden; font-size: 13px">
+<span style="flex: 5.1; background: #f6ead0; display: flex; align-items: center; padding-left: 6px; border-right: 1px solid #e5d29a">Mo</span>
+<span style="flex: 7; background: #fffaf0; display: flex; align-items: center; padding-left: 6px; border-right: 1px solid #e5d29a">Ma</span>
+<span style="flex: 18; background: #f6ead0; display: flex; align-items: center; padding-left: 8px; border-right: 1px solid #e5d29a">Rahu</span>
+<span style="flex: 16; background: #e9a84d; display: flex; align-items: center; padding-left: 8px; font-weight: 600">Jupiter · now</span>
+<span style="flex: 19; background: #fffaf0; display: flex; align-items: center; padding-left: 8px; border-right: 1px solid #e5d29a">Saturn</span>
+<span style="flex: 17; background: #f6ead0; display: flex; align-items: center; padding-left: 8px; border-right: 1px solid #e5d29a">Mercury</span>
+<span style="flex: 7; background: #fffaf0; display: flex; align-items: center; padding-left: 6px; border-right: 1px solid #e5d29a">Ketu</span>
+<span style="flex: 20; background: #f6ead0; display: flex; align-items: center; padding-left: 8px; border-right: 1px solid #e5d29a">Venus</span>
+<span style="flex: 6; background: #fffaf0; display: flex; align-items: center; padding-left: 6px">Sun</span>
+<span aria-hidden="true" style="position: absolute; left: 31.4%; top: 0; bottom: 0; width: 2px; background: #1a1a2e"></span>
+</div>
+<div style="display: flex; justify-content: space-between; font-size: 13px; color: #6b5a33; font-variant-numeric: tabular-nums"><span>Aug 1990</span><span>Now: Oct 2026, Jupiter–Mercury</span><span>Sep 2105</span></div>
+</section>
+</main>
+</div>
+</body>
+</html>

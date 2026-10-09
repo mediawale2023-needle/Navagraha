@@ -107,7 +107,7 @@ function PersonalDaily() {
         <div className="flex flex-wrap items-center gap-2 mt-4">
           {c.dayLord && <Badge className="bg-muted text-muted-foreground border-0" title="The weekday's ruling planet; its colour and number are the same for everyone today.">Day of {c.dayLord}</Badge>}
           {c.luckyColor && <Badge className="bg-primary/15 text-[var(--primary-border)] border-0">Colour: {c.luckyColor}</Badge>}
-          {c.luckyNumber != null && <Badge className="bg-nava-magenta/10 text-nava-magenta border-0">Number: {c.luckyNumber}</Badge>}
+          {c.luckyNumber != null && <Badge className="bg-highlight text-amber-text border-0">Number: {c.luckyNumber}</Badge>}
         </div>
         {c.advice && <p className="text-sm italic text-muted-foreground mt-3">Today's tip — {c.advice}</p>}
       </CardContent>
@@ -116,18 +116,18 @@ function PersonalDaily() {
 }
 
 const ZODIAC_SIGNS = [
-  { id: "aries", emoji: "🐏", name: "Mesh", englishName: "Aries", bg: "bg-nava-amber" },
-  { id: "taurus", emoji: "🐂", name: "Vrishabh", englishName: "Taurus", bg: "bg-nava-teal" },
-  { id: "gemini", emoji: "👥", name: "Mithun", englishName: "Gemini", bg: "bg-nava-magenta" },
-  { id: "cancer", emoji: "🦀", name: "Kark", englishName: "Cancer", bg: "bg-nava-aqua" },
-  { id: "leo", emoji: "🦁", name: "Simha", englishName: "Leo", bg: "bg-nava-amber" },
-  { id: "virgo", emoji: "👩", name: "Kanya", englishName: "Virgo", bg: "bg-nava-teal" },
-  { id: "libra", emoji: "⚖️", name: "Tula", englishName: "Libra", bg: "bg-nava-magenta" },
-  { id: "scorpio", emoji: "🦂", name: "Vrishchik", englishName: "Scorpio", bg: "bg-nava-aqua" },
-  { id: "sagittarius", emoji: "🏹", name: "Dhanu", englishName: "Sagittarius", bg: "bg-nava-teal" },
-  { id: "capricorn", emoji: "🐐", name: "Makar", englishName: "Capricorn", bg: "bg-nava-amber" },
-  { id: "aquarius", emoji: "🏺", name: "Kumbh", englishName: "Aquarius", bg: "bg-nava-magenta" },
-  { id: "pisces", emoji: "🐟", name: "Meen", englishName: "Pisces", bg: "bg-nava-aqua" },
+  { id: "aries", emoji: "🐏", name: "Mesh", englishName: "Aries", bg: "bg-ink" },
+  { id: "taurus", emoji: "🐂", name: "Vrishabh", englishName: "Taurus", bg: "bg-ink" },
+  { id: "gemini", emoji: "👥", name: "Mithun", englishName: "Gemini", bg: "bg-ink" },
+  { id: "cancer", emoji: "🦀", name: "Kark", englishName: "Cancer", bg: "bg-ink" },
+  { id: "leo", emoji: "🦁", name: "Simha", englishName: "Leo", bg: "bg-ink" },
+  { id: "virgo", emoji: "👩", name: "Kanya", englishName: "Virgo", bg: "bg-ink" },
+  { id: "libra", emoji: "⚖️", name: "Tula", englishName: "Libra", bg: "bg-ink" },
+  { id: "scorpio", emoji: "🦂", name: "Vrishchik", englishName: "Scorpio", bg: "bg-ink" },
+  { id: "sagittarius", emoji: "🏹", name: "Dhanu", englishName: "Sagittarius", bg: "bg-ink" },
+  { id: "capricorn", emoji: "🐐", name: "Makar", englishName: "Capricorn", bg: "bg-ink" },
+  { id: "aquarius", emoji: "🏺", name: "Kumbh", englishName: "Aquarius", bg: "bg-ink" },
+  { id: "pisces", emoji: "🐟", name: "Meen", englishName: "Pisces", bg: "bg-ink" },
 ];
 
 type Period = "today" | "tomorrow" | "weekly" | "monthly";
@@ -176,8 +176,8 @@ function HoroscopeDetail({ sign }: { sign: (typeof ZODIAC_SIGNS)[0] }) {
             {sign.emoji}
           </div>
           <div>
-            <h1 className="font-display text-3xl text-white">{sign.name}</h1>
-            <p className="text-white/80 text-sm">{sign.englishName} Moon sign (Rashi)</p>
+            <h1 className="font-display text-3xl text-on-navy">{sign.name}</h1>
+            <p className="text-on-navy-2 text-sm">{sign.englishName} Moon sign (Rashi)</p>
           </div>
         </div>
       </div>
@@ -186,7 +186,7 @@ function HoroscopeDetail({ sign }: { sign: (typeof ZODIAC_SIGNS)[0] }) {
       <Tabs value={period} onValueChange={(v) => setPeriod(v as Period)} className="mb-4">
         <TabsList className="grid grid-cols-4 border border-border bg-card p-1">
           {(["today", "tomorrow", "weekly", "monthly"] as Period[]).map((p) => (
-            <TabsTrigger key={p} value={p} className="capitalize rounded-[6px] text-xs data-[state=active]:bg-nava-navy data-[state=active]:text-primary">
+            <TabsTrigger key={p} value={p} className="capitalize rounded-[6px] text-xs data-[state=active]:bg-ink data-[state=active]:text-primary">
               {p}
             </TabsTrigger>
           ))}
@@ -204,7 +204,7 @@ function HoroscopeDetail({ sign }: { sign: (typeof ZODIAC_SIGNS)[0] }) {
         <Card className="yantra-card">
           <CardContent className="p-5">
             <div className="flex items-center gap-2 mb-4">
-              <Star className="w-4 h-4 fill-nava-amber text-nava-amber" />
+              <Star className="w-4 h-4 fill-amber text-amber" />
               <span className="text-[var(--primary-border)] text-sm font-semibold capitalize">
                 {period === "today" ? "Today's" : period === "tomorrow" ? "Tomorrow's" : period === "weekly" ? "This Week's" : "This Month's"}{" "}
                 Prediction
@@ -236,7 +236,7 @@ function HoroscopeDetail({ sign }: { sign: (typeof ZODIAC_SIGNS)[0] }) {
                 </tbody>
               </table>
             </div>
-            <p className="mt-4 text-[11px] text-muted-foreground">{data.basis}</p>
+            <p className="mt-4 text-xs text-muted-foreground">{data.basis}</p>
           </CardContent>
         </Card>
       ) : null}
@@ -269,12 +269,12 @@ function SignGrid({ onSelect }: { onSelect: (sign: (typeof ZODIAC_SIGNS)[0]) => 
           <button
             key={sign.id}
             onClick={() => onSelect(sign)}
-            className={`relative aspect-square rounded-[10px] flex flex-col items-center justify-center gap-1 transition-all ${sign.bg} hover:scale-105 hover:shadow-lg group`}
+            className={`relative aspect-square rounded-[10px] flex flex-col items-center justify-center gap-1 transition-all ${sign.bg} hover:bg-ink/90 group`}
           >
             <span className="text-2xl sm:text-3xl drop-shadow-sm">{sign.emoji}</span>
-            <span className="text-[10px] sm:text-xs font-bold text-white">{sign.name}</span>
+            <span className="text-xs sm:text-xs font-bold text-on-navy">{sign.name}</span>
             <div className="absolute top-1.5 right-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
-              <ChevronRight className="w-3 h-3 text-white" />
+              <ChevronRight className="w-3 h-3 text-on-navy" />
             </div>
           </button>
         ))}

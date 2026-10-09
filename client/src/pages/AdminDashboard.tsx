@@ -278,10 +278,10 @@ function ContentEditor() {
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
                           <span className="font-medium text-sm truncate">{item.title}</span>
-                          {item.icon && <Badge variant="secondary" className="text-[10px] font-mono">{item.icon}</Badge>}
+                          {item.icon && <Badge variant="secondary" className="text-xs font-mono">{item.icon}</Badge>}
                         </div>
                         {item.subtitle && <p className="text-xs text-muted-foreground truncate mt-0.5">{item.subtitle}</p>}
-                        {item.href && <p className="text-[10px] text-blue-500 font-mono mt-0.5">{item.href}</p>}
+                        {item.href && <p className="text-xs text-blue-500 font-mono mt-0.5">{item.href}</p>}
                       </div>
 
                       {/* Actions */}

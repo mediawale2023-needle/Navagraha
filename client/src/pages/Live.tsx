@@ -54,7 +54,7 @@ export default function Live() {
                 <div className="relative aspect-[4/5] bg-gradient-to-br from-primary/40 to-background flex items-center justify-center">
                   <Avatar className="h-20 w-20 rounded-[8px] ring-4 ring-white/40">
                     <AvatarImage src={s.astrologerImage} />
-                    <AvatarFallback className="font-display text-2xl bg-nava-navy text-primary">{s.astrologerName?.[0] || 'A'}</AvatarFallback>
+                    <AvatarFallback className="font-display text-2xl bg-ink text-primary">{s.astrologerName?.[0] || 'A'}</AvatarFallback>
                   </Avatar>
                   <Badge className="absolute top-2 left-2 bg-red-500 text-white border-0 gap-1 animate-pulse">
                     <Radio className="w-3 h-3" /> LIVE

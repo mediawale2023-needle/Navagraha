@@ -141,7 +141,7 @@ export default function Wallet() {
           }
         },
         prefill: {},
-        theme: { color: '#3AABA8' },
+        theme: { color: getComputedStyle(document.documentElement).getPropertyValue('--amber').trim() },
         modal: {
           ondismiss: () => {
             toast({ title: 'Payment Cancelled', description: 'You cancelled the payment.', variant: 'destructive' });
@@ -252,16 +252,16 @@ export default function Wallet() {
         {/* Balance Card */}
         <div className="mb-6 rounded-[12px] border border-[var(--primary-border)] bg-primary p-6 shadow-md">
           <div className="flex items-center gap-3 mb-2">
-            <div className="flex h-10 w-10 items-center justify-center rounded-[8px] bg-nava-navy">
+            <div className="flex h-10 w-10 items-center justify-center rounded-[8px] bg-ink">
               <WalletIcon className="w-5 h-5 text-primary" />
             </div>
-            <span className="text-sm font-medium text-[var(--nava-navy)]/90">Available Balance</span>
+            <span className="text-sm font-medium text-ink/90">Available Balance</span>
           </div>
-          <div className="mb-1 font-display text-4xl text-[var(--nava-navy)]" data-testid="text-balance">
+          <div className="mb-1 font-display text-4xl text-ink" data-testid="text-balance">
             ₹{balance.toFixed(2)}
           </div>
           {marketplace && (
-          <p className="text-sm text-[var(--nava-navy)]/75">
+          <p className="text-sm text-ink/75">
             {balance < 100
               ? 'Low balance - recharge to continue consultations'
               : `Approx. ${Math.floor(balance / 25)} minutes of consultation time`}
@@ -293,7 +293,7 @@ export default function Wallet() {
                       data-testid={`button-pack-${pack.id}`}
                     >
                       {pack.popular && (
-                        <span className="absolute -top-2 left-1/2 -translate-x-1/2 rounded-[6px] bg-nava-navy px-2 py-0.5 text-[10px] font-bold text-primary">
+                        <span className="absolute -top-2 left-1/2 -translate-x-1/2 rounded-[6px] bg-ink px-2 py-0.5 text-xs font-bold text-primary">
                           Popular
                         </span>
                       )}
@@ -430,14 +430,14 @@ export default function Wallet() {
                       data-testid={`transaction-${transaction.id}`}
                     >
                       <div className="flex items-center gap-3">
-                        <div className={`flex h-9 w-9 items-center justify-center rounded-[6px] ${isPending ? 'bg-primary/15' : isCredit ? 'bg-emerald-500/10' : 'bg-nava-magenta/10'
+                        <div className={`flex h-9 w-9 items-center justify-center rounded-[6px] ${isPending ? 'bg-primary/15' : isCredit ? 'bg-emerald-500/10' : 'bg-highlight'
                           }`}>
                           {isPending ? (
                             <Loader2 className="h-4 w-4 animate-spin text-[var(--primary-border)]" />
                           ) : isCredit ? (
                             <ArrowDownLeft className="w-4 h-4 text-emerald-600" />
                           ) : (
-                            <ArrowUpRight className="w-4 h-4 text-nava-magenta" />
+                            <ArrowUpRight className="w-4 h-4 text-amber-text" />
                           )}
                         </div>
                         <div>
@@ -450,12 +450,12 @@ export default function Wallet() {
                         </div>
                       </div>
                       <div className="text-right">
-                        <div className={`font-semibold ${isPending ? 'text-nava-amber' : isCredit ? 'text-emerald-600' : 'text-nava-magenta'
+                        <div className={`font-semibold ${isPending ? 'text-amber-text' : isCredit ? 'text-emerald-600' : 'text-amber-text'
                           }`}>
                           {isCredit ? '+' : '-'}₹{transaction.amount}
                         </div>
                         <Badge
-                          className={`text-[10px] ${transaction.status === 'completed' ? 'bg-emerald-500/10 text-emerald-600 border-0' : transaction.status === 'pending' ? 'bg-nava-amber/10 text-nava-amber border-0' : 'bg-destructive/10 text-destructive border-0'}`}
+                          className={`text-xs ${transaction.status === 'completed' ? 'bg-emerald-500/10 text-emerald-600 border-0' : transaction.status === 'pending' ? 'bg-amber/10 text-amber-text border-0' : 'bg-destructive/10 text-destructive border-0'}`}
                         >
                           {transaction.status}
                         </Badge>

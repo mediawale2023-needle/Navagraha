@@ -111,7 +111,7 @@ export default function Remedies() {
           <CardContent className="p-5">
             <div className="flex items-center justify-between mb-3">
               <h3 className="font-display text-foreground">Monthly Progress</h3>
-              <Badge className="bg-nava-navy text-primary">
+              <Badge className="bg-ink text-primary">
                 {totalCount ? Math.round((completedCount / totalCount) * 100) : 0}% Complete
               </Badge>
             </div>
@@ -167,13 +167,13 @@ export default function Remedies() {
         {/* Remedies List */}
         <Tabs defaultValue="all" className="mb-6">
           <TabsList className="grid w-full grid-cols-3 bg-muted p-1">
-            <TabsTrigger value="all" className="rounded-[6px] data-[state=active]:bg-nava-navy data-[state=active]:text-primary">
+            <TabsTrigger value="all" className="rounded-[6px] data-[state=active]:bg-ink data-[state=active]:text-primary">
               All
             </TabsTrigger>
-            <TabsTrigger value="pending" className="rounded-[6px] data-[state=active]:bg-nava-navy data-[state=active]:text-primary">
+            <TabsTrigger value="pending" className="rounded-[6px] data-[state=active]:bg-ink data-[state=active]:text-primary">
               Pending
             </TabsTrigger>
-            <TabsTrigger value="completed" className="rounded-[6px] data-[state=active]:bg-nava-navy data-[state=active]:text-primary">
+            <TabsTrigger value="completed" className="rounded-[6px] data-[state=active]:bg-ink data-[state=active]:text-primary">
               Completed
             </TabsTrigger>
           </TabsList>

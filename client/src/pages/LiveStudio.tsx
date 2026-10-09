@@ -129,7 +129,7 @@ export default function LiveStudio() {
 
   return (
     <div className="min-h-screen bg-black text-white flex flex-col">
-      <div className="relative flex-1 min-h-[55vh] bg-gradient-to-br from-nava-royal-purple/40 to-black">
+      <div className="relative flex-1 min-h-[55vh] bg-gradient-to-br from-ink/40 to-black">
         <div ref={videoRef} className="absolute inset-0" />
         {avError && (
           <div className="absolute inset-0 flex items-center justify-center text-center px-6">
@@ -150,18 +150,18 @@ export default function LiveStudio() {
           {messages?.map((m) => (
             <div key={m.id} className="text-sm" data-testid={`msg-${m.id}`}>
               {m.type === 'gift' ? (
-                <span className="inline-block px-2 py-1 rounded-lg bg-nava-amber/20 text-nava-amber font-medium text-xs">{m.senderName} {m.message}</span>
+                <span className="inline-block px-2 py-1 rounded-lg bg-amber/20 text-amber-text font-medium text-xs">{m.senderName} {m.message}</span>
               ) : m.type === 'join' ? (
                 <span className="text-xs text-muted-foreground">{m.senderName} joined</span>
               ) : (
-                <span><span className={`font-semibold ${m.senderType === 'astrologer' ? 'text-nava-royal-purple' : ''}`}>{m.senderName}: </span><span className="text-muted-foreground">{m.message}</span></span>
+                <span><span className={`font-semibold ${m.senderType === 'astrologer' ? 'text-amber-text' : ''}`}>{m.senderName}: </span><span className="text-muted-foreground">{m.message}</span></span>
               )}
             </div>
           ))}
         </div>
         <div className="flex items-center gap-2 p-3 border-t border-border pb-safe">
           <Input placeholder="Reply to viewers…" value={draft} onChange={(e) => setDraft(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && sendMessage()} className="flex-1 rounded-full" data-testid="input-chat" />
-          <button onClick={sendMessage} className="w-10 h-10 rounded-full bg-nava-royal-purple flex items-center justify-center text-white shrink-0" data-testid="button-send"><Send className="w-4 h-4" /></button>
+          <button onClick={sendMessage} className="w-10 h-10 rounded-full bg-ink flex items-center justify-center text-white shrink-0" data-testid="button-send"><Send className="w-4 h-4" /></button>
         </div>
       </div>
     </div>

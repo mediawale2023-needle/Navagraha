@@ -70,7 +70,7 @@ export default function AstrologerPro() {
             <div>
               <div className="flex items-center gap-2">
                 <h1 className="font-display text-lg leading-none">Navagraha Pro</h1>
-                <Badge variant="secondary" className="text-[10px]">Studio</Badge>
+                <Badge variant="secondary" className="text-xs">Studio</Badge>
               </div>
               <p className="text-xs text-muted-foreground mt-0.5">
                 Practice workspace · {me.name}

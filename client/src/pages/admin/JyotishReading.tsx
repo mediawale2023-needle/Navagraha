@@ -297,7 +297,7 @@ function DashasTab({ chartData }: { chartData: any }) {
           {chartData.vimshottariDasha.map((d: any) => (
             <div key={d.planet + d.startDate} className={`border rounded-lg p-2.5 text-sm ${d.status === 'current' ? 'border-primary bg-primary/5' : 'border-border'}`}>
               <div className="flex justify-between items-center">
-                <span className="font-medium">{d.planet} Mahadasha {d.status === 'current' && <Badge className="ml-1.5 text-[10px]">current</Badge>}</span>
+                <span className="font-medium">{d.planet} Mahadasha {d.status === 'current' && <Badge className="ml-1.5 text-xs">current</Badge>}</span>
                 <span className="text-xs text-muted-foreground">{d.startDate} – {d.endDate}</span>
               </div>
               {d.status === 'current' && d.antardashas?.length > 0 && (
@@ -362,7 +362,7 @@ function YogasDoshasTab({ chartData }: { chartData: any }) {
             <div key={i} className="border border-border rounded-lg p-2.5 text-sm">
               <div className="flex items-center gap-2">
                 <span className="font-medium">{y.name}</span>
-                <Badge variant={y.cancelled ? 'outline' : 'default'} className="text-[10px]">
+                <Badge variant={y.cancelled ? 'outline' : 'default'} className="text-xs">
                   {y.cancelled ? 'NOT CONFIRMED (cancelled)' : 'CONFIRMED'}
                 </Badge>
               </div>
@@ -378,7 +378,7 @@ function YogasDoshasTab({ chartData }: { chartData: any }) {
           {doshaList.map((d) => (
             <div key={d.key} className={`border rounded-lg p-2.5 text-sm flex items-center justify-between ${chartData.doshas[d.key] ? 'border-amber-400 bg-amber-50 dark:bg-amber-950/20' : 'border-border'}`}>
               <span>{d.label}</span>
-              <Badge variant={chartData.doshas[d.key] ? 'default' : 'outline'} className="text-[10px]">
+              <Badge variant={chartData.doshas[d.key] ? 'default' : 'outline'} className="text-xs">
                 {chartData.doshas[d.key] ? 'PRESENT' : d.key === 'mangalDosha' && chartData.doshas.mangalCancelledBy?.length ? 'CANCELLED' : 'ABSENT'}
               </Badge>
             </div>
@@ -413,13 +413,13 @@ function RemediesTab({ chartData }: { chartData: any }) {
       </Card>
 
       <Card>
-        <CardHeader><CardTitle className="text-sm text-amber-600">Gemstone Contraindications</CardTitle></CardHeader>
+        <CardHeader><CardTitle className="text-sm text-amber-text">Gemstone Contraindications</CardTitle></CardHeader>
         <CardContent className="space-y-2">
           {chartData.remedies.gemstoneContraindications.length === 0 && <p className="text-sm text-muted-foreground">None flagged for this chart.</p>}
           {chartData.remedies.gemstoneContraindications.map((c: any, i: number) => (
             <div key={i} className={`border rounded-lg p-2.5 text-sm ${c.severity === 'avoid' ? 'border-red-400 bg-red-50 dark:bg-red-950/20' : 'border-amber-300 bg-amber-50 dark:bg-amber-950/20'}`}>
               <div className="flex items-center gap-2">
-                <Badge className="text-[10px]" variant={c.severity === 'avoid' ? 'destructive' : 'outline'}>{c.severity.toUpperCase()}</Badge>
+                <Badge className="text-xs" variant={c.severity === 'avoid' ? 'destructive' : 'outline'}>{c.severity.toUpperCase()}</Badge>
                 <span className="font-medium">{c.gemstone} ({c.planet})</span>
               </div>
               <p className="text-xs text-muted-foreground mt-1">{c.reason}</p>
@@ -576,7 +576,7 @@ function SessionQueryBox({ profileId, readingId, defaultTradition }: { profileId
             <p className="text-xs font-medium text-muted-foreground">Previous questions this session</p>
             {history.slice(0, 10).map((q) => (
               <div key={q.id} className="text-xs">
-                <p className="font-medium">Q: {q.question} <Badge variant="secondary" className="text-[9px] ml-1">{TRADITION_LABELS[q.tradition as Tradition] || q.tradition}</Badge></p>
+                <p className="font-medium">Q: {q.question} <Badge variant="secondary" className="text-xs ml-1">{TRADITION_LABELS[q.tradition as Tradition] || q.tradition}</Badge></p>
                 {q.answer && <p className="text-muted-foreground mt-0.5">A: {q.answer}</p>}
               </div>
             ))}
@@ -760,7 +760,7 @@ export default function JyotishReading({ apiBase = '/api/admin/jyotish' }: { api
                 <p className="font-medium">{p.name}</p>
                 <p className="text-xs text-muted-foreground">{new Date(p.dateOfBirth).toLocaleDateString()} · {p.placeOfBirth}</p>
                 {(p.phone || p.tags) && (
-                  <p className="text-[11px] text-muted-foreground mt-0.5 truncate">
+                  <p className="text-xs text-muted-foreground mt-0.5 truncate">
                     {[p.phone, p.tags].filter(Boolean).join(' · ')}
                   </p>
                 )}

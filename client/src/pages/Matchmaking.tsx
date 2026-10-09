@@ -325,19 +325,19 @@ export default function Matchmaking() {
             {/* Overall score: the Ashtakoota guna total, out of 36 */}
             <Card className="yantra-card overflow-hidden border-0">
               <CardContent className="p-0">
-                <div className="bg-primary p-8 text-center text-[var(--nava-navy)]">
+                <div className="bg-primary p-8 text-center text-ink">
                   <h2 className="font-display text-3xl mb-2">Ashtakoota Guna Milan</h2>
-                  <p className="mb-4 text-[var(--nava-navy)]/70" data-testid="text-person-names">
+                  <p className="mb-4 text-ink/70" data-testid="text-person-names">
                     {result.person1} & {result.person2}
                   </p>
-                  <div className="mx-auto mb-3 flex h-32 w-40 flex-col items-center justify-center rounded-[8px] bg-nava-navy">
+                  <div className="mx-auto mb-3 flex h-32 w-40 flex-col items-center justify-center rounded-[8px] bg-ink">
                     <span className="font-display text-5xl text-primary" data-testid="text-compatibility-score">
                       {result.gunaScore}<span className="text-2xl">/{result.maxGunaScore}</span>
                     </span>
                     <span className="text-xs uppercase tracking-[0.12em] text-primary/80">gunas</span>
                   </div>
                   <p className="text-lg" data-testid="text-compatibility-label">{result.compatibility}</p>
-                  <p className="mt-2 text-sm text-[var(--nava-navy)]/80">{result.recommendation}</p>
+                  <p className="mt-2 text-sm text-ink/80">{result.recommendation}</p>
                 </div>
               </CardContent>
             </Card>
@@ -390,7 +390,7 @@ export default function Matchmaking() {
             ))}
 
             {result.roles?.note && (
-              <p className="text-xs text-amber-700" data-testid="text-match-roles">{result.roles.note}</p>
+              <p className="text-xs text-amber-text" data-testid="text-match-roles">{result.roles.note}</p>
             )}
 
             <p className="text-xs text-muted-foreground">

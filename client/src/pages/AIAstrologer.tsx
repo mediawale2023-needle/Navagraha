@@ -309,10 +309,10 @@ export default function AIAstrologer() {
           <div className="flex-1">
             <h1 className="font-bold text-lg text-foreground">Ask Your Kundli</h1>
             <div className="flex items-center gap-1.5">
-              <Sparkles className="w-3 h-3 text-nava-amber" />
+              <Sparkles className="w-3 h-3 text-amber" />
               <span className="text-xs text-muted-foreground">Answers checked against your chart</span>
               {freeRemaining !== null && freeRemaining > 0 && (
-                <Badge className="bg-emerald-500/10 text-emerald-600 border-0 text-[10px] ml-1">
+                <Badge className="bg-emerald-500/10 text-emerald-600 border-0 text-xs ml-1">
                   {freeRemaining} free {freeRemaining === 1 ? 'question' : 'questions'} left
                 </Badge>
               )}
@@ -336,7 +336,7 @@ export default function AIAstrologer() {
         <Card className="mb-4 bg-card border-border/50 shadow-sm">
           <CardContent className="p-4">
             <div className="flex flex-wrap items-center gap-3">
-              <Stars className="w-5 h-5 text-nava-amber flex-shrink-0" />
+              <Stars className="w-5 h-5 text-amber flex-shrink-0" />
               <div className="flex-1 min-w-[180px]">
                 <Select value={selectedKundliId} onValueChange={setSelectedKundliId}>
                   <SelectTrigger className="bg-background border-border">
@@ -372,7 +372,7 @@ export default function AIAstrologer() {
                 <Button
                   size="sm"
                   variant="outline"
-                  className="border-nava-amber/50 text-nava-amber hover:bg-nava-amber/10"
+                  className="border-amber/50 text-amber-text hover:bg-amber/10"
                   onClick={() => interpretMutation.mutate(selectedKundliId)}
                   disabled={interpretMutation.isPending}
                 >
@@ -407,7 +407,7 @@ export default function AIAstrologer() {
                   placeholder="City, State, Country"
                 />
                 {!birthValid && (
-                  <p className="text-[11px] text-muted-foreground">Enter name, date, time and place to get a personalised reading.</p>
+                  <p className="text-xs text-muted-foreground">Enter name, date, time and place to get a personalised reading.</p>
                 )}
               </div>
             )}
@@ -415,7 +415,7 @@ export default function AIAstrologer() {
             {selectedKundli && (
               <div className="mt-2 flex flex-wrap gap-1.5">
                 {selectedKundli.zodiacSign && (
-                  <Badge className="bg-nava-amber/10 text-nava-amber border-0 text-xs">
+                  <Badge className="bg-amber/10 text-amber-text border-0 text-xs">
                     Sun: {selectedKundli.zodiacSign}
                   </Badge>
                 )}
@@ -425,7 +425,7 @@ export default function AIAstrologer() {
                   </Badge>
                 )}
                 {selectedKundli.ascendant && (
-                  <Badge className="bg-nava-magenta/10 text-nava-magenta border-0 text-xs">
+                  <Badge className="bg-highlight text-amber-text border-0 text-xs">
                     Asc: {selectedKundli.ascendant}
                   </Badge>
                 )}
@@ -434,8 +434,8 @@ export default function AIAstrologer() {
 
             {/* No kundlis — CTA to create one */}
             {kundlis.length === 0 && (
-              <div className="mt-3 flex items-center gap-3 bg-nava-amber/5 border border-nava-amber/20 rounded-xl px-4 py-3">
-                <Sparkles className="w-4 h-4 text-nava-amber flex-shrink-0" />
+              <div className="mt-3 flex items-center gap-3 bg-amber/5 border border-amber/20 rounded-xl px-4 py-3">
+                <Sparkles className="w-4 h-4 text-amber flex-shrink-0" />
                 <p className="text-sm text-foreground flex-1">
                   Generate your Kundli for personalized AI readings
                 </p>
@@ -464,16 +464,16 @@ export default function AIAstrologer() {
                 {currentMahadasha && (
                   <div className="flex items-center justify-between rounded-[10px] border border-primary/25 bg-primary/10 px-4 py-2.5">
                     <div>
-                      <span className="text-[10px] font-semibold uppercase tracking-wider text-[var(--primary-border)]">Mahadasha</span>
+                      <span className="text-xs font-semibold uppercase tracking-wider text-[var(--primary-border)]">Mahadasha</span>
                       <p className="font-bold text-foreground text-sm">{currentMahadasha.planet}</p>
                     </div>
                     <span className="text-xs text-muted-foreground">{currentMahadasha.period}</span>
                   </div>
                 )}
                 {currentAntardasha && (
-                  <div className="flex items-center justify-between bg-nava-magenta/5 border border-nava-magenta/20 rounded-xl px-4 py-2.5 ml-4">
+                  <div className="flex items-center justify-between bg-highlight border border-line rounded-xl px-4 py-2.5 ml-4">
                     <div>
-                      <span className="text-[10px] font-semibold text-nava-magenta uppercase tracking-wider">Antardasha</span>
+                      <span className="text-xs font-semibold text-amber-text uppercase tracking-wider">Antardasha</span>
                       <p className="font-bold text-foreground text-sm">{currentAntardasha.planet}</p>
                     </div>
                     <span className="text-xs text-muted-foreground">{currentAntardasha.period}</span>
@@ -571,7 +571,7 @@ export default function AIAstrologer() {
               <div
                 className={`max-w-[85%] rounded-2xl px-4 py-3 text-sm leading-relaxed ${
                   msg.role === "user"
-                    ? "bg-nava-navy text-primary ml-8"
+                    ? "bg-ink text-primary ml-8"
                     : "bg-card border border-border/50 text-foreground"
                 }`}
               >
@@ -583,15 +583,15 @@ export default function AIAstrologer() {
                       </ReactMarkdown>
                     </div>
                     {msg.answerSource && (
-                      <p className="mt-2 text-[11px] font-medium text-muted-foreground" data-testid="answer-source">
+                      <p className="mt-2 text-xs font-medium text-muted-foreground" data-testid="answer-source">
                         {msg.answerSource === "deterministic" ? "From your chart's evidence" : "AI explanation · checked against your chart"}
                       </p>
                     )}
                     {msg.evidence?.domains?.length ? (
-                      <div className="mt-3 border-t border-border/50 pt-2 text-[11px] text-muted-foreground" data-testid="answer-evidence">
+                      <div className="mt-3 border-t border-border/50 pt-2 text-xs text-muted-foreground" data-testid="answer-evidence">
                         Based on your chart:{" "}
                         {msg.evidence.domains.map((d) => `${d.label} — ${d.verdict} (${d.confidence} confidence; ${d.supporting} supporting, ${d.conflicting} conflicting)`).join(" · ")}
-                        {msg.evidence.disclosure && <span className="mt-1 block text-amber-700" data-testid="answer-time-disclosure">{msg.evidence.disclosure}</span>}
+                        {msg.evidence.disclosure && <span className="mt-1 block text-amber-text" data-testid="answer-time-disclosure">{msg.evidence.disclosure}</span>}
                       </div>
                     ) : null}
                   </>
@@ -600,7 +600,7 @@ export default function AIAstrologer() {
                 )}
               </div>
               {msg.role === "user" && (
-                <div className="mt-1 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-[8px] bg-nava-navy">
+                <div className="mt-1 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-[8px] bg-ink">
                   <span className="text-xs font-bold text-primary">U</span>
                 </div>
               )}
@@ -615,9 +615,9 @@ export default function AIAstrologer() {
               <div className="bg-card border border-border/50 rounded-2xl px-4 py-3 flex items-center gap-3">
                 {/* Orbiting planet — a clear "AI is working" cue */}
                 <div className="relative w-7 h-7 shrink-0">
-                  <div className="absolute inset-0 rounded-full border border-nava-amber/30" />
+                  <div className="absolute inset-0 rounded-full border border-amber/30" />
                   <div className="absolute inset-0 animate-spin" style={{ animationDuration: "1.4s" }}>
-                    <span className="absolute -top-[3px] left-1/2 -translate-x-1/2 w-2.5 h-2.5 rounded-full bg-nava-amber shadow-sm" />
+                    <span className="absolute -top-[3px] left-1/2 -translate-x-1/2 w-2.5 h-2.5 rounded-full bg-amber shadow-sm" />
                   </div>
                   <span className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-2 h-2 rounded-full bg-[var(--primary-border)]" />
                 </div>
@@ -662,7 +662,7 @@ export default function AIAstrologer() {
               <Send className="w-4 h-4" />
             </Button>
           </div>
-          <p className="text-center text-[10px] text-muted-foreground mt-1.5 pb-24">
+          <p className="text-center text-xs text-muted-foreground mt-1.5 pb-24">
             For guidance only — consult a qualified Jyotish for big decisions.
           </p>
         </div>

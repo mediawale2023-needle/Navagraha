@@ -116,7 +116,7 @@ export default function Schedule() {
                         <div className="flex items-center gap-2">
                           <span>{a.name}</span>
                           <span className="text-muted-foreground text-xs">• ₹{a.pricePerMinute}/min</span>
-                          <span className="text-amber-500 text-xs">⭐ {a.rating}</span>
+                          <span className="text-amber text-xs">⭐ {a.rating}</span>
                         </div>
                       </SelectItem>
                     ))}
@@ -129,7 +129,7 @@ export default function Schedule() {
                 <div className="flex items-center gap-3 rounded-[10px] border border-border bg-card p-3">
                   <Avatar className="h-10 w-10 rounded-[6px]">
                     <AvatarImage src={selectedAstrologer.profileImageUrl || undefined} />
-                    <AvatarFallback className="bg-nava-navy font-display text-primary">{selectedAstrologer.name.charAt(0)}</AvatarFallback>
+                    <AvatarFallback className="bg-ink font-display text-primary">{selectedAstrologer.name.charAt(0)}</AvatarFallback>
                   </Avatar>
                   <div>
                     <p className="font-display text-base">{selectedAstrologer.name}</p>
@@ -167,7 +167,7 @@ export default function Schedule() {
                       size="sm"
                       variant={type === opt.value ? 'default' : 'outline'}
                       onClick={() => setType(opt.value)}
-                      className={`gap-1 rounded-[9px] ${type === opt.value ? 'bg-nava-navy text-primary hover:bg-nava-navy/90' : ''}`}
+                      className={`gap-1 rounded-[9px] ${type === opt.value ? 'bg-ink text-primary hover:bg-ink/90' : ''}`}
                     >
                       {opt.icon} {opt.label}
                     </Button>
