@@ -3,6 +3,8 @@ import { useQuery } from '@tanstack/react-query';
 import { Link, useRoute } from 'wouter';
 import { ArrowRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Sheet, SheetContent, SheetTitle } from '@/components/ui/sheet';
+import { useIsMobile } from '@/hooks/use-mobile';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
 import { PageBody, PageHeader } from '@/components/shell/PageHeader';
 import { PeriodScale, VimshottariScale } from '@/components/kundli/VimshottariScale';
@@ -61,6 +63,8 @@ export default function DashaTimeline() {
   const view = insights ? timelineView(insights) : null;
   const [selected, setSelected] = useState<number | null>(null);
   const [antar, setAntar] = useState<number | null>(null);
+  const isMobile = useIsMobile();
+  const [sheetOpen, setSheetOpen] = useState(false);
   useEffect(() => { if (view && selected === null) setSelected(view.initial); }, [view, selected]);
 
   const back = { href: id ? `/kundli/${id}` : '/kundli', label: 'Kundli' };
@@ -103,9 +107,65 @@ export default function DashaTimeline() {
   const choose = (i: number) => {
     setSelected(i);
     setAntar(null);
-    if (window.matchMedia('(max-width: 767px)').matches) document.getElementById('dasha-detail')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    if (isMobile) setSheetOpen(true);
   };
   const runningAntar = view.antarKnown ? view.periods[view.current ?? -1]?.antardashas?.find((a) => a.status === 'current') : undefined;
+
+  const Title = isMobile ? SheetTitle : 'h2';
+  const detail = sel && (
+    <>
+      <div className="flex flex-col gap-1">
+        <Title id="dasha-detail-h" className="m-0 font-display text-section font-semibold md:text-title">
+          {grahaSanskrit(sel.lord)} Mahadasha <span lang="hi" className="text-subhead font-normal text-ink-muted">{GRAHA_HI[sel.lord]}</span>
+        </Title>
+        <p className="m-0 text-sm tabular-nums text-ink-muted">{sel.lord} · {range(sel)} · {periodLength(sel)}</p>
+        {sel.themes.length > 0 && <p className="m-0 text-nav">{sel.themes.join(' · ')}</p>}
+      </div>
+      <PeriodEvidence p={sel} />
+
+      {antars.length > 0 && (
+        <>
+          <PeriodScale
+            periods={antars}
+            from={new Date(sel.start)}
+            subject={`Antardashas of the ${sel.lord} Mahadasha`}
+            headingId="dasha-antar"
+            heading={<>Antardashas <span lang="hi" className="text-base font-normal text-ink-muted">अन्तर्दशा</span></>}
+            currentKnown={view.antarKnown && sel.status === 'current'}
+            nowLabel={runningAntar && sel.status === 'current' ? runningAntar.lord : undefined}
+            testId="antar-scale"
+            nowSuffix={false}
+            onSelect={(j) => setAntar(antar === j ? null : j)}
+            selected={antar}
+          />
+          <ol className="m-0 grid list-none grid-cols-2 gap-0 overflow-hidden rounded-lg border border-line bg-surface p-0 lg:grid-cols-3" data-testid="antar-list">
+            {antars.map((a, j) => (
+              <li key={a.start} className="border-b border-r border-hairline max-lg:even:border-r-0 lg:[&:nth-child(3n)]:border-r-0">
+                <button type="button" onClick={() => setAntar(antar === j ? null : j)} aria-expanded={antar === j}
+                  className={`flex w-full flex-col px-3 py-2.5 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ink ${antar === j ? 'bg-highlight' : 'hover:bg-sunken'}`}>
+                  <span className="flex items-center justify-between gap-2 font-semibold">
+                    {sel.lord}–{a.lord} <StatusPill status={shownStatus(a, view.antarKnown && sel.status === 'current')} />
+                  </span>
+                  <span className="text-caption tabular-nums text-ink-muted">{monthYear(a.start)} – {monthYear(a.end)}</span>
+                </button>
+              </li>
+            ))}
+          </ol>
+          {openAntar && (
+            <div className="flex flex-col gap-2 rounded-lg border border-line bg-surface p-4 md:p-[22px]" data-testid="antar-detail">
+              <h3 className="m-0 font-display text-card-title font-semibold">{grahaSanskrit(sel.lord)}–{grahaSanskrit(openAntar.lord)} <span className="font-sans text-sm font-normal text-ink-muted">{range(openAntar)} · {periodLength(openAntar)}</span></h3>
+              <PeriodEvidence p={openAntar} />
+            </div>
+          )}
+        </>
+      )}
+
+      <Link href={`/ai-astrologer?${new URLSearchParams({ kundliId: kundli.id, q: `What does my ${sel.lord} Mahadasha bring?` }).toString()}`}
+        className="self-start text-sm underline hover:text-amber-text">
+        Ask your Kundli about this period
+      </Link>
+    </>
+  );
 
   return (
     <div>
@@ -127,6 +187,7 @@ export default function DashaTimeline() {
         <div className="grid gap-8 md:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] md:gap-10">
           <section aria-labelledby="dasha-list" className="flex min-w-0 flex-col gap-3">
             <h2 id="dasha-list" className="m-0 font-display text-card-title font-semibold md:text-heading">Mahadashas <span lang="hi" className="text-base font-normal text-ink-muted">महादशा</span></h2>
+            <p className="text-sm text-ink-muted md:hidden">Tap a period for what it engages in this chart.</p>
             <ol className="m-0 list-none overflow-hidden rounded-lg border border-line bg-surface p-0" data-testid="dasha-list">
               {view.periods.map((p, i) => (
                 <li key={p.start} className={i > 0 ? 'border-t border-hairline' : ''}>
@@ -146,59 +207,18 @@ export default function DashaTimeline() {
             </ol>
           </section>
 
-          {sel && (
-            <section id="dasha-detail" aria-labelledby="dasha-detail-h" className="flex min-w-0 scroll-mt-4 flex-col gap-5" data-testid="dasha-detail">
-              <div className="flex flex-col gap-1">
-                <h2 id="dasha-detail-h" className="m-0 font-display text-section font-semibold md:text-title">
-                  {grahaSanskrit(sel.lord)} Mahadasha <span lang="hi" className="text-subhead font-normal text-ink-muted">{GRAHA_HI[sel.lord]}</span>
-                </h2>
-                <p className="m-0 text-sm tabular-nums text-ink-muted">{sel.lord} · {range(sel)} · {periodLength(sel)}</p>
-                {sel.themes.length > 0 && <p className="m-0 text-nav">{sel.themes.join(' · ')}</p>}
-              </div>
-              <PeriodEvidence p={sel} />
-
-              {antars.length > 0 && (
-                <>
-                  <PeriodScale
-                    periods={antars}
-                    from={new Date(sel.start)}
-                    subject={`Antardashas of the ${sel.lord} Mahadasha`}
-                    headingId="dasha-antar"
-                    heading={<>Antardashas <span lang="hi" className="text-base font-normal text-ink-muted">अन्तर्दशा</span></>}
-                    currentKnown={view.antarKnown && sel.status === 'current'}
-                    nowLabel={runningAntar && sel.status === 'current' ? runningAntar.lord : undefined}
-                    testId="antar-scale"
-                    nowSuffix={false}
-                    onSelect={(j) => setAntar(antar === j ? null : j)}
-                    selected={antar}
-                  />
-                  <ol className="m-0 grid list-none grid-cols-2 gap-0 overflow-hidden rounded-lg border border-line bg-surface p-0 lg:grid-cols-3" data-testid="antar-list">
-                    {antars.map((a, j) => (
-                      <li key={a.start} className="border-b border-r border-hairline max-lg:even:border-r-0 lg:[&:nth-child(3n)]:border-r-0">
-                        <button type="button" onClick={() => setAntar(antar === j ? null : j)} aria-expanded={antar === j}
-                          className={`flex w-full flex-col px-3 py-2.5 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ink ${antar === j ? 'bg-highlight' : 'hover:bg-sunken'}`}>
-                          <span className="flex items-center justify-between gap-2 font-semibold">
-                            {sel.lord}–{a.lord} <StatusPill status={shownStatus(a, view.antarKnown && sel.status === 'current')} />
-                          </span>
-                          <span className="text-caption tabular-nums text-ink-muted">{monthYear(a.start)} – {monthYear(a.end)}</span>
-                        </button>
-                      </li>
-                    ))}
-                  </ol>
-                  {openAntar && (
-                    <div className="flex flex-col gap-2 rounded-lg border border-line bg-surface p-4 md:p-[22px]" data-testid="antar-detail">
-                      <h3 className="m-0 font-display text-card-title font-semibold">{grahaSanskrit(sel.lord)}–{grahaSanskrit(openAntar.lord)} <span className="font-sans text-sm font-normal text-ink-muted">{range(openAntar)} · {periodLength(openAntar)}</span></h3>
-                      <PeriodEvidence p={openAntar} />
-                    </div>
-                  )}
-                </>
-              )}
-
-              <Link href={`/ai-astrologer?${new URLSearchParams({ kundliId: kundli.id, q: `What does my ${sel.lord} Mahadasha bring?` }).toString()}`}
-                className="self-start text-sm underline hover:text-amber-text">
-                Ask your Kundli about this period
-              </Link>
+          {sel && !isMobile && (
+            <section id="dasha-detail" aria-labelledby="dasha-detail-h" className="flex min-w-0 flex-col gap-5" data-testid="dasha-detail">
+              {detail}
             </section>
+          )}
+          {sel && isMobile && (
+            <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
+              <SheetContent side="bottom" className="flex max-h-[85vh] flex-col gap-5 overflow-y-auto px-4 [&>*]:shrink-0 pb-[max(16px,env(safe-area-inset-bottom))] pt-2.5" data-testid="dasha-sheet" aria-describedby={undefined}>
+                <span aria-hidden="true" className="mx-auto h-1 w-10 shrink-0 rounded-full bg-line" />
+                {detail}
+              </SheetContent>
+            </Sheet>
           )}
         </div>
 

@@ -1,4 +1,6 @@
-import { Download } from 'lucide-react';
+import { useState } from 'react';
+import { Download, List } from 'lucide-react';
+import { Sheet, SheetContent, SheetTitle } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
 import { NorthIndianChartEnhanced } from '@/components/NorthIndianChartEnhanced';
 import type { ReportContent } from '@/lib/reportPdf';
@@ -22,13 +24,26 @@ export function ReportReader({ content, title, refunded, downloading, onDownload
     ['Name', b?.name], ['Date', b?.dateOfBirth], ['Time', b?.timeOfBirth], ['Place', b?.placeOfBirth], ['Lagna', b?.ascendant], ['Moon', b?.moonSign],
   ];
   const h3 = 'm-0 font-display text-card-title font-semibold md:text-heading';
+  const [contentsOpen, setContentsOpen] = useState(false);
+  const contents = (onPick?: () => void) => (
+    <ol className="m-0 flex list-none flex-col gap-1.5 p-0 text-sm">
+      {sections.map((s, i) => <li key={i}><a href={`#${slug(s.heading, i)}`} onClick={onPick} className="block py-1 text-ink no-underline hover:text-amber-text hover:underline">{s.heading}</a></li>)}
+    </ol>
+  );
   return (
     <article className="flex flex-col gap-6" data-testid="report-reader">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <button type="button" onClick={onBack} className="text-sm text-ink-muted underline hover:text-amber-text">← All reports</button>
-        <Button disabled={downloading} onClick={onDownload} className="gap-1.5" data-testid="button-download-pdf">
-          <Download className="h-4 w-4" />{downloading ? 'Preparing PDF…' : 'Download PDF'}
-        </Button>
+        <div className="flex gap-2">
+          {sections.length > 3 && (
+            <Button variant="outline" onClick={() => setContentsOpen(true)} className="gap-1.5 lg:hidden" data-testid="button-report-contents">
+              <List className="h-4 w-4" />Contents
+            </Button>
+          )}
+          <Button disabled={downloading} onClick={onDownload} className="gap-1.5" data-testid="button-download-pdf">
+            <Download className="h-4 w-4" />{downloading ? 'Preparing PDF…' : 'Download PDF'}
+          </Button>
+        </div>
       </div>
       <header className="flex flex-col gap-2">
         <h2 className="m-0 font-display text-section font-semibold md:text-title">{title}</h2>
@@ -130,13 +145,18 @@ export function ReportReader({ content, title, refunded, downloading, onDownload
           <nav aria-label="Contents" className="hidden lg:block">
             <div className="sticky top-6 flex max-h-[calc(100vh-48px)] flex-col gap-2 overflow-y-auto">
               <p className="font-display text-card-title font-semibold">Contents</p>
-              <ol className="m-0 flex list-none flex-col gap-1.5 p-0 text-sm">
-                {sections.map((s, i) => <li key={i}><a href={`#${slug(s.heading, i)}`} className="text-ink no-underline hover:text-amber-text hover:underline">{s.heading}</a></li>)}
-              </ol>
+              {contents()}
             </div>
           </nav>
         )}
       </div>
+      <Sheet open={contentsOpen} onOpenChange={setContentsOpen}>
+        <SheetContent side="bottom" className="flex max-h-[75vh] flex-col gap-3 overflow-y-auto px-4 [&>*]:shrink-0 pb-[max(16px,env(safe-area-inset-bottom))] pt-2.5" aria-describedby={undefined}>
+          <span aria-hidden="true" className="mx-auto h-1 w-10 shrink-0 rounded-full bg-line" />
+          <SheetTitle className="m-0 font-display text-card-title font-semibold">Contents</SheetTitle>
+          {contents(() => setContentsOpen(false))}
+        </SheetContent>
+      </Sheet>
     </article>
   );
 }
