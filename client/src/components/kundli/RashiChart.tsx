@@ -28,7 +28,7 @@ function PlanetText({ p, x, y, labels, onSelect, fontSize }: { p: Placement; x: 
       x={x}
       y={y}
       textAnchor="middle"
-      className={`fill-ink font-display ${onSelect ? 'cursor-pointer focus:outline-none [&:focus-visible]:fill-amber-text' : ''}`}
+      className={`fill-ink font-display ${onSelect ? 'cursor-pointer focus:outline-none [&:focus-visible]:fill-amber-text [&:focus-visible]:underline [&:focus-visible]:decoration-2' : ''}`}
       fontSize={fontSize}
       fontWeight={600}
       role={onSelect ? 'button' : undefined}

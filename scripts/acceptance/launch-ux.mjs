@@ -91,6 +91,14 @@ async function run(browser, label, viewport) {
     const config = (await api(page, 'GET', '/api/config')).json ?? {};
     const text = await bodyText(page);
     assert(!text.includes('24+'), 'made-up "24+" count');
+    assert(!text.includes('First Consultation Free') && !text.includes('On your first wallet recharge') && !text.includes('Up to 25%'), 'old claims still shown');
+    if (!config.marketplaceEnabled) {
+      // Paused marketplace: the landing makes no astrologer or free-chat claim at all.
+      assert(await page.getByTestId('landing-online-count').count() === 0, 'online count shown while the marketplace is paused');
+      assert(await page.getByTestId('landing-free-chat-terms').count() === 0, 'free-chat terms shown while the marketplace is paused');
+      await shot('landing');
+      return;
+    }
     const shown = await page.getByTestId('landing-online-count').textContent();
     assert(Number(shown) === astrologers.filter(available).length, `count ${shown} ≠ ${astrologers.filter(available).length} available`);
     const terms = await page.getByTestId('landing-free-chat-terms').textContent();
@@ -139,23 +147,27 @@ async function run(browser, label, viewport) {
   // ── Home ────────────────────────────────────────────────────────────────────
   await page.goto(`${BASE}/`, { waitUntil: 'networkidle' });
   await page.waitForTimeout(1500);
-  await check('F01', 'Home shows the running period of the latest chart, as Active Influences does', async () => {
+  await check('F01', 'Today shows the running period of the chart in use', async () => {
+    // Today names the chart it reads; with no chart chosen yet that is the first listed chart.
     const list = (await api(page, 'GET', '/api/kundli')).json;
     const insights = (await api(page, 'GET', `/api/kundli/${list[0].id}/insights`)).json;
     const maha = insights.timing?.mahadashaReliable === false ? null : insights.timeline.find((p) => p.status === 'current');
-    const title = (await page.getByTestId('running-period-title').textContent()).trim();
-    assert(maha && title === `${maha.lord} Mahadasha`, `card says "${title}", chart says ${maha ? maha.lord : 'none'}`);
-    assert((await bodyText(page)).includes(`${maha.lord} Mahadasha`), 'Active Influences disagrees');
-    await page.getByTestId('running-period-card').scrollIntoViewIfNeeded();
+    const card = page.locator('[data-testid="today-dasha"]:visible, [data-testid="today-dasha-mobile"]:visible').first();
+    await card.waitFor({ timeout: 15000 });
+    const text = (await card.innerText()).replace(/\s+/g, ' ');
+    assert(maha && text.includes(maha.lord), `card says "${text}", chart says ${maha ? maha.lord : 'none'}`);
+    await card.scrollIntoViewIfNeeded();
     await shot('home-running-period');
   });
-  await check('F02', 'hero CTA text is visible at AA contrast', async () => {
-    const cta = page.getByTestId('hero-banner-cta');
-    await cta.scrollIntoViewIfNeeded();
-    const { color, bg, text } = await cta.evaluate((el) => ({ color: getComputedStyle(el).color, bg: getComputedStyle(el).backgroundColor, text: el.innerText.trim() }));
-    assert(text.length > 0, 'CTA has no text');
-    const ratio = contrast(color, bg);
-    assert(ratio >= 4.5, `contrast ${ratio.toFixed(2)}:1`);
+  await check('F02', 'every filled button and link on Today has its text at AA contrast', async () => {
+    const filled = await page.evaluate(() => [...document.querySelectorAll('a, button')]
+      .filter((el) => el.offsetParent !== null && el.innerText.trim() && getComputedStyle(el).backgroundColor !== 'rgba(0, 0, 0, 0)')
+      .map((el) => ({ color: getComputedStyle(el).color, bg: getComputedStyle(el).backgroundColor, text: el.innerText.trim().slice(0, 30) })));
+    assert(filled.length > 0, 'no filled call to action on Today');
+    for (const f of filled) {
+      const ratio = contrast(f.color, f.bg);
+      assert(ratio >= 4.5, `"${f.text}" contrast ${ratio.toFixed(2)}:1`);
+    }
     await shot('home-hero');
   });
 
@@ -198,16 +210,18 @@ async function run(browser, label, viewport) {
   await page.goto(`${BASE}/kundli`, { waitUntil: 'networkidle' });
   await check('F11', 'My Charts states no Ascendant for approximate or unverified charts', async () => {
     await page.getByTestId(`chart-approx-${approx.id}`).waitFor({ timeout: 8000 });
+    const SIGN = '(Aries|Taurus|Gemini|Cancer|Leo|Virgo|Libra|Scorpio|Sagittarius|Capricorn|Aquarius|Pisces)';
+    const states = (kind) => new RegExp(`${SIGN} ${kind}`);
     const approxCard = await page.getByTestId(`chart-${approx.id}`).innerText();
-    assert(!approxCard.includes('Asc:'), `approximate card shows "${approxCard.match(/Asc:\s*\w+/)?.[0]}"`);
-    assert((await page.getByTestId(`chart-${exact.id}`).innerText()).includes('Asc: Leo'), 'exact chart lost its Ascendant');
+    assert(!states('Lagna').test(approxCard), `approximate card shows "${approxCard.match(states('Lagna'))?.[0]}"`);
+    assert((await page.getByTestId(`chart-${exact.id}`).innerText()).includes('Leo Lagna'), 'exact chart lost its Ascendant');
     if (unstableChart?.id) {
       const uncertainCard = await page.getByTestId(`chart-${unstableChart.id}`).innerText();
-      assert(!/Moon:|Asc:/.test(uncertainCard), `uncertain-Moon card: "${uncertainCard.replace(/\s+/g, ' ')}"`);
+      assert(!states('(Moon|Lagna)').test(uncertainCard), `uncertain-Moon card: "${uncertainCard.replace(/\s+/g, ' ')}"`);
     }
     if (legacyId) {
       const legacyCard = await page.getByTestId(`chart-${legacyId}`).innerText();
-      assert(/Older chart/.test(legacyCard) && !/Sun:|Moon:|Asc:/.test(legacyCard), `legacy card: "${legacyCard.replace(/\s+/g, ' ')}"`);
+      assert(/Older chart/.test(legacyCard) && !states('(Sun|Moon|Lagna)').test(legacyCard), `legacy card: "${legacyCard.replace(/\s+/g, ' ')}"`);
     }
     await shot('my-charts', { full: true });
   });
@@ -224,18 +238,19 @@ async function run(browser, label, viewport) {
   await page.goto(`${BASE}/kundli/${approx.id}?tab=chart`, { waitUntil: 'networkidle' });
   await check('F39a', 'approximate chart (stable Moon sign) draws a Chandra Lagna chart, no Lagna, no vargas', async () => {
     await page.getByTestId('chandra-lagna-note').waitFor({ timeout: 8000 });
-    const svgText = await page.locator('svg.chart-container').first().textContent();
-    assert(!svgText.includes('Asc'), 'chart still shows Asc');
+    const chart = page.locator('[data-testid^="rashi-chart"]:visible').first();
+    const svgText = (await chart.textContent()).replace('चन्द्र लग्न', '');
+    assert(!/\bAsc\b|लग्न/.test(svgText), 'chart still shows the Lagna');
     await page.getByTestId('vargas-withheld').waitFor();
-    assert(!(await bodyText(page)).includes('Navamsa (D9)'), 'D9 still drawn');
-    await page.locator('svg.chart-container').first().scrollIntoViewIfNeeded();
+    assert(await page.locator('svg[aria-label^="Navamsa (D9)"]').count() === 0, 'D9 still drawn');
+    await chart.scrollIntoViewIfNeeded();
     await shot('approx-chart-chandra');
   });
   if (unstableChart?.id) {
     await page.goto(`${BASE}/kundli/${unstableChart.id}?tab=chart`, { waitUntil: 'networkidle' });
     await check('F39b', 'approximate chart (Moon changes sign that day) shows a sign-only table and no house chart', async () => {
       await page.getByTestId('approximate-planet-table').waitFor({ timeout: 8000 });
-      assert(await page.locator('svg.chart-container').count() === 0, 'a house chart is still drawn');
+      assert(await page.locator('[data-testid^="rashi-chart"]').count() === 0, 'a house chart is still drawn');
       assert((await bodyText(page)).includes('Moon sign uncertain'), 'headline still states a Moon sign');
       await shot('approx-chart-table', { full: true });
     });
@@ -259,11 +274,11 @@ async function run(browser, label, viewport) {
   // ── Exact chart: labels, remedies, evidence ─────────────────────────────────
   await page.goto(`${BASE}/kundli/${exact.id}?tab=chart`, { waitUntil: 'networkidle' });
   await check('F14', 'chart labels are legible, use ℞, and are keyboard reachable', async () => {
-    const svg = page.locator('svg.chart-container').first();
+    const svg = page.locator('[data-testid^="rashi-chart"]:visible').first();
     await svg.waitFor({ timeout: 8000 });
     await svg.scrollIntoViewIfNeeded();
     const labels = await svg.evaluate((el) => [...el.querySelectorAll('text[role=button]')].map((t) => ({ text: t.textContent, h: t.getBoundingClientRect().height, tab: t.getAttribute('tabindex') })));
-    assert(labels.length >= 10, `only ${labels.length} planet labels`);
+    assert(labels.length === 9, `${labels.length} planet labels, expected one per graha`);
     assert(labels.every((l) => !l.text.includes('®') && !l.text.includes('°')), 'old label format');
     const min = Math.min(...labels.map((l) => l.h));
     assert(min >= 13, `smallest label renders ${min.toFixed(1)}px`);
@@ -319,6 +334,7 @@ async function run(browser, label, viewport) {
   // ── Reports: payment with too little balance ────────────────────────────────
   await page.goto(`${BASE}/reports`, { waitUntil: 'networkidle' });
   await check('F29a', 'too little balance shows the shortfall and a recharge path, not a raw 402', async () => {
+    if (!(await api(page, 'GET', '/api/config')).json?.reportsAvailable) return skip('F29a', 'report checkout', 'reports unavailable (no OPENAI_API_KEY on the server)');
     await page.getByRole('button', { name: /get report/i }).first().click();
     await page.getByTestId('order-wallet-balance').waitFor({ timeout: 8000 });
     assert(/balance ₹0\.00/.test(await page.getByTestId('order-wallet-balance').textContent()), 'balance not shown');

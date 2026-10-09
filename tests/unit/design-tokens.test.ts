@@ -20,7 +20,7 @@ const TOKENS: Record<string, string> = {
   line: '#e5d29a', hairline: '#efe2bf', frame: '#b6791e', ink: '#1a1a2e', 'ink-muted': '#6b5a33',
   amber: '#e9a84d', 'amber-text': '#8a5a12', 'on-navy': '#fbf1dc', 'on-navy-2': '#e8dcc0',
   'on-navy-3': '#c9bd9f', 'navy-line': '#3a3a52', 'navy-control': '#4a4a66',
-  positive: '#0c7f4d', negative: '#8b1a1a',
+  positive: '#0b7848', negative: '#8b1a1a',
 };
 
 describe('Direction 3 tokens', () => {

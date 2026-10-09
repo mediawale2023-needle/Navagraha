@@ -16,7 +16,7 @@ export function AskCard({ chartId, suggestion }: { chartId: string | null; sugge
       <label htmlFor="today-ask-input" className="font-display text-subhead font-semibold">
         Ask your Kundli <span lang="hi" className="text-base font-normal text-on-navy-3">प्रश्न</span>
       </label>
-      <div className="flex gap-2 rounded-md border border-navy-control py-[5px] pl-3.5 pr-[5px] focus-within:border-on-navy-3">
+      <div className="flex gap-2 rounded-md border border-navy-control py-[5px] pl-3.5 pr-[5px] focus-within:border-on-navy focus-within:ring-2 focus-within:ring-amber">
         <input
           id="today-ask-input"
           type="text"

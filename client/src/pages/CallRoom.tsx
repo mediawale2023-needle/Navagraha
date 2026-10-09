@@ -250,7 +250,7 @@ export default function CallRoom() {
           {error?.includes('Agora') && (
             <p className="text-xs text-gray-500 mb-6">
               Voice/video calls require an Agora account. Sign up free at{' '}
-              <a href="https://www.agora.io" target="_blank" rel="noreferrer" className="text-amber underline">agora.io</a>
+              <a href="https://www.agora.io" target="_blank" rel="noreferrer" className="text-amber-text underline">agora.io</a>
               {' '}— 10,000 free minutes/month.
             </p>
           )}

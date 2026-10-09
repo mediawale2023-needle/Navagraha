@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { priceLabel, ratingLabel } from '@/lib/astrologerDisplay';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link, useLocation } from 'wouter';
 import { Button } from '@/components/ui/button';
@@ -104,8 +105,8 @@ export default function Schedule() {
                       <SelectItem key={a.id} value={a.id}>
                         <div className="flex items-center gap-2">
                           <span>{a.name}</span>
-                          <span className="text-muted-foreground text-xs">• ₹{a.pricePerMinute}/min</span>
-                          <span className="text-amber text-xs">⭐ {a.rating}</span>
+                          {priceLabel(a.pricePerMinute) && <span className="text-muted-foreground text-xs">• {priceLabel(a.pricePerMinute)}/min</span>}
+                          <span className="text-amber-text text-xs">{ratingLabel(a.rating)}</span>
                         </div>
                       </SelectItem>
                     ))}
