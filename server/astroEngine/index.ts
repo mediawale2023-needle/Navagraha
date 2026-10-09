@@ -15,10 +15,9 @@ import type { CanonicalChart } from '@shared/v3/canonical';
 
 export { BirthInputError };
 import { calculateNumerology } from './numerology.js';
-import { getDailyHoroscope as _getDailyHoroscope } from './horoscope.js';
 
 // Re-export horoscope types for convenience
-export { getDailyHoroscope } from './horoscope.js';
+export { signHoroscope, resolveSign, HOROSCOPE_PERIODS, type HoroscopePeriod, type SignHoroscope } from './gochara.js';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -37,13 +36,6 @@ export interface NativeMatchResult {
   /** Which person was scored as the bride; `assumed` when the genders did not decide it. */
   roles:          { bride: 'person1' | 'person2'; assumed: boolean };
   raw: Record<string, unknown>;
-}
-
-export interface NativeHoroscope {
-  sign:       string;
-  date:       string;
-  prediction: string;
-  lucky: { number: string; color: string; time: string };
 }
 
 export interface NativeNumerology {
@@ -268,16 +260,6 @@ export async function getKundliMatching(person1: MatchPerson, person2: MatchPers
   const result = ashtakootMatch(girlMoon, boyMoon);
 
   return { ...result, roles, raw: { girlMoon, boyMoon } };
-}
-
-// ─── Daily Horoscope ──────────────────────────────────────────────────────────
-
-export async function getNativeHoroscope(
-  sign: string,
-  date: 'today' | 'yesterday' | 'tomorrow' = 'today',
-  type: 'general' | 'career' | 'health' | 'love' = 'general',
-): Promise<NativeHoroscope> {
-  return _getDailyHoroscope(sign, date, type);
 }
 
 // ─── Numerology ───────────────────────────────────────────────────────────────

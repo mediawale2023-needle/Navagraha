@@ -32,7 +32,10 @@ import {
   getKundli,
   BirthInputError,
   getKundliMatching,
-  getNativeHoroscope,
+  signHoroscope,
+  resolveSign,
+  HOROSCOPE_PERIODS,
+  type HoroscopePeriod,
   getNumerology,
   transitsForChart,
   transitSummary,
@@ -438,14 +441,29 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
     }
   });
 
-  app.get('/api/horoscope/:sign', async (req, res) => {
+  // Rashi horoscope from today's transits (Gochara). Results only change with the date, so they are cached per day.
+  const signHoroscopeCache = new Map<string, ReturnType<typeof signHoroscope>>();
+  app.get('/api/horoscope/:sign', (req, res) => {
+    const sign = resolveSign(req.params.sign);
+    if (!sign) return res.status(400).json({ message: 'Unknown sign.', field: 'sign' });
+    const period = (typeof req.query.period === 'string' ? req.query.period : 'today') as HoroscopePeriod;
+    if (!HOROSCOPE_PERIODS.includes(period)) return res.status(400).json({ message: `period must be one of ${HOROSCOPE_PERIODS.join(', ')}.`, field: 'period' });
+    let timeZone = typeof req.query.tz === 'string' && req.query.tz ? req.query.tz : 'Asia/Kolkata';
+    try { new Intl.DateTimeFormat('en', { timeZone }); } catch { timeZone = 'Asia/Kolkata'; }
     try {
-      const sign = req.params.sign.toLowerCase();
-      const type = (req.query.type as string) || 'general';
-      const date = (req.query.date as string) || 'today';
-      const horoscope = await getNativeHoroscope(sign, date as any, type as any);
-      res.json({ sign: horoscope.sign, prediction: horoscope.prediction, lucky: horoscope.lucky });
-    } catch { res.status(500).json({ message: "Failed to fetch horoscope" }); }
+      const day = new Intl.DateTimeFormat('en-CA', { timeZone }).format(new Date());
+      const key = `${sign}|${period}|${timeZone}|${day}`;
+      let h = signHoroscopeCache.get(key);
+      if (!h) {
+        h = signHoroscope(sign, period, new Date(), timeZone);
+        if (signHoroscopeCache.size > 500) signHoroscopeCache.clear();
+        signHoroscopeCache.set(key, h);
+      }
+      res.json(h);
+    } catch (e) {
+      console.error('Sign horoscope error:', e);
+      res.status(500).json({ message: 'Failed to calculate the horoscope' });
+    }
   });
 
   // ─── Panchang ─────────────────────────────────────────────
