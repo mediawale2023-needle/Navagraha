@@ -131,7 +131,7 @@ export default function LiveStream() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col bg-nava-navy text-white">
+    <div className="min-h-screen flex flex-col bg-ink text-white">
       {/* Video stage */}
       <div className="relative flex-1 min-h-[55vh] bg-gradient-to-br from-primary/30 to-black">
         <div ref={videoRef} className="absolute inset-0" />
@@ -191,8 +191,8 @@ export default function LiveStream() {
             {data.gifts.map((g) => (
               <button key={g.id} onClick={() => sendGift(g)} className="flex flex-col items-center gap-1 rounded-[10px] border border-border p-2 hover:bg-muted" data-testid={`gift-${g.id}`}>
                 <span className="text-2xl">{g.emoji}</span>
-                <span className="text-[11px] font-medium">{g.name}</span>
-                <span className="text-[10px] text-muted-foreground">₹{g.amount}</span>
+                <span className="text-xs font-medium">{g.name}</span>
+                <span className="text-xs text-muted-foreground">₹{g.amount}</span>
               </button>
             ))}
           </div>
@@ -210,7 +210,7 @@ export default function LiveStream() {
           <button onClick={() => setShowGifts((s) => !s)} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[8px] bg-primary/20 text-[var(--primary-border)]" data-testid="button-gifts">
             <Gift className="w-5 h-5" />
           </button>
-          <button onClick={sendMessage} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[8px] bg-nava-navy text-primary" data-testid="button-send">
+          <button onClick={sendMessage} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[8px] bg-ink text-primary" data-testid="button-send">
             <Send className="w-4 h-4" />
           </button>
         </div>

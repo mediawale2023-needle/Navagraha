@@ -73,7 +73,7 @@ export function VerifyEventDialog({ kundliId, dashaPlanet, antardashaPlanet, per
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <button className="text-[10px] font-semibold uppercase tracking-wider text-blue-600 bg-blue-50 hover:bg-blue-100 px-2 py-1 rounded transition-colors flex items-center gap-1">
+        <button className="text-xs font-semibold uppercase tracking-wider text-blue-600 bg-blue-50 hover:bg-blue-100 px-2 py-1 rounded transition-colors flex items-center gap-1">
           <BrainCircuit className="w-3 h-3" /> Verify Event
         </button>
       </DialogTrigger>

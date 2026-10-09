@@ -114,7 +114,7 @@ export default function AstrologerLogin() {
         <div className="w-full max-w-md">
           <div className="text-center mb-8">
             <div className="flex items-center justify-center gap-2 mb-3">
-              <div className="w-14 h-14 bg-nava-royal-purple rounded-2xl flex items-center justify-center mx-auto">
+              <div className="w-14 h-14 bg-ink rounded-2xl flex items-center justify-center mx-auto">
                 <Star className="w-8 h-8 text-white fill-white" />
               </div>
             </div>
@@ -333,9 +333,9 @@ export default function AstrologerLogin() {
               { label: 'Pro', sub: 'Practice tools' },
               { label: 'T+2', sub: 'Fast payouts' },
             ].map(({ label, sub }) => (
-              <div key={sub} className="bg-nava-lavender/50 border border-border rounded-xl p-3 shadow-sm">
-                <div className="text-xl font-bold text-nava-royal-purple">{label}</div>
-                <div className="text-xs text-nava-royal-purple/70 font-medium">{sub}</div>
+              <div key={sub} className="bg-highlight/50 border border-border rounded-xl p-3 shadow-sm">
+                <div className="text-xl font-bold text-amber-text">{label}</div>
+                <div className="text-xs text-amber-text/70 font-medium">{sub}</div>
               </div>
             ))}
           </div>

@@ -107,7 +107,7 @@ export default function Home() {
                   </Link>
                   <DropdownMenuSeparator className="bg-border" />
                   <DropdownMenuItem
-                    className="text-nava-burgundy cursor-pointer"
+                    className="text-negative cursor-pointer"
                     onClick={() => window.location.href = '/api/logout'}
                   >
                     <LogOut className="w-4 h-4 mr-2" /> Log Out

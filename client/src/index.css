@@ -1,85 +1,94 @@
-@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Eczar:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700&family=Noto+Sans:wght@300;400;500;600;700&family=Noto+Serif:wght@400;500;600;700&display=swap');
+/* Direction 3 — Contemporary Vedic. Values come from docs/design/direction-3/SPEC.md; change them there first. */
+@import url('https://fonts.googleapis.com/css2?family=Eczar:wght@500;600;700&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600&display=swap');
 
 @import "tailwindcss";
 
 @custom-variant dark (&:is(.dark *));
 
 :root {
-  /* Yantra direction: mustard-led editorial serif on warm cream surfaces */
-  --nava-royal-purple: #5b47a8;
-  --nava-deep-green: #0c7f4d;
-  --nava-burnt-orange: #b05c00;
-  --nava-burgundy: #8b1a1a;
-  --nava-lavender: #f4e6ff;
-  --nava-navy: #1a1a2e;
-  --nava-yellow: #e9a84d;
-  --nava-magenta: #e84b8a;
-  --nava-teal: #3aaba8;
-  --nava-sand: #f3eada;
-  --nava-cream: #fbf6ec;
-  --nava-amber: #e9a84d;
-  --nava-coral: #e84b8a;
-  --nava-aqua: #3aaba8;
+  --ground: #fbf1dc;
+  --surface: #fffaf0;
+  --sunken: #f3eada;
+  --highlight: #f6ead0;
+  --line: #e5d29a;
+  --hairline: #efe2bf;
+  --frame: #b6791e;
+  --ink: #1a1a2e;
+  --ink-muted: #6b5a33;
+  --amber: #e9a84d;
+  --amber-text: #8a5a12;
+  --on-navy: #fbf1dc;
+  --on-navy-2: #e8dcc0;
+  --on-navy-3: #c9bd9f;
+  --navy-line: #3a3a52;
+  --navy-control: #4a4a66;
+  --positive: #0c7f4d;
+  --negative: #8b1a1a;
   --font-size: 16px;
 
-  --background: #fbf1dc;
-  --foreground: #1a1a2e;
-  --card: #fffaf0;
-  --card-foreground: #1a1a2e;
-  --popover: #fffaf0;
-  --popover-foreground: #1a1a2e;
-  --primary: #e9a84d;
-  --primary-foreground: #1a1a2e;
-  --primary-border: #b6791e;
-  --secondary: #1a1a2e;
-  --secondary-foreground: #e9a84d;
-  --secondary-border: #1a1a2e;
-  --muted: #f6ead0;
-  --muted-foreground: #6b5a33;
-  --accent: #fceaf2;
-  --accent-foreground: #b72b66;
-  --destructive: #8b1a1a;
-  --destructive-foreground: #fffaf0;
+  /* shadcn roles, expressed in Direction 3 tokens */
+  --background: var(--ground);
+  --foreground: var(--ink);
+  --card: var(--surface);
+  --card-foreground: var(--ink);
+  --popover: var(--surface);
+  --popover-foreground: var(--ink);
+  --primary: var(--amber);
+  --primary-foreground: var(--ink);
+  --primary-border: var(--frame);
+  --secondary: var(--ink);
+  --secondary-foreground: var(--on-navy);
+  --secondary-border: var(--ink);
+  --muted: var(--highlight);
+  --muted-foreground: var(--ink-muted);
+  --accent: var(--highlight);
+  --accent-foreground: var(--ink);
+  --destructive: var(--negative);
+  --destructive-foreground: var(--surface);
   --destructive-border: #6b1414;
-  --border: #e5d29a;
-  --input: #e5d29a;
-  --input-background: #fffaf0;
+  --border: var(--line);
+  --input: var(--line);
+  --input-background: var(--surface);
   --switch-background: #d6c18b;
   --font-weight-normal: 400;
   --font-weight-medium: 500;
   --font-weight-semibold: 600;
-  --ring: #1a1a2e;
-  --chart-1: #e9a84d;
-  --chart-2: #3aaba8;
-  --chart-3: #e84b8a;
-  --chart-4: #1a1a2e;
-  --chart-5: #b05c00;
+  --ring: var(--ink);
+  --chart-1: var(--amber);
+  --chart-2: var(--ink);
+  --chart-3: var(--frame);
+  --chart-4: var(--positive);
+  --chart-5: var(--amber-text);
   --radius: 12px;
-  --sidebar: #fbf1dc;
-  --sidebar-foreground: #1a1a2e;
-  --sidebar-primary: #1a1a2e;
-  --sidebar-primary-foreground: #e9a84d;
-  --sidebar-accent: #f6ead0;
-  --sidebar-accent-foreground: #1a1a2e;
-  --sidebar-border: #e5d29a;
-  --sidebar-ring: #1a1a2e;
+  --sidebar: var(--ground);
+  --sidebar-foreground: var(--ink);
+  --sidebar-primary: var(--ink);
+  --sidebar-primary-foreground: var(--amber);
+  --sidebar-accent: var(--highlight);
+  --sidebar-accent-foreground: var(--ink);
+  --sidebar-border: var(--line);
+  --sidebar-ring: var(--ink);
 }
 
 @theme inline {
-  --color-nava-navy: var(--nava-navy);
-  --color-nava-yellow: var(--nava-yellow);
-  --color-nava-magenta: var(--nava-magenta);
-  --color-nava-teal: var(--nava-teal);
-  --color-nava-sand: var(--nava-sand);
-  --color-nava-coral: var(--nava-coral);
-  --color-nava-aqua: var(--nava-aqua);
-  --color-nava-amber: var(--nava-amber);
-  --color-nava-cream: var(--nava-cream);
-  --color-nava-royal-purple: var(--nava-royal-purple);
-  --color-nava-deep-green: var(--nava-deep-green);
-  --color-nava-burnt-orange: var(--nava-burnt-orange);
-  --color-nava-burgundy: var(--nava-burgundy);
-  --color-nava-lavender: var(--nava-lavender);
+  --color-ground: var(--ground);
+  --color-surface: var(--surface);
+  --color-sunken: var(--sunken);
+  --color-highlight: var(--highlight);
+  --color-line: var(--line);
+  --color-hairline: var(--hairline);
+  --color-frame: var(--frame);
+  --color-ink: var(--ink);
+  --color-ink-muted: var(--ink-muted);
+  --color-amber: var(--amber);
+  --color-amber-text: var(--amber-text);
+  --color-on-navy: var(--on-navy);
+  --color-on-navy-2: var(--on-navy-2);
+  --color-on-navy-3: var(--on-navy-3);
+  --color-navy-line: var(--navy-line);
+  --color-navy-control: var(--navy-control);
+  --color-positive: var(--positive);
+  --color-negative: var(--negative);
 
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -107,10 +116,6 @@
   --color-chart-3: var(--chart-3);
   --color-chart-4: var(--chart-4);
   --color-chart-5: var(--chart-5);
-  --radius-sm: calc(var(--radius) - 4px);
-  --radius-md: calc(var(--radius) - 2px);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) + 4px);
   --color-sidebar: var(--sidebar);
   --color-sidebar-foreground: var(--sidebar-foreground);
   --color-sidebar-primary: var(--sidebar-primary);
@@ -119,6 +124,45 @@
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
+
+  --font-sans: 'DM Sans', 'Noto Sans', sans-serif;
+  --font-display: 'Eczar', serif;
+  --font-serif: 'Eczar', serif;
+
+  /* Type scale. Nothing smaller than text-xs (12px). */
+  --text-xs: 0.75rem;
+  --text-xs--line-height: 1.4;
+  --text-caption: 0.8125rem;
+  --text-caption--line-height: 1.45;
+  --text-sm: 0.875rem;
+  --text-sm--line-height: 1.5;
+  --text-base: 1rem;
+  --text-base--line-height: 1.55;
+  --text-lead: 1.0625rem;
+  --text-lead--line-height: 1.55;
+  --text-card-title: 1.25rem;
+  --text-card-title--line-height: 1.3;
+  --text-subhead: 1.375rem;
+  --text-subhead--line-height: 1.25;
+  --text-heading: 1.5rem;
+  --text-heading--line-height: 1.2;
+  --text-section: 1.625rem;
+  --text-section--line-height: 1.2;
+  --text-title: 2.125rem;
+  --text-title--line-height: 1.15;
+  --text-hero: 3.25rem;
+  --text-hero--line-height: 1.1;
+
+  --radius-xs: 4px;
+  --radius-chip: 6px;
+  --radius-sm: 8px;
+  --radius-md: 10px;
+  --radius-lg: 12px;
+  --radius-answer: 14px;
+  --radius-xl: 16px;
+  --radius-sheet: 18px;
+
+  --shadow-sheet: 0 -8px 24px rgba(26, 26, 46, 0.08);
 }
 
 @layer base {
@@ -128,7 +172,7 @@
 
   body {
     @apply bg-background text-foreground;
-    font-family: 'DM Sans', 'Inter', 'Noto Sans', sans-serif;
+    font-family: var(--font-sans);
   }
 
   /**
@@ -141,7 +185,7 @@
   }
 
   h1, h2, h3, h4 {
-    font-family: 'Eczar', 'Noto Serif', serif;
+    font-family: var(--font-display);
     font-weight: var(--font-weight-semibold);
     letter-spacing: -0.01em;
   }
@@ -202,135 +246,90 @@
 }
 
 @layer utilities {
-  /* ── Trust-Building Typography ── */
-  .font-trust {
-    font-family: 'Eczar', 'Noto Serif', serif;
+  /* Legacy class names kept so pages need no edit; each now renders Direction 3 (flat, no gradients or shadows). */
+  .font-trust,
+  .font-display {
+    font-family: var(--font-display);
   }
 
   .font-clarity {
-    font-family: 'DM Sans', 'Inter', 'Noto Sans', sans-serif;
-  }
-
-  .font-display {
-    font-family: 'Eczar', 'Noto Serif', serif;
+    font-family: var(--font-sans);
   }
 
   .yantra-shell {
     @apply bg-background text-foreground;
-    background-image:
-      radial-gradient(circle at top left, rgba(233, 168, 77, 0.08), transparent 24%),
-      linear-gradient(180deg, rgba(255, 252, 243, 0.48), rgba(255, 252, 243, 0));
   }
 
-  .yantra-card {
-    @apply border border-border bg-card shadow-sm transition-all duration-200;
+  .yantra-card,
+  .card-clean,
+  .card-elevated {
+    @apply border border-line bg-surface;
     border-radius: 12px;
-    box-shadow: 0 2px 8px rgba(26, 26, 46, 0.05);
-  }
-
-  .yantra-card:hover {
-    background: #fffdf7;
-    box-shadow: 0 6px 16px rgba(26, 26, 46, 0.08);
   }
 
   .yantra-card-dark {
-    @apply text-primary-foreground;
+    @apply border border-ink bg-ink text-on-navy;
     border-radius: 12px;
-    border: 1px solid var(--nava-navy);
-    background: var(--nava-navy);
   }
 
   .yantra-eyebrow {
-    font-size: 0.6875rem;
-    line-height: 1.2;
-    letter-spacing: 0.22em;
+    font-size: 0.75rem;
+    line-height: 1.3;
+    letter-spacing: 0.12em;
     text-transform: uppercase;
-    font-weight: 700;
-    color: #8c6b2a;
+    font-weight: 600;
+    color: var(--amber-text);
   }
 
   .yantra-chip {
-    @apply inline-flex items-center gap-1.5 border border-border bg-card px-2.5 py-1 text-xs font-semibold text-foreground;
+    @apply inline-flex items-center gap-1.5 border border-line bg-surface px-2.5 py-1 text-xs font-semibold text-ink;
     border-radius: 6px;
-    letter-spacing: 0.04em;
   }
 
   .yantra-divider {
-    border-color: rgba(229, 210, 154, 0.9);
+    border-color: var(--line);
   }
 
-  .gradient-primary {
-    background: linear-gradient(135deg, #e9a84d 0%, #d89533 100%);
+  .gradient-primary,
+  .gradient-spiritual {
+    background: var(--amber);
   }
 
   .gradient-subtle {
-    background: linear-gradient(180deg, #fbf1dc 0%, #f5e2b8 100%);
+    background: var(--ground);
   }
 
-  .gradient-spiritual {
-    background:
-      linear-gradient(135deg, rgba(233, 168, 77, 1) 0%, rgba(242, 190, 102, 1) 100%);
-  }
-
-  .gradient-text {
-    background: linear-gradient(135deg, #1a1a2e 0%, #8c6b2a 100%);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-  }
-
+  .gradient-text,
   .gradient-text-accent {
-    background: linear-gradient(135deg, #1a1a2e 0%, #3aaba8 100%);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
+    color: var(--ink);
   }
 
-  .card-clean {
-    @apply border border-border bg-card shadow-sm transition-all duration-200;
-    border-radius: 12px;
-    box-shadow: 0 2px 8px rgba(26, 26, 46, 0.05);
-  }
-
-  .card-clean:hover {
-    box-shadow: 0 6px 16px rgba(26, 26, 46, 0.08);
-  }
-
-  .card-elevated {
-    @apply bg-card border border-border shadow-md transition-all duration-200;
-  }
-
-  .card-elevated:hover {
-    @apply shadow-lg;
-  }
-
-  /* ── Trust Badge ── */
   .trust-badge {
     @apply inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium;
   }
 
   .trust-badge-verified {
-    @apply bg-green-50 text-green-700 border border-green-200;
+    @apply border border-positive/25 bg-surface text-positive;
   }
 
   .trust-badge-calculated {
-    @apply bg-nava-lavender text-nava-royal-purple border border-nava-royal-purple/20;
+    @apply border border-line bg-highlight text-amber-text;
   }
 
-  /* ── Priority Indicators ── */
   .priority-high {
-    @apply bg-red-50 text-red-700 border border-red-200;
+    @apply border-[1.5px] border-ink bg-surface text-ink;
   }
 
   .priority-medium {
-    @apply bg-orange-50 text-orange-700 border border-orange-200;
+    @apply border border-ink bg-surface text-ink;
   }
 
   .priority-low {
-    @apply bg-blue-50 text-blue-700 border border-blue-200;
+    @apply border border-line bg-surface text-ink-muted;
   }
 
-  /* ── Chart Container ── */
   .chart-container {
-    @apply bg-white border-2 border-nava-navy rounded-xl shadow-sm;
+    @apply border border-frame bg-surface rounded-lg;
   }
 
   /* ── Section Spacing ── */
@@ -434,19 +433,16 @@
   animation: chartDraw 1.5s ease-out forwards;
 }
 
-/* ── Hover States (Subtle) ── */
-.hover-elevate {
-  @apply transition-all duration-200;
-}
-
-.hover-elevate:hover {
-  @apply transform scale-[1.02];
-}
-
+/* Direction 3 does not move or scale things on hover; these classes remain as hooks only. */
+.hover-elevate,
 .active-elevate-2 {
-  @apply transition-all duration-100;
+  @apply transition-colors duration-150;
 }
 
-.active-elevate-2:active {
-  @apply transform scale-[0.98];
+@media (prefers-reduced-motion: reduce) {
+  .animate-fade-in,
+  .animate-slide-up,
+  .animate-chart-draw {
+    animation: none;
+  }
 }

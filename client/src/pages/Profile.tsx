@@ -100,15 +100,15 @@ function ReferralCard() {
         <div className="grid grid-cols-3 gap-2 text-center">
           <div className="p-2 rounded-lg bg-muted/50">
             <div className="text-lg font-bold text-foreground">{referral?.totalInvited ?? 0}</div>
-            <div className="text-[10px] text-muted-foreground">Invited</div>
+            <div className="text-xs text-muted-foreground">Invited</div>
           </div>
           <div className="p-2 rounded-lg bg-muted/50">
             <div className="text-lg font-bold text-foreground">{referral?.totalRewarded ?? 0}</div>
-            <div className="text-[10px] text-muted-foreground">Joined</div>
+            <div className="text-xs text-muted-foreground">Joined</div>
           </div>
           <div className="p-2 rounded-lg bg-muted/50">
             <div className="text-lg font-bold text-emerald-600">₹{referral?.totalEarned ?? 0}</div>
-            <div className="text-[10px] text-muted-foreground">Earned</div>
+            <div className="text-xs text-muted-foreground">Earned</div>
           </div>
         </div>
 
@@ -175,7 +175,7 @@ export default function Profile() {
               <div className="w-20 h-20 rounded-[8px] border-4 border-background bg-card">
                 <Avatar className="h-full w-full rounded-[6px]">
                   <AvatarImage src={user?.profileImageUrl || undefined} alt={user?.firstName || 'User'} className="object-cover" />
-                  <AvatarFallback className="bg-nava-navy font-display text-2xl text-primary">
+                  <AvatarFallback className="bg-ink font-display text-2xl text-primary">
                     {user?.firstName?.charAt(0) || user?.email?.charAt(0)?.toUpperCase() || 'U'}
                   </AvatarFallback>
                 </Avatar>
@@ -196,7 +196,7 @@ export default function Profile() {
               </div>
             </div>
 
-            <Button variant="secondary" className="w-full rounded-[9px] bg-nava-navy text-primary hover:bg-nava-navy/95" data-testid="button-edit-profile">
+            <Button variant="secondary" className="w-full rounded-[9px] bg-ink text-primary hover:bg-ink/95" data-testid="button-edit-profile">
               Edit Profile
             </Button>
           </CardContent>
@@ -213,8 +213,8 @@ export default function Profile() {
           </div>
 
           <div className="yantra-card rounded-[12px] p-4 text-center">
-            <div className="mx-auto mb-2 flex h-10 w-10 items-center justify-center rounded-[6px] bg-nava-magenta/10">
-              <User className="w-5 h-5 text-nava-magenta" />
+            <div className="mx-auto mb-2 flex h-10 w-10 items-center justify-center rounded-[6px] bg-highlight">
+              <User className="w-5 h-5 text-amber-text" />
             </div>
             <div className="text-2xl font-bold text-foreground">0</div>
             <div className="text-xs text-muted-foreground">Consults</div>
@@ -272,8 +272,8 @@ export default function Profile() {
 
                 {user.placeOfBirth && (
                   <div className="flex items-center gap-3">
-                    <div className="flex h-9 w-9 items-center justify-center rounded-[6px] bg-nava-magenta/10">
-                      <MapPin className="w-4 h-4 text-nava-magenta" />
+                    <div className="flex h-9 w-9 items-center justify-center rounded-[6px] bg-highlight">
+                      <MapPin className="w-4 h-4 text-amber-text" />
                     </div>
                     <div>
                       <div className="text-xs text-muted-foreground">Place of Birth</div>

@@ -27,13 +27,13 @@ export function QuickActionCard({
 }: QuickActionCardProps) {
   const colorVariants = {
     purple: {
-      bg: 'bg-[var(--nava-teal)]',
+      bg: 'bg-ink',
       iconBg: 'bg-white/15',
       iconColor: 'text-white',
       text: 'text-white',
     },
     green: {
-      bg: 'bg-[var(--nava-magenta)]',
+      bg: 'bg-ink',
       iconBg: 'bg-white/15',
       iconColor: 'text-white',
       text: 'text-white',
@@ -41,11 +41,11 @@ export function QuickActionCard({
     orange: {
       bg: 'bg-primary',
       iconBg: 'bg-black/10',
-      iconColor: 'text-[var(--nava-navy)]',
-      text: 'text-[var(--nava-navy)]',
+      iconColor: 'text-ink',
+      text: 'text-ink',
     },
     navy: {
-      bg: 'bg-[var(--nava-navy)]',
+      bg: 'bg-ink',
       iconBg: 'bg-white/10',
       iconColor: 'text-primary',
       text: 'text-primary',
@@ -64,7 +64,7 @@ export function QuickActionCard({
       >
         <Icon className={`w-5 h-5 ${variant.iconColor}`} />
       </div>
-      {eyebrow && <p className="text-[0.6rem] font-bold uppercase tracking-[0.18em] opacity-70">{eyebrow}</p>}
+      {eyebrow && <p className="text-xs font-bold uppercase tracking-[0.18em] opacity-70">{eyebrow}</p>}
       <h3 className="font-display mt-1 text-base leading-tight">{title}</h3>
     </button>
   );

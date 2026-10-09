@@ -121,10 +121,10 @@ export default function Numerology() {
       <div className="max-w-4xl mx-auto px-4 py-6">
         {/* Hero */}
         {!result && (
-          <div className="mb-6 rounded-[12px] border border-[var(--primary-border)] bg-primary p-6 text-center text-[var(--nava-navy)]">
-            <Hash className="mx-auto mb-3 h-12 w-12 text-[var(--nava-navy)]" />
+          <div className="mb-6 rounded-[12px] border border-[var(--primary-border)] bg-primary p-6 text-center text-ink">
+            <Hash className="mx-auto mb-3 h-12 w-12 text-ink" />
             <h2 className="font-display text-2xl mb-2">Your Life by Numbers</h2>
-            <p className="mx-auto max-w-sm text-sm text-[var(--nava-navy)]/70">
+            <p className="mx-auto max-w-sm text-sm text-ink/70">
               Uncover your life path, destiny, soul urge, and personality numbers based on Pythagorean numerology.
             </p>
           </div>
@@ -176,12 +176,12 @@ export default function Numerology() {
                       type="button"
                       onClick={() => setForm(f => ({ ...f, system: sys.value }))}
                       className={`p-3 rounded-xl border-2 text-left transition-all ${form.system === sys.value
-                        ? 'border-[var(--primary-border)] bg-primary text-[var(--nava-navy)]'
+                        ? 'border-[var(--primary-border)] bg-primary text-ink'
                         : 'border-border bg-card text-muted-foreground hover:border-[var(--primary-border)]/30'
                         }`}
                     >
                       <div className="text-sm font-semibold text-foreground">{sys.label}</div>
-                      <div className={`mt-0.5 text-xs ${form.system === sys.value ? 'text-[var(--nava-navy)]/70' : 'text-muted-foreground'}`}>{sys.desc}</div>
+                      <div className={`mt-0.5 text-xs ${form.system === sys.value ? 'text-ink/70' : 'text-muted-foreground'}`}>{sys.desc}</div>
                     </button>
                   ))}
                 </div>
@@ -205,7 +205,7 @@ export default function Numerology() {
         {result && (
           <div className="space-y-4">
             {/* Summary banner */}
-            <div className="rounded-[12px] bg-nava-navy p-5 text-center text-primary">
+            <div className="rounded-[12px] bg-ink p-5 text-center text-primary">
               <p className="mb-1 text-sm font-semibold text-primary/80">Numerology Report for</p>
               <h3 className="font-display mb-3 text-3xl">{result.name}</h3>
               <div className="flex justify-center gap-6">
@@ -241,10 +241,10 @@ export default function Numerology() {
             </Card>
 
             {marketplace && (
-            <div className="rounded-[12px] bg-primary p-4 text-center text-[var(--nava-navy)]">
-              <p className="mb-3 text-sm text-[var(--nava-navy)]/85">Want a deeper numerology reading from an expert?</p>
+            <div className="rounded-[12px] bg-primary p-4 text-center text-ink">
+              <p className="mb-3 text-sm text-ink/85">Want a deeper numerology reading from an expert?</p>
               <Link href="/astrologers">
-                <Button className="gap-2 rounded-[9px] bg-nava-navy font-bold text-primary hover:bg-nava-navy/90">
+                <Button className="gap-2 rounded-[9px] bg-ink font-bold text-primary hover:bg-ink/90">
                   Talk to an Astrologer <ChevronRight className="w-4 h-4" />
                 </Button>
               </Link>

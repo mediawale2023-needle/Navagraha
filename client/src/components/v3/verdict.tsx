@@ -3,8 +3,8 @@ import type { Confidence, Verdict } from '@shared/v3/evidence';
 const VERDICT_STYLE: Record<Verdict, string> = {
   'Exceptional': 'bg-green-600/15 text-green-800 border-green-600/30',
   'Very Strong': 'bg-green-600/10 text-green-700 border-green-600/25',
-  'Strong': 'bg-nava-teal/10 text-nava-teal border-nava-teal/25',
-  'Mixed': 'bg-amber-500/10 text-amber-700 border-amber-500/25',
+  'Strong': 'bg-positive/10 text-positive border-positive/25',
+  'Mixed': 'bg-highlight text-amber-text border-line',
   'Challenging': 'bg-orange-600/10 text-orange-700 border-orange-600/25',
   'Very Challenging': 'bg-red-600/10 text-red-700 border-red-600/25',
   'Insufficient evidence': 'bg-muted text-muted-foreground border-border',

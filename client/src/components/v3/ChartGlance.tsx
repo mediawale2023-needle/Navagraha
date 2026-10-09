@@ -15,7 +15,7 @@ export function ChartGlance({ domains, onWhy }: { domains: DomainResolution[]; o
         >
           <div className="mb-2 flex items-center justify-between">
             <span className="font-display text-base text-foreground">{d.label}</span>
-            <span className="text-[11px] text-muted-foreground">{d.confidence} confidence</span>
+            <span className="text-xs text-muted-foreground">{d.confidence} confidence</span>
           </div>
           <VerdictBadge verdict={d.verdict} />
           <p className="mt-2 text-xs text-muted-foreground">

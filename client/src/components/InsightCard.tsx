@@ -33,9 +33,9 @@ export function InsightCard({
   const [expanded, setExpanded] = useState(false);
 
   const priorityColors = {
-    high: 'border-l-nava-burgundy border-l-4',
+    high: 'border-l-negative border-l-4',
     medium: 'border-l-[var(--primary-border)] border-l-4',
-    low: 'border-l-nava-deep-green border-l-4',
+    low: 'border-l-positive border-l-4',
   };
 
   const priorityLabels = {

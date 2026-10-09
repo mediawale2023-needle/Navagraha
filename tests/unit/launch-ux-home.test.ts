@@ -67,12 +67,14 @@ describe('hero banner CTA is readable', () => {
   const css = read('client/src/index.css');
   it('uses saffron text on the navy pill, at AA contrast or better', () => {
     const cta = hero.slice(hero.indexOf('data-testid="hero-banner-cta"') - 220, hero.indexOf('data-testid="hero-banner-cta"'));
-    expect(cta).toContain('bg-[var(--nava-navy)]');
+    expect(cta).toContain('bg-ink');
     expect(cta).toContain('text-primary"');
     expect(cta).not.toContain('text-primary-foreground');
-    expect(contrast(token(css, 'primary'), token(css, 'nava-navy'))).toBeGreaterThanOrEqual(4.5);
-    // The old pairing really was invisible.
-    expect(contrast(token(css, 'primary-foreground'), token(css, 'nava-navy'))).toBeLessThan(1.1);
+    // text-primary is amber, the pill is ink.
+    expect(css).toMatch(/--primary: var\(--amber\);/);
+    expect(contrast(token(css, 'amber'), token(css, 'ink'))).toBeGreaterThanOrEqual(4.5);
+    // The old pairing (primary-foreground, also ink) really was invisible.
+    expect(css).toMatch(/--primary-foreground: var\(--ink\);/);
   });
   it('has a keyboard focus ring and no hard-coded promotional eyebrow', () => {
     expect(hero).toContain('focus-visible:ring-2');

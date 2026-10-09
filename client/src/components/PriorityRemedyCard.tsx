@@ -165,7 +165,7 @@ export function PriorityRemedyCard({
             className={`min-h-8 ${
               isCompleted
                 ? 'bg-green-600 hover:bg-green-700'
-                : 'bg-nava-navy text-primary hover:bg-nava-navy/90'
+                : 'bg-ink text-primary hover:bg-ink/90'
             }`}
           >
             {isCompleted ? 'Completed' : 'Mark Done'}

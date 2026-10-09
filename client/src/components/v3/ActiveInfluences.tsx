@@ -81,8 +81,8 @@ export function ActiveInfluences() {
           linkTo={link}
         />
       )}
-      {note && <p className="text-[11px] text-amber-700" data-testid="active-influences-timing-note">{note}</p>}
-      <p className="text-[11px] text-muted-foreground">From {latest.name}'s chart. Jyotish describes tendencies, not certainties.</p>
+      {note && <p className="text-xs text-amber-text" data-testid="active-influences-timing-note">{note}</p>}
+      <p className="text-xs text-muted-foreground">From {latest.name}'s chart. Jyotish describes tendencies, not certainties.</p>
     </>
   );
 }

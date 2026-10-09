@@ -72,8 +72,8 @@ export default function Pooja() {
 
       <div className="w-full max-w-7xl mx-auto px-4 md:px-8 lg:px-12 py-6">
         <div className="flex gap-2 mb-6">
-          <Button variant={tab === 'browse' ? 'default' : 'outline'} className={`rounded-[9px] ${tab === 'browse' ? 'bg-nava-navy text-primary hover:bg-nava-navy/90' : ''}`} onClick={() => setTab('browse')} data-testid="tab-browse">Browse</Button>
-          <Button variant={tab === 'mine' ? 'default' : 'outline'} className={`rounded-[9px] ${tab === 'mine' ? 'bg-nava-navy text-primary hover:bg-nava-navy/90' : ''}`} onClick={() => setTab('mine')} data-testid="tab-mine">My Bookings</Button>
+          <Button variant={tab === 'browse' ? 'default' : 'outline'} className={`rounded-[9px] ${tab === 'browse' ? 'bg-ink text-primary hover:bg-ink/90' : ''}`} onClick={() => setTab('browse')} data-testid="tab-browse">Browse</Button>
+          <Button variant={tab === 'mine' ? 'default' : 'outline'} className={`rounded-[9px] ${tab === 'mine' ? 'bg-ink text-primary hover:bg-ink/90' : ''}`} onClick={() => setTab('mine')} data-testid="tab-mine">My Bookings</Button>
         </div>
 
         {tab === 'browse' && (
@@ -92,7 +92,7 @@ export default function Pooja() {
                       ))}
                     </ul>
                   )}
-                  {p.durationText && <Badge variant="outline" className="w-fit mt-3 text-[10px] gap-1"><CalendarDays className="w-3 h-3" /> {p.durationText}</Badge>}
+                  {p.durationText && <Badge variant="outline" className="w-fit mt-3 text-xs gap-1"><CalendarDays className="w-3 h-3" /> {p.durationText}</Badge>}
                   <div className="flex items-center justify-between mt-4">
                     <span className="text-lg font-bold">₹{parseFloat(p.price).toFixed(0)}</span>
                     <Button size="sm" className="rounded-[9px] bg-primary text-primary-foreground hover:bg-primary/90 font-semibold" onClick={() => setSelected(p)} data-testid={`button-book-${p.slug}`}>
@@ -149,7 +149,7 @@ export default function Pooja() {
           >
             {book.isPending ? 'Booking…' : `Pay ₹${selected ? parseFloat(selected.price).toFixed(0) : ''} from Wallet`}
           </Button>
-          <p className="text-[11px] text-center text-muted-foreground">Paid from your wallet. <Link href="/wallet"><span className="font-medium text-[var(--primary-border)]">Recharge</span></Link> if needed.</p>
+          <p className="text-xs text-center text-muted-foreground">Paid from your wallet. <Link href="/wallet"><span className="font-medium text-[var(--primary-border)]">Recharge</span></Link> if needed.</p>
         </DialogContent>
       </Dialog>
     </div>

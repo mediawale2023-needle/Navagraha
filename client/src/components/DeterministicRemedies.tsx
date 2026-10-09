@@ -45,7 +45,7 @@ export function DeterministicRemedies({
     return (
       <div className="space-y-4">
         {fallbackRemedies?.map((remedy: any, i: number) => (
-          <div key={i} className="p-4 border rounded-lg bg-amber-500/10 border-amber-500/20">
+          <div key={i} className="p-4 border rounded-lg bg-highlight border-line">
             <h4 className="font-semibold mb-1">{remedy.title}</h4>
             <p className="text-sm text-muted-foreground">{remedy.description}</p>
             {remedy.type && <Badge variant="outline" className="mt-2 text-xs">{remedy.type}</Badge>}
@@ -104,7 +104,7 @@ export function DeterministicRemedies({
                 <div className="bg-purple-50/50 p-3 rounded text-sm text-purple-900 border border-purple-100 pb-4">
                   <p className="font-serif italic text-lg mb-1">{rem.mantra.beeja_mantra}</p>
                   <p className="text-xs text-purple-700/80 mb-2">Chant {rem.mantra.daily_repetitions} times daily for {rem.mantra.duration_days} days.</p>
-                  <p className="text-[11px] font-medium uppercase tracking-wider bg-purple-200/50 inline-block px-2 py-0.5 rounded">
+                  <p className="text-xs font-medium uppercase tracking-wider bg-purple-200/50 inline-block px-2 py-0.5 rounded">
                     Best Time: {rem.mantra.best_time}
                   </p>
                 </div>

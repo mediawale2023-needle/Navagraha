@@ -9,10 +9,10 @@ interface QuickActionCardProps {
 
 export function QuickActionCard({ title, icon: Icon, color, onClick }: QuickActionCardProps) {
     const colorMap = {
-        teal: 'bg-nava-teal',
-        magenta: 'bg-nava-magenta',
-        amber: 'bg-nava-amber',
-        navy: 'bg-nava-navy'
+        teal: 'bg-ink',
+        magenta: 'bg-ink',
+        amber: 'bg-amber',
+        navy: 'bg-ink'
     };
 
     return (

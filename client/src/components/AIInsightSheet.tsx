@@ -30,7 +30,7 @@ function EvidenceRow({ e }: { e: EvidenceItem }) {
       <Icon className={`mt-0.5 h-4 w-4 flex-shrink-0 ${tone}`} />
       <div className="min-w-0">
         <p className="text-sm text-foreground">{e.explanation}</p>
-        <p className="text-[11px] text-muted-foreground">{e.rule} · {PROVENANCE_LABEL[e.provenance]} · {e.strength}</p>
+        <p className="text-xs text-muted-foreground">{e.rule} · {PROVENANCE_LABEL[e.provenance]} · {e.strength}</p>
       </div>
     </li>
   );
@@ -93,7 +93,7 @@ export function AIInsightSheet({ open, onOpenChange, subject, onAskQuestion }: A
 
           {sections.map((s) => (
             <div key={s} className="mb-3">
-              <h4 className="text-xs font-semibold uppercase tracking-wide text-nava-royal-purple">{s}</h4>
+              <h4 className="text-xs font-semibold uppercase tracking-wide text-amber-text">{s}</h4>
               <ul>{items.filter((e) => sectionOf(e) === s).map((e) => <EvidenceRow key={e.id} e={e} />)}</ul>
             </div>
           ))}
@@ -137,7 +137,7 @@ export function AIInsightSheet({ open, onOpenChange, subject, onAskQuestion }: A
             </>
           )}
 
-          <p className="mb-4 text-[11px] text-muted-foreground">
+          <p className="mb-4 text-xs text-muted-foreground">
             Jyotish is a traditional interpretive system, not a scientific prediction. These readings describe tendencies as the tradition reads them.
           </p>
 

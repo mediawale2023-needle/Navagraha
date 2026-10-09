@@ -141,7 +141,7 @@ export default function KundliNew() {
               <div className="flex flex-col items-center">
                 <div className={`flex h-10 w-10 items-center justify-center rounded-[6px] font-semibold transition-all ${
                   s === step
-                    ? 'bg-nava-navy text-primary ring-2 ring-nava-navy ring-offset-2 ring-offset-background'
+                    ? 'bg-ink text-primary ring-2 ring-ink ring-offset-2 ring-offset-background'
                     : s < step
                       ? 'bg-green-600 text-white'
                       : 'bg-muted text-muted-foreground'

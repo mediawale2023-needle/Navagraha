@@ -150,8 +150,8 @@ export default function Reports() {
 
       <div className="w-full max-w-7xl mx-auto px-4 md:px-8 lg:px-12 py-6">
         <div className="flex gap-2 mb-6">
-          <Button variant={tab === 'browse' ? 'default' : 'outline'} className={`rounded-[9px] ${tab === 'browse' ? 'bg-nava-navy text-primary hover:bg-nava-navy/90' : ''}`} onClick={() => setTab('browse')} data-testid="tab-browse">Browse</Button>
-          <Button variant={tab === 'mine' ? 'default' : 'outline'} className={`rounded-[9px] ${tab === 'mine' ? 'bg-nava-navy text-primary hover:bg-nava-navy/90' : ''}`} onClick={() => setTab('mine')} data-testid="tab-mine">My Reports</Button>
+          <Button variant={tab === 'browse' ? 'default' : 'outline'} className={`rounded-[9px] ${tab === 'browse' ? 'bg-ink text-primary hover:bg-ink/90' : ''}`} onClick={() => setTab('browse')} data-testid="tab-browse">Browse</Button>
+          <Button variant={tab === 'mine' ? 'default' : 'outline'} className={`rounded-[9px] ${tab === 'mine' ? 'bg-ink text-primary hover:bg-ink/90' : ''}`} onClick={() => setTab('mine')} data-testid="tab-mine">My Reports</Button>
         </div>
 
         {tab === 'browse' && !reportsAvailable && (
@@ -240,7 +240,7 @@ export default function Reports() {
             <Button
               type="button"
               variant={orderMode === 'saved' ? 'default' : 'outline'}
-              className={`rounded-[9px] ${orderMode === 'saved' ? 'bg-nava-navy text-primary hover:bg-nava-navy/90' : ''}`}
+              className={`rounded-[9px] ${orderMode === 'saved' ? 'bg-ink text-primary hover:bg-ink/90' : ''}`}
               disabled={!kundlis || kundlis.length === 0}
               onClick={() => setOrderMode('saved')}
               data-testid="mode-saved"
@@ -250,7 +250,7 @@ export default function Reports() {
             <Button
               type="button"
               variant={orderMode === 'details' ? 'default' : 'outline'}
-              className={`rounded-[9px] ${orderMode === 'details' ? 'bg-nava-navy text-primary hover:bg-nava-navy/90' : ''}`}
+              className={`rounded-[9px] ${orderMode === 'details' ? 'bg-ink text-primary hover:bg-ink/90' : ''}`}
               onClick={() => setOrderMode('details')}
               data-testid="mode-details"
             >
@@ -304,7 +304,7 @@ export default function Reports() {
                     placeholder="City, State, Country"
                   />
                 </div>
-                <p className="text-[11px] text-muted-foreground mt-1">Exact time &amp; place give the most accurate chart.</p>
+                <p className="text-xs text-muted-foreground mt-1">Exact time &amp; place give the most accurate chart.</p>
               </div>
             </div>
           )}
@@ -320,12 +320,12 @@ export default function Reports() {
                 </p>
               )}
               <Link href="/wallet">
-                <Button className="w-full rounded-[9px] bg-nava-navy text-primary hover:bg-nava-navy/90" data-testid="button-recharge-wallet">Recharge wallet</Button>
+                <Button className="w-full rounded-[9px] bg-ink text-primary hover:bg-ink/90" data-testid="button-recharge-wallet">Recharge wallet</Button>
               </Link>
             </div>
           )}
           {orderProblem?.kind === 'chart' && (
-            <div className="rounded-[8px] border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-800" data-testid="order-chart-problem">
+            <div className="rounded-[8px] border border-line bg-highlight p-3 text-xs text-amber-text" data-testid="order-chart-problem">
               <p>{orderProblem.message}</p>
               {(kundliId || kundlis?.[0]?.id) && (
                 <Link href={`/kundli/${kundliId || kundlis![0].id}`}><span className="mt-1 inline-block font-semibold underline">Open the chart to recreate it</span></Link>
@@ -341,7 +341,7 @@ export default function Reports() {
           >
             {orderReport.isPending ? 'Generating…' : `Pay ₹${selected ? parseFloat(selected.price).toFixed(0) : ''} from Wallet`}
           </Button>
-          <p className="text-[11px] text-center text-muted-foreground" data-testid="order-wallet-balance">
+          <p className="text-xs text-center text-muted-foreground" data-testid="order-wallet-balance">
             Paid from your wallet{walletBalance !== null ? ` · balance ₹${walletBalance.toFixed(2)}` : ''}. <Link href="/wallet"><span className="font-medium text-[var(--primary-border)]">Recharge</span></Link> if needed.
           </p>
         </DialogContent>
@@ -367,7 +367,7 @@ export default function Reports() {
               </Button>
 
               {viewing.content.disclosure && (
-                <p className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-800" data-testid="report-disclosure">{viewing.content.disclosure}</p>
+                <p className="rounded-xl border border-line bg-highlight p-3 text-xs text-amber-text" data-testid="report-disclosure">{viewing.content.disclosure}</p>
               )}
               {/* Birth details */}
               {viewing.content.birthDetails && (
@@ -390,13 +390,13 @@ export default function Reports() {
               )}
               {viewing.content.chartData?.navamsa?.planetaryPositions && (
                 <div>
-                  <h3 className="font-semibold text-nava-royal-purple mb-2">Navamsa (D9)</h3>
+                  <h3 className="font-semibold text-amber-text mb-2">Navamsa (D9)</h3>
                   <NorthIndianChartEnhanced chartData={viewing.content.chartData.navamsa} />
                 </div>
               )}
               {viewing.content.chartData?.dasamsa?.planetaryPositions && (
                 <div>
-                  <h3 className="font-semibold text-nava-royal-purple mb-2">Dasamsa (D10) — Career</h3>
+                  <h3 className="font-semibold text-amber-text mb-2">Dasamsa (D10) — Career</h3>
                   <NorthIndianChartEnhanced chartData={viewing.content.chartData.dasamsa} />
                 </div>
               )}
@@ -460,11 +460,11 @@ export default function Reports() {
               {/* Ashtakavarga (SAV by house) */}
               {viewing.content.chartData?.ashtakavarga?.savByHouse?.length === 12 && (
                 <div>
-                  <h3 className="font-semibold text-nava-royal-purple mb-2">Ashtakavarga — House Strength (SAV)</h3>
+                  <h3 className="font-semibold text-amber-text mb-2">Ashtakavarga — House Strength (SAV)</h3>
                   <div className="grid grid-cols-6 gap-1.5">
                     {viewing.content.chartData.ashtakavarga.savByHouse.map((b: number, i: number) => (
                       <div key={i} className={`rounded-lg p-2 text-center ${b >= 30 ? 'bg-green-600/15 text-green-700' : b < 25 ? 'bg-red-600/10 text-red-700' : 'bg-muted text-foreground'}`}>
-                        <div className="text-[10px] text-muted-foreground">H{i + 1}</div>
+                        <div className="text-xs text-muted-foreground">H{i + 1}</div>
                         <div className="text-sm font-bold">{b}</div>
                       </div>
                     ))}

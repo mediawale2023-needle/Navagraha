@@ -19,12 +19,12 @@ import type { Astrologer } from '@shared/schema';
 import { isMarketplacePath, useMarketplace } from '@/lib/marketplace';
 
 const CATEGORIES = [
-  { label: 'Talk to\nAstrologer', icon: Phone, href: '/astrologers', color: 'bg-nava-teal' },
-  { label: 'Chat with\nAstrologer', icon: MessageCircle, href: '/astrologers', color: 'bg-nava-magenta' },
-  { label: 'Daily\nHoroscope', icon: Sparkles, href: '/horoscope', color: 'bg-nava-amber' },
-  { label: 'Book\nAppointment', icon: Calendar, href: '/schedule', color: 'bg-nava-navy' },
-  { label: 'Birth\nChart', icon: Sun, href: '/kundli/new', color: 'bg-nava-teal' },
-  { label: 'Match\nMaking', icon: Heart, href: '/kundli/matchmaking', color: 'bg-nava-magenta' },
+  { label: 'Talk to\nAstrologer', icon: Phone, href: '/astrologers', color: 'bg-ink' },
+  { label: 'Chat with\nAstrologer', icon: MessageCircle, href: '/astrologers', color: 'bg-ink' },
+  { label: 'Daily\nHoroscope', icon: Sparkles, href: '/horoscope', color: 'bg-amber' },
+  { label: 'Book\nAppointment', icon: Calendar, href: '/schedule', color: 'bg-ink' },
+  { label: 'Birth\nChart', icon: Sun, href: '/kundli/new', color: 'bg-ink' },
+  { label: 'Match\nMaking', icon: Heart, href: '/kundli/matchmaking', color: 'bg-ink' },
 ];
 
 export default function Landing() {
@@ -44,7 +44,7 @@ export default function Landing() {
   // While the marketplace is paused, marketplace shortcuts give way to Ask Your Kundli.
   const categories = marketplace
     ? CATEGORIES
-    : [{ label: 'Ask Your\nKundli', icon: Sparkles, href: '/ai-astrologer', color: 'bg-nava-teal' }, ...CATEGORIES.filter((c) => !isMarketplacePath(c.href))];
+    : [{ label: 'Ask Your\nKundli', icon: Sparkles, href: '/ai-astrologer', color: 'bg-ink' }, ...CATEGORIES.filter((c) => !isMarketplacePath(c.href))];
 
   const authMutation = useMutation({
     mutationFn: async () => {
@@ -158,19 +158,19 @@ export default function Landing() {
               
               {marketplace ? (
                 <>
-                  <h3 className="font-display text-[var(--nava-navy)] text-2xl mb-2">{freeChatMinutes ? 'Your first chat starts free' : 'Talk to an expert astrologer'}</h3>
-                  <p className="text-[var(--nava-navy)]/80 text-sm font-medium mb-4" data-testid="landing-free-chat-terms">
+                  <h3 className="font-display text-ink text-2xl mb-2">{freeChatMinutes ? 'Your first chat starts free' : 'Talk to an expert astrologer'}</h3>
+                  <p className="text-ink/80 text-sm font-medium mb-4" data-testid="landing-free-chat-terms">
                     {freeChatMinutes ? `The first ${freeChatMinutes} minutes of your first chat are free` : 'Verified astrologers, by chat or call'}
                   </p>
-                  <button className="rounded-[9px] bg-nava-navy px-6 py-2.5 font-bold text-primary transition-all hover:scale-105 shadow-md">
+                  <button className="rounded-[9px] bg-ink px-6 py-2.5 font-bold text-primary transition-all hover:scale-105 shadow-md">
                     Talk to Astrologer
                   </button>
                 </>
               ) : (
                 <>
-                  <h3 className="font-display text-[var(--nava-navy)] text-2xl mb-2">Ask your own Kundli</h3>
-                  <p className="text-[var(--nava-navy)]/80 text-sm font-medium mb-4">Answers grounded in your birth chart, with the evidence behind them</p>
-                  <button className="rounded-[9px] bg-nava-navy px-6 py-2.5 font-bold text-primary transition-all hover:scale-105 shadow-md">
+                  <h3 className="font-display text-ink text-2xl mb-2">Ask your own Kundli</h3>
+                  <p className="text-ink/80 text-sm font-medium mb-4">Answers grounded in your birth chart, with the evidence behind them</p>
+                  <button className="rounded-[9px] bg-ink px-6 py-2.5 font-bold text-primary transition-all hover:scale-105 shadow-md">
                     Get started
                   </button>
                 </>
@@ -233,7 +233,7 @@ export default function Landing() {
               <div className="mt-4 grid grid-cols-2 gap-3">
                 {categories.slice(0, 4).map(({ label, href, icon: Icon, color }) => (
                   <Link key={label} href={href}>
-                    <button className={`w-full rounded-[10px] p-4 text-left shadow-sm transition-transform hover:-translate-y-0.5 ${color} ${color === 'bg-nava-amber' ? 'text-[var(--nava-navy)]' : 'text-white'}`}>
+                    <button className={`w-full rounded-[10px] p-4 text-left shadow-sm transition-transform hover:-translate-y-0.5 ${color} ${color === 'bg-amber' ? 'text-ink' : 'text-white'}`}>
                       <Icon className="w-5 h-5 mb-3" />
                       <span className="block text-sm font-semibold leading-snug whitespace-pre-line">{label}</span>
                     </button>
@@ -256,14 +256,14 @@ export default function Landing() {
                   <div key={astrologer.id} className="flex items-center gap-3 rounded-2xl bg-muted/60 px-3 py-3">
                     <Avatar className="w-11 h-11 border border-border">
                       <AvatarImage src={astrologer.profileImageUrl || undefined} className="object-cover" />
-                      <AvatarFallback className="bg-nava-navy text-white">
+                      <AvatarFallback className="bg-ink text-white">
                         {astrologer.name.charAt(0)}
                       </AvatarFallback>
                     </Avatar>
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-1.5">
                         <p className="truncate text-sm font-semibold text-foreground">{astrologer.name}</p>
-                        {astrologer.isVerified && <CheckCircle2 className="w-3.5 h-3.5 text-nava-amber shrink-0" />}
+                        {astrologer.isVerified && <CheckCircle2 className="w-3.5 h-3.5 text-amber shrink-0" />}
                       </div>
                       <p className="truncate text-xs text-muted-foreground">{astrologer.specializations?.[0] || 'Vedic Astrology'}</p>
                     </div>
@@ -301,7 +301,7 @@ export default function Landing() {
                     <div className="flex h-10 w-10 items-center justify-center rounded-[8px] bg-white/20">
                       <Icon className="w-5 h-5 text-white" />
                     </div>
-                    <span className="text-[11px] font-semibold text-white text-center leading-tight whitespace-pre-line">
+                    <span className="text-xs font-semibold text-white text-center leading-tight whitespace-pre-line">
                       {label}
                     </span>
                   </button>
@@ -338,9 +338,9 @@ export default function Landing() {
                 className="bg-card rounded-2xl p-4 flex items-center gap-4 shadow-sm border border-border/50"
               >
                 <div className="relative shrink-0">
-                  <Avatar className="w-14 h-14 border-2 border-nava-teal/20">
+                  <Avatar className="w-14 h-14 border-2 border-positive/20">
                     <AvatarImage src={astrologer?.profileImageUrl || undefined} className="object-cover" />
-                    <AvatarFallback className="bg-nava-navy text-white font-bold text-lg">
+                    <AvatarFallback className="bg-ink text-white font-bold text-lg">
                       {astrologer?.name?.charAt(0) || 'A'}
                     </AvatarFallback>
                   </Avatar>
@@ -352,14 +352,14 @@ export default function Landing() {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-1.5 mb-0.5">
                     <h3 className="font-bold text-sm text-foreground truncate">{astrologer?.name}</h3>
-                    {astrologer?.isVerified && <CheckCircle2 className="w-3.5 h-3.5 text-nava-amber shrink-0" />}
+                    {astrologer?.isVerified && <CheckCircle2 className="w-3.5 h-3.5 text-amber shrink-0" />}
                   </div>
                   <p className="mb-1 text-xs font-medium text-muted-foreground">
                     {astrologer?.specializations?.[0] || 'Vedic Astrology'}
                   </p>
                   <div className="flex items-center gap-2 text-xs text-muted-foreground">
                     <span className="flex items-center gap-0.5">
-                      <Star className="w-3 h-3 fill-nava-amber text-nava-amber" />
+                      <Star className="w-3 h-3 fill-amber text-amber" />
                       {ratingLabel(astrologer?.rating)}
                     </span>
                     {experienceLabel(astrologer?.experience) && (<><span>|</span><span>{experienceLabel(astrologer?.experience)}</span></>)}
@@ -396,7 +396,7 @@ export default function Landing() {
             initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
-            className="rounded-[2rem] border border-border/60 bg-gradient-to-r from-card via-card to-nava-lavender/40 px-6 py-8 text-center shadow-sm md:px-12"
+            className="rounded-[2rem] border border-border/60 bg-gradient-to-r from-card via-card to-highlight/40 px-6 py-8 text-center shadow-sm md:px-12"
           >
             <h2 className="text-2xl font-bold text-foreground mb-3">
               Ready to explore your destiny?
@@ -406,7 +406,7 @@ export default function Landing() {
             </p>
             <Button
               size="lg"
-              className="h-12 rounded-[9px] bg-nava-navy px-8 font-bold text-primary hover:bg-nava-navy/90"
+              className="h-12 rounded-[9px] bg-ink px-8 font-bold text-primary hover:bg-ink/90"
               onClick={() => setAuthOpen(true)}
             >
               Start Your Journey

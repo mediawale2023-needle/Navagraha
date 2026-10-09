@@ -27,7 +27,7 @@ export function HeroBanner({
   className = '',
 }: HeroBannerProps) {
   return (
-    <Link href={href} className="block rounded-[12px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--nava-navy)] focus-visible:ring-offset-2">
+    <Link href={href} className="block rounded-[12px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink focus-visible:ring-offset-2">
       <div
         className={`gradient-spiritual relative overflow-hidden rounded-[12px] border border-[var(--primary-border)] p-6 transition-all duration-200 hover:shadow-md ${className}`}
       >
@@ -42,13 +42,13 @@ export function HeroBanner({
           <circle cx="80" cy="80" r="18" stroke="currentColor" strokeWidth="1.4" />
           <circle cx="80" cy="80" r="3.8" fill="currentColor" />
         </svg>
-        <div className="relative max-w-[70%] text-[var(--nava-navy)]">
-          {eyebrow && <p className="yantra-eyebrow text-[var(--nava-navy)]/80">{eyebrow}</p>}
-          <h2 className="font-display mt-2 text-[1.65rem] leading-[1.12] text-[var(--nava-navy)]">
+        <div className="relative max-w-[70%] text-ink">
+          {eyebrow && <p className="yantra-eyebrow text-ink/80">{eyebrow}</p>}
+          <h2 className="font-display mt-2 text-[1.65rem] leading-[1.12] text-ink">
             {title}
           </h2>
-          <p className="mt-2 text-sm text-[var(--nava-navy)]/80">{subtitle}</p>
-          <span className="mt-4 inline-flex items-center gap-2 rounded-[9px] bg-[var(--nava-navy)] px-4 py-2 text-sm font-semibold text-primary" data-testid="hero-banner-cta">
+          <p className="mt-2 text-sm text-ink/80">{subtitle}</p>
+          <span className="mt-4 inline-flex items-center gap-2 rounded-[9px] bg-ink px-4 py-2 text-sm font-semibold text-primary" data-testid="hero-banner-cta">
             <Sparkles className="h-4 w-4" aria-hidden="true" />
             {cta}
             <ArrowRight className="h-4 w-4" aria-hidden="true" />

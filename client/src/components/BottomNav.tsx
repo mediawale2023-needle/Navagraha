@@ -31,8 +31,8 @@ const NAV_ITEMS = [
     path: "/astrologers",
     isCenter: true,
     icon: (_active: boolean) => (
-      <div className="flex h-14 w-14 -mt-7 items-center justify-center rounded-[6px] bg-primary shadow-lg ring-4 ring-nava-navy">
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#1A1A2E" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <div className="flex h-14 w-14 -mt-7 items-center justify-center rounded-[6px] bg-primary text-ink shadow-lg ring-4 ring-ink">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
           <circle cx="9" cy="7" r="4" />
           <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
@@ -71,8 +71,8 @@ const ASK_CENTER = {
   path: "/ai-astrologer",
   isCenter: true,
   icon: (_active: boolean) => (
-    <div className="flex h-14 w-14 -mt-7 items-center justify-center rounded-[6px] bg-primary shadow-lg ring-4 ring-nava-navy">
-      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#1A1A2E" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <div className="flex h-14 w-14 -mt-7 items-center justify-center rounded-[6px] bg-primary text-ink shadow-lg ring-4 ring-ink">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <path d="M12 3l1.9 5.8L20 10l-6.1 1.2L12 17l-1.9-5.8L4 10l6.1-1.2z" />
         <path d="M19 17l.8 2.2L22 20l-2.2.8L19 23l-.8-2.2L16 20l2.2-.8z" />
       </svg>
@@ -86,7 +86,7 @@ export default function BottomNav() {
   const items = NAV_ITEMS.map((item) => (item.isCenter && !marketplace ? ASK_CENTER : item));
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-50 border-t border-nava-navy bg-nava-navy pb-safe md:hidden" data-testid="bottom-nav">
+    <nav className="fixed bottom-0 left-0 right-0 z-50 border-t border-ink bg-ink pb-safe md:hidden" data-testid="bottom-nav">
       <div className="relative flex h-[74px] items-center justify-around px-2">
         {items.map((item, i) => {
           const isActive = location === item.path;
@@ -104,7 +104,7 @@ export default function BottomNav() {
               {item.icon(isActive)}
               {item.label && (
                 <span
-                  className={`text-[10px] font-semibold transition-colors ${
+                  className={`text-xs font-semibold transition-colors ${
                     isActive ? "text-primary" : "text-white/55"
                   }`}
                 >

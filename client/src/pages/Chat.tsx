@@ -289,7 +289,7 @@ export default function Chat() {
 
   return (
     <div className="yantra-shell flex h-screen flex-col">
-      <div className="sticky top-0 z-50 border-b border-nava-navy bg-nava-navy text-primary">
+      <div className="sticky top-0 z-50 border-b border-ink bg-ink text-primary">
         <div className="max-w-4xl mx-auto px-4 py-3">
           <div className="flex items-center justify-between gap-4">
             <div className="flex items-center gap-3 flex-1 min-w-0">
@@ -373,7 +373,7 @@ export default function Chat() {
               size="sm"
               onClick={() => startSessionMutation.mutate()}
               disabled={startSessionMutation.isPending || !astrologer.isOnline}
-              className="rounded-[9px] bg-nava-navy text-primary hover:bg-nava-navy/90"
+              className="rounded-[9px] bg-ink text-primary hover:bg-ink/90"
             >
               {startSessionMutation.isPending ? <LoadingSpinner size="sm" /> : 'Start Paid Session'}
             </Button>
@@ -416,7 +416,7 @@ export default function Chat() {
               <p className="text-sm text-muted-foreground">Start the conversation with {astrologer.name}</p>
               {!astrologer.isOnline && (
                 <div className="mt-4 p-3 bg-amber-50 rounded-lg inline-block">
-                  <p className="text-sm text-amber-700">Astrologer is currently offline. You can still send a message.</p>
+                  <p className="text-sm text-amber-text">Astrologer is currently offline. You can still send a message.</p>
                   <Link href={`/schedule?astrologerId=${astrologerId}`}>
                     <Button size="sm" variant="outline" className="mt-2">Book Appointment Instead</Button>
                   </Link>
@@ -429,13 +429,13 @@ export default function Chat() {
           {sendMessageMutation.isPending && astrologerId === 'ai-astrologer' && (
             <div className="flex justify-start my-4" data-testid="ai-thinking">
               <div className="max-w-md rounded-[12px] border border-primary/30 bg-primary/10 px-5 py-4 md:max-w-lg">
-                <div className="text-sm font-semibold text-amber-600 flex items-center gap-3 mb-3">
+                <div className="text-sm font-semibold text-amber-text flex items-center gap-3 mb-3">
                   <LoadingSpinner size="sm" /> 
                   Super-Astrologer Council thinking...
                 </div>
                 <div className="space-y-2 mt-2">
                   {aiSteps.map((step, i) => (
-                    <div key={i} className="text-xs text-amber-700 font-mono flex items-center gap-2">
+                    <div key={i} className="text-xs text-amber-text font-mono flex items-center gap-2">
                       <span className="text-emerald-500 font-bold">✓</span> {step}
                     </div>
                   ))}
@@ -463,7 +463,7 @@ export default function Chat() {
             <Button
               type="submit"
               disabled={!message.trim() || sendMessageMutation.isPending}
-              className="rounded-[9px] bg-nava-navy text-primary hover:bg-nava-navy/90"
+              className="rounded-[9px] bg-ink text-primary hover:bg-ink/90"
               data-testid="button-send"
             >
               <Send className="w-5 h-5" />

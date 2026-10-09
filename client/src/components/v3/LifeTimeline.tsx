@@ -32,7 +32,7 @@ export function LifeTimeline({ periods, timingNote }: { periods: TimelinePeriod[
   const [openAntar, setOpenAntar] = useState<number | null>(null);
   return (
     <div className="space-y-2" data-testid="life-timeline">
-      {timingNote && <p className="rounded-[10px] border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-800" data-testid="timeline-timing-note">{timingNote}</p>}
+      {timingNote && <p className="rounded-[10px] border border-line bg-highlight px-3 py-2 text-xs text-amber-text" data-testid="timeline-timing-note">{timingNote}</p>}
       {periods.map((p, i) => (
         <div key={p.start} className={`overflow-hidden rounded-[10px] border ${p.status === 'current' ? 'border-primary/60' : 'border-border'} ${p.status === 'past' ? 'opacity-80' : ''}`}>
           <button className="flex w-full items-center justify-between p-4 text-left transition-colors hover:bg-muted/40" onClick={() => setOpen(open === i ? null : i)}>
@@ -44,14 +44,14 @@ export function LifeTimeline({ periods, timingNote }: { periods: TimelinePeriod[
                 <div className="text-xs text-muted-foreground">{p.themes.join(' · ')}</div>
               </div>
             </div>
-            {p.status === 'current' && <Badge className="bg-nava-navy text-primary">Now</Badge>}
+            {p.status === 'current' && <Badge className="bg-ink text-primary">Now</Badge>}
           </button>
           {open === i && (
             <>
               <PeriodDetail p={p} />
               {p.antardashas && (
                 <div className="border-t border-border">
-                  <p className="px-4 pt-3 text-xs font-semibold uppercase tracking-wide text-nava-royal-purple">Sub-periods (Antardasha)</p>
+                  <p className="px-4 pt-3 text-xs font-semibold uppercase tracking-wide text-amber-text">Sub-periods (Antardasha)</p>
                   {p.antardashas.map((a, j) => (
                     <div key={a.start} className={a.status === 'current' ? 'bg-primary/10' : ''}>
                       <button className="flex w-full items-center justify-between px-4 py-2 text-left text-sm" onClick={() => setOpenAntar(openAntar === j ? null : j)}>
@@ -67,7 +67,7 @@ export function LifeTimeline({ periods, timingNote }: { periods: TimelinePeriod[
           )}
         </div>
       ))}
-      <p className="text-[11px] text-muted-foreground">Periods are Vimshottari dashas calculated from your Moon's position at birth. Themes describe what each period's planet engages in your chart; they are tendencies, not certainties.</p>
+      <p className="text-xs text-muted-foreground">Periods are Vimshottari dashas calculated from your Moon's position at birth. Themes describe what each period's planet engages in your chart; they are tendencies, not certainties.</p>
     </div>
   );
 }

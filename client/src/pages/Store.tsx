@@ -113,8 +113,8 @@ export default function Store() {
       <div className="w-full max-w-7xl mx-auto px-4 md:px-8 lg:px-12 py-6">
         {/* Tabs */}
         <div className="flex gap-2 mb-6">
-          <Button variant={tab === 'shop' ? 'default' : 'outline'} className={`rounded-[9px] ${tab === 'shop' ? 'bg-nava-navy text-primary hover:bg-nava-navy/90' : ''}`} onClick={() => setTab('shop')} data-testid="tab-shop">Shop</Button>
-          <Button variant={tab === 'orders' ? 'default' : 'outline'} className={`rounded-[9px] ${tab === 'orders' ? 'bg-nava-navy text-primary hover:bg-nava-navy/90' : ''}`} onClick={() => setTab('orders')} data-testid="tab-orders">My Orders</Button>
+          <Button variant={tab === 'shop' ? 'default' : 'outline'} className={`rounded-[9px] ${tab === 'shop' ? 'bg-ink text-primary hover:bg-ink/90' : ''}`} onClick={() => setTab('shop')} data-testid="tab-shop">Shop</Button>
+          <Button variant={tab === 'orders' ? 'default' : 'outline'} className={`rounded-[9px] ${tab === 'orders' ? 'bg-ink text-primary hover:bg-ink/90' : ''}`} onClick={() => setTab('orders')} data-testid="tab-orders">My Orders</Button>
         </div>
 
         {tab === 'shop' && (
@@ -129,13 +129,13 @@ export default function Store() {
                     {p.imageUrl ? <img src={p.imageUrl} alt={p.name} className="w-full h-full object-cover" /> : <Package className="w-12 h-12 text-[var(--primary-border)]/40" />}
                   </div>
                   <CardContent className="p-3 flex flex-col flex-1">
-                    <Badge variant="outline" className="text-[10px] w-fit mb-1">{CATEGORY_LABELS[p.category] || p.category}</Badge>
+                    <Badge variant="outline" className="text-xs w-fit mb-1">{CATEGORY_LABELS[p.category] || p.category}</Badge>
                     <p className="text-sm font-semibold leading-tight line-clamp-2">{p.name}</p>
                     <p className="text-xs text-muted-foreground mt-1 line-clamp-2 flex-1">{p.description}</p>
                     <div className="flex items-center gap-2 mt-2">
                       <span className="text-base font-bold">₹{price.toFixed(0)}</span>
                       {mrp && mrp > price && <span className="text-xs text-muted-foreground line-through">₹{mrp.toFixed(0)}</span>}
-                      {off > 0 && <span className="text-[10px] font-bold text-emerald-600">{off}% off</span>}
+                      {off > 0 && <span className="text-xs font-bold text-emerald-600">{off}% off</span>}
                     </div>
                     <Button size="sm" className="mt-2 rounded-[9px] bg-primary text-primary-foreground hover:bg-primary/90" onClick={() => addToCart(p)} data-testid={`button-add-${p.slug}`}>
                       Add to Cart
@@ -223,7 +223,7 @@ export default function Store() {
               {placeOrder.isPending ? 'Placing…' : `Pay ₹${cartTotal.toFixed(0)} from Wallet`}
             </Button>
           </DialogFooter>
-          <p className="text-[11px] text-center text-muted-foreground">Paid from your Navagraha wallet. <Link href="/wallet"><span className="font-medium text-[var(--primary-border)]">Recharge</span></Link> if needed.</p>
+          <p className="text-xs text-center text-muted-foreground">Paid from your Navagraha wallet. <Link href="/wallet"><span className="font-medium text-[var(--primary-border)]">Recharge</span></Link> if needed.</p>
         </DialogContent>
       </Dialog>
     </div>
