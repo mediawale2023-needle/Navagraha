@@ -26,6 +26,7 @@ import { NorthIndianChartEnhanced } from '@/components/NorthIndianChartEnhanced'
 import { AIInsightSheet, type InsightSubject } from '@/components/AIInsightSheet';
 import { ChartGlance } from '@/components/v3/ChartGlance';
 import { LifeTimeline } from '@/components/v3/LifeTimeline';
+import { selectRunningPeriods, monthYear } from '@/lib/runningPeriods';
 import type { KundliInsights, EvidenceItem } from '@shared/v3/evidence';
 import type { CanonicalChart } from '@shared/v3/canonical';
 
@@ -42,7 +43,8 @@ type TransitData = {
   date: string;
   natalLagnaSign: string | null;
   planets: Array<{ planet: string; sign: string; houseFromMoon: number; houseFromLagna: number | null; sav: number | null; retrograde: boolean }>;
-  sadeSati: { active: boolean; phase: string; saturnSign: string; houseFromMoon: number; note: string; sinceApprox?: string; untilApprox?: string };
+  sadeSati: { active: boolean; determined?: boolean; phase: string; saturnSign: string; houseFromMoon: number; note: string; sinceApprox?: string; untilApprox?: string };
+  moonSignCertain?: boolean;
   jupiter: { sign: string; houseFromMoon: number; favourable: boolean };
 };
 
@@ -244,10 +246,15 @@ export default function KundliView() {
 
   const birthDate = new Date(kundli.dateOfBirth);
   const chartData = kundli.chartData as any;
-  const curMd = (kundli.dashas as any[] | undefined)?.find(isRunning);
-  const curAd = curMd?.antardashas?.find(isRunning);
-  const curPd = curAd?.pratyantardashas?.find(isRunning);
-  const curYogini = (chartData?.yoginiDasha as any[] | undefined)?.find(isRunning);
+  // Running periods come from the insights timing, which withholds any period an approximate birth time could change.
+  const running = insights ? selectRunningPeriods(insights) : null;
+  const exactTime = insights?.headline.timeAccuracy === 'exact';
+  const legacyMd = (kundli.dashas as any[] | undefined)?.find(isRunning);
+  const legacyAd = legacyMd?.antardashas?.find(isRunning);
+  const curPd = exactTime && running?.antar && legacyMd?.planet === running.maha?.lord && legacyAd?.planet === running.antar.lord
+    ? legacyAd?.pratyantardashas?.find(isRunning) : undefined;
+  const curYogini = exactTime ? (chartData?.yoginiDasha as any[] | undefined)?.find(isRunning) : undefined;
+  const periodRange = (p: { start: string; end: string }) => (running?.showDates ? ` (${monthYear(p.start)} – ${monthYear(p.end)})` : '');
   const dashas = (kundli.dashas as any[]) || [];
   const doshas = (kundli.doshas as any) || {};
   const remedies = (kundli.remedies as any[]) || [];
@@ -652,16 +659,17 @@ export default function KundliView() {
               </Card>
             )}
 
-            {(curMd || curYogini) && (
+            {(running?.maha || curYogini || running?.note) && (
               <Card className="mt-4">
                 <CardHeader>
                   <CardTitle className="text-base">Current Periods</CardTitle>
                 </CardHeader>
-                <CardContent className="space-y-1.5 text-sm">
-                  {curMd && <p><span className="text-muted-foreground">Mahadasha:</span> <span className="font-medium">{curMd.planet}</span> <span className="text-xs text-muted-foreground">({curMd.period})</span></p>}
-                  {curAd && <p><span className="text-muted-foreground">Antardasha:</span> <span className="font-medium">{curAd.planet}</span> <span className="text-xs text-muted-foreground">({curAd.period})</span></p>}
+                <CardContent className="space-y-1.5 text-sm" data-testid="current-periods">
+                  {running?.maha && <p><span className="text-muted-foreground">Mahadasha:</span> <span className="font-medium">{running.maha.lord}</span> <span className="text-xs text-muted-foreground">{periodRange(running.maha)}</span></p>}
+                  {running?.antar && <p><span className="text-muted-foreground">Antardasha:</span> <span className="font-medium">{running.antar.lord}</span> <span className="text-xs text-muted-foreground">{periodRange(running.antar)}</span></p>}
                   {curPd && <p><span className="text-muted-foreground">Pratyantardasha:</span> <span className="font-medium">{curPd.planet}</span> <span className="text-xs text-muted-foreground">({curPd.period})</span></p>}
                   {curYogini && <p><span className="text-muted-foreground">Yogini Dasha:</span> <span className="font-medium">{curYogini.yogini} / {curYogini.lord}</span> <span className="text-xs text-muted-foreground">({curYogini.period})</span></p>}
+                  {running?.note && <p className="text-xs text-amber-700">{running.note}</p>}
                 </CardContent>
               </Card>
             )}
@@ -674,7 +682,7 @@ export default function KundliView() {
                 <CardContent className="space-y-4">
                   <div className={`rounded-xl p-3 ${transits.sadeSati.active ? 'bg-amber-500/10 border border-amber-500/30' : 'bg-muted'}`}>
                     <p className="text-sm font-semibold text-foreground">
-                      Sade Sati: {transits.sadeSati.active ? 'Active' : 'Not active'}
+                      Sade Sati: {transits.sadeSati.determined === false ? 'Undetermined' : transits.sadeSati.active ? 'Active' : 'Not active'}
                     </p>
                     <p className="text-xs text-muted-foreground mt-0.5">{transits.sadeSati.phase}</p>
                     {transits.sadeSati.note && <p className="text-xs text-muted-foreground">{transits.sadeSati.note}</p>}
@@ -700,7 +708,7 @@ export default function KundliView() {
                           <tr key={p.planet} className="border-b border-border/40">
                             <td className="p-1.5">{p.planet}{p.retrograde ? ' (R)' : ''}</td>
                             <td className="p-1.5">{p.sign}</td>
-                            <td className="p-1.5 text-center">{p.houseFromMoon}</td>
+                            <td className="p-1.5 text-center">{transits.moonSignCertain === false ? '—' : p.houseFromMoon}</td>
                             <td className="p-1.5 text-center">{p.houseFromLagna ?? '—'}</td>
                             <td className="p-1.5 text-center">{p.sav ?? '—'}</td>
                           </tr>

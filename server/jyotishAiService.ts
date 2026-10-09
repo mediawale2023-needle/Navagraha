@@ -149,7 +149,8 @@ function fmtYogasDoshas(chartData: JyotishChartData): string {
     d.pitruDosha ? 'Pitru Dosha' : null,
     d.vishaYoga ? 'Visha Yoga' : null,
   ].filter(Boolean).join(', ') || 'None detected';
-  return `Yogas:\n${yogaLines}\n\nDoshas: ${doshaList}`;
+  const mangalNote = d.mangalCancelledBy?.length ? `\nMangal Dosha meets the house rule but is CANCELLED (do not describe it as present): ${d.mangalCancelledBy.join('; ')}.` : '';
+  return `Yogas:\n${yogaLines}\n\nDoshas: ${doshaList}${mangalNote}`;
 }
 
 function fmtRemedies(chartData: JyotishChartData): string {

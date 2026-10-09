@@ -379,10 +379,13 @@ function YogasDoshasTab({ chartData }: { chartData: any }) {
             <div key={d.key} className={`border rounded-lg p-2.5 text-sm flex items-center justify-between ${chartData.doshas[d.key] ? 'border-amber-400 bg-amber-50 dark:bg-amber-950/20' : 'border-border'}`}>
               <span>{d.label}</span>
               <Badge variant={chartData.doshas[d.key] ? 'default' : 'outline'} className="text-[10px]">
-                {chartData.doshas[d.key] ? 'PRESENT' : 'ABSENT'}
+                {chartData.doshas[d.key] ? 'PRESENT' : d.key === 'mangalDosha' && chartData.doshas.mangalCancelledBy?.length ? 'CANCELLED' : 'ABSENT'}
               </Badge>
             </div>
           ))}
+          {chartData.doshas.mangalCancelledBy?.length > 0 && (
+            <p className="col-span-2 text-xs text-muted-foreground">Mangal Dosha meets the house rule but is cancelled: {chartData.doshas.mangalCancelledBy.join('; ')}.</p>
+          )}
         </CardContent>
       </Card>
     </div>
