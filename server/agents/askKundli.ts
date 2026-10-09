@@ -217,10 +217,25 @@ export async function answerSimple(packet: EvidencePacket, question: string, opt
   return guardAnswer(packet, draft, (c) => callExplainer(packet, question, opts, c).catch(() => null));
 }
 
+/** Up to four of the verdict's own items (core, usable) for the answer card: the strongest for, then against. */
+function topEvidence(r: DomainResolution) {
+  const shown = (e: DomainResolution['supporting'][number]) => e.tier === 'core' && e.usable;
+  const rank = { strong: 0, moderate: 1, weak: 2 } as const;
+  const sorted = (xs: DomainResolution['supporting']) => xs.filter(shown).sort((a, b) => rank[a.strength] - rank[b.strength]);
+  const against = sorted(r.conflicting);
+  const forItems = sorted(r.supporting).slice(0, against.length ? 3 : 4);
+  return [...forItems, ...against.slice(0, 4 - forItems.length)].map((e) => ({
+    direction: e.direction, factor: e.factor, explanation: e.explanation, source: e.source, planet: e.planet ?? null, house: e.house ?? null,
+  }));
+}
+
 export function packetSummary(packet: EvidencePacket) {
   return {
     route: packet.route,
-    domains: packet.resolutions.map((r) => ({ domain: r.domain, label: r.label, verdict: r.verdict, confidence: r.confidence, supporting: r.supporting.length, conflicting: r.conflicting.length })),
+    domains: packet.resolutions.map((r) => ({
+      domain: r.domain, label: r.label, verdict: r.verdict, confidence: r.confidence, supporting: r.supporting.length, conflicting: r.conflicting.length,
+      items: topEvidence(r),
+    })),
     timeAccuracy: packet.chart.birth.timeAccuracy,
     disclosure: packet.chart.birth.timeAccuracy === 'approximate'
       ? `Birth time is approximate: the Lagna and houses were not used${packet.guard.timing.mahadashaReliable ? ' and dasha dates may shift' : ', and the current dasha period could not be determined'}.`
