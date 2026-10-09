@@ -383,6 +383,16 @@ export default function Matchmaking() {
               </Card>
             )}
 
+            {(result.doshas as Array<{ type: string; cancelled: boolean; cancellation: string | null }> | undefined)?.filter((d) => d.cancelled).map((d) => (
+              <p key={d.type} className="text-sm text-muted-foreground" data-testid="text-dosha-cancelled">
+                {d.type} is cancelled: {d.cancellation}. The {d.type.replace(' Dosha', '')} koota still scores 0.
+              </p>
+            ))}
+
+            {result.roles?.note && (
+              <p className="text-xs text-amber-700" data-testid="text-match-roles">{result.roles.note}</p>
+            )}
+
             <p className="text-xs text-muted-foreground">
               Guna Milan is one traditional input to a match, not a verdict on a relationship. It compares only the two Moons;
               a full matching also weighs each chart as a whole.
