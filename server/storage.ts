@@ -87,7 +87,7 @@ import { db, pool } from "./db";
 import { eq, desc, and, sql, asc, inArray, type SQL } from "drizzle-orm";
 import crypto from "crypto";
 import bcrypt from "bcryptjs";
-import { isAdminEmail } from "./adminAccess";
+import { isAdminAccount, normalizeEmail } from "./adminAccess";
 
 export interface IStorage {
   // User operations
@@ -871,8 +871,19 @@ export class DatabaseStorage implements IStorage {
 
   // ─── User email auth ───────────────────────────────────────
 
+  // Case-insensitive: "A@x.com" and "a@x.com" are one address. Rows that differ only by
+  // case can predate this rule, so an exact match wins, then the canonical form.
+  private async getUsersByEmailAnyCase(email: string): Promise<User[]> {
+    const canonical = normalizeEmail(email);
+    const rows = await db.select().from(users)
+      .where(sql`lower(${users.email}) = ${canonical}`)
+      .orderBy(asc(users.createdAt));
+    const rank = (u: User) => (u.email === email.trim() ? 0 : u.email === canonical ? 1 : 2);
+    return rows.sort((a, b) => rank(a) - rank(b));
+  }
+
   async getUserByEmail(email: string): Promise<User | undefined> {
-    const [user] = await db.select().from(users).where(eq(users.email, email));
+    const [user] = await this.getUsersByEmailAnyCase(email);
     return user;
   }
 
@@ -886,7 +897,7 @@ export class DatabaseStorage implements IStorage {
     const [user] = await db
       .insert(users)
       .values({
-        email: data.email,
+        email: normalizeEmail(data.email),
         firstName: data.firstName,
         lastName: data.lastName,
         passwordHash,
@@ -897,10 +908,10 @@ export class DatabaseStorage implements IStorage {
   }
 
   async verifyUserPassword(email: string, password: string): Promise<User | null> {
-    const user = await this.getUserByEmail(email);
-    if (!user || !user.passwordHash) return null;
-    const valid = await bcrypt.compare(password, user.passwordHash);
-    return valid ? user : null;
+    for (const user of await this.getUsersByEmailAnyCase(email)) {
+      if (user.passwordHash && await bcrypt.compare(password, user.passwordHash)) return user;
+    }
+    return null;
   }
 
   // ─── AI Chat operations ────────────────────────────────────
@@ -1344,7 +1355,7 @@ export class DatabaseStorage implements IStorage {
 
   async hasFreeAccess(userId: string): Promise<boolean> {
     const user = await this.getUser(userId);
-    return isAdminEmail(user?.email);
+    return isAdminAccount(user);
   }
 
   async debitWallet(userId: string, cost: number, description: string): Promise<{ balance: string } | null> {
