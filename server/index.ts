@@ -3,6 +3,7 @@ import { createServer } from "http";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import { runMigrations } from "./migrate";
+import { startRechargeReconciler } from "./rechargeSettlement";
 import { FREE_CHAT_MINUTES } from "./paymentService";
 import { waitForDatabase } from "./db";
 import { setupWebSocket } from "./websocketService";
@@ -171,6 +172,7 @@ waitForDatabase()
       startupReady = true;
       startupError = null;
       log("startup ready");
+      startRechargeReconciler();
     } catch (err) {
       startupError = err instanceof Error ? err.message : "migration failed";
       console.error("[startup/migrate] Migration failed:", err);

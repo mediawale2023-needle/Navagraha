@@ -81,7 +81,8 @@ import {
 import { computeJyotishChart } from "./astroEngine/jyotishEngine.js";
 import { streamTraditionReading, answerSessionQuery, type Tradition } from "./jyotishAiService.js";
 import { insertJyotishClientProfileSchema } from "@shared/schema";
-import { sendWelcomeEmail, sendPaymentReceipt, sendBookingConfirmation, sendConsultationSummary } from "./emailService";
+import { sendWelcomeEmail, sendBookingConfirmation, sendConsultationSummary } from "./emailService";
+import { settleRazorpayPayment, reconcilePendingRecharges } from "./rechargeSettlement";
 import crypto from "crypto";
 
 // ─────────────────────────────────────────────────────────────
@@ -122,6 +123,9 @@ const insightsLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 60,
 });
+
+/** How long after a consultation ends its end call may still finalise it (earning, notifications). */
+const FINALISE_WINDOW_MS = 5 * 60 * 1000;
 
 export async function registerRoutes(app: Express, existingServer?: Server): Promise<Server> {
 
@@ -896,6 +900,7 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
 
   // Canonical description used to identify PDF download transactions
   const PDF_DESCRIPTION = 'Kundli PDF download';
+  const PDF_PRICE = 10;
 
   // Check whether the current user is eligible for a free PDF (first download ever)
   app.get('/api/wallet/pdf-check', isAuthenticated, async (req: any, res) => {
@@ -917,45 +922,17 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
   app.post('/api/wallet/deduct', isAuthenticated, async (req: any, res) => {
     try {
       const userId = (req.user as any).id;
-      const { amount, description } = req.body;
-      const cost = parseFloat(amount);
-      if (!cost || cost <= 0) return res.status(400).json({ message: "Invalid amount" });
-      let wallet = await storage.getWallet(userId);
-      if (!wallet) wallet = await storage.createWallet(userId);
-
-      // ── First PDF download is free ──────────────────────────────────────────
-      if (description === PDF_DESCRIPTION) {
-        const txns = await storage.getUserTransactions(userId);
-        const hasUsedFree = txns.some(
-          (t) => t.description === PDF_DESCRIPTION && t.status === 'completed',
-        );
-        if (!hasUsedFree) {
-          await storage.createTransaction({
-            userId,
-            amount: '0',
-            type: 'deduction',
-            description: PDF_DESCRIPTION,
-            status: 'completed',
-          });
-          return res.json({ balance: wallet.balance, wallet, free: true });
-        }
+      // The only paid item sold here is the Kundli PDF, priced on the server; a client
+      // amount is ignored so it cannot set its own price.
+      const { description } = req.body;
+      if (description !== PDF_DESCRIPTION) return res.status(400).json({ message: "Unknown purchase" });
+      const result = await storage.purchaseKundliPdf(userId, PDF_PRICE, PDF_DESCRIPTION);
+      if (!result) {
+        const wallet = await storage.getWallet(userId);
+        return res.status(402).json({ message: "Insufficient balance", balance: parseFloat(wallet?.balance || "0"), required: PDF_PRICE });
       }
-      // ────────────────────────────────────────────────────────────────────────
-
-      const balance = parseFloat(wallet.balance || "0");
-      if (balance < cost) {
-        return res.status(402).json({ message: "Insufficient balance", balance, required: cost });
-      }
-      const newBalance = (balance - cost).toFixed(2);
-      const updatedWallet = await storage.updateWalletBalance(userId, newBalance);
-      await storage.createTransaction({
-        userId,
-        amount: (-cost).toString(),
-        type: 'deduction',
-        description: description || 'Service charge',
-        status: 'completed',
-      });
-      res.json({ balance: newBalance, wallet: updatedWallet, free: false });
+      const wallet = await storage.getWallet(userId);
+      res.json({ balance: result.balance, wallet: wallet && { ...wallet, balance: result.balance }, free: result.free });
     } catch { res.status(500).json({ message: "Failed to process deduction" }); }
   });
 
@@ -1151,106 +1128,16 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
       const valid = verifyRazorpaySignature(orderId, paymentId, signature);
       if (!valid) return res.status(400).json({ message: "Payment verification failed" });
 
-      const txns = await storage.getUserTransactions(userId);
-      const pendingTxn = txns.find((txn) => txn.gatewayOrderId === orderId && txn.status === 'pending');
-      if (!pendingTxn) {
-        return res.status(404).json({ message: "Pending transaction not found" });
+      const settled = await settleRazorpayPayment(orderId, paymentId, signature, userId);
+      if (settled) return res.json({ success: true, newBalance: settled.balance });
+
+      // Already credited by the webhook or the reconciler: answer success, credit nothing.
+      const recharge = await storage.getRechargeByOrderId(orderId);
+      if (recharge && recharge.userId === userId && recharge.status === 'completed') {
+        const wallet = await storage.getWallet(userId);
+        return res.json({ success: true, newBalance: parseFloat(wallet?.balance || "0"), alreadyCredited: true });
       }
-
-      // Add to wallet
-      let wallet = await storage.getWallet(userId);
-      if (!wallet) wallet = await storage.createWallet(userId);
-
-      const totalCredit = parseFloat(pendingTxn.amount || "0");
-      const newBalance = (parseFloat(wallet.balance || "0") + totalCredit).toFixed(2);
-      await storage.updateWalletBalance(userId, newBalance);
-
-      // Update transaction status
-      await storage.updateTransactionStatus(pendingTxn.id, 'completed', paymentId, signature);
-
-      await storage.createNotification({
-        userId,
-        type: 'payment',
-        title: 'Wallet Recharged',
-        body: `₹${totalCredit} added to your wallet successfully.`,
-      });
-      sendPushToUser(userId, {
-        title: 'Wallet Recharged',
-        body: `₹${totalCredit} added to your wallet successfully.`,
-        link: '/wallet',
-        data: { type: 'payment' },
-      });
-
-      // Finalise coupon usage now that the recharge is confirmed
-      if (pendingTxn.couponCode) {
-        const coupon = await storage.getCouponByCode(pendingTxn.couponCode);
-        if (coupon) await storage.incrementCouponUsage(coupon.id);
-      }
-
-      // Referral reward: fire once on the invitee's first completed recharge
-      let runningBalance = parseFloat(newBalance);
-      try {
-        const referral = await storage.getReferralByReferee(userId);
-        if (referral && referral.status === 'pending') {
-          // Credit the new user (referee)
-          runningBalance = runningBalance + REFEREE_REWARD;
-          await storage.updateWalletBalance(userId, runningBalance.toFixed(2));
-          await storage.createTransaction({
-            userId,
-            amount: REFEREE_REWARD.toString(),
-            type: 'recharge',
-            description: 'Referral bonus',
-            status: 'completed',
-          });
-          await storage.createNotification({
-            userId,
-            type: 'payment',
-            title: 'Referral Bonus',
-            body: `You received ₹${REFEREE_REWARD} referral bonus in your wallet.`,
-          });
-
-          // Credit the inviter (referrer)
-          const referrerWallet = (await storage.getWallet(referral.referrerId))
-            || (await storage.createWallet(referral.referrerId));
-          const referrerBalance = (parseFloat(referrerWallet.balance || '0') + REFERRER_REWARD).toFixed(2);
-          await storage.updateWalletBalance(referral.referrerId, referrerBalance);
-          await storage.createTransaction({
-            userId: referral.referrerId,
-            amount: REFERRER_REWARD.toString(),
-            type: 'recharge',
-            description: 'Referral reward',
-            status: 'completed',
-          });
-          await storage.createNotification({
-            userId: referral.referrerId,
-            type: 'payment',
-            title: 'Referral Reward',
-            body: `Your friend recharged! ₹${REFERRER_REWARD} has been added to your wallet.`,
-          });
-
-          await storage.markReferralRewarded(
-            referral.id,
-            REFERRER_REWARD.toString(),
-            REFEREE_REWARD.toString(),
-          );
-        }
-      } catch (refErr) {
-        console.error('Referral reward error:', refErr);
-      }
-
-      // Send email receipt (fire-and-forget)
-      const user = await storage.getUser(userId);
-      if (user?.email) {
-        sendPaymentReceipt(user.email, {
-          userName: user.firstName || 'User',
-          amount: parseFloat(pendingTxn.amount || "0"),
-          bonus: 0,
-          newBalance: runningBalance,
-          paymentId,
-        }).catch(() => {});
-      }
-
-      res.json({ success: true, newBalance: runningBalance });
+      return res.status(404).json({ message: "Pending transaction not found" });
     } catch (error) {
       console.error("Razorpay verify error:", error);
       res.status(500).json({ message: "Payment verification failed" });
@@ -1267,12 +1154,16 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
         return res.status(400).json({ message: "Invalid webhook signature" });
       }
 
+      // The webhook credits on its own, so a payer who closes the tab before the
+      // browser's verify call still gets the money; settlement is idempotent.
       const event = req.body;
       if (event.event === 'payment.captured') {
-        const payment = event.payload.payment.entity;
-        const userId = payment.notes?.userId;
-        if (userId) {
-          notifyUser(userId, { type: 'payment_confirmed', paymentId: payment.id });
+        const payment = event.payload?.payment?.entity;
+        if (payment?.order_id && payment?.id) {
+          const settled = await settleRazorpayPayment(String(payment.order_id), String(payment.id));
+          if (settled) {
+            notifyUser(settled.transaction.userId, { type: 'payment_confirmed', paymentId: payment.id, newBalance: settled.balance });
+          }
         }
       }
       res.json({ status: 'ok' });
@@ -1316,21 +1207,13 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
         return res.status(400).json({ message: "Invalid callback signature" });
       }
 
-      if (status === 'success' && user_id) {
-        let wallet = await storage.getWallet(user_id);
-        if (!wallet) wallet = await storage.createWallet(user_id);
-        const newBalance = (parseFloat(wallet.balance || "0") + parseFloat(amount)).toFixed(2);
-        await storage.updateWalletBalance(user_id, newBalance);
-        await storage.createTransaction({
-          userId: user_id,
-          amount,
-          type: 'recharge',
-          description: 'Snapmint EMI recharge',
-          status: 'completed',
-          paymentMethod: 'snapmint',
-          gatewayOrderId: order_id,
+      const credit = parseFloat(amount);
+      if (status === 'success' && user_id && order_id && credit > 0) {
+        const settled = await storage.settleExternalRecharge({
+          userId: String(user_id), orderId: String(order_id), amount: credit,
+          description: 'Snapmint EMI recharge', paymentMethod: 'snapmint',
         });
-        notifyUser(user_id, { type: 'payment_confirmed', newBalance: parseFloat(newBalance) });
+        if (settled) notifyUser(String(user_id), { type: 'payment_confirmed', newBalance: parseFloat(settled.balance) });
       }
       res.json({ status: 'ok' });
     } catch { res.status(500).json({ message: "Callback error" }); }
@@ -1374,22 +1257,14 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
       const { status, txnid, amount } = req.body;
       if (status === 'success') {
         // Extract userId from txnId (format: lp_{userId}_{timestamp})
-        const userId = txnid.split('_')[1];
-        if (userId) {
-          let wallet = await storage.getWallet(userId);
-          if (!wallet) wallet = await storage.createWallet(userId);
-          const newBalance = (parseFloat(wallet.balance || "0") + parseFloat(amount)).toFixed(2);
-          await storage.updateWalletBalance(userId, newBalance);
-          await storage.createTransaction({
-            userId,
-            amount,
-            type: 'recharge',
-            description: 'LazyPay BNPL recharge',
-            status: 'completed',
-            paymentMethod: 'lazypay',
-            gatewayOrderId: txnid,
+        const userId = String(txnid || '').split('_')[1];
+        const credit = parseFloat(amount);
+        if (userId && credit > 0) {
+          const settled = await storage.settleExternalRecharge({
+            userId, orderId: String(txnid), amount: credit,
+            description: 'LazyPay BNPL recharge', paymentMethod: 'lazypay',
           });
-          notifyUser(userId, { type: 'payment_confirmed', newBalance: parseFloat(newBalance) });
+          if (settled) notifyUser(userId, { type: 'payment_confirmed', newBalance: parseFloat(settled.balance) });
         }
       }
       // PayU requires redirect
@@ -1542,25 +1417,43 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
   app.post('/api/consultations/:id/end', isAuthenticated, async (req: any, res) => {
     try {
       const userId = (req.user as any).id;
-      const consultation = await storage.endConsultation(req.params.id);
+      const owned = await storage.getConsultationById(req.params.id);
+      if (!owned || owned.userId !== userId) return res.status(404).json({ message: "Not found" });
+      const consultation = await storage.endConsultation(owned.id);
+
+      // Finalised once, as the session ends (the WebSocket stop usually closes it moments
+      // before this call). Ending an old consultation again only returns it: no earning,
+      // no availability change, no notifications.
+      const endedAt = consultation.endedAt ? new Date(consultation.endedAt).getTime() : 0;
+      const justEnded = owned.status === 'active' || (consultation.status === 'ended' && Date.now() - endedAt < FINALISE_WINDOW_MS);
+      if (!justEnded) return res.json(consultation);
 
       // Set astrologer back to online
       if (consultation.astrologerId) {
         await storage.updateAstrologer(consultation.astrologerId, { availability: 'online' });
       }
 
-      // Create earnings record for astrologer
-      const gross = parseFloat(consultation.totalAmount || "0");
-      if (gross > 0) {
+      // The astrologer earns on what the user was actually charged, once per consultation.
+      const gross = await storage.getBilledAmountForConsultation(consultation.id);
+      let earned = false;
+      if (gross > 0 && !(await storage.hasEarningForConsultation(consultation.id))) {
         const platformFee = (gross * PLATFORM_FEE_PERCENTAGE) / 100;
         const net = gross - platformFee;
-        await storage.createEarning({
-          astrologerId: consultation.astrologerId,
-          consultationId: consultation.id,
-          grossAmount: gross.toFixed(2),
-          platformFee: platformFee.toFixed(2),
-          netAmount: net.toFixed(2),
-        });
+        try {
+          await storage.createEarning({
+            astrologerId: consultation.astrologerId,
+            consultationId: consultation.id,
+            grossAmount: gross.toFixed(2),
+            platformFee: platformFee.toFixed(2),
+            netAmount: net.toFixed(2),
+          });
+          earned = true;
+        } catch (err: any) {
+          if (err?.code !== '23505') throw err; // a concurrent end already recorded it
+        }
+      }
+      if (earned) {
+        const net = gross - (gross * PLATFORM_FEE_PERCENTAGE) / 100;
 
         notifyAstrologer(consultation.astrologerId, {
           type: 'session_ended',
@@ -1573,7 +1466,7 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
         userId,
         type: 'session_start',
         title: 'Consultation Ended',
-        body: `Your consultation ended. Duration: ${Math.floor((consultation.durationSeconds || 0) / 60)} minutes. Total: ₹${consultation.totalAmount}`,
+        body: `Your consultation ended. Duration: ${Math.floor((consultation.durationSeconds || 0) / 60)} minutes. Charged: ₹${gross.toFixed(2)}`,
       });
 
       // Send consultation summary email (fire-and-forget)
@@ -1587,7 +1480,7 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
           astrologerName: endAstrologer.name,
           type: consultation.type,
           durationMinutes: Math.floor((consultation.durationSeconds || 0) / 60),
-          totalAmount: consultation.totalAmount || '0',
+          totalAmount: gross.toFixed(2),
         }).catch((err) => { console.error('[email] consultation summary failed:', err); });
       }
 
@@ -1631,10 +1524,10 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
     } catch { res.status(500).json({ message: "Failed to fetch consultations" }); }
   });
 
-  app.get('/api/consultations/:id', isAuthenticated, async (req, res) => {
+  app.get('/api/consultations/:id', isAuthenticated, async (req: any, res) => {
     try {
       const consultation = await storage.getConsultationById(req.params.id);
-      if (!consultation) return res.status(404).json({ message: "Not found" });
+      if (!consultation || consultation.userId !== (req.user as any).id) return res.status(404).json({ message: "Not found" });
       res.json(consultation);
     } catch { res.status(500).json({ message: "Failed to fetch consultation" }); }
   });
@@ -1739,9 +1632,10 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
     } catch { res.status(500).json({ message: "Failed to fetch schedule" }); }
   });
 
-  app.delete('/api/schedule/:id', isAuthenticated, async (req, res) => {
+  app.delete('/api/schedule/:id', isAuthenticated, async (req: any, res) => {
     try {
-      const call = await storage.updateScheduledCallStatus(req.params.id, 'cancelled');
+      const call = await storage.cancelUserScheduledCall(req.params.id, (req.user as any).id);
+      if (!call) return res.status(404).json({ message: "Booking not found" });
       res.json(call);
     } catch { res.status(500).json({ message: "Failed to cancel booking" }); }
   });
@@ -1754,9 +1648,9 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
     } catch { res.status(500).json({ message: "Failed to fetch notifications" }); }
   });
 
-  app.put('/api/notifications/:id/read', isAuthenticated, async (req, res) => {
+  app.put('/api/notifications/:id/read', isAuthenticated, async (req: any, res) => {
     try {
-      await storage.markNotificationRead(req.params.id);
+      await storage.markNotificationRead(req.params.id, (req.user as any).id);
       res.json({ success: true });
     } catch { res.status(500).json({ message: "Failed to update notification" }); }
   });
@@ -2513,6 +2407,22 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
   });
 
   // ─── Admin / Developer Dashboard ──────────────────────────
+  // Settle pending Razorpay recharges whose confirmation never arrived (also runs on a timer).
+  // Dry run unless ?apply=1; ?days=N (default 7) limits it to recharges from the last N days.
+  app.post('/api/admin/payments/reconcile', isAdmin, adminLimiter, async (req, res) => {
+    try {
+      const days = Math.min(Math.max(Number(req.query.days) || 7, 1), 90);
+      res.json(await reconcilePendingRecharges(new Date(), undefined, {
+        createdAfter: new Date(Date.now() - days * 86_400_000),
+        dryRun: req.query.apply !== '1',
+      }));
+    } catch (err: any) {
+      if (err?.message?.includes('must be set')) return res.status(503).json({ message: 'Payment gateway not configured' });
+      console.error('Reconcile error:', err);
+      res.status(500).json({ message: 'Reconciliation failed' });
+    }
+  });
+
   app.get('/api/admin/stats', isAdmin, adminLimiter, async (_req, res) => {
     try {
       const [

@@ -764,12 +764,44 @@ export async function seedProAstrologer(): Promise<void> {
   }
 }
 
+// One credit per gateway payment and per completed recharge order. Each index is guarded:
+// if historical duplicates exist it is skipped with a warning instead of failing boot
+// (settlement is still claim-once without it); find them with the query in the warning.
+const PAYMENT_INDEXES_SQL = `
+CREATE INDEX IF NOT EXISTS transactions_gateway_order_id_idx ON transactions (gateway_order_id);
+DO $$ BEGIN
+  CREATE UNIQUE INDEX IF NOT EXISTS transactions_gateway_payment_id_uq
+    ON transactions (gateway_payment_id) WHERE gateway_payment_id IS NOT NULL;
+EXCEPTION WHEN unique_violation THEN
+  RAISE WARNING 'transactions_gateway_payment_id_uq skipped: duplicate gateway_payment_id rows exist (SELECT gateway_payment_id, count(*) FROM transactions WHERE gateway_payment_id IS NOT NULL GROUP BY 1 HAVING count(*) > 1)';
+END $$;
+DO $$ BEGIN
+  CREATE UNIQUE INDEX IF NOT EXISTS transactions_completed_recharge_order_uq
+    ON transactions (gateway_order_id) WHERE type = 'recharge' AND status = 'completed' AND gateway_order_id IS NOT NULL;
+EXCEPTION WHEN unique_violation THEN
+  RAISE WARNING 'transactions_completed_recharge_order_uq skipped: an order was credited more than once (SELECT gateway_order_id, count(*) FROM transactions WHERE type = ''recharge'' AND status = ''completed'' GROUP BY 1 HAVING count(*) > 1)';
+END $$;
+`;
+
+// One astrologer earning per consultation. Guarded: historical duplicates skip the index
+// with a warning instead of failing boot (the route still checks before inserting).
+const EARNINGS_INDEX_SQL = `
+DO $$ BEGIN
+  CREATE UNIQUE INDEX IF NOT EXISTS astrologer_earnings_consultation_uq
+    ON astrologer_earnings (consultation_id) WHERE consultation_id IS NOT NULL;
+EXCEPTION WHEN unique_violation THEN
+  RAISE WARNING 'astrologer_earnings_consultation_uq skipped: a consultation has more than one earning (SELECT consultation_id, count(*) FROM astrologer_earnings GROUP BY 1 HAVING count(*) > 1)';
+END $$;
+`;
+
 export async function runMigrations(): Promise<void> {
   await pool.query(SCHEMA_SQL);
+  await pool.query(PAYMENT_INDEXES_SQL);
   await pool.query(SEED_HOMEPAGE_SQL);
   for (const fix of HOMEPAGE_COPY_FIXES) await pool.query(fix.text, fix.values);
   await pool.query(SEED_COUPONS_SQL);
   await pool.query(SEED_STORE_SQL);
+  await pool.query(EARNINGS_INDEX_SQL);
   await seedAdminUser();
   await seedProAstrologer();
   console.log('[migrate] Schema initialised successfully');

@@ -55,6 +55,17 @@ export async function createRazorpayOrder(opts: RazorpayOrderOptions) {
   return order;
 }
 
+/** Payments made against a Razorpay order, for reconciling recharges whose confirmation never arrived. */
+export async function fetchOrderPayments(orderId: string): Promise<Array<{ id: string; status: string }>> {
+  const rz = getRazorpayInstance();
+  const res: any = await rz.orders.fetchPayments(orderId);
+  return (res?.items ?? []).map((p: any) => ({ id: String(p.id), status: String(p.status) }));
+}
+
+export function isRazorpayConfigured(): boolean {
+  return Boolean(process.env.RAZORPAY_KEY_ID && process.env.RAZORPAY_KEY_SECRET);
+}
+
 /**
  * Verify Razorpay payment signature (HMAC SHA256).
  * Must be called server-side after frontend payment success.
