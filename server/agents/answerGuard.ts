@@ -87,7 +87,7 @@ export function validateAnswer(answer: string, ctx: GuardContext): string[] {
   const planet = (g: Graha) => chart.planets.find((p) => p.name === g)!;
   const dignity = (g: Graha) => chart.strength.dignities.find((d) => d.planet === g);
   const yogas = presentYogas(chart);
-  const sadeSatiActive = ctx.transits ? /Sade Sati ACTIVE/.test(ctx.transits) : null;
+  const sadeSatiActive = !ctx.transits || /Sade Sati undetermined/.test(ctx.transits) ? null : /Sade Sati ACTIVE/.test(ctx.transits);
 
   for (const s of sentences(answer)) {
     const transitSentence = TRANSIT_CONTEXT.test(s) && !/\b(birth|natal|born|chart)\b/i.test(s);
@@ -171,7 +171,10 @@ export function validateAnswer(answer: string, ctx: GuardContext): string[] {
       if (id === 'sadeSati') present = sadeSatiActive;
       else if (id) present = chart.doshas.find((d) => d.id === id)?.present ?? null;
       else present = null;
+      if (id === 'mangal' && approx) { if (!negated) issues.push('Mangal Dosha depends on the houses, which an approximate birth time cannot support'); continue; }
+      if (id === 'sadeSati' && ctx.transits && present === null) { issues.push('Sade Sati cannot be determined: the natal Moon sign is uncertain'); continue; }
       if (present === null) { if (!negated) issues.push(`${m[0]} is not calculated for this chart`); continue; }
+      if (id === 'mangal' && chart.doshas.find((d) => d.id === 'mangal')?.cancelledBy?.length && /\b(cancel(?:led|ed|s|lation)?|neutrali[sz]ed|nullified|bhanga)\b/i.test(s)) continue;
       if (present === negated) issues.push(`${m[0]} is ${present ? 'present' : 'not present'} in this chart`);
     }
 

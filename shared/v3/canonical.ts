@@ -154,6 +154,8 @@ export const canonicalChartSchema = z.object({
     name: z.string(),
     present: z.boolean(),
     rule: z.string(),
+    /** Cancellation conditions found; when non-empty, `present` is false. Absent on charts computed before cancellations were evaluated. */
+    cancelledBy: z.array(z.string()).optional(),
   }).strict()).length(4),
   dashas: z.object({
     vimshottari: z.object({

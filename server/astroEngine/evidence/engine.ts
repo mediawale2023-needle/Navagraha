@@ -336,7 +336,7 @@ function domainSpecificRules(c: Collector, ix: ChartIndex, domain: LifeDomain) {
     const mangal = chart.doshas.find((d) => d.id === 'mangal');
     if (mangal?.present) {
       c.add({ factor: 'Mangal Dosha (house rule)', planet: 'Mars', direction: 'negative', strength: 'weak', source: 'D1', provenance: 'modern-convention',
-        rule: 'Mars in houses 1, 2, 4, 7, 8 or 12 is conventionally flagged for partnership compatibility; cancellation conditions are not evaluated here, so this is a mild, unconfirmed indicator.',
+        rule: 'Mars in houses 1, 2, 4, 7, 8 or 12 is conventionally flagged for partnership compatibility when none of the common cancellations applies; schools differ, so this is a mild indicator.',
         explanation: mangal.rule, requiresBirthTime: true });
     }
   }

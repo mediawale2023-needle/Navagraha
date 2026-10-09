@@ -21,7 +21,7 @@ import { computeDignities } from '../dignity.js';
 import { computeBhava } from '../bhava.js';
 import { computeAshtakavarga } from '../ashtakavarga.js';
 import { detectYogas } from '../yogas.js';
-import { hasMangalDosha, hasKaalSarpDosha, hasPitraDosha, hasVishaYoga } from '../doshas.js';
+import { mangalDosha, hasKaalSarpDosha, hasPitraDosha, hasVishaYoga } from '../doshas.js';
 import { vimshottariDasha, yoginiDasha } from '../dasha.js';
 import { computeCharKarakas, computeKarakamsha, calculateCharaDasha } from '../jaimini.js';
 import { partialShadbala } from './shadbala.js';
@@ -195,7 +195,7 @@ export function computeCanonicalChart(birth: ResolvedBirth, opts: ComputeOptions
 
   const marsHouse = houseOf(sidereal.Mars);
   const doshas: CanonicalChart['doshas'] = [
-    { id: 'mangal', name: 'Mangal (Kuja) Dosha', present: hasMangalDosha(marsHouse), rule: `Mars in house ${marsHouse} from the Lagna; the rule flags houses 1, 2, 4, 7, 8 and 12 (cancellation conditions are not evaluated).` },
+    mangalDosha(marsHouse, signIdx(sidereal.Mars), signIdx(sidereal.Jupiter)),
     { id: 'kaalSarp', name: 'Kaal Sarp Yoga', present: hasKaalSarpDosha(sidereal), rule: 'All seven planets lie on one side of the Rahu–Ketu axis.' },
     { id: 'pitru', name: 'Pitru Dosha (Sun–node conjunction)', present: hasPitraDosha(sidereal.Sun, sidereal.Rahu), rule: 'Sun within 15° of Rahu or Ketu (a simplified single-condition rule).' },
     { id: 'vishaYoga', name: 'Visha Yoga', present: hasVishaYoga(sidereal.Moon, sidereal.Saturn), rule: 'Moon and Saturn in the same sign or in mutual 7th.' },

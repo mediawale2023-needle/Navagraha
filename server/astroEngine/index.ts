@@ -105,7 +105,10 @@ export interface TransitInfo {
   /** Null when the birth time is approximate: houses are then counted from the Moon only. */
   natalLagnaSign: string | null;
   planets: Array<{ planet: string; sign: string; houseFromMoon: number; houseFromLagna: number | null; sav: number | null; retrograde: boolean }>;
-  sadeSati: { active: boolean; phase: string; saturnSign: string; houseFromMoon: number; note: string; sinceApprox?: string; untilApprox?: string };
+  /** `determined` is false when the natal Moon sign itself is uncertain; then `active` is false and nothing is claimed. */
+  sadeSati: { active: boolean; determined: boolean; phase: string; saturnSign: string; houseFromMoon: number; note: string; sinceApprox?: string; untilApprox?: string };
+  /** False when the natal Moon sign could differ across the birth date (approximate time): houses from the Moon are then unreliable. */
+  moonSignCertain: boolean;
   jupiter: { sign: string; houseFromMoon: number; favourable: boolean };
 }
 
@@ -134,6 +137,7 @@ export function getTransits(
   natalLagnaSign: string | number | null,
   savBySign?: number[],
   when: Date = new Date(),
+  moonSignCertain = true,
 ): TransitInfo {
   const moonIdx = resolveSignIndex(natalMoonSign);
   const lagnaIdx = natalLagnaSign == null ? null : resolveSignIndex(natalLagnaSign);
@@ -162,6 +166,11 @@ export function getTransits(
   else if (hMoonSat === 2) { active = true; phase = 'Setting phase — Saturn in the 2nd from Moon'; }
   else if (hMoonSat === 4) { phase = 'Kantaka Shani — Saturn in the 4th from Moon'; note = 'Ardha-ashtama (small panoti), a ~2.5-year Saturn test.'; }
   else if (hMoonSat === 8) { phase = 'Ashtama Shani — Saturn in the 8th from Moon'; note = 'Dhaiya (small panoti), a ~2.5-year Saturn test.'; }
+  if (!moonSignCertain) {
+    active = false;
+    phase = 'Undetermined — the natal Moon sign could differ across the birth date with an approximate birth time';
+    note = '';
+  }
 
   // Approximate the current Saturn-sign window at month resolution.
   const monthFmt = (d: Date) => d.toLocaleString('en-US', { month: 'short', year: 'numeric' });
@@ -189,7 +198,8 @@ export function getTransits(
     natalMoonSign: SIGNS[moonIdx],
     natalLagnaSign: lagnaIdx == null ? null : SIGNS[lagnaIdx],
     planets,
-    sadeSati: { active, phase, saturnSign: SIGNS[satSign], houseFromMoon: hMoonSat, note, sinceApprox, untilApprox },
+    sadeSati: { active, determined: moonSignCertain, phase, saturnSign: SIGNS[satSign], houseFromMoon: hMoonSat, note, sinceApprox, untilApprox },
+    moonSignCertain,
     jupiter: { sign: SIGNS[jupSign], houseFromMoon: hMoonJup, favourable: [2, 5, 7, 9, 11].includes(hMoonJup) },
   };
 }
@@ -198,20 +208,25 @@ export function getTransits(
 export function transitsForChart(canonical: CanonicalChart, savBySign?: number[], when?: Date): TransitInfo {
   const moon = canonical.planets.find((p) => p.name === 'Moon')!;
   const lagna = canonical.birth.timeAccuracy === 'approximate' ? null : canonical.ascendant.sign;
-  return getTransits(moon.sign, lagna, savBySign, when);
+  return getTransits(moon.sign, lagna, savBySign, when, canonical.uncertainty.moonSignStableAcrossBirthDate);
 }
 
 /** Compact text summary of transits for AI prompts. */
 export function transitSummary(t: TransitInfo): string {
   const lines = t.planets
-    .map((p) => `- ${p.planet}: ${p.sign} (${p.houseFromMoon}th from Moon${p.houseFromLagna != null ? `, ${p.houseFromLagna}th from Lagna` : ''}${p.sav != null ? `, SAV ${p.sav}` : ''}${p.retrograde ? ', retrograde' : ''})`)
+    .map((p) => `- ${p.planet}: ${p.sign} (${t.moonSignCertain ? `${p.houseFromMoon}th from Moon` : 'house from Moon uncertain'}${p.houseFromLagna != null ? `, ${p.houseFromLagna}th from Lagna` : ''}${p.sav != null ? `, SAV ${p.sav}` : ''}${p.retrograde ? ', retrograde' : ''})`)
     .join('\n');
-  const ss = t.sadeSati.active
+  const ss = !t.sadeSati.determined
+    ? 'Sade Sati undetermined: the natal Moon sign is uncertain, so do not say whether Sade Sati is active.'
+    : t.sadeSati.active
     ? `Sade Sati ACTIVE — ${t.sadeSati.phase}. Saturn in ${t.sadeSati.saturnSign} (~${t.sadeSati.sinceApprox} to ~${t.sadeSati.untilApprox}).`
     : `Sade Sati not active. ${t.sadeSati.phase}.${t.sadeSati.note ? ' ' + t.sadeSati.note : ''}`;
-  const jup = `Jupiter transiting ${t.jupiter.sign} (${t.jupiter.houseFromMoon}th from Moon) — ${t.jupiter.favourable ? 'favourable' : 'mixed'}.`;
+  const jup = t.moonSignCertain
+    ? `Jupiter transiting ${t.jupiter.sign} (${t.jupiter.houseFromMoon}th from Moon) — ${t.jupiter.favourable ? 'favourable' : 'mixed'}.`
+    : `Jupiter transiting ${t.jupiter.sign}.`;
   const lagna = t.natalLagnaSign ? `Lagna ${t.natalLagnaSign}` : 'Lagna not used — birth time approximate';
-  return `Current transits as of ${t.date} (natal Moon ${t.natalMoonSign}, ${lagna}):\n${lines}\n${ss}\n${jup}`;
+  const moon = t.moonSignCertain ? `natal Moon ${t.natalMoonSign}` : 'natal Moon sign uncertain';
+  return `Current transits as of ${t.date} (${moon}, ${lagna}):\n${lines}\n${ss}\n${jup}`;
 }
 
 // ─── Kundli Matching ──────────────────────────────────────────────────────────
