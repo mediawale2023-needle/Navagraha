@@ -55,21 +55,12 @@ interface ChatMessage {
 }
 
 interface AiInterpretation {
-  overview: string;
-  personality: string;
-  career: string;
-  relationships: string;
-  health: string;
-  currentDasha: string;
-  currentAntardasha: string;
-  doshaAnalysis: string;
-  remedies: string;
-  luckyFactors: {
-    number: number;
-    color: string;
-    day: string;
-    gemstone: string;
-  };
+  overview?: string;
+  personality?: string;
+  career?: string;
+  relationships?: string;
+  currentPeriods?: string;
+  doshaAnalysis?: string;
 }
 
 const SUGGESTED_QUESTIONS = [
@@ -517,11 +508,8 @@ export default function AIAstrologer() {
                   { label: "Personality", value: interpretation.personality },
                   { label: "Career", value: interpretation.career },
                   { label: "Relationships", value: interpretation.relationships },
-                  { label: "Health", value: interpretation.health },
-                  { label: "Current Mahadasha", value: interpretation.currentDasha },
-                  { label: "Antardasha · Pratidasha", value: interpretation.currentAntardasha },
+                  { label: "Current periods", value: interpretation.currentPeriods },
                   { label: "Dosha Analysis", value: interpretation.doshaAnalysis },
-                  { label: "Remedies", value: interpretation.remedies },
                 ].map(({ label, value }) =>
                   value ? (
                     <div key={label}>
@@ -539,24 +527,6 @@ export default function AIAstrologer() {
                   ) : null
                 )}
 
-                {interpretation.luckyFactors && (
-                  <div>
-                    <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-[var(--primary-border)]">
-                      Lucky Factors
-                    </h3>
-                    <div className="flex flex-wrap gap-2">
-                      <Badge className="bg-nava-amber/10 text-nava-amber border-0">
-                        Number: {interpretation.luckyFactors.number}
-                      </Badge>
-                      <Badge className="bg-primary/15 text-[var(--primary-border)] border-0">
-                        Color: {interpretation.luckyFactors.color}
-                      </Badge>
-                      <Badge className="bg-nava-magenta/10 text-nava-magenta border-0">
-                        Day: {interpretation.luckyFactors.day}
-                      </Badge>
-                    </div>
-                  </div>
-                )}
               </div>
             </CardContent>
           </Card>

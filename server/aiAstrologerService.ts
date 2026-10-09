@@ -19,6 +19,7 @@ import { buildInsights } from "./astroEngine/evidence/insights.js";
 import {
   ReportGenerationError, checkSections, correctionNote, textProblems, MIN_SUMMARY_CHARS, type ReportGuard, type Section,
 } from "./reportQuality.js";
+import { localiseFields } from "./agents/localise.js";
 
 // Shared prediction discipline + ethics for all paid-report generation.
 const REPORT_DISCIPLINE = `Discipline: a yoga/placement is only a promise — tie predictions to the activating dasha + transit and at least two confirmations (Navamsa/Dasamsa, Ashtakavarga, house lord, karaka); weigh planetary strength (a weak/debilitated/combust planet under-delivers; note Neecha-bhanga and yoga cancellation). Give realistic timing windows. Grounding: use only the chart facts and deterministic evidence supplied; never invent a placement, yoga, dosha, strength or date; keep the engine's verdicts; never cite chapter/verse numbers or quote scriptures; if the birth time is approximate, say so and do not build on the Lagna or houses. Ethics: Jyotish is a traditional interpretive system, not certainty — describe tendencies and timing; never predict death, lifespan, serious illness, guaranteed pregnancy, guaranteed marriage/divorce or guaranteed financial outcomes; never frighten; pair difficulty with realistic guidance (remedies are optional, never a condition); respect free will; recommend only justified remedies, never push gemstones.`;
@@ -201,70 +202,62 @@ export interface KundliInterpretation {
   personality: string;
   career: string;
   relationships: string;
-  health: string;
-  currentDasha: string;
-  currentAntardasha: string;
+  currentPeriods: string;
   doshaAnalysis: string;
-  remedies: string;
-  luckyFactors: {
-    number: number;
-    color: string;
-    day: string;
-    gemstone: string;
-  };
 }
 
-export async function interpretKundli(
-  kundli: Partial<Kundli>
-): Promise<KundliInterpretation> {
+const INTERPRETATION_FIELDS: Array<{ key: keyof KundliInterpretation; ask: string }> = [
+  { key: "overview", ask: "2-3 sentence overall life theme" },
+  { key: "personality", ask: "core personality from the Lagna (only if the birth time is exact) and the Moon sign" },
+  { key: "career", ask: "career path and professional strengths" },
+  { key: "relationships", ask: "relationships and partnership tendencies" },
+  { key: "currentPeriods", ask: "the running Mahadasha/Antardasha exactly as given in the facts, and what they emphasise; if the facts say the period is uncertain, say so instead" },
+  { key: "doshaAnalysis", ask: "the doshas the facts list as present or absent, and what that means" },
+];
+
+export class InterpretationUnavailableError extends Error {}
+
+/**
+ * A short chart reading for the Ask page. Each paragraph is checked against the canonical chart
+ * (one regeneration with the problems listed); a paragraph that still fails is left out, and
+ * without a passing overview there is no reading. Health is not predicted.
+ */
+export async function interpretKundli(kundli: Partial<Kundli>): Promise<Partial<KundliInterpretation>> {
   const client = getClient();
+  const canonical = (kundli as any).chartData?.canonical;
+  if (!isCurrentCanonicalChart(canonical)) throw new InterpretationUnavailableError("This chart needs to be recreated with its birth place before it can be interpreted.");
+  const guard: ReportGuard = { chart: canonical, factsText: chartSummary(kundli), asOf: new Date() };
 
-  const prompt = `You are a Vedic astrology expert. Analyse this birth chart and return ONLY a valid JSON object with exactly these keys. EVERY VALUE MUST BE A SINGLE, WELL-WRITTEN PARAGRAPH STRING (except luckyFactors). DO NOT USE NESTED JSON OR ARRAYS FOR ANY TEXT FIELD:
-{
-  "overview": "2-3 sentence overall life theme",
-  "personality": "core personality traits based on Lagna and Moon sign",
-  "career": "career path and professional strengths",
-  "relationships": "relationships, marriage timing, partner traits",
-  "health": "health tendencies and areas to watch",
-  "currentDasha": "Write a flowing paragraph describing the current Mahadasha planet, dates, and its key life effects.",
-  "currentAntardasha": "Write a flowing paragraph describing the current Antardasha, dates, and specific effects now.",
-  "doshaAnalysis": "Write a paragraph describing the dosha analysis and severity.",
-  "remedies": "Write a single paragraph listing top 3-5 practical Vedic remedies, separated by commas.",
-  "luckyFactors": {
-    "number": <1-9>,
-    "color": "<color>",
-    "day": "<day of week>",
-    "gemstone": "<gemstone>"
-  }
-}
+  const accepted: Partial<KundliInterpretation> = {};
+  let pending = INTERPRETATION_FIELDS;
+  let correction = "";
+  for (let attempt = 0; attempt < 2 && pending.length; attempt++) {
+    const prompt = `You are a Vedic astrology expert explaining a chart that has already been calculated. Use only the chart facts below; never invent a placement, yoga, dosha, period or date, and never mention health or lifespan. ${REPORT_DISCIPLINE}
+
+Return ONLY a JSON object whose values are single paragraphs (plain strings):
+{${pending.map((f) => `"${f.key}": "${f.ask}"`).join(", ")}}
 
 Birth chart:
-${chartSummary(kundli)}`;
-
-  const response = await client.chat.completions.create({
-    model: "gpt-4o-mini",
-    messages: [{ role: "user", content: prompt }],
-    response_format: { type: "json_object" },
-  });
-
-  const text = response.choices[0]?.message?.content || "";
-
-  try {
-    return JSON.parse(text) as KundliInterpretation;
-  } catch {
-    return {
-      overview: text,
-      personality: "",
-      career: "",
-      relationships: "",
-      health: "",
-      currentDasha: "",
-      currentAntardasha: "",
-      doshaAnalysis: "",
-      remedies: "",
-      luckyFactors: { number: 1, color: "Gold", day: "Sunday", gemstone: "Ruby" },
-    };
+${chartSummary(kundli)}${correction ? `\n\n${correction}` : ""}`;
+    const response = await client.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [{ role: "user", content: prompt }],
+      response_format: { type: "json_object" },
+    });
+    let parsed: Record<string, unknown> = {};
+    try { parsed = JSON.parse(response.choices[0]?.message?.content || "{}"); } catch { /* every field is retried */ }
+    const rejected: Array<{ heading: string; problems: string[] }> = [];
+    for (const f of pending) {
+      const text = typeof parsed[f.key] === "string" ? String(parsed[f.key]).trim() : "";
+      const problems = textProblems(text, guard, 40);
+      if (problems.length) rejected.push({ heading: f.key, problems });
+      else accepted[f.key] = text;
+    }
+    pending = INTERPRETATION_FIELDS.filter((f) => rejected.some((r) => r.heading === f.key));
+    correction = correctionNote(rejected);
   }
+  if (!accepted.overview) throw new InterpretationUnavailableError("A reading consistent with your chart could not be prepared just now. Please try again, or ask a specific question.");
+  return accepted;
 }
 
 // ─── Paid Reports ─────────────────────────────────────────────────────────────
@@ -647,82 +640,89 @@ export interface DailyHoroscopeContent {
   date: string;
   headline: string;
   overall: string;
-  rating: number; // 1-5
   career: string;
   love: string;
-  health: string;
   finance: string;
+  advice: string;
+  /** The weekday's ruling planet and its traditional colour and number: the same for everyone today. */
+  dayLord: string;
   luckyColor: string;
   luckyNumber: number;
-  advice: string;
 }
 
-function clampRating(r: any): number {
-  const n = Math.round(Number(r));
-  return Number.isFinite(n) ? Math.min(5, Math.max(1, n)) : 3;
+// Vara: the weekday lord and its traditional colour and number (Sunday first).
+const VARA = [
+  { lord: "Sun", color: "Orange", number: 1 },
+  { lord: "Moon", color: "White", number: 2 },
+  { lord: "Mars", color: "Red", number: 9 },
+  { lord: "Mercury", color: "Green", number: 5 },
+  { lord: "Jupiter", color: "Yellow", number: 3 },
+  { lord: "Venus", color: "Light blue", number: 6 },
+  { lord: "Saturn", color: "Dark blue", number: 8 },
+];
+export function varaFor(dateStr: string) {
+  return VARA[new Date(`${dateStr}T12:00:00Z`).getUTCDay()];
 }
 
-function templatedDaily(dateStr: string, bd: ReportBirthDetails, currentMd?: ReportDashaPeriod): DailyHoroscopeContent {
-  return {
-    date: dateStr,
-    headline: "Steady progress today",
-    overall: `With your Moon in ${bd.moonSign || "your sign"}${currentMd ? ` and the ${currentMd.planet} Mahadasha active` : ""}, today favours measured, deliberate action over haste.`,
-    rating: 3,
-    career: "Focus on one priority task; avoid scattering your energy.",
-    love: "A calm, honest conversation strengthens a key relationship.",
-    health: "Balance activity with rest and keep hydrated.",
-    finance: "A good day to plan and review rather than make big purchases.",
-    luckyColor: "Yellow",
-    luckyNumber: 5,
-    advice: "Begin the day with a few minutes of stillness before acting.",
-  };
-}
+const DAILY_FIELDS = ["headline", "overall", "career", "love", "finance", "advice"] as const;
 
+/**
+ * Today's card from the person's chart and today's transits. Every field is checked against the
+ * chart (one regeneration with the problems listed); null when no AI is configured or the card
+ * cannot be made consistent — nothing templated is shown in its place. Health is not predicted.
+ */
 export async function generateDailyHoroscope(
   kundli: Partial<Kundli>,
   dateStr: string,
   language?: string,
-): Promise<DailyHoroscopeContent> {
-  const { birthDetails, dashaTimeline } = deriveStructured(kundli);
-  const currentMd = dashaTimeline.find((d) => d.status === "current");
-  const lang = language && language.trim().toLowerCase() !== "english" ? language.trim() : null;
-
-  if (!process.env.OPENAI_API_KEY) {
-    return templatedDaily(dateStr, birthDetails, currentMd);
-  }
+): Promise<DailyHoroscopeContent | null> {
+  if (!process.env.OPENAI_API_KEY) return null;
+  const canonical = (kundli as any).chartData?.canonical;
+  if (!isCurrentCanonicalChart(canonical)) return null;
+  const asOf = new Date(`${dateStr}T06:00:00Z`);
+  const transits = transitSummary(transitsForChart(canonical, (kundli as any).chartData?.ashtakavarga?.sav, asOf));
+  const guard: ReportGuard = { chart: canonical, factsText: `${chartSummary(kundli)}\nToday: ${dateStr}.`, transits, asOf };
+  const vara = varaFor(dateStr);
 
   try {
     const client = getClient();
-    const dashaCtx = currentMd
-      ? `, currently running the ${currentMd.planet} Mahadasha${currentMd.currentAntardasha ? ` / ${currentMd.currentAntardasha.planet} Antardasha` : ""}`
-      : "";
-    const prompt = `You are an expert Vedic astrologer writing today's PERSONALISED daily horoscope for ${dateStr}. Base it specifically on this person's chart — ${birthDetails.ascendant ? `Lagna ${birthDetails.ascendant}, ` : 'Lagna not known (birth time approximate: do not mention the Lagna or houses), '}Moon ${birthDetails.moonSign || "—"}, Sun ${birthDetails.sunSign || "—"}${dashaCtx}. Make it specific and actionable for today — not generic sun-sign text.${lang ? ` Write every text field in ${lang}.` : ""}
+    let correction = "";
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const prompt = `You are a Vedic astrologer writing today's personal card for ${dateStr} from the chart facts and today's transits below. Be specific and practical for today; describe tendencies, not certainties. Never mention health, illness or lifespan. Use only the facts given; never invent a placement, yoga, dosha, period or date.
 
-Return ONLY valid JSON: {"headline":"short uplifting headline","overall":"2-3 sentence personalised summary for today","rating":<integer 1-5>,"career":"1-2 sentences","love":"1-2 sentences","health":"1-2 sentences","finance":"1-2 sentences","luckyColor":"a colour","luckyNumber":<integer 1-9>,"advice":"one practical tip for today"}`;
+Chart facts:
+${chartSummary(kundli)}
 
-    const response = await client.chat.completions.create({
-      model: "gpt-4o-mini",
-      messages: [{ role: "user", content: prompt }],
-      response_format: { type: "json_object" },
-      max_tokens: 700,
-    });
-    const parsed = JSON.parse(response.choices[0]?.message?.content || "{}");
-    return {
-      date: dateStr,
-      headline: parsed.headline || "Your day ahead",
-      overall: parsed.overall || "",
-      rating: clampRating(parsed.rating),
-      career: parsed.career || "",
-      love: parsed.love || "",
-      health: parsed.health || "",
-      finance: parsed.finance || "",
-      luckyColor: parsed.luckyColor || "—",
-      luckyNumber: Number(parsed.luckyNumber) || 1,
-      advice: parsed.advice || "",
-    };
+Today's transits (Gochar):
+${transits}${correction ? `\n\n${correction}` : ""}
+
+Return ONLY valid JSON: {"headline":"short headline","overall":"2-3 sentences for today","career":"1-2 sentences","love":"1-2 sentences","finance":"1-2 sentences","advice":"one practical tip for today"}`;
+      const response = await client.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: [{ role: "user", content: prompt }],
+        response_format: { type: "json_object" },
+        max_tokens: 700,
+      });
+      const parsed = JSON.parse(response.choices[0]?.message?.content || "{}");
+      const rejected = DAILY_FIELDS.map((k) => ({ heading: k, problems: textProblems(String(parsed[k] ?? ""), guard, k === "overall" ? 40 : 10) }))
+        .filter((r) => r.problems.length);
+      if (!rejected.length) {
+        const card: DailyHoroscopeContent = {
+          date: dateStr,
+          ...(Object.fromEntries(DAILY_FIELDS.map((k) => [k, String(parsed[k]).trim()])) as Record<(typeof DAILY_FIELDS)[number], string>),
+          dayLord: vara.lord,
+          luckyColor: vara.color,
+          luckyNumber: vara.number,
+        };
+        return localiseFields(card, [...DAILY_FIELDS], language);
+      }
+      correction = correctionNote(rejected);
+    }
+    console.warn("[daily-horoscope] card failed the chart check twice; none shown today");
+    return null;
   } catch (err) {
-    console.error("[daily-horoscope] generation failed, using fallback:", err);
-    return templatedDaily(dateStr, birthDetails, currentMd);
+    console.error("[daily-horoscope] generation failed:", err);
+    return null;
   }
 }
 

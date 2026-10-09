@@ -18,6 +18,7 @@ const FABRICATIONS: Array<[string, RegExp]> = [
   ['a default price', /pricePerMinute\s*(\|\||\?\?)\s*'?[1-9]/i],
   ['a default compatibility score', /Score\s*(\|\||\?\?)\s*[1-9]/],
   ['an audience claim', /thousands of|lakhs of|millions of/i],
+  ['a fixed star rating', /stars:\s*[1-5]\b/],
 ];
 
 describe('the client shows no invented figures', () => {
