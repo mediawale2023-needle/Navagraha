@@ -452,10 +452,10 @@ export default function AIAstrologer() {
           )}
           <div ref={bottomRef} />
 
-          {/* The docked composer (Direction 3): sits above the mobile tab bar. */}
+          {/* The docked composer (Direction 3): above the mobile tab bar, or above the keyboard while typing. */}
           <form
             onSubmit={(e) => { e.preventDefault(); sendMessage(); }}
-            className="sticky bottom-[var(--tabbar-height)] mt-auto flex flex-col gap-1.5 bg-background pb-3 pt-3 md:bottom-0 md:pb-[26px]"
+            className="sticky bottom-[var(--dock-bottom)] mt-auto flex flex-col gap-1.5 bg-background pb-3 pt-3 md:bottom-0 md:pb-[26px]"
           >
             <div className="flex gap-2 overflow-x-auto pb-1">
               {LIFE_AREA_PROMPTS.map((a) => (

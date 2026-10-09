@@ -50,7 +50,7 @@ describe('Ask page', () => {
     expect(ask).not.toMatch(/label: 'Health'/);
   });
   it('keeps the composer above the mobile tab bar and the answer card on the evidence packet', () => {
-    expect(ask).toContain('bottom-[var(--tabbar-height)]');
+    expect(ask).toContain('bottom-[var(--dock-bottom)]');
     expect(ask).toContain('evidence={msg.evidence}');
   });
 });

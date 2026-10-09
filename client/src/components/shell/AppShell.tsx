@@ -3,10 +3,12 @@ import { useLocation } from 'wouter';
 import { TopNav } from './TopNav';
 import { TabBar } from './TabBar';
 import { isPortalPath } from './navigation';
+import { useKeyboardInset } from '@/lib/keyboard';
 
 /** The single application shell: navy band on desktop, navy tab bar on mobile. */
 export function AppShell({ children }: { children: ReactNode }) {
   const [path] = useLocation();
+  useKeyboardInset();
   if (isPortalPath(path)) return <>{children}</>;
   return (
     <div className="flex min-h-screen flex-col bg-background">
