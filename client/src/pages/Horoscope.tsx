@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useRoute, Link } from "wouter";
-import { Loader2, Star, ChevronRight, ArrowLeft, Heart, TrendingUp, Activity } from "lucide-react";
+import { Loader2, Star, ChevronRight, ArrowLeft, Heart, TrendingUp } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -14,18 +14,18 @@ interface PersonalDailyData {
   limitedReason?: string;
   date?: string;
   person?: string;
+  unavailable?: boolean;
   content?: {
     headline: string;
     overall: string;
-    rating: number;
     career: string;
     love: string;
-    health: string;
     finance: string;
+    advice: string;
+    dayLord?: string;
     luckyColor: string;
     luckyNumber: number;
-    advice: string;
-  };
+  } | null;
 }
 
 function PersonalDaily() {
@@ -64,11 +64,21 @@ function PersonalDaily() {
     );
   }
   const c = data.content;
-  if (!c) return null;
+  if (!c) {
+    return data.unavailable ? (
+      <Card className="yantra-card mb-6 border-primary/25" data-testid="card-daily-unavailable">
+        <CardContent className="p-5 flex items-center justify-between gap-3">
+          <p className="text-sm text-muted-foreground">Today's personal card isn't ready yet. Ask your Kundli anything about today in the meantime.</p>
+          <Link href="/ai-astrologer?q=What%20does%20today%20hold%20for%20me%3F">
+            <Button variant="outline" className="shrink-0 rounded-[9px]">Ask about today</Button>
+          </Link>
+        </CardContent>
+      </Card>
+    ) : null;
+  }
   const areas = [
     { Icon: TrendingUp, label: "Career", v: c.career },
     { Icon: Heart, label: "Love", v: c.love },
-    { Icon: Activity, label: "Health", v: c.health },
     { Icon: Star, label: "Finance", v: c.finance },
   ];
   return (
@@ -78,13 +88,7 @@ function PersonalDaily() {
           <span className="yantra-eyebrow text-[var(--primary-border)]">
             Your Day{data.person ? ` · ${data.person}` : ""}
           </span>
-          {c.rating ? (
-            <div className="flex items-center gap-0.5" aria-label={`${c.rating} of 5`}>
-              {[1, 2, 3, 4, 5].map((n) => (
-                <Star key={n} className={`w-3.5 h-3.5 ${n <= c.rating ? "text-nava-amber fill-nava-amber" : "text-muted-foreground/30"}`} />
-              ))}
-            </div>
-          ) : null}
+
         </div>
         <h2 className="text-lg font-bold text-foreground">{c.headline}</h2>
         <p className="text-sm text-foreground/90 mt-1 leading-relaxed">{c.overall}</p>
@@ -101,8 +105,9 @@ function PersonalDaily() {
           )}
         </div>
         <div className="flex flex-wrap items-center gap-2 mt-4">
-          {c.luckyColor && <Badge className="bg-primary/15 text-[var(--primary-border)] border-0">Lucky colour: {c.luckyColor}</Badge>}
-          {c.luckyNumber != null && <Badge className="bg-nava-magenta/10 text-nava-magenta border-0">Lucky number: {c.luckyNumber}</Badge>}
+          {c.dayLord && <Badge className="bg-muted text-muted-foreground border-0" title="The weekday's ruling planet; its colour and number are the same for everyone today.">Day of {c.dayLord}</Badge>}
+          {c.luckyColor && <Badge className="bg-primary/15 text-[var(--primary-border)] border-0">Colour: {c.luckyColor}</Badge>}
+          {c.luckyNumber != null && <Badge className="bg-nava-magenta/10 text-nava-magenta border-0">Number: {c.luckyNumber}</Badge>}
         </div>
         {c.advice && <p className="text-sm italic text-muted-foreground mt-3">Today's tip — {c.advice}</p>}
       </CardContent>
@@ -197,25 +202,6 @@ function HoroscopeDetail({ sign }: { sign: (typeof ZODIAC_SIGNS)[0] }) {
               </span>
             </div>
             <p className="text-foreground leading-relaxed whitespace-pre-line">{data.prediction}</p>
-
-            {/* Insights Grid */}
-            <div className="grid grid-cols-3 gap-3 mt-6 pt-4 border-t border-border">
-              {[
-                { icon: Heart, label: 'Love', stars: 4, color: 'text-nava-magenta' },
-                { icon: TrendingUp, label: 'Career', stars: 3, color: 'text-nava-amber' },
-                { icon: Activity, label: 'Health', stars: 4, color: 'text-nava-teal' },
-              ].map(({ icon: Icon, label, stars, color }) => (
-                <div key={label} className="rounded-[8px] bg-background p-3 text-center">
-                  <Icon className={`w-4 h-4 ${color} mx-auto mb-2`} />
-                  <p className="text-[10px] font-semibold text-muted-foreground mb-2">{label}</p>
-                  <div className="flex gap-0.5 justify-center">
-                    {Array.from({ length: 5 }).map((_, i) => (
-                      <Star key={i} className={`w-2.5 h-2.5 ${i < stars ? 'fill-nava-amber text-nava-amber' : 'text-border'}`} />
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
 
             {data.lucky && (
               <div className="mt-4 pt-4 border-t border-border">

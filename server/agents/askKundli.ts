@@ -178,7 +178,6 @@ export interface AskOptions {
 async function callExplainer(packet: EvidencePacket, question: string, opts: AskOptions, correction?: string[]): Promise<string | null> {
   const ai = getClient();
   if (!ai) return null;
-  const lang = opts.language && opts.language.toLowerCase() !== 'english' ? `\nWrite the answer in natural, fluent ${opts.language}; planet, sign and dasha names may stay recognisable.` : '';
   const memory = opts.memories?.length ? `\nWhat we know about this person from earlier conversations (personalise; do not recite):\n${opts.memories.map((m) => `- ${m}`).join('\n')}` : '';
   const fix = correction?.length ? `\nYour previous draft contradicted the chart: ${correction.join('; ')}. Use only the supplied facts.` : '';
   const resp = await ai.chat.completions.create({
@@ -186,7 +185,8 @@ async function callExplainer(packet: EvidencePacket, question: string, opts: Ask
     temperature: 0.3,
     max_tokens: 900,
     messages: [
-      { role: 'system', content: `${EXPLAINER_RULES}${lang}` },
+      // Always English: the guard reads English. Other languages are translated after checking (localise.ts).
+      { role: 'system', content: EXPLAINER_RULES },
       ...(opts.history ?? []).slice(-6),
       { role: 'user', content: `${packet.text}${memory}${fix}\n\nQUESTION: ${question}` },
     ],

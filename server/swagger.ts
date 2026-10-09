@@ -1,6 +1,6 @@
 import swaggerJsdoc from 'swagger-jsdoc';
 import swaggerUi from 'swagger-ui-express';
-import { type Express } from 'express';
+import { type Express, type RequestHandler } from 'express';
 
 const options = {
   definition: {
@@ -22,8 +22,10 @@ const options = {
 
 export const swaggerSpec = swaggerJsdoc(options);
 
-export function setupSwagger(app: Express) {
-  app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
+/** In production the docs are for admins only; they map every route, including admin ones. */
+export function setupSwagger(app: Express, adminOnly: RequestHandler) {
+  const guard: RequestHandler = process.env.NODE_ENV === 'production' ? adminOnly : (_req, _res, next) => next();
+  app.use('/api-docs', guard, swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
     explorer: true,
     customCss: '.swagger-ui .topbar { display: none }',
   }));
