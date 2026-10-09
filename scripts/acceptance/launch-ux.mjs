@@ -163,10 +163,8 @@ async function run(browser, label, viewport) {
   await page.goto(`${BASE}/kundli/new`, { waitUntil: 'networkidle' });
   await check('F08a', 'unpicked birth place is reported on the field, not as raw JSON', async () => {
     await page.getByPlaceholder(/full name/i).fill('Acceptance Person');
-    await page.getByRole('button', { name: /continue/i }).first().click();
     await page.locator('input[type="date"]').fill('1992-05-13');
     await page.locator('input[type="time"]').fill('06:30');
-    await page.getByRole('button', { name: /continue/i }).first().click();
     await page.getByPlaceholder(/city|place|location/i).first().fill('Pune');
     await page.getByRole('button', { name: /generate|create/i }).last().click();
     await page.getByText(/pick your exact birth place/i).first().waitFor({ timeout: 8000 });

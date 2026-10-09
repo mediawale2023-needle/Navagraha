@@ -42,7 +42,7 @@ const MORE: MoreItem[] = [
   { label: 'Astromall', href: '/store' },
   { label: 'Pooja', href: '/pooja' },
   { label: 'Wallet', href: '/wallet' },
-  { label: 'Profile', href: '/profile' },
+  { label: 'Account', href: '/profile' },
 ];
 
 export function moreItems(marketplace: boolean, desktop: boolean): MoreItem[] {
