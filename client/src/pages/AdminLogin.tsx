@@ -120,8 +120,9 @@ export default function AdminLogin() {
 
           <p className="text-xs text-center text-muted-foreground mt-6">
             Admin access is granted by adding your email to the <code className="font-mono">ADMIN_EMAILS</code> server
-            variable. Don't have an account yet?{' '}
-            <Link href="/" className="underline hover:text-foreground">Create one here</Link>, then return.
+            variable. Admin addresses cannot be self-registered: the bootstrap admin comes from{' '}
+            <code className="font-mono">ADMIN_EMAIL</code> + <code className="font-mono">ADMIN_PASSWORD</code>, and other
+            admins{' '}<Link href="/" className="underline hover:text-foreground">sign in with Google</Link>.
           </p>
         </div>
       </div>
