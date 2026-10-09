@@ -12,10 +12,8 @@ import { useToast } from '@/hooks/use-toast';
 import { apiRequest } from '@/lib/queryClient';
 import { isApiError } from '@/lib/apiError';
 import { prefillFromSearch } from '@/lib/recreateChart';
-import { ArrowLeft, Calendar, Clock, User, Loader2, Sparkles, Check, HelpCircle, Info } from 'lucide-react';
-import { Link } from 'wouter';
+import { Loader2 } from 'lucide-react';
 import { PlacesAutocomplete } from '@/components/PlacesAutocomplete';
-import { TrustBadge } from '@/components/TrustBadge';
 import { PageHeader } from '@/components/shell/PageHeader';
 
 const kundliFormSchema = z.object({
@@ -30,7 +28,6 @@ type KundliFormData = z.infer<typeof kundliFormSchema>;
 
 export default function KundliNew() {
   const [, setLocation] = useLocation();
-  const [step, setStep] = useState(1);
   const [coordinates, setCoordinates] = useState<{ lat: number; lng: number } | null>(null);
   const [isBirthTimeApproximate, setIsBirthTimeApproximate] = useState(false);
   const { toast } = useToast();
@@ -60,10 +57,6 @@ export default function KundliNew() {
     },
     onSuccess: (data: any) => {
       queryClient.invalidateQueries({ queryKey: ['/api/kundli'] });
-      toast({
-        title: 'Kundli Generated!',
-        description: 'Your birth chart has been created successfully.',
-      });
       if (data.id) {
         setLocation(`/kundli/${data.id}`);
       } else {
@@ -73,7 +66,6 @@ export default function KundliNew() {
     },
     onError: (error: Error) => {
       if (isApiError(error) && error.field === 'placeOfBirth') {
-        setStep(3);
         form.setError('placeOfBirth', { message: error.message });
         return;
       }
@@ -89,329 +81,129 @@ export default function KundliNew() {
     mutation.mutate(data);
   };
 
-  const nextStep = () => {
-    const fieldsToValidate: (keyof KundliFormData)[] =
-      step === 1 ? ['name', 'gender'] :
-        step === 2 ? ['dateOfBirth', 'timeOfBirth'] :
-          ['placeOfBirth'];
-
-    form.trigger(fieldsToValidate).then((isValid) => {
-      if (isValid) {
-        setStep(step + 1);
-      }
-    });
-  };
-
   const handleUnknownTimeClick = () => {
     setIsBirthTimeApproximate(true);
-    form.setValue('timeOfBirth', '06:00');
-    toast({
-      title: 'Approximate Birth Time Applied',
-      description: 'Using 6:00 AM as a placeholder. This is not calculated sunrise; houses and Ascendant may be unreliable.',
-    });
+    form.setValue('timeOfBirth', '06:00', { shouldValidate: true });
   };
 
-  const stepLabels = ['Personal', 'Date & Time', 'Location'];
-
+  const label = 'text-sm font-semibold text-ink';
   return (
     <div>
-      <PageHeader title="New Kundli" gloss="कुण्डली" sub="Calculated with Swiss Ephemeris and Lahiri ayanamsa" back={{ href: "/kundli", label: "Kundli" }} width="max-w-3xl" />
+      <PageHeader title="New Kundli" gloss="कुण्डली" sub="Swiss Ephemeris · Lahiri ayanamsa · whole-sign houses" back={{ href: "/kundli", label: "Kundli" }} width="max-w-3xl" />
 
-      <div className="max-w-3xl mx-auto px-4 pt-6 md:px-10">
-        {/* Step Progress Indicator */}
-        <div className="flex items-center justify-center mb-8">
-          {[1, 2, 3].map((s) => (
-            <div key={s} className="flex items-center">
-              <div className="flex flex-col items-center">
-                <div className={`flex h-10 w-10 items-center justify-center rounded-[6px] font-semibold transition-all ${
-                  s === step
-                    ? 'bg-ink text-primary ring-2 ring-ink ring-offset-2 ring-offset-background'
-                    : s < step
-                      ? 'bg-green-600 text-white'
-                      : 'bg-muted text-muted-foreground'
-                }`}>
-                  {s < step ? <Check className="w-5 h-5" /> : s}
-                </div>
-                <span className={`text-xs mt-1.5 font-medium ${
-                  s === step ? 'text-amber-text' : s < step ? 'text-green-600' : 'text-muted-foreground'
-                }`}>
-                  {stepLabels[s - 1]}
-                </span>
-              </div>
-              {s < 3 && (
-                <div className={`w-12 h-1 mx-3 rounded-full mb-5 ${
-                  s < step ? 'bg-green-600' : 'bg-muted'
-                }`} />
-              )}
+      <div className="mx-auto w-full max-w-3xl px-4 py-4 md:px-10 md:py-8">
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col gap-5 rounded-lg border border-line bg-surface p-4 md:p-[22px]" data-testid="form-kundli">
+            <div className="grid gap-5 md:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
+              <FormField
+                control={form.control}
+                name="name"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className={label}>Name</FormLabel>
+                    <FormControl><Input placeholder="Enter your full name" autoComplete="name" {...field} /></FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="gender"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className={label}>Gender</FormLabel>
+                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                      <FormControl><SelectTrigger><SelectValue placeholder="Select gender" /></SelectTrigger></FormControl>
+                      <SelectContent>
+                        <SelectItem value="male">Male</SelectItem>
+                        <SelectItem value="female">Female</SelectItem>
+                        <SelectItem value="other">Other</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
             </div>
-          ))}
-        </div>
 
-        {/* Form Card */}
-        <div className="yantra-card mb-6 p-6">
-          <div className="mb-6">
-            <div className="flex items-center justify-between mb-2">
-              <h2 className="font-display text-2xl text-foreground">
-                {step === 1 ? 'Personal Details' : step === 2 ? 'Birth Date & Time' : 'Birth Place'}
-              </h2>
-              <TrustBadge variant="calculated" />
+            <div className="grid gap-5 md:grid-cols-2">
+              <FormField
+                control={form.control}
+                name="dateOfBirth"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className={label}>Date of birth</FormLabel>
+                    <FormControl><Input type="date" {...field} /></FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="timeOfBirth"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className={label}>Time of birth</FormLabel>
+                    <FormControl>
+                      <Input
+                        type="time"
+                        {...field}
+                        onChange={(event) => {
+                          field.onChange(event);
+                          setIsBirthTimeApproximate(false);
+                        }}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                    {isBirthTimeApproximate ? (
+                      <p className="text-sm text-amber-text" data-testid="approximate-time-note">
+                        Birth time is approximate: 6:00 AM is a placeholder, not calculated sunrise.
+                        The Lagna, houses and exact dasha dates will be withheld. Enter a known time to clear this.
+                      </p>
+                    ) : (
+                      <button type="button" onClick={handleUnknownTimeClick} className="self-start text-sm underline hover:text-amber-text">
+                        I don’t know the exact birth time
+                      </button>
+                    )}
+                  </FormItem>
+                )}
+              />
             </div>
-            <p className="text-sm text-muted-foreground">
-              {step === 1
-                ? 'Enter your name and gender to get started'
-                : step === 2
-                  ? 'Provide your exact birth date and time'
-                  : 'Enter your place of birth for accurate calculations'}
-            </p>
-          </div>
 
-          <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-              {/* Step 1: Personal Details */}
-              {step === 1 && (
-                <div className="space-y-6">
-                  <FormField
-                    control={form.control}
-                    name="name"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Full Name</FormLabel>
-                        <FormControl>
-                          <div className="relative">
-                            <User className="absolute left-3 top-3 w-5 h-5 text-muted-foreground" />
-                            <Input
-                              placeholder="Enter your full name"
-                              className="bg-input-background pl-10 rounded-[10px]"
-                              {...field}
-                            />
-                          </div>
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name="gender"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Gender</FormLabel>
-                        <Select onValueChange={field.onChange} defaultValue={field.value}>
-                          <FormControl>
-                            <SelectTrigger className="bg-input-background rounded-[10px]">
-                              <SelectValue placeholder="Select gender" />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            <SelectItem value="male">Male</SelectItem>
-                            <SelectItem value="female">Female</SelectItem>
-                            <SelectItem value="other">Other</SelectItem>
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <Button
-                    type="button"
-                    onClick={nextStep}
-                    className="w-full rounded-[9px] bg-primary text-primary-foreground hover:bg-primary/90"
-                  >
-                    Continue →
-                  </Button>
-                </div>
+            <FormField
+              control={form.control}
+              name="placeOfBirth"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel className={label}>Place of birth</FormLabel>
+                  <FormControl>
+                    <PlacesAutocomplete
+                      value={field.value}
+                      onChange={(value) => {
+                        field.onChange(value);
+                        setCoordinates(null);
+                      }}
+                      onPlaceSelect={(place) => {
+                        setCoordinates({ lat: place.lat, lng: place.lng });
+                      }}
+                      placeholder="City, State, Country"
+                    />
+                  </FormControl>
+                  <FormMessage />
+                  <p className="text-caption text-ink-muted">Pick the town from the list: its coordinates and historical time zone fix the chart.</p>
+                </FormItem>
               )}
+            />
 
-              {/* Step 2: Birth Date & Time */}
-              {step === 2 && (
-                <div className="space-y-6">
-                  <FormField
-                    control={form.control}
-                    name="dateOfBirth"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Date of Birth</FormLabel>
-                        <FormControl>
-                          <div className="relative">
-                            <Calendar className="absolute left-3 top-3 w-5 h-5 text-muted-foreground" />
-                            <Input
-                              type="date"
-                              className="bg-input-background pl-10 rounded-[10px]"
-                              {...field}
-                            />
-                          </div>
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name="timeOfBirth"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Time of Birth</FormLabel>
-                        <FormControl>
-                          <div className="relative">
-                            <Clock className="absolute left-3 top-3 w-5 h-5 text-muted-foreground" />
-                            <Input
-                              type="time"
-                              className="bg-input-background pl-10 rounded-[10px]"
-                              {...field}
-                              onChange={(event) => {
-                                field.onChange(event);
-                                setIsBirthTimeApproximate(false);
-                              }}
-                            />
-                          </div>
-                        </FormControl>
-                        <FormMessage />
-                        {isBirthTimeApproximate && (
-                          <p className="mt-2 text-sm text-muted-foreground">
-                            Birth time is approximate: 6:00 AM is a placeholder, not calculated sunrise.
-                            Ascendant and house positions may be unreliable. Enter a known time to clear this option.
-                          </p>
-                        )}
-                        {!isBirthTimeApproximate && (
-                          <button
-                            type="button"
-                            onClick={handleUnknownTimeClick}
-                            className="mt-2 inline-flex items-center gap-2 border-b border-foreground pb-0.5 text-sm font-semibold text-foreground"
-                          >
-                            <HelpCircle className="w-4 h-4" />
-                            I don’t know the exact birth time
-                          </button>
-                        )}
-                      </FormItem>
-                    )}
-                  />
-
-                  <div className="rounded-[10px] border border-primary/25 bg-primary/10 p-4">
-                    <div className="flex items-start gap-3">
-                      <Info className="mt-0.5 h-5 w-5 flex-shrink-0 text-amber-text" />
-                      <div>
-                        <p className="text-sm font-semibold text-amber-text">
-                          Why birth time matters
-                        </p>
-                        <p className="mt-1 text-xs text-amber-text/80">
-                          Exact birth time affects Moon sign and house positions.
-                          Even 4 minutes can change your Ascendant.
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="flex gap-4">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={() => setStep(1)}
-                      className="flex-1 rounded-[9px]"
-                    >
-                      ← Back
-                    </Button>
-                    <Button
-                      type="button"
-                      onClick={nextStep}
-                      className="flex-1 rounded-[9px] bg-primary text-primary-foreground hover:bg-primary/90"
-                    >
-                      Continue →
-                    </Button>
-                  </div>
-                </div>
-              )}
-
-              {/* Step 3: Birth Place */}
-              {step === 3 && (
-                <div className="space-y-6">
-                  <FormField
-                    control={form.control}
-                    name="placeOfBirth"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Place of Birth</FormLabel>
-                        <FormControl>
-                          <PlacesAutocomplete
-                            value={field.value}
-                            onChange={(value) => {
-                              field.onChange(value);
-                              setCoordinates(null);
-                            }}
-                            onPlaceSelect={(place) => {
-                              setCoordinates({ lat: place.lat, lng: place.lng });
-                            }}
-                            placeholder="City, State, Country"
-                            className="bg-input-background rounded-[10px]"
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <div className="rounded-[10px] border border-border bg-card p-4">
-                    <div className="flex items-start gap-3">
-                      <Info className="mt-0.5 h-5 w-5 flex-shrink-0 text-amber-text" />
-                      <div>
-                        <p className="text-sm font-semibold text-foreground">
-                          Accuracy Note
-                        </p>
-                        <p className="mt-1 text-xs text-muted-foreground">
-                          Accurate birth details are essential for precise astrological calculations.
-                          Please verify all information before generating your chart.
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="flex gap-4">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={() => setStep(2)}
-                      className="flex-1 rounded-[9px]"
-                    >
-                      ← Back
-                    </Button>
-                    <Button
-                      type="submit"
-                      className="flex-1 rounded-[9px] bg-primary text-primary-foreground hover:bg-primary/90"
-                      disabled={mutation.isPending}
-                    >
-                      {mutation.isPending ? (
-                        <>
-                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                          Generating...
-                        </>
-                      ) : (
-                        <>
-                          <Sparkles className="w-4 h-4 mr-2" />
-                          Generate Kundli
-                        </>
-                      )}
-                    </Button>
-                  </div>
-                </div>
-              )}
-            </form>
-          </Form>
-        </div>
-
-        {/* Trust Indicators */}
-        <div className="text-center">
-          <p className="text-xs text-muted-foreground flex items-center justify-center gap-2">
-            <Check className="w-3.5 h-3.5 text-green-600" />
-            Calculated using Swiss Ephemeris
-            <span className="mx-1">•</span>
-            <Check className="w-3.5 h-3.5 text-green-600" />
-            Lahiri Ayanamsa
-          </p>
-        </div>
+            <div className="flex flex-col gap-3 border-t border-hairline pt-4 md:flex-row md:items-center md:justify-between">
+              <p className="text-sm text-ink-muted">Four minutes of birth time can move the Lagna; enter it as exactly as you know it.</p>
+              <Button type="submit" disabled={mutation.isPending} className="shrink-0" data-testid="button-generate-kundli">
+                {mutation.isPending ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Calculating…</> : 'Generate Kundli'}
+              </Button>
+            </div>
+          </form>
+        </Form>
       </div>
-
     </div>
   );
 }

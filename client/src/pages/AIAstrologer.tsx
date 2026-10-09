@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from "react";
+import { scrollBehavior } from "@/lib/motion";
 import type { KundliInsights } from '@shared/v3/evidence';
 import { selectRunningPeriods } from '@/lib/runningPeriods';
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -206,7 +207,7 @@ export default function AIAstrologer() {
   }, [selectedKundliId, sessionId, queryClient]);
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    bottomRef.current?.scrollIntoView({ behavior: scrollBehavior() });
   }, [messages]);
 
   const chatMutation = useMutation({
@@ -307,7 +308,7 @@ export default function AIAstrologer() {
   const runningForCard = running ? { maha: running.maha, antar: running.antar, showDates: running.showDates } : null;
   const openTerm = (t: GlossaryEntry) => {
     setActiveTerm(t);
-    document.getElementById(`term-${t.term}`)?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    document.getElementById(`term-${t.term}`)?.scrollIntoView({ behavior: scrollBehavior(), block: 'nearest' });
   };
 
   return (
@@ -452,10 +453,10 @@ export default function AIAstrologer() {
           )}
           <div ref={bottomRef} />
 
-          {/* The docked composer (Direction 3): sits above the mobile tab bar. */}
+          {/* The docked composer (Direction 3): above the mobile tab bar, or above the keyboard while typing. */}
           <form
             onSubmit={(e) => { e.preventDefault(); sendMessage(); }}
-            className="sticky bottom-[var(--tabbar-height)] mt-auto flex flex-col gap-1.5 bg-background pb-3 pt-3 md:bottom-0 md:pb-[26px]"
+            className="sticky bottom-[var(--dock-bottom)] mt-auto flex flex-col gap-1.5 bg-background pb-3 pt-3 md:bottom-0 md:pb-[26px]"
           >
             <div className="flex gap-2 overflow-x-auto pb-1">
               {LIFE_AREA_PROMPTS.map((a) => (
@@ -493,7 +494,7 @@ export default function AIAstrologer() {
               <h2 id="ask-recent" className="m-0 font-display text-card-title font-semibold">Recent questions</h2>
               <ul className="m-0 flex list-none flex-col gap-1.5 p-0 text-sm">
                 {recentQuestions.map((m) => (
-                  <li key={m.id}><button type="button" onClick={() => document.getElementById(`q-${m.id}`)?.scrollIntoView({ behavior: 'smooth' })} className="text-left underline decoration-line underline-offset-2 hover:text-amber-text">{m.content}</button></li>
+                  <li key={m.id}><button type="button" onClick={() => document.getElementById(`q-${m.id}`)?.scrollIntoView({ behavior: scrollBehavior() })} className="text-left underline decoration-line underline-offset-2 hover:text-amber-text">{m.content}</button></li>
                 ))}
               </ul>
             </section>

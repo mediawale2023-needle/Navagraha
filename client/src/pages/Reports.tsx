@@ -2,13 +2,13 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'wouter';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
 } from '@/components/ui/dialog';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
-import { NorthIndianChartEnhanced } from '@/components/NorthIndianChartEnhanced';
+import { ReportReader } from '@/components/reports/ReportReader';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { PlacesAutocomplete } from '@/components/PlacesAutocomplete';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
@@ -16,8 +16,8 @@ import { apiRequest } from '@/lib/queryClient';
 import { isApiError } from '@/lib/apiError';
 import { BalanceShortfall } from '@/components/BalanceShortfall';
 import { downloadReportPdf, type ReportContent } from '@/lib/reportPdf';
-import { ArrowLeft, FileText, Sparkles, Clock, CheckCircle2, Download } from 'lucide-react';
-import { PageHeader } from '@/components/shell/PageHeader';
+import { Clock } from 'lucide-react';
+import { PageHeader, PageBody } from '@/components/shell/PageHeader';
 
 interface ReportType {
   id: string;
@@ -144,86 +144,91 @@ export default function Reports() {
     <div>
       <PageHeader title="Reports" sub="Written from your own chart, checked before delivery" />
 
-      <div className="w-full max-w-[1320px] mx-auto px-4 md:px-10 py-6">
-        <div className="flex gap-2 mb-6">
-          <Button variant={tab === 'browse' ? 'default' : 'outline'} className={`rounded-[9px] ${tab === 'browse' ? 'bg-ink text-primary hover:bg-ink/90' : ''}`} onClick={() => setTab('browse')} data-testid="tab-browse">Browse</Button>
-          <Button variant={tab === 'mine' ? 'default' : 'outline'} className={`rounded-[9px] ${tab === 'mine' ? 'bg-ink text-primary hover:bg-ink/90' : ''}`} onClick={() => setTab('mine')} data-testid="tab-mine">My Reports</Button>
-        </div>
+      <PageBody className="flex flex-col gap-6">
+        {viewing?.content ? (
+          <ReportReader
+            content={viewing.content}
+            title={viewing.content.title || typeById(viewing.reportTypeId)?.name || viewing.reportName || 'Report'}
+            refunded={!!viewing.refundedAt}
+            downloading={downloading}
+            onDownload={() => handleDownload(viewing.content)}
+            onBack={() => setViewing(null)}
+          />
+        ) : (<>
+        <Tabs value={tab} onValueChange={(v) => setTab(v as 'browse' | 'mine')}>
+          <TabsList aria-label="Reports">
+            <TabsTrigger value="browse" data-testid="tab-browse">Browse</TabsTrigger>
+            <TabsTrigger value="mine" data-testid="tab-mine">My reports</TabsTrigger>
+          </TabsList>
+        </Tabs>
 
         {tab === 'browse' && !reportsAvailable && (
-          <p className="mb-4 rounded-[9px] border border-border bg-muted/50 p-3 text-sm text-muted-foreground" data-testid="text-reports-unavailable">
-            Report preparation is temporarily unavailable, so reports cannot be ordered right now. Your saved reports remain under My Reports.
+          <p className="rounded-md border border-line bg-highlight px-4 py-3 text-sm" data-testid="text-reports-unavailable">
+            Report preparation is temporarily unavailable, so reports cannot be ordered right now. Your saved reports remain under My reports.
           </p>
         )}
         {tab === 'browse' && (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <ul className="m-0 grid list-none grid-cols-1 gap-4 p-0 md:grid-cols-2 lg:grid-cols-3">
             {types?.map((t) => (
-              <Card key={t.id} className="yantra-card flex flex-col" data-testid={`report-${t.slug}`}>
-                <CardContent className="p-5 flex flex-col flex-1">
-                  <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-[8px] bg-primary/20">
-                    <Sparkles className="w-5 h-5 text-amber-text" />
-                  </div>
-                  <p className="font-display text-lg">{t.name}</p>
-                  <p className="text-sm text-muted-foreground mt-1 flex-1">{t.description}</p>
-                  <div className="flex items-center justify-between mt-4">
-                    <span className="text-lg font-bold">₹{parseFloat(t.price).toFixed(0)}</span>
-                    <Button size="sm" className="rounded-[9px] bg-primary text-primary-foreground hover:bg-primary/90" onClick={() => openOrder(t)} disabled={!reportsAvailable} data-testid={`button-order-${t.slug}`}>
-                      {reportsAvailable ? 'Get Report' : 'Unavailable'}
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
+              <li key={t.id} className="flex flex-col gap-2 rounded-lg border border-line bg-surface p-4 md:p-[22px]" data-testid={`report-${t.slug}`}>
+                <h2 className="m-0 font-display text-card-title font-semibold">{t.name}</h2>
+                <p className="flex-1 text-sm text-ink-muted">{t.description}</p>
+                <div className="mt-2 flex items-center justify-between gap-3 border-t border-hairline pt-3">
+                  <span className="font-display text-card-title font-semibold tabular-nums">₹{parseFloat(t.price).toFixed(0)}</span>
+                  <Button onClick={() => openOrder(t)} disabled={!reportsAvailable} data-testid={`button-order-${t.slug}`}>
+                    {reportsAvailable ? 'Get report' : 'Unavailable'}
+                  </Button>
+                </div>
+              </li>
             ))}
-          </div>
+          </ul>
         )}
 
         {tab === 'mine' && (
-          <div className="space-y-3">
+          <div className="flex flex-col gap-3">
             {(!myReports || myReports.length === 0) && (
-              <div className="text-center py-16 text-muted-foreground">
-                <FileText className="w-12 h-12 mx-auto mb-3 opacity-40" />
-                <p>No reports yet.</p>
-              </div>
+              <p className="py-12 text-center text-ink-muted">No reports yet.</p>
             )}
-            {myReports?.map((r) => {
-              const t = typeById(r.reportTypeId);
-              return (
-                <Card key={r.id} className="yantra-card" data-testid={`my-report-${r.id}`}>
-                  <CardContent className="p-4 flex items-center justify-between">
-                    <div>
-                      <p className="font-display text-lg">{r.content?.title || t?.name || r.reportName || 'Report'}</p>
-                      {(r.content?.birthDetails?.name || r.subjectName) && (
-                        <p className="text-xs text-foreground/80">
-                          {r.content?.birthDetails?.name || r.subjectName}
-                          {r.content?.birthDetails?.dateOfBirth ? ` · ${r.content.birthDetails.dateOfBirth}` : ''}
-                          {r.content?.birthDetails?.placeOfBirth ? ` · ${r.content.birthDetails.placeOfBirth}` : ''}
-                        </p>
-                      )}
-                      <p className="text-xs text-muted-foreground">{new Date(r.createdAt).toLocaleDateString()} · ₹{parseFloat(r.amount).toFixed(0)}</p>
-                    </div>
-                    {r.status === 'ready' && r.refundedAt ? (
-                      <div className="flex items-center gap-2">
-                        <Badge variant="outline" title="This report did not meet our standard, and what you paid was returned to your wallet.">Refunded</Badge>
-                        <Button size="sm" variant="outline" className="rounded-[9px]" onClick={() => setViewing(r)} data-testid={`button-view-${r.id}`}>View</Button>
+            {myReports && myReports.length > 0 && (
+              <ul className="m-0 list-none overflow-hidden rounded-lg border border-line bg-surface p-0">
+                {myReports.map((r) => {
+                  const t = typeById(r.reportTypeId);
+                  return (
+                    <li key={r.id} className="flex flex-wrap items-center justify-between gap-3 border-b border-hairline px-4 py-3.5 last:border-0 md:px-[22px]" data-testid={`my-report-${r.id}`}>
+                      <div className="flex min-w-0 flex-col gap-0.5">
+                        <p className="font-display text-card-title font-semibold">{r.content?.title || t?.name || r.reportName || 'Report'}</p>
+                        {(r.content?.birthDetails?.name || r.subjectName) && (
+                          <p className="text-sm">
+                            {r.content?.birthDetails?.name || r.subjectName}
+                            {r.content?.birthDetails?.dateOfBirth ? ` · ${r.content.birthDetails.dateOfBirth}` : ''}
+                            {r.content?.birthDetails?.placeOfBirth ? ` · ${r.content.birthDetails.placeOfBirth}` : ''}
+                          </p>
+                        )}
+                        <p className="text-caption tabular-nums text-ink-muted">{new Date(r.createdAt).toLocaleDateString()} · ₹{parseFloat(r.amount).toFixed(0)}</p>
                       </div>
-                    ) : r.status === 'ready' ? (
-                      <Button size="sm" className="rounded-[9px]" onClick={() => setViewing(r)} data-testid={`button-view-${r.id}`}>
-                        <CheckCircle2 className="w-4 h-4 mr-1 text-emerald-600" /> View
-                      </Button>
-                    ) : r.status === 'failed' && r.refundedAt ? (
-                      <Badge variant="outline" title="This report could not be prepared, and what you paid was returned to your wallet.">Not delivered · refunded</Badge>
-                    ) : r.status === 'failed' ? (
-                      <Badge variant="destructive">Failed</Badge>
-                    ) : (
-                      <Badge variant="outline" className="gap-1"><Clock className="w-3 h-3 animate-pulse" /> Preparing…</Badge>
-                    )}
-                  </CardContent>
-                </Card>
-              );
-            })}
+                      {r.status === 'ready' && r.refundedAt ? (
+                        <div className="flex items-center gap-2">
+                          <Badge variant="outline" title="This report did not meet our standard, and what you paid was returned to your wallet.">Refunded</Badge>
+                          <Button variant="outline" onClick={() => setViewing(r)} data-testid={`button-view-${r.id}`}>Read</Button>
+                        </div>
+                      ) : r.status === 'ready' ? (
+                        <Button onClick={() => setViewing(r)} data-testid={`button-view-${r.id}`}>Read</Button>
+                      ) : r.status === 'failed' && r.refundedAt ? (
+                        <Badge variant="outline" title="This report could not be prepared, and what you paid was returned to your wallet.">Not delivered · refunded</Badge>
+                      ) : r.status === 'failed' ? (
+                        <Badge variant="outline" className="text-negative">Failed</Badge>
+                      ) : (
+                        <Badge variant="outline" className="gap-1"><Clock className="h-3 w-3" /> Preparing…</Badge>
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
           </div>
         )}
-      </div>
+        </>)}
+      </PageBody>
 
       {/* Order dialog */}
       <Dialog open={!!selected} onOpenChange={(o) => { if (!o) { setSelected(null); setOrderProblem(null); } }}>
@@ -343,151 +348,6 @@ export default function Reports() {
         </DialogContent>
       </Dialog>
 
-      {/* Report viewer */}
-      <Dialog open={!!viewing} onOpenChange={(o) => !o && setViewing(null)}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="pr-8">{viewing?.content?.title}</DialogTitle>
-          </DialogHeader>
-          {viewing?.content && (
-            <div className="space-y-5">
-              <Button
-                size="sm"
-                className="rounded-[9px] bg-primary text-primary-foreground hover:bg-primary/90"
-                disabled={downloading}
-                onClick={() => handleDownload(viewing.content)}
-                data-testid="button-download-pdf"
-              >
-                <Download className="w-4 h-4 mr-1.5" />
-                {downloading ? 'Preparing PDF…' : 'Download PDF'}
-              </Button>
-
-              {viewing.content.disclosure && (
-                <p className="rounded-xl border border-line bg-highlight p-3 text-xs text-amber-text" data-testid="report-disclosure">{viewing.content.disclosure}</p>
-              )}
-              {/* Birth details */}
-              {viewing.content.birthDetails && (
-                <div className="rounded-xl border border-border/50 p-3 text-sm grid grid-cols-2 gap-x-4 gap-y-1">
-                  {viewing.content.birthDetails.name && <div><span className="text-muted-foreground">Name:</span> {viewing.content.birthDetails.name}</div>}
-                  {viewing.content.birthDetails.dateOfBirth && <div><span className="text-muted-foreground">DOB:</span> {viewing.content.birthDetails.dateOfBirth}</div>}
-                  {viewing.content.birthDetails.timeOfBirth && <div><span className="text-muted-foreground">Time:</span> {viewing.content.birthDetails.timeOfBirth}</div>}
-                  {viewing.content.birthDetails.placeOfBirth && <div><span className="text-muted-foreground">Place:</span> {viewing.content.birthDetails.placeOfBirth}</div>}
-                  {viewing.content.birthDetails.ascendant && <div><span className="text-muted-foreground">Lagna:</span> {viewing.content.birthDetails.ascendant}</div>}
-                  {viewing.content.birthDetails.moonSign && <div><span className="text-muted-foreground">Moon:</span> {viewing.content.birthDetails.moonSign}</div>}
-                </div>
-              )}
-
-              {/* Kundli chart */}
-              {viewing.content.chartData?.planetaryPositions && (
-                <div>
-                  <h3 className="mb-2 font-display text-amber-text">Birth Chart (D1)</h3>
-                  <NorthIndianChartEnhanced chartData={viewing.content.chartData} />
-                </div>
-              )}
-              {viewing.content.chartData?.navamsa?.planetaryPositions && (
-                <div>
-                  <h3 className="font-semibold text-amber-text mb-2">Navamsa (D9)</h3>
-                  <NorthIndianChartEnhanced chartData={viewing.content.chartData.navamsa} />
-                </div>
-              )}
-              {viewing.content.chartData?.dasamsa?.planetaryPositions && (
-                <div>
-                  <h3 className="font-semibold text-amber-text mb-2">Dasamsa (D10) — Career</h3>
-                  <NorthIndianChartEnhanced chartData={viewing.content.chartData.dasamsa} />
-                </div>
-              )}
-
-              {/* Planetary positions */}
-              {viewing.content.planetaryPositions && viewing.content.planetaryPositions.length > 0 && (
-                <div>
-                  <h3 className="mb-2 font-display text-amber-text">Planetary Positions</h3>
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-sm border-collapse">
-                      <thead>
-                        <tr className="bg-primary/10 text-left">
-                          <th className="p-2 font-medium">Planet</th>
-                          <th className="p-2 font-medium">Sign</th>
-                          <th className="p-2 font-medium">House</th>
-                          <th className="p-2 font-medium">Degree</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {viewing.content.planetaryPositions.map((p, i) => (
-                          <tr key={i} className="border-b border-border/40">
-                            <td className="p-2">{p.planet}{p.retrograde ? ' (R)' : ''}</td>
-                            <td className="p-2">{p.sign || '—'}</td>
-                            <td className="p-2">{p.house ?? '—'}</td>
-                            <td className="p-2">{p.degree != null ? `${p.degree}°` : '—'}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              )}
-
-              {/* Dasha timeline */}
-              {viewing.content.dashaTimeline && viewing.content.dashaTimeline.length > 0 && (
-                <div>
-                  <h3 className="mb-2 font-display text-amber-text">Vimshottari Dasha Timeline</h3>
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-sm border-collapse">
-                      <thead>
-                        <tr className="bg-primary/10 text-left">
-                          <th className="p-2 font-medium">Mahadasha</th>
-                          <th className="p-2 font-medium">Period</th>
-                          <th className="p-2 font-medium">Status</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {viewing.content.dashaTimeline.map((d, i) => (
-                          <tr key={i} className={`border-b border-border/40 ${d.status === 'current' ? 'bg-primary/10 font-medium' : ''}`}>
-                            <td className="p-2">{d.planet}</td>
-                            <td className="p-2">{d.period || '—'}</td>
-                            <td className="p-2 capitalize">{d.status || '—'}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              )}
-
-              {/* Ashtakavarga (SAV by house) */}
-              {viewing.content.chartData?.ashtakavarga?.savByHouse?.length === 12 && (
-                <div>
-                  <h3 className="font-semibold text-amber-text mb-2">Ashtakavarga — House Strength (SAV)</h3>
-                  <div className="grid grid-cols-6 gap-1.5">
-                    {viewing.content.chartData.ashtakavarga.savByHouse.map((b: number, i: number) => (
-                      <div key={i} className={`rounded-lg p-2 text-center ${b >= 30 ? 'bg-green-600/15 text-green-700' : b < 25 ? 'bg-red-600/10 text-red-700' : 'bg-muted text-foreground'}`}>
-                        <div className="text-xs text-muted-foreground">H{i + 1}</div>
-                        <div className="text-sm font-bold">{b}</div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Narrative */}
-              {viewing.content.summary && <p className="text-sm text-muted-foreground italic">{viewing.content.summary}</p>}
-              {viewing.content.sections?.map((s, i) => (
-                <div key={i}>
-                  <h3 className="font-display text-amber-text">{s.heading}</h3>
-                  <p className="text-sm whitespace-pre-line mt-1">{s.body}</p>
-                </div>
-              ))}
-              {viewing.content.remedies && viewing.content.remedies.length > 0 && (
-                <div>
-                  <h3 className="font-display text-amber-text">Recommended Remedies</h3>
-                  <ul className="list-disc list-inside text-sm mt-1 space-y-1">
-                    {viewing.content.remedies.map((r, i) => <li key={i}>{r}</li>)}
-                  </ul>
-                </div>
-              )}
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }

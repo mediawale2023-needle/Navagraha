@@ -31,7 +31,7 @@ All values are the existing Navagraha palette or tints of it. Tokens live in `cl
 | `--on-navy-3` | `#c9bd9f` | Labels and captions on navy |
 | `--navy-line` | `#3a3a52` | Dividers on navy, bottom-bar top border |
 | `--navy-control` | `#4a4a66` | Pill and input borders on navy, nakshatra ring strokes |
-| `--positive` | `#0c7f4d` | "For" in evidence |
+| `--positive` | `#0b7848` | "For" in evidence (the mockups use `#0c7f4d`; darkened in Stage 9 to reach 4.5:1 on `--sunken` and `--highlight`) |
 | `--negative` | `#8b1a1a` | "Against" in evidence |
 
 Contrast (WCAG): ink on ground 15.2:1; ink-muted on ground 6.0:1; amber-text on ground 5.3:1; ink
