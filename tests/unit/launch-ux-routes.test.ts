@@ -152,3 +152,25 @@ describe('stored charts are served with current rules', () => {
     expect(res.body.answerSource).toBe('deterministic');
   });
 });
+
+describe('GET /api/horoscope/:sign (Gochara)', () => {
+  it('returns a transit reading for a Rashi', async () => {
+    const res = await request(app).get('/api/horoscope/Mesha?period=weekly&tz=Europe/London');
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ sign: 'aries', rashi: 'Mesha', period: 'weekly' });
+    expect(res.body.highlights.length).toBeGreaterThan(0);
+    expect(res.body).not.toHaveProperty('lucky');
+  });
+
+  it('rejects an unknown sign or period', async () => {
+    expect((await request(app).get('/api/horoscope/ophiuchus')).status).toBe(400);
+    const bad = await request(app).get('/api/horoscope/aries?period=yearly');
+    expect(bad.status).toBe(400);
+    expect(bad.body.field).toBe('period');
+  });
+
+  it('falls back to India time for an invalid time zone', async () => {
+    const res = await request(app).get('/api/horoscope/leo?tz=Not/AZone');
+    expect(res.status).toBe(200);
+  });
+});
