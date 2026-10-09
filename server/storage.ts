@@ -84,7 +84,7 @@ import {
   type InsertPredictionFeedback,
 } from "@shared/schema";
 import { db, pool } from "./db";
-import { eq, desc, and, sql, asc, inArray } from "drizzle-orm";
+import { eq, desc, and, sql, asc, inArray, type SQL } from "drizzle-orm";
 import crypto from "crypto";
 import bcrypt from "bcryptjs";
 import { isAdminEmail } from "./adminAccess";
@@ -1502,11 +1502,55 @@ export class DatabaseStorage implements IStorage {
     return row;
   }
 
-  async setReportOrderContent(id: string, content: object): Promise<ReportOrder> {
+  /**
+   * Debits the wallet and creates the order in one DB transaction, so a charge never exists
+   * without its order. Free-access accounts are charged ₹0. Null on insufficient balance.
+   */
+  async placeReportOrder(data: {
+    userId: string;
+    reportTypeId: string;
+    kundliId?: string;
+    subjectName?: string;
+    price: number;
+    description: string;
+  }): Promise<{ order: ReportOrder; balance: string } | null> {
+    const free = await this.hasFreeAccess(data.userId);
+    if (!(await this.getWallet(data.userId))) await this.createWallet(data.userId);
+    return db.transaction(async (tx) => {
+      const charged = free ? 0 : data.price;
+      let balance: string | null;
+      if (charged > 0) {
+        balance = await this.tryDebitBalance(data.userId, charged, tx);
+        if (balance === null) return null;
+      } else {
+        const [w] = await tx.select({ balance: wallets.balance }).from(wallets).where(eq(wallets.userId, data.userId));
+        balance = w?.balance ?? "0";
+      }
+      await tx.insert(transactions).values({
+        userId: data.userId,
+        amount: (-charged).toString(),
+        type: "debit",
+        description: free ? `${data.description} (free access)` : data.description,
+        status: "completed",
+      });
+      const [order] = await tx.insert(reportOrders).values({
+        userId: data.userId,
+        reportTypeId: data.reportTypeId,
+        kundliId: data.kundliId,
+        subjectName: data.subjectName,
+        amount: data.price.toFixed(2),
+        chargedAmount: charged.toFixed(2),
+      }).returning();
+      return { order, balance };
+    });
+  }
+
+  /** Delivers a report; a no-op (undefined) if the order already failed or was refunded. */
+  async setReportOrderContent(id: string, content: object): Promise<ReportOrder | undefined> {
     const [row] = await db
       .update(reportOrders)
       .set({ content, status: "ready", readyAt: new Date() })
-      .where(eq(reportOrders.id, id))
+      .where(and(eq(reportOrders.id, id), eq(reportOrders.status, "processing")))
       .returning();
     return row;
   }
@@ -1515,12 +1559,102 @@ export class DatabaseStorage implements IStorage {
     await db.update(reportOrders).set({ status: "failed" }).where(eq(reportOrders.id, id));
   }
 
-  async getUserReportOrders(userId: string): Promise<ReportOrder[]> {
-    return await db
+  /**
+   * Fails an order that was not delivered and returns what it charged to the wallet, exactly
+   * once. A delivered order is never refunded here.
+   */
+  async failAndRefundReportOrder(id: string, reason: string) {
+    return this.refundReportOrder(id, sql`${reportOrders.status} in ('processing', 'failed')`, { status: "failed", failureReason: reason.slice(0, 1000) });
+  }
+
+  /** Admin refund of a delivered order whose content is the old templated placeholder; once only. */
+  async refundPlaceholderReport(id: string) {
+    return this.refundReportOrder(id, eq(reportOrders.status, "ready"), { failureReason: "templated placeholder content" });
+  }
+
+  // The claim on refunded_at and the credit share a transaction, so an order is refunded once.
+  // Orders from before refunds existed carry no charged amount: their price is refunded unless
+  // the account rides free.
+  private async refundReportOrder(id: string, statusCondition: SQL, set: Partial<ReportOrder>): Promise<{ order: ReportOrder; refunded: number } | null> {
+    const existing = await this.getReportOrderById(id);
+    if (!existing) return null;
+    const legacyCharge = existing.chargedAmount == null ? await this.legacyReportCharge(existing) : null;
+    return db.transaction(async (tx) => {
+      const [order] = await tx
+        .update(reportOrders)
+        .set({ ...set, refundedAt: new Date() })
+        .where(and(eq(reportOrders.id, id), statusCondition, sql`${reportOrders.refundedAt} is null`))
+        .returning();
+      if (!order) return null;
+      const refunded = Number(order.chargedAmount ?? legacyCharge ?? order.amount);
+      if (refunded > 0) await this.creditWallet(order.userId, refunded, tx);
+      await tx.insert(transactions).values({
+        userId: order.userId,
+        amount: refunded.toFixed(2),
+        type: "refund",
+        description: `Refund: report order ${order.id}`,
+        status: "completed",
+      });
+      return { order, refunded };
+    });
+  }
+
+  // Orders placed before charged_amount existed: the route debited the wallet just before
+  // creating the order, so the nearest preceding "Report: …" debit is what was charged (₹0 for
+  // a free-access account at the time).
+  private async legacyReportCharge(order: ReportOrder): Promise<number | null> {
+    if (!order.createdAt) return null;
+    const { rows } = await pool.query(
+      `SELECT abs(amount::numeric)::float AS charged FROM transactions
+        WHERE user_id = $1 AND type = 'debit' AND description LIKE 'Report: %'
+          AND created_at BETWEEN $2::timestamp - interval '5 minutes' AND $2::timestamp + interval '1 minute'
+        ORDER BY abs(extract(epoch FROM created_at - $2::timestamp)) LIMIT 1`,
+      [order.userId, order.createdAt],
+    );
+    return rows.length ? Number(rows[0].charged) : null;
+  }
+
+  /** Orders still marked processing long after generation could have finished (e.g. a restart). */
+  async getStaleProcessingReportOrders(createdBefore: Date): Promise<ReportOrder[]> {
+    return db
       .select()
       .from(reportOrders)
+      .where(and(eq(reportOrders.status, "processing"), sql`${reportOrders.createdAt} < ${createdBefore}`))
+      .orderBy(asc(reportOrders.createdAt))
+      .limit(100);
+  }
+
+  /**
+   * For the admin review: failed orders that were never refunded, and delivered orders whose
+   * content is the old templated placeholder rather than a reading.
+   */
+  async getReportOrdersNeedingReview(): Promise<{ unrefundedFailures: ReportOrder[]; placeholderReports: ReportOrder[] }> {
+    const [unrefundedFailures, placeholderReports] = await Promise.all([
+      db.select().from(reportOrders)
+        .where(and(eq(reportOrders.status, "failed"), sql`${reportOrders.refundedAt} is null`))
+        .orderBy(asc(reportOrders.createdAt)),
+      db.select().from(reportOrders)
+        .where(and(eq(reportOrders.status, "ready"), sql`${reportOrders.refundedAt} is null`, sql`(
+          exists (
+            select 1 from jsonb_array_elements(coalesce(${reportOrders.content}->'sections', '[]'::jsonb)) s
+            where s->>'body' ~ '^Analysis of .* based on your ascendant')
+          or jsonb_array_length(coalesce(${reportOrders.content}->'sections', '[]'::jsonb)) < 5
+          or (${reportOrders.reportTypeId} in (select id from report_types where category = 'life_complete')
+              and jsonb_array_length(coalesce(${reportOrders.content}->'sections', '[]'::jsonb)) < 42))`))
+        .orderBy(asc(reportOrders.createdAt)),
+    ]);
+    return { unrefundedFailures, placeholderReports };
+  }
+
+  /** A user's orders with the report's name, which stays known after a type is withdrawn. */
+  async getUserReportOrders(userId: string): Promise<Array<ReportOrder & { reportName: string | null }>> {
+    const rows = await db
+      .select({ order: reportOrders, reportName: reportTypes.name })
+      .from(reportOrders)
+      .leftJoin(reportTypes, eq(reportTypes.id, reportOrders.reportTypeId))
       .where(eq(reportOrders.userId, userId))
       .orderBy(desc(reportOrders.createdAt));
+    return rows.map((r) => ({ ...r.order, reportName: r.reportName }));
   }
 
   async getReportOrderById(id: string): Promise<ReportOrder | undefined> {

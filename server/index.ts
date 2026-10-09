@@ -4,6 +4,7 @@ import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import { runMigrations } from "./migrate";
 import { startRechargeReconciler } from "./rechargeSettlement";
+import { reportsAvailable, startReportOrderSweeper } from "./reportOrders";
 import { FREE_CHAT_MINUTES } from "./paymentService";
 import { features } from "./features";
 import { waitForDatabase } from "./db";
@@ -107,6 +108,7 @@ app.get("/api/config", (_req, res) => {
     posthogKey: process.env.POSTHOG_API_KEY || "",
     freeChatMinutes: FREE_CHAT_MINUTES,
     marketplaceEnabled: features.marketplace(),
+    reportsAvailable: reportsAvailable(),
     firebase: {
       apiKey: process.env.FIREBASE_API_KEY || "",
       authDomain: process.env.FIREBASE_AUTH_DOMAIN || "",
@@ -175,6 +177,7 @@ waitForDatabase()
       startupError = null;
       log("startup ready");
       startRechargeReconciler();
+      startReportOrderSweeper();
     } catch (err) {
       startupError = err instanceof Error ? err.message : "migration failed";
       console.error("[startup/migrate] Migration failed:", err);
