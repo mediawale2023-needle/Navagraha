@@ -5,6 +5,7 @@ import { db } from "./db";
 import { sql, eq, asc, desc, and, inArray } from "drizzle-orm";
 import { setupAuth, isAuthenticated, isAdmin } from "./auth";
 import { runCouncil } from "./agents/orchestrator";
+import { localise } from "./agents/localise.js";
 import { features } from "./features";
 import { marketplaceGate } from "./marketplace";
 import { setupSwagger } from "./swagger";
@@ -69,6 +70,7 @@ import { notifyUser, notifyAstrologer } from "./websocketService";
 import { sendPushToUser, sendPushToAstrologer } from "./pushService";
 import {
   interpretKundli,
+  InterpretationUnavailableError,
   generatePreConsultBrief,
   generatePostConsultFollowUp,
   matchAstrologerToChart,
@@ -426,6 +428,8 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
       }
 
       const content = await generateDailyHoroscope(kundli, today, language);
+      // No card is better than an unchecked one; a missing card is not cached, so a later visit retries.
+      if (!content) return res.json({ hasChart: true, date: today, language, person: kundli.name, content: null, unavailable: true });
       await storage.saveDailyHoroscope({ userId, kundliId: kundli.id, horoDate: today, language, content }).catch(() => {});
       res.json({ hasChart: true, date: today, language, person: kundli.name, content });
     } catch (err) {
@@ -2279,17 +2283,18 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
         const packet = buildEvidencePacket(canonical, route, new Date(), transits);
         evidenceSummary = packetSummary(packet);
         if (route.depth === 'deep' && features.aiCouncil()) {
+          // Generated and checked in English; translated only after the guard (localise.ts).
           const reading = await runCouncil({
             birthDetails: { date: birthDate, time: birthTime, place: birthPlace },
-            chartData, profession: 'User', language, memories, transits, verifiedEvents, accuracyNote,
+            chartData, profession: 'User', language: 'English', memories, transits, verifiedEvents, accuracyNote,
             evidencePacket: packet.text, currentQuery: message,
           });
-          const guarded = await guardAnswer(packet, reading, async () => (await answerSimple(packet, message, { language, memories, history })).text);
-          aiResponseText = guarded.text;
+          const guarded = await guardAnswer(packet, reading, async () => (await answerSimple(packet, message, { memories, history })).text);
+          aiResponseText = await localise(guarded.text, language);
           answerSource = guarded.source;
         } else {
-          const answer = await answerSimple(packet, message, { language, memories, history });
-          aiResponseText = answer.text;
+          const answer = await answerSimple(packet, message, { memories, history });
+          aiResponseText = await localise(answer.text, language);
           answerSource = answer.source;
         }
       } else if (kundli) {
@@ -2350,6 +2355,7 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
       const interpretation = await interpretKundli(kundli);
       res.json(interpretation);
     } catch (error: any) {
+      if (error instanceof InterpretationUnavailableError) return res.status(409).json({ message: error.message });
       if (error.message?.includes("OPENAI_API_KEY")) {
         return res.status(503).json({ message: "AI features not configured. Set OPENAI_API_KEY." });
       }
