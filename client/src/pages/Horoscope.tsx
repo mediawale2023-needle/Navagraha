@@ -181,9 +181,9 @@ function HoroscopeDetail({ sign }: { sign: (typeof ZODIAC_SIGNS)[0] }) {
 
       {/* Period tabs */}
       <Tabs value={period} onValueChange={(v) => setPeriod(v as Period)} className="mb-4">
-        <TabsList className="grid grid-cols-4 border border-border bg-card p-1">
+        <TabsList>
           {(["today", "tomorrow", "weekly", "monthly"] as Period[]).map((p) => (
-            <TabsTrigger key={p} value={p} className="capitalize rounded-[6px] text-xs data-[state=active]:bg-ink data-[state=active]:text-primary">
+            <TabsTrigger key={p} value={p} className="capitalize">
               {p}
             </TabsTrigger>
           ))}

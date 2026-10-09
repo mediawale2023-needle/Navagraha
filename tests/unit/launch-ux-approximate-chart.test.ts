@@ -64,11 +64,15 @@ describe('Chart tab source guards', () => {
       "chartView.mode === 'exact' && chartData?.yogas?.length > 0",
       "chartView.mode === 'exact' && chartData?.ashtakavarga?.savByHouse",
     ]) expect(view).toContain(gate);
-    expect(view).toContain("chartData={chartView.mode === 'chandra' ? chartView.chartData : chartData}");
+    // With an approximate time the Rashi chart counts houses from the Moon (Chandra Lagna).
+    expect(view).toContain("const firstHouseSign = chartView.mode === 'chandra' ? moonPlanet!.signIndex : canonical?.ascendant.signIndex");
+    expect(view).toContain("lagnaKnown: chartView.mode === 'exact'");
   });
   it('qualifies an uncertain Moon sign wherever it is stated', () => {
     expect(view).toContain("'Moon sign uncertain'");
-    expect(view).toContain("Moon: {moonSignUncertain ? 'uncertain'");
+    // The Moon's graha card states no sign, dignity or nakshatra the birth time cannot fix.
+    expect(view).toContain('moonSignKnown: !moonSignUncertain');
+    expect(readFileSync(new URL('../../client/src/components/kundli/GrahaGrid.tsx', import.meta.url), 'utf8')).toContain("sign: signUnknown ? 'Sign uncertain' : p.sign");
     expect(view).toContain('Uncertain — the Moon changed sign on this birth date');
   });
 });

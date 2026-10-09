@@ -69,7 +69,7 @@ describe('chart pages never state unverified placements', () => {
     const src = page('KundliView');
     expect(src).toContain('href={recreateHref(kundli as any)}');
     // The page actions (PDF, "calculated" badge) are withheld for a limited chart.
-    expect(src).toMatch(/actions=\{limited \? undefined : \([\s\S]*?<TrustBadge variant="calculated" \/>[\s\S]*?\)\}/);
+    expect(src).toMatch(/\{!limited && \(\s*<div[^>]*>\s*<Button[\s\S]*?<TrustBadge variant="calculated" \/>/);
     expect(src).toContain('{!limited && (<>');
     expect(page('KundliNew')).toContain('prefillFromSearch(');
     expect(page('KundliNew')).toMatch(/prefillFromSearch\([^)]*\),\n\s*placeOfBirth: ''/);

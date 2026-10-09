@@ -157,14 +157,14 @@ export default function Remedies() {
 
         {/* Remedies List */}
         <Tabs defaultValue="all" className="mb-6">
-          <TabsList className="grid w-full grid-cols-3 bg-muted p-1">
-            <TabsTrigger value="all" className="rounded-[6px] data-[state=active]:bg-ink data-[state=active]:text-primary">
+          <TabsList>
+            <TabsTrigger value="all">
               All
             </TabsTrigger>
-            <TabsTrigger value="pending" className="rounded-[6px] data-[state=active]:bg-ink data-[state=active]:text-primary">
+            <TabsTrigger value="pending">
               Pending
             </TabsTrigger>
-            <TabsTrigger value="completed" className="rounded-[6px] data-[state=active]:bg-ink data-[state=active]:text-primary">
+            <TabsTrigger value="completed">
               Completed
             </TabsTrigger>
           </TabsList>
