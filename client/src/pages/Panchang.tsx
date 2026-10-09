@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
 import { PlacesAutocomplete } from '@/components/PlacesAutocomplete';
 import { ArrowLeft, Sun, Moon, Sparkles, Clock, CalendarDays, LocateFixed } from 'lucide-react';
+import { loadPanchangPlace, savePanchangPlace, localToday, panchangUrl, type PanchangPlace } from '@/lib/panchangPlace';
 import { PageHeader } from '@/components/shell/PageHeader';
 
 interface PanchangData {
@@ -24,23 +25,18 @@ interface PanchangData {
   location: { latitude: number; longitude: number; timezone: string; utcOffset: string; place: string | null; isDefault: boolean };
 }
 
-interface Place { name: string; lat: number; lng: number }
+type Place = PanchangPlace;
 
-// The device's calendar date (toISOString would give the UTC date).
-const localToday = () => {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-};
 
 export default function Panchang() {
-  const [date, setDate] = useState(localToday);
-  const [place, setPlace] = useState<Place | null>(null);
-  const [placeText, setPlaceText] = useState('');
+  const [date, setDate] = useState(() => localToday());
+  const [place, setPlaceState] = useState<Place | null>(loadPanchangPlace);
+  const [placeText, setPlaceText] = useState(() => loadPanchangPlace()?.name ?? '');
+  // Today's Panchang hero uses the same city.
+  const setPlace = (p: Place) => { setPlaceState(p); savePanchangPlace(p); };
   const [geoError, setGeoError] = useState<string | null>(null);
 
-  const params = new URLSearchParams({ date });
-  if (place) { params.set('lat', String(place.lat)); params.set('lng', String(place.lng)); params.set('place', place.name); }
-  const url = `/api/panchang?${params}`;
+  const url = panchangUrl(date, place);
 
   const { data, isLoading, error } = useQuery<PanchangData>({
     queryKey: [url],

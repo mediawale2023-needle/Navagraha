@@ -45,7 +45,9 @@ describe('Home shows the user\'s own running period', () => {
     const home = read('client/src/pages/Home.tsx');
     expect(home).not.toMatch(/>\s*Mars\s*</);
     expect(home).not.toContain('Mahadasha in motion');
-    expect(home).toContain('<RunningPeriodCard />');
+    // Today's Vimshottari card reads the same selector as every other running-period view.
+    expect(home).toContain('<VimshottariNow');
+    expect(read('client/src/components/today/VimshottariNow.tsx')).toContain('selectRunningPeriods(insights)');
     expect(read('client/src/components/v3/RunningPeriodCard.tsx')).toContain('selectRunningPeriods(insights)');
     expect(read('client/src/components/v3/ActiveInfluences.tsx')).toContain('selectRunningPeriods(insights)');
   });
