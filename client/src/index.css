@@ -25,6 +25,8 @@
   --positive: #0c7f4d;
   --negative: #8b1a1a;
   --font-size: 16px;
+  /* Mobile tab bar: 6px top padding, 48px items, 18px (or the safe area) below, 1px border. */
+  --tabbar-height: calc(55px + max(18px, env(safe-area-inset-bottom)));
 
   /* shadcn roles, expressed in Direction 3 tokens */
   --background: var(--ground);
@@ -136,6 +138,8 @@
   --text-caption--line-height: 1.45;
   --text-sm: 0.875rem;
   --text-sm--line-height: 1.5;
+  --text-nav: 0.9375rem;
+  --text-nav--line-height: 1.5;
   --text-base: 1rem;
   --text-base--line-height: 1.55;
   --text-lead: 1.0625rem;

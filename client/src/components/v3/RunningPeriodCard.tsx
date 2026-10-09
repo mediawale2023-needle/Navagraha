@@ -65,7 +65,7 @@ export function RunningPeriodCard() {
           className="rounded-[9px] border border-primary/40 bg-transparent px-4 py-4 text-left transition-colors hover:bg-white/5"
         >
           <p className="font-display text-sm text-primary">{marketplace ? 'Talk live' : 'Ask about it'}</p>
-          <p className="mt-1 text-xs text-primary/70">{marketplace ? 'Browse astrologers' : 'Ask Your Kundli'}</p>
+          <p className="mt-1 text-xs text-primary/70">{marketplace ? 'Browse astrologers' : 'Ask your Kundli'}</p>
         </button>
       </div>
     </div>

@@ -85,7 +85,8 @@ viewBox drawn at 320–380px, so 12–14px on screen.)
 ## Layout
 
 ### Desktop
-- Container: `max-width: 1240px`, horizontal padding `40px`.
+- Container: `max-width: 1240px`, horizontal padding `40px`. The mockups use content-box sizing, so with
+  Tailwind's border-box the container is `max-w-[1320px] px-10` (1240px of content).
 - **Navy band** (`--ink`) at the top of every page, holding the navigation: padding `18px 40px`,
   gap `32px`, links gap `26px`, account pill on the right (`8px 14px`, `min-height: 40px`, radius 999).
 - **Today hero** (inside the band): padding `24px 40px 44px`; grid `7fr / 4fr`, gap `48px`, vertically
@@ -181,4 +182,5 @@ Elevation: none, except the mobile bottom sheet. No gradients, no glass.
 - Terms: "Ask your Kundli" everywhere. Devanagari accompanies, never replaces, the English term.
 - Touch targets ≥ 44px; real `<button>`, `<a>`, `<input>` with labels.
 - Breakpoints (derived — the mockups define only 1440 and 390): ≥ 1024px desktop layout;
-  600–1023px the desktop layout with its columns stacked; ≤ 599px the mobile layout with the bottom bar.
+  768–1023px the desktop layout (navy band) with its columns stacked; ≤ 767px the mobile layout with
+  navy page headers and the bottom bar. 768 is Tailwind's `md`, which every page already switches on.

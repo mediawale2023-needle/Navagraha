@@ -15,6 +15,7 @@ import {
   Shield
 } from 'lucide-react';
 import type { Transaction, Wallet as WalletType } from '@shared/schema';
+import { PageHeader } from '@/components/shell/PageHeader';
 
 interface RechargePackType {
   id: string;
@@ -234,21 +235,10 @@ export default function Wallet() {
   const balance = parseFloat(wallet?.balance || '0');
 
   return (
-    <div className="yantra-shell min-h-screen pb-24 text-foreground md:pb-8">
-      <div className="sticky top-0 z-50 border-b border-border bg-background/95 backdrop-blur-md">
-        <div className="w-full max-w-7xl mx-auto px-4 md:px-8 lg:px-12 py-3">
-          <div className="flex items-center gap-3">
-            <Link href="/">
-              <button className="flex h-9 w-9 items-center justify-center rounded-[8px] border border-border bg-card hover:bg-muted" data-testid="button-back">
-                <ArrowLeft className="w-5 h-5 text-foreground" />
-              </button>
-            </Link>
-            <h1 className="font-display text-xl text-foreground">My Wallet</h1>
-          </div>
-        </div>
-      </div>
+    <div>
+      <PageHeader title="Wallet" back={{ href: "/", label: "Today" }} />
 
-      <div className="w-full max-w-7xl mx-auto px-4 md:px-8 lg:px-12 py-6">
+      <div className="w-full max-w-[1320px] mx-auto px-4 md:px-10 py-6">
         {/* Balance Card */}
         <div className="mb-6 rounded-[12px] border border-[var(--primary-border)] bg-primary p-6 shadow-md">
           <div className="flex items-center gap-3 mb-2">
@@ -393,7 +383,7 @@ export default function Wallet() {
                         <div className="text-sm font-bold text-foreground">{offer.code}</div>
                         <div className="text-xs text-muted-foreground">{offer.description}</div>
                       </div>
-                      <Badge variant="outline" className="shrink-0 border-[var(--primary-border)] text-[var(--primary-border)]">Tap to use</Badge>
+                      <Badge variant="outline" className="shrink-0 border-[var(--primary-border)] text-amber-text">Tap to use</Badge>
                     </button>
                   ))}
                 </div>
@@ -433,7 +423,7 @@ export default function Wallet() {
                         <div className={`flex h-9 w-9 items-center justify-center rounded-[6px] ${isPending ? 'bg-primary/15' : isCredit ? 'bg-emerald-500/10' : 'bg-highlight'
                           }`}>
                           {isPending ? (
-                            <Loader2 className="h-4 w-4 animate-spin text-[var(--primary-border)]" />
+                            <Loader2 className="h-4 w-4 animate-spin text-amber-text" />
                           ) : isCredit ? (
                             <ArrowDownLeft className="w-4 h-4 text-emerald-600" />
                           ) : (
@@ -467,7 +457,7 @@ export default function Wallet() {
             ) : (
               <div className="text-center py-8">
                   <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-[8px] bg-primary/20">
-                  <WalletIcon className="w-7 h-7 text-[var(--primary-border)]" />
+                  <WalletIcon className="w-7 h-7 text-amber-text" />
                 </div>
                 <p className="text-muted-foreground text-sm">No transactions yet</p>
                 <p className="text-xs text-muted-foreground mt-1">Recharge your wallet to get started</p>

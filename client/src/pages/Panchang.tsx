@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
 import { PlacesAutocomplete } from '@/components/PlacesAutocomplete';
 import { ArrowLeft, Sun, Moon, Sparkles, Clock, CalendarDays, LocateFixed } from 'lucide-react';
+import { PageHeader } from '@/components/shell/PageHeader';
 
 interface PanchangData {
   date: string;
@@ -70,15 +71,10 @@ export default function Panchang() {
   );
 
   return (
-    <div className="yantra-shell min-h-screen pb-24 text-foreground md:pb-8">
-      <div className="sticky top-0 z-50 border-b border-border bg-background/95 backdrop-blur-md">
-        <div className="w-full max-w-3xl mx-auto px-4 md:px-8 py-3 flex items-center gap-3">
-          <Link href="/"><button className="flex h-9 w-9 items-center justify-center rounded-[8px] border border-border bg-card hover:bg-muted" data-testid="button-back"><ArrowLeft className="w-5 h-5" /></button></Link>
-          <h1 className="font-display text-xl flex items-center gap-2"><CalendarDays className="w-5 h-5 text-[var(--primary-border)]" /> Panchang</h1>
-        </div>
-      </div>
+    <div>
+      <PageHeader title="Panchang" gloss="पञ्चाङ्ग" sub="Tithi, nakshatra, yoga and karana for a day and place" width="max-w-3xl" />
 
-      <div className="w-full max-w-3xl mx-auto px-4 md:px-8 py-6 space-y-4">
+      <div className="w-full max-w-3xl mx-auto px-4 md:px-10 py-6 space-y-4">
         <div className="flex flex-col sm:flex-row gap-2">
           <Input type="date" value={date} onChange={(e) => e.target.value && setDate(e.target.value)} className="sm:max-w-[11rem] rounded-[10px]" data-testid="input-date" />
           <div className="flex-1">
@@ -127,7 +123,7 @@ export default function Panchang() {
               </Card>
               <Card className="yantra-card">
                 <CardContent className="p-4 flex items-center gap-3">
-                  <Moon className="w-6 h-6 text-[var(--primary-border)]" />
+                  <Moon className="w-6 h-6 text-amber-text" />
                   <div><div className="text-xs text-muted-foreground">Sunset</div><div className="font-semibold" data-testid="text-sunset">{data.sunset}</div></div>
                 </CardContent>
               </Card>

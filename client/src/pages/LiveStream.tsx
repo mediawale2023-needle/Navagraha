@@ -171,14 +171,14 @@ export default function LiveStream() {
           {messages?.map((m) => (
             <div key={m.id} className="text-sm" data-testid={`msg-${m.id}`}>
               {m.type === 'gift' ? (
-                <span className="inline-block rounded-[8px] bg-primary/15 px-2 py-1 text-xs font-medium text-[var(--primary-border)]">
+                <span className="inline-block rounded-[8px] bg-primary/15 px-2 py-1 text-xs font-medium text-amber-text">
                   {m.senderName} {m.message}
                 </span>
               ) : m.type === 'join' ? (
                 <span className="text-xs text-muted-foreground">{m.senderName} joined</span>
               ) : (
                 <span>
-                  <span className={`font-semibold ${m.senderType === 'astrologer' ? 'text-[var(--primary-border)]' : 'text-foreground'}`}>{m.senderName}: </span>
+                  <span className={`font-semibold ${m.senderType === 'astrologer' ? 'text-amber-text' : 'text-foreground'}`}>{m.senderName}: </span>
                   <span className="text-muted-foreground">{m.message}</span>
                 </span>
               )}
@@ -207,7 +207,7 @@ export default function LiveStream() {
             className="flex-1 rounded-[999px]"
             data-testid="input-chat"
           />
-          <button onClick={() => setShowGifts((s) => !s)} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[8px] bg-primary/20 text-[var(--primary-border)]" data-testid="button-gifts">
+          <button onClick={() => setShowGifts((s) => !s)} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[8px] bg-primary/20 text-amber-text" data-testid="button-gifts">
             <Gift className="w-5 h-5" />
           </button>
           <button onClick={sendMessage} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[8px] bg-ink text-primary" data-testid="button-send">

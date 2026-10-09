@@ -11,8 +11,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest } from '@/lib/queryClient';
 import { ArrowLeft, Loader2, Compass, Sun, Moon, Clock } from 'lucide-react';
-import { BottomNav } from '@/components/BottomNav';
 import { PlacesAutocomplete } from '@/components/PlacesAutocomplete';
+import { PageHeader } from '@/components/shell/PageHeader';
 
 const prashnaSchema = z.object({
   question_category: z.enum(['general', 'career', 'marriage', 'health', 'finance', 'travel']),
@@ -66,27 +66,10 @@ export default function Prashna() {
   };
 
   return (
-    <div className="min-h-screen bg-background text-foreground pb-20">
-      <div className="border-b border-foreground/5 px-4 pt-12 pb-8">
-        <div className="max-w-5xl mx-auto">
-          <Link href="/">
-            <button className="mb-4 p-2 rounded-lg hover:bg-foreground/5 transition-colors">
-              <ArrowLeft className="w-5 h-5 text-foreground" />
-            </button>
-          </Link>
-          <div className="text-center">
-            <Compass className="w-14 h-14 text-[var(--magenta)] mx-auto mb-3" />
-            <h1 className="font-serif text-3xl font-bold text-foreground mb-1">
-              Prashna Kundli
-            </h1>
-            <p className="text-foreground/80 text-base">
-              Horary Astrology: Ask a question, and the universe answers based on this exact moment.
-            </p>
-          </div>
-        </div>
-      </div>
+    <div className="text-foreground">
+      <PageHeader title="Prashna" gloss="प्रश्न कुण्डली" sub="Horary astrology: a chart cast for the moment you ask" back={{ href: "/", label: "Today" }} width="max-w-3xl" />
 
-      <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+      <div className="max-w-3xl mx-auto px-4 md:px-10 py-6">
         {!result ? (
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
@@ -258,7 +241,6 @@ export default function Prashna() {
           </div>
         )}
       </div>
-      <BottomNav />
     </div>
   );
 }

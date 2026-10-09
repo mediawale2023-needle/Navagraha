@@ -16,6 +16,7 @@ import {
   Phone, CheckCircle2, Sparkles, Zap, Heart, BellRing
 } from 'lucide-react';
 import type { Astrologer } from '@shared/schema';
+import { PageHeader } from '@/components/shell/PageHeader';
 
 interface AstrologerMatch {
   astrologerId: string;
@@ -119,27 +120,10 @@ export default function Astrologers() {
   const onlineCount = astrologers?.filter(isOnline).length || 0;
 
   return (
-    <div className="yantra-shell min-h-screen pb-24 text-foreground md:pb-8">
-      <div className="sticky top-0 z-50 border-b border-border bg-background/95 backdrop-blur-md">
-        <div className="w-full max-w-7xl mx-auto px-4 md:px-8 lg:px-12 py-3">
-          <div className="flex items-center gap-3">
-            <Link href="/">
-              <button className="flex h-9 w-9 items-center justify-center rounded-[8px] border border-border bg-card hover:bg-muted" data-testid="button-back">
-                <ArrowLeft className="w-5 h-5 text-foreground" />
-              </button>
-            </Link>
-            <div className="flex-1">
-              <h1 className="font-display text-xl text-foreground">Astrologers</h1>
-              <div className="flex items-center gap-1.5">
-                <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
-                <span className="text-xs font-medium text-muted-foreground">{onlineCount} online now</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
+    <div>
+      <PageHeader title="Astrologers" sub={`${onlineCount} online now`} back={{ href: "/", label: "Today" }} />
 
-      <div className="w-full max-w-7xl mx-auto px-4 md:px-8 lg:px-12">
+      <div className="w-full max-w-[1320px] mx-auto px-4 md:px-10">
 
         {/* AI-matched recommendations */}
         {matches && matches.length > 0 && astrologers && (
@@ -237,7 +221,7 @@ export default function Astrologers() {
               <button
                 key={s}
                 onClick={() => setSortBy(s)}
-                className={`rounded-[6px] px-2.5 py-1 text-xs font-semibold transition-colors ${sortBy === s ? 'bg-primary/25 text-[var(--primary-border)]' : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+                className={`rounded-[6px] px-2.5 py-1 text-xs font-semibold transition-colors ${sortBy === s ? 'bg-primary/25 text-amber-text' : 'text-muted-foreground hover:bg-muted hover:text-foreground'
                   }`}
               >
                 {s === 'rating' ? 'Top Rated' : s === 'price' ? 'Price: Low' : 'Experience'}
@@ -312,7 +296,7 @@ export default function Astrologers() {
                       </button>
                       {priceLabel(astrologer.pricePerMinute) && (
                         <div className="mb-2">
-                          <span className="font-display text-lg text-[var(--primary-border)]">{priceLabel(astrologer.pricePerMinute)}</span>
+                          <span className="font-display text-lg text-amber-text">{priceLabel(astrologer.pricePerMinute)}</span>
                           <span className="text-xs text-muted-foreground">/min</span>
                         </div>
                       )}

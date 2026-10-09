@@ -13,6 +13,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { PriorityRemedyCard } from '@/components/PriorityRemedyCard';
+import { PageHeader } from '@/components/shell/PageHeader';
 
 interface Remedy {
   id: string;
@@ -86,26 +87,16 @@ export default function Remedies() {
   const totalCount = remedies.length;
 
   return (
-    <div className="yantra-shell min-h-screen pb-20">
-      <div className="sticky top-0 z-40 border-b border-border bg-card/95 backdrop-blur-md">
-        <div className="max-w-3xl mx-auto px-4 py-3">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="flex h-8 w-8 items-center justify-center rounded-[8px] bg-primary/20">
-                <Sparkles className="w-4 h-4 text-[var(--primary-border)]" />
-              </div>
-              <div>
-                <h1 className="font-display text-foreground">{fromChart?.length ? `Remedies from ${latest?.name}'s chart` : 'General practices'}</h1>
-                <p className="text-xs text-muted-foreground">
-                  {completedCount} of {totalCount} completed this month
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
+    <div>
+      <PageHeader
+        title={fromChart?.length ? `Remedies from ${latest?.name}'s chart` : 'General practices'}
+        gloss="उपाय"
+        sub={`${completedCount} of ${totalCount} completed this month`}
+        back={{ href: "/", label: "Today" }}
+        width="max-w-3xl"
+      />
 
-      <div className="max-w-3xl mx-auto px-4 py-6">
+      <div className="max-w-3xl mx-auto px-4 md:px-10 py-6">
         {/* Progress Card */}
         <Card className="card-clean mb-6 border-primary/30 bg-primary/10">
           <CardContent className="p-5">
@@ -245,7 +236,7 @@ export default function Remedies() {
           <CardContent className="p-4">
             <div className="flex items-start gap-3">
               <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-[8px] bg-primary/20">
-                <Sparkles className="w-4 h-4 text-[var(--primary-border)]" />
+                <Sparkles className="w-4 h-4 text-amber-text" />
               </div>
               <div>
                 <h4 className="font-display text-sm text-foreground">About Remedies</h4>

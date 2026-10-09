@@ -71,7 +71,7 @@ export function AIInsightSheet({ open, onOpenChange, subject, onAskQuestion }: A
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <div className="flex h-8 w-8 items-center justify-center rounded-[8px] bg-primary/20">
-                <Sparkles className="h-4 w-4 text-[var(--primary-border)]" />
+                <Sparkles className="h-4 w-4 text-amber-text" />
               </div>
               <div>
                 <SheetTitle className="text-left uppercase tracking-wide">{title}</SheetTitle>

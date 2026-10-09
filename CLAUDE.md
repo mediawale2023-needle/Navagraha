@@ -20,7 +20,7 @@ Before every commit: `npx tsc && npm run build && npm test` must all be green. C
 ## Architecture map
 
 - `client/src/pages/*` — one file per page/route. Routes registered in `client/src/App.tsx`.
-- `client/src/components/*` — shared UI (shadcn/ui in `components/ui`). Nav: `TopNav.tsx` (desktop), `BottomNav.tsx` (mobile).
+- `client/src/components/*` — shared UI (shadcn/ui in `components/ui`). **Shell** (`components/shell/`): `AppShell` wraps every consumer route (not `/astrologer/*` or `/admin*`) with the Direction 3 navy `TopNav` (desktop ≥768px: Today, Kundli, Ask, Dasha, Panchang, Reports + account pill) and `TabBar` (mobile: Today, Kundli, Ask, Dasha); the rest of the app is in the account menu (`moreItems`, marketplace pages only when it is on). Every page starts with `PageHeader` (navy header on mobile, title block on desktop) — never draw a page-level header or nav. Dasha opens `/kundli?for=dasha` (choose a chart → `?tab=dashas`) until a chart can be marked as the user's own. No splash screen. The feature is always called "Ask your Kundli".
 - `client/src/lib/*` — `queryClient.ts` (`apiRequest`), `push.ts` (FCM, lazy), `agora.ts` (SDK loader), `analytics.ts`.
 - `server/routes.ts` — ALL API routes (one big file). `server/storage.ts` — ALL DB access (the `IStorage` class). `server/index.ts` — bootstrap.
 - `server/migrate.ts` — idempotent raw-SQL migrations + seeds; runs on boot. Keep in sync with `shared/schema.ts`.
@@ -37,7 +37,7 @@ Before every commit: `npx tsc && npm run build && npm test` must all be green. C
 - **Marketplace pause** (`FEATURE_MARKETPLACE` off by default; `server/marketplace.ts`). Consultations, chat, voice/video, scheduling, live, Pooja and Astromall are hidden and refused — the code and data stay for restoration; set `FEATURE_MARKETPLACE=true` to bring them back.
   - Server: `marketplaceGate` (after `setupAuth`) answers `PAUSED_ROUTES` with 503 `{code:'marketplace_paused'}`; paths are matched case-insensitively without a trailing slash; reading history and ending an open session stay allowed. WebSocket `chat_message`/`astrologer_reply`/`start_billing`/`call_request`/`call_accepted` are refused and an astrologer connecting is not marked online. Every billing tick re-reads its consultation and stops without charging unless the marketplace is on and the consultation is still `active`; `start_billing` needs an `active` consultation.
   - Boot (`runMigrations`, when off): `closeMarketplaceActivity()` — active consultations → `cancelled` (totals untouched; a later `/end` cannot bill or earn on them), astrologers set offline, a cut-short free first chat restored (`freeChatUsed=false`), live streams ended, pending/confirmed bookings and the waitlist cancelled, affected users notified. Paid Pooja bookings, store orders and **closed consultations with billed minutes but no earning/refund** are only reported: `GET /api/admin/marketplace/open-items`.
-  - Client: `useMarketplace()` (`lib/marketplace.ts`, from `/api/config` `marketplaceEnabled`); `App.tsx` wraps marketplace routes so they render `MarketplacePaused`; TopNav/BottomNav/Home/Landing/Wallet/Numerology hide marketplace entry points (BottomNav centre → Ask Your Kundli).
+  - Client: `useMarketplace()` (`lib/marketplace.ts`, from `/api/config` `marketplaceEnabled`); `App.tsx` wraps marketplace routes so they render `MarketplacePaused`; the shell's account menu, Home, Landing, Wallet and Numerology hide marketplace entry points.
 
 ## Feature Inventory — these ALREADY EXIST. Do not rebuild; extend.
 

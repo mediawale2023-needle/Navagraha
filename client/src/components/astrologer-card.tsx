@@ -46,7 +46,7 @@ export function AstrologerCard({
                 </div>
                 {priceLabel(price) && (
                     <div className="text-right">
-                        <div className="font-display text-lg text-[var(--primary-border)]">{priceLabel(price)}</div>
+                        <div className="font-display text-lg text-amber-text">{priceLabel(price)}</div>
                         <div className="text-xs uppercase tracking-[0.12em] text-muted-foreground">per min</div>
                     </div>
                 )}

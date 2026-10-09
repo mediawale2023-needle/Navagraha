@@ -14,6 +14,7 @@ import {
   MapPin, Clock, Sparkles, Gift, Copy, Check
 } from 'lucide-react';
 import type { User as UserType, Kundli } from '@shared/schema';
+import { PageHeader } from '@/components/shell/PageHeader';
 
 interface ReferralInfo {
   code: string;
@@ -76,7 +77,7 @@ function ReferralCard() {
     <Card className="yantra-card mb-6">
       <CardHeader className="pb-3">
         <CardTitle className="flex items-center gap-2 text-base font-display">
-          <Gift className="w-4 h-4 text-[var(--primary-border)]" /> Refer &amp; Earn
+          <Gift className="w-4 h-4 text-amber-text" /> Refer &amp; Earn
         </CardTitle>
         <CardDescription>
           Invite friends — they get ₹{referral?.refereeReward ?? 25} on their first recharge and you earn ₹{referral?.referrerReward ?? 75}.
@@ -152,21 +153,10 @@ export default function Profile() {
   }
 
   return (
-      <div className="yantra-shell min-h-screen pb-24 md:pb-8">
-      <div className="sticky top-0 z-50 border-b border-border bg-background/95 backdrop-blur-md">
-        <div className="w-full max-w-7xl mx-auto px-4 md:px-8 lg:px-12 py-3">
-          <div className="flex items-center gap-3">
-            <Link href="/">
-              <button className="flex h-9 w-9 items-center justify-center rounded-[8px] border border-border bg-card hover:bg-muted" data-testid="button-back">
-                <ArrowLeft className="w-5 h-5 text-foreground" />
-              </button>
-            </Link>
-            <h1 className="font-display text-xl text-foreground">My Profile</h1>
-          </div>
-        </div>
-      </div>
+      <div>
+      <PageHeader title="Profile" back={{ href: "/", label: "Today" }} />
 
-      <div className="w-full max-w-7xl mx-auto px-4 md:px-8 lg:px-12 py-6">
+      <div className="w-full max-w-[1320px] mx-auto px-4 md:px-10 py-6">
 
         {/* Profile Info Card */}
         <Card className="mb-6 overflow-hidden border-[var(--primary-border)] bg-primary">
@@ -206,7 +196,7 @@ export default function Profile() {
         <div className="grid grid-cols-3 gap-3 mb-6">
           <div className="yantra-card rounded-[12px] p-4 text-center">
             <div className="mx-auto mb-2 flex h-10 w-10 items-center justify-center rounded-[6px] bg-primary/20">
-              <Sparkles className="w-5 h-5 text-[var(--primary-border)]" />
+              <Sparkles className="w-5 h-5 text-amber-text" />
             </div>
             <div className="text-2xl font-bold text-foreground">{kundlis?.length || 0}</div>
             <div className="text-xs text-muted-foreground">Kundlis</div>
@@ -222,7 +212,7 @@ export default function Profile() {
 
           <div className="yantra-card rounded-[12px] p-4 text-center">
             <div className="mx-auto mb-2 flex h-10 w-10 items-center justify-center rounded-[6px] bg-primary/15">
-              <Calendar className="w-5 h-5 text-[var(--primary-border)]" />
+              <Calendar className="w-5 h-5 text-amber-text" />
             </div>
             <div className="text-2xl font-bold text-foreground">
               {user?.createdAt
@@ -247,7 +237,7 @@ export default function Profile() {
                 {user.dateOfBirth && (
                   <div className="flex items-center gap-3">
                     <div className="flex h-9 w-9 items-center justify-center rounded-[6px] bg-primary/15">
-                      <Calendar className="w-4 h-4 text-[var(--primary-border)]" />
+                      <Calendar className="w-4 h-4 text-amber-text" />
                     </div>
                     <div>
                       <div className="text-xs text-muted-foreground">Date of Birth</div>
@@ -261,7 +251,7 @@ export default function Profile() {
                 {user.timeOfBirth && (
                   <div className="flex items-center gap-3">
                     <div className="flex h-9 w-9 items-center justify-center rounded-[6px] bg-primary/15">
-                      <Clock className="w-4 h-4 text-[var(--primary-border)]" />
+                      <Clock className="w-4 h-4 text-amber-text" />
                     </div>
                     <div>
                       <div className="text-xs text-muted-foreground">Time of Birth</div>
@@ -331,7 +321,7 @@ export default function Profile() {
                           </div>
                           <div className="flex flex-wrap gap-1.5">
                             {kundli.zodiacSign && (
-                              <Badge className="border-0 bg-primary/15 text-[var(--primary-border)] text-xs">{kundli.zodiacSign}</Badge>
+                              <Badge className="border-0 bg-primary/15 text-amber-text text-xs">{kundli.zodiacSign}</Badge>
                             )}
                           </div>
                         </div>
@@ -343,7 +333,7 @@ export default function Profile() {
             ) : (
               <div className="text-center py-8">
                 <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-[8px] bg-primary/20">
-                  <Sparkles className="w-7 h-7 text-[var(--primary-border)]" />
+                  <Sparkles className="w-7 h-7 text-amber-text" />
                 </div>
                 <p className="text-muted-foreground text-sm mb-1">No kundlis generated yet</p>
                 <p className="text-xs text-muted-foreground mb-4">

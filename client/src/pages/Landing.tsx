@@ -44,7 +44,7 @@ export default function Landing() {
   // While the marketplace is paused, marketplace shortcuts give way to Ask Your Kundli.
   const categories = marketplace
     ? CATEGORIES
-    : [{ label: 'Ask Your\nKundli', icon: Sparkles, href: '/ai-astrologer', color: 'bg-ink' }, ...CATEGORIES.filter((c) => !isMarketplacePath(c.href))];
+    : [{ label: 'Ask your\nKundli', icon: Sparkles, href: '/ai-astrologer', color: 'bg-ink' }, ...CATEGORIES.filter((c) => !isMarketplacePath(c.href))];
 
   const authMutation = useMutation({
     mutationFn: async () => {
@@ -76,7 +76,7 @@ export default function Landing() {
         <div className="max-w-6xl mx-auto flex items-center justify-between gap-3">
           <div className="flex items-center gap-2">
             <div className="flex h-9 w-9 items-center justify-center rounded-[8px] bg-primary/20">
-              <Sparkles className="w-5 h-5 text-[var(--primary-border)]" />
+              <Sparkles className="w-5 h-5 text-amber-text" />
             </div>
             <span className="font-display text-lg text-foreground">Navagraha</span>
           </div>
@@ -104,8 +104,8 @@ export default function Landing() {
           >
             <div>
               <h1 className="font-display text-3xl text-foreground">Navagraha</h1>
-              <div className="flex items-center gap-1.5 text-[var(--primary-border)] font-medium text-xs">
-                <Sparkles className="w-3 h-3 text-[var(--primary-border)]" />
+              <div className="flex items-center gap-1.5 text-amber-text font-medium text-xs">
+                <Sparkles className="w-3 h-3 text-amber-text" />
                 <span>Nine Celestial Powers</span>
               </div>
             </div>
@@ -204,7 +204,7 @@ export default function Landing() {
               className="yantra-card cursor-pointer border-primary/30 bg-primary/10 p-4 transition-colors hover:bg-primary/15"
               onClick={() => setAuthOpen(true)}
             >
-              <div className="flex items-center gap-2 text-[var(--primary-border)]">
+              <div className="flex items-center gap-2 text-amber-text">
                 <Gift className="w-4 h-4" />
                 <p className="text-xs font-semibold uppercase tracking-[0.18em]">Bonus</p>
               </div>
@@ -227,7 +227,7 @@ export default function Landing() {
                   <h3 className="mt-2 text-xl font-bold text-foreground">Get answers in minutes</h3>
                 </div>
                 <div className="rounded-[8px] bg-primary/20 p-3">
-                  <Sparkles className="w-5 h-5 text-[var(--primary-border)]" />
+                  <Sparkles className="w-5 h-5 text-amber-text" />
                 </div>
               </div>
               <div className="mt-4 grid grid-cols-2 gap-3">
@@ -269,7 +269,7 @@ export default function Landing() {
                     </div>
                     {priceLabel(astrologer.pricePerMinute) && (
                       <div className="text-right">
-                        <p className="font-display text-sm text-[var(--primary-border)]">{priceLabel(astrologer.pricePerMinute)}</p>
+                        <p className="font-display text-sm text-amber-text">{priceLabel(astrologer.pricePerMinute)}</p>
                         <p className="text-xs text-muted-foreground">per min</p>
                       </div>
                     )}
@@ -369,7 +369,7 @@ export default function Landing() {
                 <div className="text-right shrink-0">
                   {priceLabel(astrologer?.pricePerMinute) && (
                     <div className="mb-2">
-                      <span className="font-display text-[var(--primary-border)]">{priceLabel(astrologer?.pricePerMinute)}</span>
+                      <span className="font-display text-amber-text">{priceLabel(astrologer?.pricePerMinute)}</span>
                       <span className="text-xs text-muted-foreground">/min</span>
                     </div>
                   )}
@@ -501,7 +501,7 @@ export default function Landing() {
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center gap-2">
               <div className="flex h-8 w-8 items-center justify-center rounded-[8px] bg-primary/20">
-                <Sparkles className="w-4 h-4 text-[var(--primary-border)]" />
+                <Sparkles className="w-4 h-4 text-amber-text" />
               </div>
               <span className="font-bold text-foreground">Navagraha</span>
             </div>

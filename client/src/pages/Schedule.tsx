@@ -16,6 +16,7 @@ import {
   ArrowLeft, Calendar, Clock, Phone, MessageCircle, Video, X, Star
 } from 'lucide-react';
 import type { ScheduledCall, Astrologer } from '@shared/schema';
+import { PageHeader } from '@/components/shell/PageHeader';
 
 export default function Schedule() {
   const [location] = useLocation();
@@ -78,22 +79,10 @@ export default function Schedule() {
   const typeIcon = (t: string) => t === 'voice' ? <Phone className="w-4 h-4" /> : t === 'video' ? <Video className="w-4 h-4" /> : <MessageCircle className="w-4 h-4" />;
 
   return (
-    <div className="yantra-shell min-h-screen pb-20 md:pb-0">
-      <div className="sticky top-0 z-50 border-b border-border bg-background/95 backdrop-blur-md">
-        <div className="max-w-4xl mx-auto px-4 py-3">
-          <div className="flex items-center gap-3">
-            <Link href="/astrologers">
-              <button className="flex h-9 w-9 items-center justify-center rounded-[8px] border border-border bg-card hover:bg-muted">
-                <ArrowLeft className="w-5 h-5 text-foreground" />
-              </button>
-            </Link>
-            <h1 className="font-display text-xl text-foreground">Book Appointment</h1>
-          </div>
-        </div>
-      </div>
+    <div>
+      <PageHeader title="Book an appointment" sub="Schedule a consultation at a time that works for you" back={{ href: "/astrologers", label: "Astrologers" }} width="max-w-4xl" />
 
-      <div className="max-w-4xl mx-auto px-4 py-6">
-        <p className="text-muted-foreground mb-6">Schedule a consultation at a time that works for you</p>
+      <div className="max-w-4xl mx-auto px-4 md:px-10 py-6">
 
         <div className="grid md:grid-cols-2 gap-8">
           {/* Booking Form */}
@@ -214,7 +203,7 @@ export default function Schedule() {
                 <div className="rounded-[10px] bg-primary/10 p-3 text-sm">
                   <div className="flex justify-between items-center">
                     <span className="text-muted-foreground">Estimated cost</span>
-                    <span className="font-display text-xl text-[var(--primary-border)]">₹{estimatedCost.toFixed(0)}</span>
+                    <span className="font-display text-xl text-amber-text">₹{estimatedCost.toFixed(0)}</span>
                   </div>
                   <p className="text-xs text-muted-foreground mt-1">Charged from your wallet at session end</p>
                 </div>

@@ -13,6 +13,7 @@ import { LoadingSpinner } from '@/components/LoadingSpinner';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest } from '@/lib/queryClient';
 import { ArrowLeft, Flame, Check, CalendarDays } from 'lucide-react';
+import { PageHeader } from '@/components/shell/PageHeader';
 
 interface Pooja {
   id: string;
@@ -62,15 +63,10 @@ export default function Pooja() {
   if (isLoading) return <LoadingSpinner />;
 
   return (
-    <div className="yantra-shell min-h-screen pb-24 text-foreground md:pb-8">
-      <div className="sticky top-0 z-50 border-b border-border bg-background/95 backdrop-blur-md">
-        <div className="w-full max-w-7xl mx-auto px-4 md:px-8 lg:px-12 py-3 flex items-center gap-3">
-          <Link href="/"><button className="flex h-9 w-9 items-center justify-center rounded-[8px] border border-border bg-card hover:bg-muted" data-testid="button-back"><ArrowLeft className="w-5 h-5" /></button></Link>
-          <h1 className="font-display text-xl flex items-center gap-2"><Flame className="w-5 h-5 text-[var(--primary-border)]" /> Book a Pooja</h1>
-        </div>
-      </div>
+    <div>
+      <PageHeader title="Book a Pooja" gloss="पूजा" back={{ href: "/", label: "Today" }} />
 
-      <div className="w-full max-w-7xl mx-auto px-4 md:px-8 lg:px-12 py-6">
+      <div className="w-full max-w-[1320px] mx-auto px-4 md:px-10 py-6">
         <div className="flex gap-2 mb-6">
           <Button variant={tab === 'browse' ? 'default' : 'outline'} className={`rounded-[9px] ${tab === 'browse' ? 'bg-ink text-primary hover:bg-ink/90' : ''}`} onClick={() => setTab('browse')} data-testid="tab-browse">Browse</Button>
           <Button variant={tab === 'mine' ? 'default' : 'outline'} className={`rounded-[9px] ${tab === 'mine' ? 'bg-ink text-primary hover:bg-ink/90' : ''}`} onClick={() => setTab('mine')} data-testid="tab-mine">My Bookings</Button>
@@ -149,7 +145,7 @@ export default function Pooja() {
           >
             {book.isPending ? 'Booking…' : `Pay ₹${selected ? parseFloat(selected.price).toFixed(0) : ''} from Wallet`}
           </Button>
-          <p className="text-xs text-center text-muted-foreground">Paid from your wallet. <Link href="/wallet"><span className="font-medium text-[var(--primary-border)]">Recharge</span></Link> if needed.</p>
+          <p className="text-xs text-center text-muted-foreground">Paid from your wallet. <Link href="/wallet"><span className="font-medium text-amber-text">Recharge</span></Link> if needed.</p>
         </DialogContent>
       </Dialog>
     </div>

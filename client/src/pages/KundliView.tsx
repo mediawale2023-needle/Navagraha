@@ -10,6 +10,7 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
 } from '@/components/ui/dialog';
 import { ArrowLeft, Calendar, Clock, MapPin, Download, ChevronDown, ChevronRight, Wallet, Sparkles, Info, ArrowRight } from 'lucide-react';
+import { PageHeader, PageBody } from '@/components/shell/PageHeader';
 import { recreateHref } from '@/lib/recreateChart';
 import { BalanceShortfall } from '@/components/BalanceShortfall';
 import { chartTabView, type ChartTabView } from '@/lib/approximateChart';
@@ -235,11 +236,12 @@ export default function KundliView() {
 
   if (!kundli) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="text-center">
-          <p className="text-muted-foreground mb-4">Kundli not found</p>
-          <Link href="/"><Button className="bg-ink">Go Home</Button></Link>
-        </div>
+      <div>
+        <PageHeader title="Kundli not found" back={{ href: '/kundli', label: 'Kundli' }} />
+        <PageBody>
+          <p className="text-muted-foreground mb-4">This chart does not exist or is not yours.</p>
+          <Link href="/kundli"><Button variant="secondary">Your charts</Button></Link>
+        </PageBody>
       </div>
     );
   }
@@ -266,25 +268,23 @@ export default function KundliView() {
   const moonSignUncertain = chartView.mode === 'table';
 
   return (
-    <div className="yantra-shell min-h-screen pb-20">
-      <div className="max-w-4xl mx-auto px-4 py-6">
-        <div className="flex items-center justify-between mb-6">
-          <Link href="/">
-            <Button variant="outline" className="rounded-[9px] border-border bg-card">
-              <ArrowLeft className="w-4 h-4 mr-2" />
-              Back
+    <div>
+      <PageHeader
+        title={kundli.name}
+        gloss="कुण्डली"
+        back={isPreview ? undefined : { href: '/kundli', label: 'Kundli' }}
+        width="max-w-4xl"
+        actions={limited ? undefined : (
+          <>
+            <Button variant="outline" onClick={handleDownloadPDF} disabled={pdfChecking || pdfConfirming} className="gap-2">
+              <Download className="w-4 h-4" />
+              {pdfChecking ? 'Checking…' : 'Download PDF'}
             </Button>
-          </Link>
-          <div className="flex items-center gap-2">
-            {!limited && (
-              <Button variant="outline" onClick={handleDownloadPDF} disabled={pdfChecking || pdfConfirming} className="hidden rounded-[9px] border-border bg-card sm:flex">
-                <Download className="w-4 h-4 mr-2" />
-                {pdfChecking ? 'Checking…' : 'Download PDF'}
-              </Button>
-            )}
-            {!limited && <TrustBadge variant="calculated" />}
-          </div>
-        </div>
+            <TrustBadge variant="calculated" />
+          </>
+        )}
+      />
+      <div className="max-w-4xl mx-auto px-4 py-6 md:px-10">
 
         {/* Info Card */}
         <Card className="card-clean mb-6">
@@ -342,7 +342,7 @@ export default function KundliView() {
               </div>
               {!limited && (
                 <div className="flex flex-wrap gap-2">
-                  <Badge variant="secondary" className="bg-primary/15 text-[var(--primary-border)]">
+                  <Badge variant="secondary" className="bg-primary/15 text-amber-text">
                     {kundli.zodiacSign || '—'}
                   </Badge>
                   <Badge variant="secondary" className="bg-positive/10 text-positive">
@@ -818,7 +818,7 @@ export default function KundliView() {
                 <Sparkles className="w-5 h-5 text-primary" />
               </div>
               <div>
-                <h3 className="font-display text-foreground">Ask AI Astrologer</h3>
+                <h3 className="font-display text-foreground">Ask your Kundli</h3>
                 <p className="text-xs text-muted-foreground">Get personalized answers about your chart</p>
               </div>
             </div>

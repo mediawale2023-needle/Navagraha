@@ -22,7 +22,7 @@ export function ChartGlance({ domains, onWhy }: { domains: DomainResolution[]; o
             {d.supporting.length} supporting · {d.conflicting.length} conflicting
             {d.excluded.length > 0 ? ` · ${d.excluded.length} not used` : ''}
           </p>
-          <span className="mt-2 inline-flex items-center text-xs font-medium text-[var(--primary-border)] group-hover:underline">
+          <span className="mt-2 inline-flex items-center text-xs font-medium text-amber-text group-hover:underline">
             Why <ChevronRight className="ml-0.5 h-3.5 w-3.5" />
           </span>
         </button>

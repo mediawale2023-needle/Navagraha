@@ -52,7 +52,7 @@ export function DailyGuidanceCard({
       {/* Planetary Positions */}
       <div className="grid grid-cols-3 gap-3 mb-4">
         <div className="rounded-[8px] bg-muted p-3 text-center">
-          <Moon className="mx-auto mb-1 h-4 w-4 text-[var(--primary-border)]" />
+          <Moon className="mx-auto mb-1 h-4 w-4 text-amber-text" />
           <p className="text-xs text-muted-foreground">Moon</p>
           <p className="font-semibold text-foreground text-sm">
             {moonSign}
@@ -123,13 +123,13 @@ export function DailyGuidanceCard({
       {bestTime && (
         <div className="mb-4 rounded-[10px] bg-primary/10 p-3">
           <div className="flex items-center gap-2 mb-1">
-            <Clock className="h-4 w-4 text-[var(--primary-border)]" />
-            <span className="text-sm font-medium text-[var(--primary-border)]">
+            <Clock className="h-4 w-4 text-amber-text" />
+            <span className="text-sm font-medium text-amber-text">
               Best Time Today
             </span>
           </div>
-          <p className="text-sm text-[var(--primary-border)]">{bestTime}</p>
-          <p className="mt-1 text-xs text-[var(--primary-border)]/80">
+          <p className="text-sm text-amber-text">{bestTime}</p>
+          <p className="mt-1 text-xs text-amber-text/80">
             (Moon-Venus aspect supports important conversations)
           </p>
         </div>
