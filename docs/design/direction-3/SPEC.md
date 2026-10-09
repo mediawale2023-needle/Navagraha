@@ -181,6 +181,8 @@ Elevation: none, except the mobile bottom sheet. No gradients, no glass.
   never shows sample data.
 - Terms: "Ask your Kundli" everywhere. Devanagari accompanies, never replaces, the English term.
 - Touch targets ≥ 44px; real `<button>`, `<a>`, `<input>` with labels.
+- Line height: the mockups set 1.55 on the page and every text inherits it, except the hero title
+  (1.1) and the mobile header title (1.2); the type-scale tokens carry 1.55.
 - Breakpoints (derived — the mockups define only 1440 and 390): ≥ 1024px desktop layout;
   768–1023px the desktop layout (navy band) with its columns stacked; ≤ 767px the mobile layout with
   navy page headers and the bottom bar. 768 is Tailwind's `md`, which every page already switches on.

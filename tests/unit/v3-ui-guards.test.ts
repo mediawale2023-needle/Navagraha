@@ -8,7 +8,9 @@ describe('no hard-coded personal astrology on consumer screens', () => {
   it('Home shows the user’s real periods, not fixed ones', () => {
     const home = src('pages/Home.tsx');
     expect(home).not.toMatch(/Mars Mahadasha|Saturn Transit 12th House|Saturn turns benefic/);
-    expect(home).toContain('<ActiveInfluences />');
+    // Periods come from the chart's insights; transits from the engine's Gochara reading.
+    expect(home).toContain('<VimshottariNow');
+    expect(home).toContain('useGochara(today.moonSign)');
   });
   it('Remedies never manufactures a dosha or pushes a gemstone for everyone', () => {
     const remedies = src('pages/Remedies.tsx');

@@ -35,7 +35,7 @@ export function PageHeader({ title, gloss, eyebrow, sub, back, actions, width = 
         )}
         <div className="flex min-w-0 flex-1 flex-col gap-0.5">
           {eyebrow && <p className="font-display text-base text-amber">{eyebrow}</p>}
-          <h1 className={cn('m-0 text-balance', compact ? 'text-nav font-semibold' : 'font-display text-heading font-semibold leading-tight')}>
+          <h1 className={cn('m-0 text-balance', compact ? 'text-nav font-semibold' : 'font-display text-heading font-semibold leading-[1.2]')}>
             {title}
             {gloss && <span lang="hi" className={cn('font-normal text-on-navy-3', compact ? 'text-caption' : 'text-base')}> {gloss}</span>}
           </h1>
