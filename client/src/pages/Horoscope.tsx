@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useRoute, Link } from "wouter";
 import { Loader2, Star, ChevronRight, ArrowLeft, Heart, TrendingUp } from "lucide-react";
+import { PageHeader, PageBody } from "@/components/shell/PageHeader";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -85,7 +86,7 @@ function PersonalDaily() {
     <Card className="yantra-card mb-6 border-primary/25">
       <CardContent className="p-5">
         <div className="flex items-center justify-between mb-1">
-          <span className="yantra-eyebrow text-[var(--primary-border)]">
+          <span className="yantra-eyebrow text-amber-text">
             Your Day{data.person ? ` · ${data.person}` : ""}
           </span>
 
@@ -96,7 +97,7 @@ function PersonalDaily() {
           {areas.map(({ Icon, label, v }) =>
             v ? (
               <div key={label} className="bg-muted/40 rounded-xl p-3">
-                <div className="mb-1 flex items-center gap-1.5 text-xs font-semibold text-[var(--primary-border)]">
+                <div className="mb-1 flex items-center gap-1.5 text-xs font-semibold text-amber-text">
                   <Icon className="w-3.5 h-3.5" /> {label}
                 </div>
                 <p className="text-xs text-foreground/80 leading-relaxed">{v}</p>
@@ -106,7 +107,7 @@ function PersonalDaily() {
         </div>
         <div className="flex flex-wrap items-center gap-2 mt-4">
           {c.dayLord && <Badge className="bg-muted text-muted-foreground border-0" title="The weekday's ruling planet; its colour and number are the same for everyone today.">Day of {c.dayLord}</Badge>}
-          {c.luckyColor && <Badge className="bg-primary/15 text-[var(--primary-border)] border-0">Colour: {c.luckyColor}</Badge>}
+          {c.luckyColor && <Badge className="bg-primary/15 text-amber-text border-0">Colour: {c.luckyColor}</Badge>}
           {c.luckyNumber != null && <Badge className="bg-highlight text-amber-text border-0">Number: {c.luckyNumber}</Badge>}
         </div>
         {c.advice && <p className="text-sm italic text-muted-foreground mt-3">Today's tip — {c.advice}</p>}
@@ -161,13 +162,9 @@ function HoroscopeDetail({ sign }: { sign: (typeof ZODIAC_SIGNS)[0] }) {
   });
 
   return (
-      <div className="yantra-shell min-h-screen w-full max-w-7xl px-4 py-6 pb-24 md:px-8 md:pb-8 lg:px-12 mx-auto">
-      {/* Back */}
-      <Link href="/horoscope">
-        <Button variant="ghost" size="sm" className="mb-4 text-muted-foreground -ml-2">
-          <ArrowLeft className="w-4 h-4 mr-1" /> All Signs
-        </Button>
-      </Link>
+    <div>
+      <PageHeader title={sign.name} sub={`${sign.englishName} Moon sign (Rashi)`} back={{ href: "/horoscope", label: "All signs" }} />
+      <PageBody>
 
       {/* Sign header */}
         <div className={`rounded-[12px] border border-[var(--primary-border)] p-6 mb-6 ${sign.bg}`}>
@@ -176,7 +173,7 @@ function HoroscopeDetail({ sign }: { sign: (typeof ZODIAC_SIGNS)[0] }) {
             {sign.emoji}
           </div>
           <div>
-            <h1 className="font-display text-3xl text-on-navy">{sign.name}</h1>
+            <p className="font-display text-3xl text-on-navy">{sign.name}</p>
             <p className="text-on-navy-2 text-sm">{sign.englishName} Moon sign (Rashi)</p>
           </div>
         </div>
@@ -196,7 +193,7 @@ function HoroscopeDetail({ sign }: { sign: (typeof ZODIAC_SIGNS)[0] }) {
       {/* Prediction */}
       {isLoading ? (
         <div className="flex items-center justify-center py-16">
-          <Loader2 className="h-8 w-8 animate-spin text-[var(--primary-border)]" />
+          <Loader2 className="h-8 w-8 animate-spin text-amber-text" />
         </div>
       ) : error ? (
         <p className="text-center text-destructive py-8">Failed to load horoscope. Please try again.</p>
@@ -205,7 +202,7 @@ function HoroscopeDetail({ sign }: { sign: (typeof ZODIAC_SIGNS)[0] }) {
           <CardContent className="p-5">
             <div className="flex items-center gap-2 mb-4">
               <Star className="w-4 h-4 fill-amber text-amber" />
-              <span className="text-[var(--primary-border)] text-sm font-semibold capitalize">
+              <span className="text-amber-text text-sm font-semibold capitalize">
                 {period === "today" ? "Today's" : period === "tomorrow" ? "Tomorrow's" : period === "weekly" ? "This Week's" : "This Month's"}{" "}
                 Prediction
               </span>
@@ -240,25 +237,16 @@ function HoroscopeDetail({ sign }: { sign: (typeof ZODIAC_SIGNS)[0] }) {
           </CardContent>
         </Card>
       ) : null}
+      </PageBody>
     </div>
   );
 }
 
 function SignGrid({ onSelect }: { onSelect: (sign: (typeof ZODIAC_SIGNS)[0]) => void }) {
   return (
-    <div className="yantra-shell min-h-screen w-full max-w-7xl px-4 py-6 pb-24 md:px-8 md:pb-8 lg:px-12 mx-auto">
-      {/* Header */}
-      <div className="flex items-center gap-3 mb-6">
-        <Link href="/">
-          <button className="flex h-9 w-9 items-center justify-center rounded-[8px] border border-border bg-card hover:bg-muted">
-            <ArrowLeft className="w-5 h-5 text-foreground" />
-          </button>
-        </Link>
-        <div>
-            <h1 className="font-display text-2xl text-foreground">Daily Horoscope</h1>
-          <p className="text-sm text-muted-foreground">Pick your Moon sign (Rashi), not your Western sun sign</p>
-        </div>
-      </div>
+    <div>
+      <PageHeader title="Horoscope" gloss="राशिफल" sub="Pick your Moon sign (Rashi), not your Western sun sign" back={{ href: "/", label: "Today" }} />
+      <PageBody>
 
       {/* Personalised daily horoscope (logged-in users) */}
       <PersonalDaily />
@@ -283,6 +271,7 @@ function SignGrid({ onSelect }: { onSelect: (sign: (typeof ZODIAC_SIGNS)[0]) => 
       <p className="text-center text-xs text-muted-foreground mt-6">
         Based on Vedic astrology - Updated daily
       </p>
+      </PageBody>
     </div>
   );
 }

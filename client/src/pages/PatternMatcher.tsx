@@ -3,7 +3,6 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { ArrowLeft, BrainCircuit, Target, Activity, CheckCircle2, TrendingUp } from 'lucide-react';
 import { Link } from 'wouter';
-import { BottomNav } from '@/components/BottomNav';
 import { Loader2 } from 'lucide-react';
 
 export default function PatternMatcher() {
@@ -144,7 +143,6 @@ export default function PatternMatcher() {
           </div>
         )}
       </div>
-      <BottomNav />
     </div>
   );
 }

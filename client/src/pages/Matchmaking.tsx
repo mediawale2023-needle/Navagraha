@@ -14,6 +14,7 @@ import { apiRequest } from '@/lib/queryClient';
 import { isApiError } from '@/lib/apiError';
 import { ArrowLeft, Heart, Loader2 } from 'lucide-react';
 import { PlacesAutocomplete } from '@/components/PlacesAutocomplete';
+import { PageHeader } from '@/components/shell/PageHeader';
 
 const matchmakingSchema = z.object({
   person1Name: z.string().min(2, 'Name is required'),
@@ -85,27 +86,10 @@ export default function Matchmaking() {
 
 
   return (
-    <div className="yantra-shell min-h-screen pb-20 text-foreground">
-      <div className="border-b border-border px-4 pt-12 pb-8">
-        <div className="max-w-5xl mx-auto">
-          <Link href="/">
-            <button className="mb-4 flex h-9 w-9 items-center justify-center rounded-[8px] border border-border bg-card transition-colors hover:bg-muted" data-testid="button-back">
-              <ArrowLeft className="w-5 h-5 text-foreground" />
-            </button>
-          </Link>
-          <div className="text-center">
-            <Heart className="w-14 h-14 text-[var(--magenta)] mx-auto mb-3" fill="currentColor" />
-            <h1 className="font-display text-4xl text-foreground mb-1">
-              Kundli Milan
-            </h1>
-            <p className="text-foreground/80 text-base">
-              Check compatibility between two birth charts
-            </p>
-          </div>
-        </div>
-      </div>
+    <div className="text-foreground">
+      <PageHeader title="Kundli Milan" gloss="कुण्डली मिलान" sub="Ashtakoota matching of two birth charts" back={{ href: "/", label: "Today" }} width="max-w-5xl" />
 
-      <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+      <div className="max-w-5xl mx-auto px-4 md:px-10 py-6">
         {!result ? (
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">

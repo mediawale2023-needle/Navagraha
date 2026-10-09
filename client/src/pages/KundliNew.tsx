@@ -16,6 +16,7 @@ import { ArrowLeft, Calendar, Clock, User, Loader2, Sparkles, Check, HelpCircle,
 import { Link } from 'wouter';
 import { PlacesAutocomplete } from '@/components/PlacesAutocomplete';
 import { TrustBadge } from '@/components/TrustBadge';
+import { PageHeader } from '@/components/shell/PageHeader';
 
 const kundliFormSchema = z.object({
   name: z.string().min(2, 'Name must be at least 2 characters'),
@@ -113,27 +114,10 @@ export default function KundliNew() {
   const stepLabels = ['Personal', 'Date & Time', 'Location'];
 
   return (
-    <div className="yantra-shell min-h-screen pb-20">
-      <div className="border-b border-border bg-card px-4 py-4">
-        <div className="max-w-3xl mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <Link href="/">
-              <button className="flex h-9 w-9 items-center justify-center rounded-[8px] border border-border bg-background transition-colors hover:bg-muted">
-                <ArrowLeft className="w-5 h-5 text-foreground" />
-              </button>
-            </Link>
-            <h1 className="font-display text-xl text-foreground">Generate Kundli</h1>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded-[8px] bg-primary/20">
-              <Sparkles className="w-4 h-4 text-[var(--primary-border)]" />
-            </div>
-            <span className="font-display text-lg text-foreground">Navagraha</span>
-          </div>
-        </div>
-      </div>
+    <div>
+      <PageHeader title="New Kundli" gloss="कुण्डली" sub="Calculated with Swiss Ephemeris and Lahiri ayanamsa" back={{ href: "/kundli", label: "Kundli" }} width="max-w-3xl" />
 
-      <div className="max-w-3xl mx-auto px-4 pt-6">
+      <div className="max-w-3xl mx-auto px-4 pt-6 md:px-10">
         {/* Step Progress Indicator */}
         <div className="flex items-center justify-center mb-8">
           {[1, 2, 3].map((s) => (
@@ -149,7 +133,7 @@ export default function KundliNew() {
                   {s < step ? <Check className="w-5 h-5" /> : s}
                 </div>
                 <span className={`text-xs mt-1.5 font-medium ${
-                  s === step ? 'text-[var(--primary-border)]' : s < step ? 'text-green-600' : 'text-muted-foreground'
+                  s === step ? 'text-amber-text' : s < step ? 'text-green-600' : 'text-muted-foreground'
                 }`}>
                   {stepLabels[s - 1]}
                 </span>
@@ -307,12 +291,12 @@ export default function KundliNew() {
 
                   <div className="rounded-[10px] border border-primary/25 bg-primary/10 p-4">
                     <div className="flex items-start gap-3">
-                      <Info className="mt-0.5 h-5 w-5 flex-shrink-0 text-[var(--primary-border)]" />
+                      <Info className="mt-0.5 h-5 w-5 flex-shrink-0 text-amber-text" />
                       <div>
-                        <p className="text-sm font-semibold text-[var(--primary-border)]">
+                        <p className="text-sm font-semibold text-amber-text">
                           Why birth time matters
                         </p>
-                        <p className="mt-1 text-xs text-[var(--primary-border)]/80">
+                        <p className="mt-1 text-xs text-amber-text/80">
                           Exact birth time affects Moon sign and house positions.
                           Even 4 minutes can change your Ascendant.
                         </p>
@@ -370,7 +354,7 @@ export default function KundliNew() {
 
                   <div className="rounded-[10px] border border-border bg-card p-4">
                     <div className="flex items-start gap-3">
-                      <Info className="mt-0.5 h-5 w-5 flex-shrink-0 text-[var(--primary-border)]" />
+                      <Info className="mt-0.5 h-5 w-5 flex-shrink-0 text-amber-text" />
                       <div>
                         <p className="text-sm font-semibold text-foreground">
                           Accuracy Note

@@ -55,7 +55,7 @@ export function InsightCard({
     >
       <div className="flex items-start gap-3">
         <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-[8px] bg-primary/15">
-          {icon || <Sparkles className="w-5 h-5 text-[var(--primary-border)]" />}
+          {icon || <Sparkles className="w-5 h-5 text-amber-text" />}
         </div>
 
         {/* Content */}
@@ -70,7 +70,7 @@ export function InsightCard({
                   priority === 'high'
                     ? 'bg-red-50 text-red-700'
                     : priority === 'medium'
-                    ? 'bg-primary/15 text-[var(--primary-border)]'
+                    ? 'bg-primary/15 text-amber-text'
                     : 'bg-green-50 text-green-700'
                 }`}
               >

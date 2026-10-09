@@ -68,7 +68,8 @@ describe('chart pages never state unverified placements', () => {
   it('a limited chart shows a recreate action and none of its stored placements', () => {
     const src = page('KundliView');
     expect(src).toContain('href={recreateHref(kundli as any)}');
-    expect(src).toContain('{!limited && <TrustBadge variant="calculated" />}');
+    // The page actions (PDF, "calculated" badge) are withheld for a limited chart.
+    expect(src).toMatch(/actions=\{limited \? undefined : \([\s\S]*?<TrustBadge variant="calculated" \/>[\s\S]*?\)\}/);
     expect(src).toContain('{!limited && (<>');
     expect(page('KundliNew')).toContain('prefillFromSearch(');
     expect(page('KundliNew')).toMatch(/prefillFromSearch\([^)]*\),\n\s*placeOfBirth: ''/);

@@ -5,7 +5,6 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import { useAuth } from "@/hooks/useAuth";
-import Splash from "@/pages/Splash";
 import Landing from "@/pages/Landing";
 import Home from "@/pages/Home";
 import KundliNew from "@/pages/KundliNew";
@@ -39,7 +38,7 @@ import Remedies from "@/pages/Remedies";
 import NotFound from "@/pages/not-found";
 import { MarketplacePaused } from "@/components/MarketplacePaused";
 import { useMarketplace } from "@/lib/marketplace";
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { initAnalytics, trackEvent, identifyUser } from "@/lib/analytics";
 import { enablePushNotifications, type FirebaseConfig } from "@/lib/push";
@@ -49,7 +48,6 @@ function Router() {
   const marketplace = useMarketplace();
   // Marketplace pages show a paused notice while the marketplace is off.
   const market = <T,>(page: T) => (marketplace ? page : MarketplacePaused);
-  const [showSplash, setShowSplash] = useState(true);
 
   // Initialize PostHog from server config
   const { data: config } = useQuery<{ posthogKey?: string; firebase?: FirebaseConfig }>({
@@ -78,23 +76,6 @@ function Router() {
   useEffect(() => {
     trackEvent('$pageview');
   }, [window.location.pathname]);
-
-  useEffect(() => {
-    const hasSeenSplash = sessionStorage.getItem('hasSeenSplash');
-    if (hasSeenSplash) setShowSplash(false);
-  }, []);
-
-  useEffect(() => {
-    if (showSplash) {
-      const timer = setTimeout(() => {
-        setShowSplash(false);
-        sessionStorage.setItem('hasSeenSplash', 'true');
-      }, 3000);
-      return () => clearTimeout(timer);
-    }
-  }, [showSplash]);
-
-  if (showSplash && !sessionStorage.getItem('hasSeenSplash')) return <Splash />;
 
   return (
     <Switch>
@@ -153,8 +134,7 @@ function Router() {
     </Switch>
   );
 }
-import BottomNav from "@/components/BottomNav";
-import TopNav from "@/components/TopNav";
+import { AppShell } from "@/components/shell/AppShell";
 
 function App() {
   return (
@@ -162,13 +142,9 @@ function App() {
       <ThemeProvider defaultTheme="light">
         <TooltipProvider>
           <Toaster />
-          <div className="min-h-screen bg-background">
-            <TopNav />
-            <div className="pb-20 md:pb-0">
-              <Router />
-            </div>
-            <BottomNav />
-          </div>
+          <AppShell>
+            <Router />
+          </AppShell>
         </TooltipProvider>
       </ThemeProvider>
     </QueryClientProvider>

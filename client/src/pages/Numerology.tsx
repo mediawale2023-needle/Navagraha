@@ -12,6 +12,7 @@ import {
   ArrowLeft, Hash, Star, Sparkles, Heart,
   TrendingUp, User, Calendar, ChevronRight, Loader2
 } from 'lucide-react';
+import { PageHeader } from '@/components/shell/PageHeader';
 
 interface NumerologyResult {
   lifePath: number;
@@ -101,24 +102,10 @@ export default function Numerology() {
   };
 
   return (
-    <div className="yantra-shell min-h-screen pb-20 text-foreground md:pb-0">
-      <div className="sticky top-0 z-50 border-b border-border bg-background/95 backdrop-blur-md">
-        <div className="max-w-4xl mx-auto px-4 py-3">
-          <div className="flex items-center gap-3">
-            <Link href="/">
-              <button className="flex h-9 w-9 items-center justify-center rounded-[8px] border border-border bg-card hover:bg-muted">
-                <ArrowLeft className="w-5 h-5 text-foreground" />
-              </button>
-            </Link>
-            <div>
-              <h1 className="font-display text-xl text-foreground">Numerology</h1>
-              <p className="text-xs text-muted-foreground">Discover the power of your numbers</p>
-            </div>
-          </div>
-        </div>
-      </div>
+    <div>
+      <PageHeader title="Numerology" sub="Your numbers from your name and date of birth" back={{ href: "/", label: "Today" }} width="max-w-4xl" />
 
-      <div className="max-w-4xl mx-auto px-4 py-6">
+      <div className="max-w-4xl mx-auto px-4 md:px-10 py-6">
         {/* Hero */}
         {!result && (
           <div className="mb-6 rounded-[12px] border border-[var(--primary-border)] bg-primary p-6 text-center text-ink">
@@ -228,7 +215,7 @@ export default function Numerology() {
             <Card className="yantra-card">
               <CardContent className="p-5">
                 <h4 className="mb-3 flex items-center gap-2 font-display text-foreground">
-                  <Sparkles className="w-4 h-4 text-[var(--primary-border)]" /> Understanding Your Numbers
+                  <Sparkles className="w-4 h-4 text-amber-text" /> Understanding Your Numbers
                 </h4>
                 <div className="space-y-3 text-sm text-muted-foreground">
                   <div className="flex gap-2"><span className="min-w-[140px] font-semibold text-foreground">Life Path ({result.lifePath}):</span> Your core purpose and the journey you're destined to take in this lifetime.</div>

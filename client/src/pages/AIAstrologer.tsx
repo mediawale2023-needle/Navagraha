@@ -14,6 +14,7 @@ import { PlacesAutocomplete } from "@/components/PlacesAutocomplete";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import ReactMarkdown from "react-markdown";
+import { PageHeader } from '@/components/shell/PageHeader';
 
 interface Kundli {
   id: string;
@@ -297,40 +298,19 @@ export default function AIAstrologer() {
   const currentAntardasha = running?.antar ? { planet: running.antar.lord, period: periodDates(running.antar) } : undefined;
 
   return (
-    <div className="min-h-screen bg-background flex flex-col w-full max-w-7xl mx-auto">
-      {/* Header */}
-      <div className="sticky top-0 z-50 bg-background/95 backdrop-blur-md border-b border-border/30 px-4 md:px-8 lg:px-12 py-3">
-        <div className="flex items-center gap-3">
-          <Link href="/">
-            <button className="p-1.5 rounded-lg hover:bg-muted">
-              <ArrowLeft className="w-5 h-5 text-foreground" />
-            </button>
-          </Link>
-          <div className="flex-1">
-            <h1 className="font-bold text-lg text-foreground">Ask Your Kundli</h1>
-            <div className="flex items-center gap-1.5">
-              <Sparkles className="w-3 h-3 text-amber" />
-              <span className="text-xs text-muted-foreground">Answers checked against your chart</span>
-              {freeRemaining !== null && freeRemaining > 0 && (
-                <Badge className="bg-emerald-500/10 text-emerald-600 border-0 text-xs ml-1">
-                  {freeRemaining} free {freeRemaining === 1 ? 'question' : 'questions'} left
-                </Badge>
-              )}
-            </div>
-          </div>
-          {messages.length > 0 && (
-            <button
-              onClick={startNewSession}
-              className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground"
-              title="Start new conversation"
-            >
-              <RotateCcw className="w-4 h-4" />
-            </button>
-          )}
-        </div>
-      </div>
+    <div className="flex flex-col">
+      <PageHeader
+        title="Ask your Kundli"
+        gloss="प्रश्न"
+        sub={<>Answers checked against your chart{freeRemaining !== null && freeRemaining > 0 && <> · {freeRemaining} free {freeRemaining === 1 ? 'question' : 'questions'} left</>}</>}
+        actions={messages.length > 0 ? (
+          <Button variant="outline" size="sm" onClick={startNewSession} className="gap-2">
+            <RotateCcw className="w-4 h-4" /> New conversation
+          </Button>
+        ) : undefined}
+      />
 
-      <div className="flex-1 flex flex-col px-4 md:px-8 lg:px-12 py-4">
+      <div className="mx-auto flex w-full max-w-[1320px] flex-1 flex-col px-4 py-4 md:px-10">
 
         {/* Kundli Selector */}
         <Card className="mb-4 bg-card border-border/50 shadow-sm">
@@ -420,7 +400,7 @@ export default function AIAstrologer() {
                   </Badge>
                 )}
                 {selectedKundli.moonSign && (
-                  <Badge className="bg-primary/15 text-[var(--primary-border)] border-0 text-xs">
+                  <Badge className="bg-primary/15 text-amber-text border-0 text-xs">
                     Moon: {selectedKundli.moonSign}
                   </Badge>
                 )}
@@ -457,14 +437,14 @@ export default function AIAstrologer() {
         {!detailsMode && selectedKundliId !== "none" && (currentMahadasha || currentAntardasha) && (
           <Card className="mb-4 bg-card border-border/50 shadow-sm">
             <CardContent className="p-4">
-              <h3 className="yantra-eyebrow text-[var(--primary-border)] mb-3">
+              <h3 className="yantra-eyebrow text-amber-text mb-3">
                 Current Planetary Periods
               </h3>
               <div className="space-y-2">
                 {currentMahadasha && (
                   <div className="flex items-center justify-between rounded-[10px] border border-primary/25 bg-primary/10 px-4 py-2.5">
                     <div>
-                      <span className="text-xs font-semibold uppercase tracking-wider text-[var(--primary-border)]">Mahadasha</span>
+                      <span className="text-xs font-semibold uppercase tracking-wider text-amber-text">Mahadasha</span>
                       <p className="font-bold text-foreground text-sm">{currentMahadasha.planet}</p>
                     </div>
                     <span className="text-xs text-muted-foreground">{currentMahadasha.period}</span>
@@ -489,7 +469,7 @@ export default function AIAstrologer() {
           <Card className="mb-4 border-primary/25 bg-primary/10">
             <CardContent className="p-5">
               <div className="flex items-center justify-between mb-4">
-                <h2 className="font-display text-base text-[var(--primary-border)]">
+                <h2 className="font-display text-base text-amber-text">
                   Your Complete Vedic Reading
                 </h2>
                 <Button
@@ -513,7 +493,7 @@ export default function AIAstrologer() {
                 ].map(({ label, value }) =>
                   value ? (
                     <div key={label}>
-                      <h3 className="mb-1 text-xs font-semibold uppercase tracking-wider text-[var(--primary-border)]">
+                      <h3 className="mb-1 text-xs font-semibold uppercase tracking-wider text-amber-text">
                         {label}
                       </h3>
                       <p className="text-foreground text-sm leading-relaxed">
@@ -537,10 +517,10 @@ export default function AIAstrologer() {
           {messages.length === 0 && (
             <div className="text-center py-8">
               <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-[8px] bg-primary/20">
-                <Sparkles className="w-8 h-8 text-[var(--primary-border)]" />
+                <Sparkles className="w-8 h-8 text-amber-text" />
               </div>
               <p className="text-muted-foreground mb-6 text-sm">
-                Ask Jyotish AI anything about Vedic astrology,
+                Ask your Kundli anything about your chart,
                 <br />
                 or select a birth chart above for personalised insights.
               </p>
@@ -577,7 +557,7 @@ export default function AIAstrologer() {
               >
                 {msg.role === "assistant" ? (
                   <>
-                    <div className="prose prose-sm dark:prose-invert max-w-none prose-headings:text-[var(--primary-border)] prose-a:text-[var(--primary-border)] prose-strong:text-foreground prose-p:leading-relaxed text-foreground">
+                    <div className="prose prose-sm dark:prose-invert max-w-none prose-headings:text-amber-text prose-a:text-amber-text prose-strong:text-foreground prose-p:leading-relaxed text-foreground">
                       <ReactMarkdown>
                         {msg.content}
                       </ReactMarkdown>
@@ -630,7 +610,7 @@ export default function AIAstrologer() {
         </div>
 
         {/* Input */}
-        <div className="sticky bottom-0 bg-background/95 backdrop-blur-sm pt-3 pb-safe">
+        <div className="sticky bottom-[var(--tabbar-height)] bg-background pt-3 pb-3 md:bottom-0 md:pb-safe">
           {/* Life-area quick questions */}
           <div className="flex gap-2 overflow-x-auto pb-2 -mx-1 px-1">
             {LIFE_AREA_PROMPTS.map((a) => (
@@ -638,7 +618,7 @@ export default function AIAstrologer() {
                 key={a.label}
                 onClick={() => sendMessage(a.q)}
                 disabled={chatMutation.isPending}
-                className="shrink-0 rounded-[999px] border border-primary/25 bg-primary/10 px-3 py-1.5 text-xs font-medium text-[var(--primary-border)] transition-colors hover:bg-primary/15 disabled:opacity-50"
+                className="shrink-0 rounded-[999px] border border-primary/25 bg-primary/10 px-3 py-1.5 text-xs font-medium text-amber-text transition-colors hover:bg-primary/15 disabled:opacity-50"
                 data-testid={`chip-${a.label.toLowerCase().replace(/\s+/g, '-')}`}
               >
                 {a.label}

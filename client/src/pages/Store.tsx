@@ -13,6 +13,7 @@ import { LoadingSpinner } from '@/components/LoadingSpinner';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest } from '@/lib/queryClient';
 import { ArrowLeft, ShoppingBag, Plus, Minus, Trash2, Package, ShoppingCart } from 'lucide-react';
+import { PageHeader } from '@/components/shell/PageHeader';
 
 interface Product {
   id: string;
@@ -95,22 +96,18 @@ export default function Store() {
   if (isLoading) return <LoadingSpinner />;
 
   return (
-    <div className="yantra-shell min-h-screen pb-24 text-foreground md:pb-8">
-      <div className="sticky top-0 z-50 border-b border-border bg-background/95 backdrop-blur-md">
-        <div className="w-full max-w-7xl mx-auto px-4 md:px-8 lg:px-12 py-3 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <Link href="/"><button className="flex h-9 w-9 items-center justify-center rounded-[8px] border border-border bg-card hover:bg-muted" data-testid="button-back"><ArrowLeft className="w-5 h-5" /></button></Link>
-            <h1 className="font-display text-xl flex items-center gap-2"><ShoppingBag className="w-5 h-5 text-[var(--primary-border)]" /> Astromall</h1>
-          </div>
-          {cartCount > 0 && (
-            <Button onClick={() => setCheckoutOpen(true)} className="gap-2 rounded-[9px] bg-primary text-primary-foreground hover:bg-primary/90" data-testid="button-open-cart">
-              <ShoppingCart className="w-4 h-4" /> {cartCount} · ₹{cartTotal.toFixed(0)}
-            </Button>
-          )}
-        </div>
-      </div>
+    <div>
+      <PageHeader
+        title="Astromall"
+        back={{ href: "/", label: "Today" }}
+        actions={cartCount > 0 ? (
+          <Button onClick={() => setCheckoutOpen(true)} className="gap-2" data-testid="button-open-cart">
+            <ShoppingCart className="w-4 h-4" /> {cartCount} · ₹{cartTotal.toFixed(0)}
+          </Button>
+        ) : undefined}
+      />
 
-      <div className="w-full max-w-7xl mx-auto px-4 md:px-8 lg:px-12 py-6">
+      <div className="w-full max-w-[1320px] mx-auto px-4 md:px-10 py-6">
         {/* Tabs */}
         <div className="flex gap-2 mb-6">
           <Button variant={tab === 'shop' ? 'default' : 'outline'} className={`rounded-[9px] ${tab === 'shop' ? 'bg-ink text-primary hover:bg-ink/90' : ''}`} onClick={() => setTab('shop')} data-testid="tab-shop">Shop</Button>
@@ -126,7 +123,7 @@ export default function Store() {
               return (
                 <Card key={p.id} className="yantra-card flex flex-col overflow-hidden" data-testid={`product-${p.slug}`}>
                   <div className="aspect-square bg-gradient-to-br from-primary/10 to-background flex items-center justify-center">
-                    {p.imageUrl ? <img src={p.imageUrl} alt={p.name} className="w-full h-full object-cover" /> : <Package className="w-12 h-12 text-[var(--primary-border)]/40" />}
+                    {p.imageUrl ? <img src={p.imageUrl} alt={p.name} className="w-full h-full object-cover" /> : <Package className="w-12 h-12 text-amber-text/40" />}
                   </div>
                   <CardContent className="p-3 flex flex-col flex-1">
                     <Badge variant="outline" className="text-xs w-fit mb-1">{CATEGORY_LABELS[p.category] || p.category}</Badge>
@@ -223,7 +220,7 @@ export default function Store() {
               {placeOrder.isPending ? 'Placing…' : `Pay ₹${cartTotal.toFixed(0)} from Wallet`}
             </Button>
           </DialogFooter>
-          <p className="text-xs text-center text-muted-foreground">Paid from your Navagraha wallet. <Link href="/wallet"><span className="font-medium text-[var(--primary-border)]">Recharge</span></Link> if needed.</p>
+          <p className="text-xs text-center text-muted-foreground">Paid from your Navagraha wallet. <Link href="/wallet"><span className="font-medium text-amber-text">Recharge</span></Link> if needed.</p>
         </DialogContent>
       </Dialog>
     </div>

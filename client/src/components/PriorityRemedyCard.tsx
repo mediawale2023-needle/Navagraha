@@ -61,7 +61,7 @@ export function PriorityRemedyCard({
     consult: {
       stars: '☆☆☆',
       label: 'Consult Astrologer',
-      color: 'text-[var(--primary-border)]',
+      color: 'text-amber-text',
       bgColor: 'bg-primary/10',
       borderColor: 'border-primary/25',
     },
@@ -147,7 +147,7 @@ export function PriorityRemedyCard({
             onClick={onToggleReminder}
             className={`min-h-8 ${
               hasReminder
-                ? 'bg-primary/15 text-[var(--primary-border)]'
+                ? 'bg-primary/15 text-amber-text'
                 : 'text-muted-foreground'
             }`}
           >

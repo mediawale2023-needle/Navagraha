@@ -5,6 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
 import { ArrowLeft, Radio, Eye } from 'lucide-react';
+import { PageHeader } from '@/components/shell/PageHeader';
 
 interface LiveStreamCard {
   id: string;
@@ -25,17 +26,10 @@ export default function Live() {
   if (isLoading) return <LoadingSpinner />;
 
   return (
-    <div className="yantra-shell min-h-screen pb-24 text-foreground md:pb-8">
-      <div className="sticky top-0 z-50 border-b border-border bg-background/95 backdrop-blur-md">
-        <div className="w-full max-w-7xl mx-auto px-4 md:px-8 lg:px-12 py-3 flex items-center gap-3">
-          <Link href="/"><button className="flex h-9 w-9 items-center justify-center rounded-[8px] border border-border bg-card hover:bg-muted" data-testid="button-back"><ArrowLeft className="w-5 h-5" /></button></Link>
-          <h1 className="font-display text-xl flex items-center gap-2">
-            <Radio className="w-5 h-5 text-red-500" /> Live Now
-          </h1>
-        </div>
-      </div>
+    <div>
+      <PageHeader title="Live now" back={{ href: "/", label: "Today" }} />
 
-      <div className="w-full max-w-7xl mx-auto px-4 md:px-8 lg:px-12 py-6">
+      <div className="w-full max-w-[1320px] mx-auto px-4 md:px-10 py-6">
         {(!streams || streams.length === 0) ? (
           <div className="text-center py-20 text-muted-foreground">
             <Radio className="w-14 h-14 mx-auto mb-4 opacity-30" />

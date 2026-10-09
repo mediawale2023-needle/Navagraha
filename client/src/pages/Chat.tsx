@@ -366,7 +366,7 @@ export default function Chat() {
       ) : (
         <div className="border-b border-primary/30 bg-primary/15 px-4 py-2">
           <div className="max-w-4xl mx-auto flex items-center justify-between text-sm">
-            <span className="text-[var(--primary-border)]">
+            <span className="text-amber-text">
               ₹{pricePerMin}/min • Balance: ₹{currentBalance?.toFixed(2) || walletData?.balance || '0.00'}
             </span>
             <Button
@@ -449,7 +449,7 @@ export default function Chat() {
       </div>
 
       {/* Input Area */}
-      <div className="sticky bottom-0 border-t border-border bg-card/95 px-4 py-4 backdrop-blur-md">
+      <div className="sticky bottom-[var(--tabbar-height)] border-t border-border bg-surface px-4 py-4 md:bottom-0">
         <form onSubmit={handleSendMessage} className="max-w-4xl mx-auto">
           <div className="flex gap-3">
             <Input

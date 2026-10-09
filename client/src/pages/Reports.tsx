@@ -17,6 +17,7 @@ import { isApiError } from '@/lib/apiError';
 import { BalanceShortfall } from '@/components/BalanceShortfall';
 import { downloadReportPdf, type ReportContent } from '@/lib/reportPdf';
 import { ArrowLeft, FileText, Sparkles, Clock, CheckCircle2, Download } from 'lucide-react';
+import { PageHeader } from '@/components/shell/PageHeader';
 
 interface ReportType {
   id: string;
@@ -140,15 +141,10 @@ export default function Reports() {
   const typeById = (id: string) => types?.find((t) => t.id === id);
 
   return (
-    <div className="yantra-shell min-h-screen pb-24 text-foreground md:pb-8">
-      <div className="sticky top-0 z-50 border-b border-border bg-background/95 backdrop-blur-md">
-        <div className="w-full max-w-7xl mx-auto px-4 md:px-8 lg:px-12 py-3 flex items-center gap-3">
-          <Link href="/"><button className="flex h-9 w-9 items-center justify-center rounded-[8px] border border-border bg-card hover:bg-muted" data-testid="button-back"><ArrowLeft className="w-5 h-5" /></button></Link>
-          <h1 className="font-display text-xl flex items-center gap-2"><FileText className="w-5 h-5 text-[var(--primary-border)]" /> Astrology Reports</h1>
-        </div>
-      </div>
+    <div>
+      <PageHeader title="Reports" sub="Written from your own chart, checked before delivery" />
 
-      <div className="w-full max-w-7xl mx-auto px-4 md:px-8 lg:px-12 py-6">
+      <div className="w-full max-w-[1320px] mx-auto px-4 md:px-10 py-6">
         <div className="flex gap-2 mb-6">
           <Button variant={tab === 'browse' ? 'default' : 'outline'} className={`rounded-[9px] ${tab === 'browse' ? 'bg-ink text-primary hover:bg-ink/90' : ''}`} onClick={() => setTab('browse')} data-testid="tab-browse">Browse</Button>
           <Button variant={tab === 'mine' ? 'default' : 'outline'} className={`rounded-[9px] ${tab === 'mine' ? 'bg-ink text-primary hover:bg-ink/90' : ''}`} onClick={() => setTab('mine')} data-testid="tab-mine">My Reports</Button>
@@ -165,7 +161,7 @@ export default function Reports() {
               <Card key={t.id} className="yantra-card flex flex-col" data-testid={`report-${t.slug}`}>
                 <CardContent className="p-5 flex flex-col flex-1">
                   <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-[8px] bg-primary/20">
-                    <Sparkles className="w-5 h-5 text-[var(--primary-border)]" />
+                    <Sparkles className="w-5 h-5 text-amber-text" />
                   </div>
                   <p className="font-display text-lg">{t.name}</p>
                   <p className="text-sm text-muted-foreground mt-1 flex-1">{t.description}</p>
@@ -267,7 +263,7 @@ export default function Reports() {
                   {kundlis.map((k) => <option key={k.id} value={k.id}>{k.name}</option>)}
                 </select>
               ) : (
-                <p className="text-sm text-muted-foreground">No saved chart. Switch to <span className="font-medium text-[var(--primary-border)]">Enter birth details</span>.</p>
+                <p className="text-sm text-muted-foreground">No saved chart. Switch to <span className="font-medium text-amber-text">Enter birth details</span>.</p>
               )}
             </div>
           ) : (
@@ -342,7 +338,7 @@ export default function Reports() {
             {orderReport.isPending ? 'Generating…' : `Pay ₹${selected ? parseFloat(selected.price).toFixed(0) : ''} from Wallet`}
           </Button>
           <p className="text-xs text-center text-muted-foreground" data-testid="order-wallet-balance">
-            Paid from your wallet{walletBalance !== null ? ` · balance ₹${walletBalance.toFixed(2)}` : ''}. <Link href="/wallet"><span className="font-medium text-[var(--primary-border)]">Recharge</span></Link> if needed.
+            Paid from your wallet{walletBalance !== null ? ` · balance ₹${walletBalance.toFixed(2)}` : ''}. <Link href="/wallet"><span className="font-medium text-amber-text">Recharge</span></Link> if needed.
           </p>
         </DialogContent>
       </Dialog>
@@ -384,7 +380,7 @@ export default function Reports() {
               {/* Kundli chart */}
               {viewing.content.chartData?.planetaryPositions && (
                 <div>
-                  <h3 className="mb-2 font-display text-[var(--primary-border)]">Birth Chart (D1)</h3>
+                  <h3 className="mb-2 font-display text-amber-text">Birth Chart (D1)</h3>
                   <NorthIndianChartEnhanced chartData={viewing.content.chartData} />
                 </div>
               )}
@@ -404,7 +400,7 @@ export default function Reports() {
               {/* Planetary positions */}
               {viewing.content.planetaryPositions && viewing.content.planetaryPositions.length > 0 && (
                 <div>
-                  <h3 className="mb-2 font-display text-[var(--primary-border)]">Planetary Positions</h3>
+                  <h3 className="mb-2 font-display text-amber-text">Planetary Positions</h3>
                   <div className="overflow-x-auto">
                     <table className="w-full text-sm border-collapse">
                       <thead>
@@ -433,7 +429,7 @@ export default function Reports() {
               {/* Dasha timeline */}
               {viewing.content.dashaTimeline && viewing.content.dashaTimeline.length > 0 && (
                 <div>
-                  <h3 className="mb-2 font-display text-[var(--primary-border)]">Vimshottari Dasha Timeline</h3>
+                  <h3 className="mb-2 font-display text-amber-text">Vimshottari Dasha Timeline</h3>
                   <div className="overflow-x-auto">
                     <table className="w-full text-sm border-collapse">
                       <thead>
@@ -476,13 +472,13 @@ export default function Reports() {
               {viewing.content.summary && <p className="text-sm text-muted-foreground italic">{viewing.content.summary}</p>}
               {viewing.content.sections?.map((s, i) => (
                 <div key={i}>
-                  <h3 className="font-display text-[var(--primary-border)]">{s.heading}</h3>
+                  <h3 className="font-display text-amber-text">{s.heading}</h3>
                   <p className="text-sm whitespace-pre-line mt-1">{s.body}</p>
                 </div>
               ))}
               {viewing.content.remedies && viewing.content.remedies.length > 0 && (
                 <div>
-                  <h3 className="font-display text-[var(--primary-border)]">Recommended Remedies</h3>
+                  <h3 className="font-display text-amber-text">Recommended Remedies</h3>
                   <ul className="list-disc list-inside text-sm mt-1 space-y-1">
                     {viewing.content.remedies.map((r, i) => <li key={i}>{r}</li>)}
                   </ul>

@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
-import { Link, useLocation } from "wouter";
-import { ArrowLeft, Plus, Sparkles, ChevronRight, Calendar, MapPin } from "lucide-react";
+import { Link, useLocation, useSearch } from "wouter";
+import { PageHeader, PageBody } from "@/components/shell/PageHeader";
+import { Plus, Sparkles, ChevronRight, Calendar, MapPin } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -21,37 +22,29 @@ interface Kundli {
 export default function MyCharts() {
   const [, setLocation] = useLocation();
   const { data: kundlis = [], isLoading } = useQuery<Kundli[]>({ queryKey: ["/api/kundli"] });
+  // The Dasha tab arrives here with ?for=dasha until a chart can be marked as the user's own.
+  const forDasha = new URLSearchParams(useSearch()).get("for") === "dasha";
 
   return (
-    <div className="yantra-shell min-h-screen w-full max-w-7xl px-4 py-6 pb-24 md:px-8 md:pb-8 lg:px-12 mx-auto">
-      <div className="flex items-center justify-between gap-3 mb-6">
-        <div className="flex items-center gap-3">
-          <Link href="/">
-            <button className="flex h-9 w-9 items-center justify-center rounded-[8px] border border-border bg-card hover:bg-muted" data-testid="button-back">
-              <ArrowLeft className="w-5 h-5 text-foreground" />
-            </button>
-          </Link>
-          <div>
-            <h1 className="font-display text-2xl text-foreground">My Charts</h1>
-            <p className="text-sm text-muted-foreground">Your saved birth charts</p>
-          </div>
-        </div>
-        <Button
-          className="shrink-0 gap-1 rounded-[9px] bg-primary text-primary-foreground hover:bg-primary/90"
-          onClick={() => setLocation("/kundli/new")}
-          data-testid="button-generate-new"
-        >
-          <Plus className="w-4 h-4" /> New
-        </Button>
-      </div>
-
+    <div>
+      <PageHeader
+        title={forDasha ? "Dasha" : "Kundli"}
+        gloss={forDasha ? "दशा" : "कुण्डली"}
+        sub={forDasha ? "Choose a chart to see its Vimshottari periods" : "Your saved birth charts"}
+        actions={
+          <Button className="shrink-0 gap-1" onClick={() => setLocation("/kundli/new")} data-testid="button-generate-new">
+            <Plus className="w-4 h-4" /> New chart
+          </Button>
+        }
+      />
+      <PageBody>
       {isLoading ? (
         <LoadingSpinner />
       ) : kundlis.length === 0 ? (
         <Card className="yantra-card">
           <CardContent className="p-8 text-center">
             <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-[8px] bg-primary/20">
-              <Sparkles className="w-7 h-7 text-[var(--primary-border)]" />
+              <Sparkles className="w-7 h-7 text-amber-text" />
             </div>
             <p className="font-semibold text-foreground">No saved charts yet</p>
             <p className="text-sm text-muted-foreground mt-1 mb-5">
@@ -69,7 +62,7 @@ export default function MyCharts() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
           {kundlis.map((k) => (
-            <Link key={k.id} href={`/kundli/${k.id}`}>
+            <Link key={k.id} href={forDasha ? `/kundli/${k.id}?tab=dashas` : `/kundli/${k.id}`}>
               <Card className="yantra-card cursor-pointer transition-shadow" data-testid={`chart-${k.id}`}>
                 <CardContent className="p-4">
                   <div className="flex items-start justify-between gap-2">
@@ -91,7 +84,7 @@ export default function MyCharts() {
                     </div>
                   )}
                   <div className="mt-3 flex flex-wrap gap-1.5">
-                    {k.zodiacSign && <Badge className="border-0 bg-primary/15 text-[var(--primary-border)] text-xs">Sun: {k.zodiacSign}</Badge>}
+                    {k.zodiacSign && <Badge className="border-0 bg-primary/15 text-amber-text text-xs">Sun: {k.zodiacSign}</Badge>}
                     {k.moonSign && <Badge className="border-0 bg-positive/10 text-positive text-xs">Moon: {k.moonSign}</Badge>}
                     {k.ascendant && <Badge className="border-0 bg-highlight text-amber-text text-xs">Asc: {k.ascendant}</Badge>}
                     {k.listStatus !== 'limited' && k.timeAccuracy === 'approximate' && (
@@ -107,6 +100,7 @@ export default function MyCharts() {
           ))}
         </div>
       )}
+      </PageBody>
     </div>
   );
 }

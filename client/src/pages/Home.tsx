@@ -1,6 +1,7 @@
 import { isAstrologerAvailable } from '@/lib/astrologerPresence';
 import { useQuery } from '@tanstack/react-query';
 import { type LucideIcon, Phone, MessageCircle, Calendar, Sparkles, User, Wallet, LogOut, ArrowRight, Radio, ShoppingBag, FileText, Flame, CalendarDays } from 'lucide-react';
+import { PageHeader } from '@/components/shell/PageHeader';
 import { Link, useLocation } from 'wouter';
 import { isMarketplacePath, useMarketplace } from '@/lib/marketplace';
 import { QuickActionCard } from '@/components/QuickActionCard';
@@ -25,6 +26,13 @@ interface CmsHomepageContent {
   banners: HomepageContent[];
   services: HomepageContent[];
   freeServices: HomepageContent[];
+}
+
+const VARA_HI = ['रविवार', 'सोमवार', 'मंगलवार', 'बुधवार', 'गुरुवार', 'शुक्रवार', 'शनिवार'];
+// The mockup's date line: Hindi weekday, then "Fri 9 Oct".
+function todayLine(d: Date) {
+  const day = d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' }).replace(',', '');
+  return <><span lang="hi">{VARA_HI[d.getDay()]}</span> · {day}</>;
 }
 
 export default function Home() {
@@ -68,54 +76,14 @@ export default function Home() {
   }
 
   return (
-    <div className="yantra-shell min-h-screen font-sans relative overflow-x-hidden">
-      <div className="relative mx-auto w-full max-w-7xl pb-24 md:pb-8">
-        <header className="px-4 pb-3 pt-5 md:px-8 lg:px-12">
-          <div className="mb-5 flex items-center justify-between">
-            <div className="md:hidden">
-              <h1 className="font-display text-2xl text-foreground tracking-tight">
-                Navagraha
-              </h1>
-              <div className="flex items-center gap-1.5 text-[var(--primary-border)] font-medium text-xs">
-                <Sparkles className="w-3 h-3" />
-                <span>Nine Celestial Powers</span>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-3">
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <button className="flex h-10 w-10 items-center justify-center rounded-[8px] border border-border bg-card transition-colors hover:bg-muted">
-                    <User className="w-5 h-5 text-foreground" />
-                  </button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-48 bg-card border-border">
-                  <div className="px-3 py-2 border-b border-border">
-                    <p className="text-sm font-semibold text-foreground">{user?.firstName || 'Seeker'}</p>
-                    <p className="text-xs text-muted-foreground">{user?.email || ''}</p>
-                  </div>
-                  <DropdownMenuSeparator className="bg-border" />
-                  <Link href="/profile">
-                    <DropdownMenuItem className="cursor-pointer">
-                      <User className="w-4 h-4 mr-2" /> My Profile
-                    </DropdownMenuItem>
-                  </Link>
-                  <Link href="/wallet">
-                    <DropdownMenuItem className="cursor-pointer">
-                      <Wallet className="w-4 h-4 mr-2" /> Wallet
-                    </DropdownMenuItem>
-                  </Link>
-                  <DropdownMenuSeparator className="bg-border" />
-                  <DropdownMenuItem
-                    className="text-negative cursor-pointer"
-                    onClick={() => window.location.href = '/api/logout'}
-                  >
-                    <LogOut className="w-4 h-4 mr-2" /> Log Out
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
-          </div>
+    <div className="relative overflow-x-hidden">
+      <PageHeader
+        title="Today"
+        gloss="आज"
+        eyebrow={todayLine(new Date())}
+      />
+      <div className="relative mx-auto w-full max-w-[1320px] pb-8">
+        <div className="px-4 pb-3 pt-5 md:px-10">
 
           <div className="grid gap-4 lg:grid-cols-[minmax(0,1.5fr)_320px] lg:items-stretch">
             <GreetingCard
@@ -131,7 +99,7 @@ export default function Home() {
                   <p className="mt-1 text-sm text-muted-foreground">{marketplace ? 'Ready for chats, calls, and reports' : 'Ready for reports'}</p>
                 </div>
                 <div className="rounded-[8px] bg-primary/20 p-3">
-                  <Wallet className="w-5 h-5 text-[var(--primary-border)]" />
+                  <Wallet className="w-5 h-5 text-amber-text" />
                 </div>
               </div>
               <button
@@ -143,9 +111,9 @@ export default function Home() {
               </button>
             </div>
           </div>
-        </header>
+        </div>
 
-        <div className="px-4 md:px-8 lg:px-12">
+        <div className="px-4 md:px-10">
           <div className="grid gap-4 xl:grid-cols-[minmax(0,1.55fr)_minmax(280px,0.9fr)]">
             <HeroBanner
               title={cmsBanner?.title || 'Your cosmic blueprint awaits.'}
@@ -160,10 +128,10 @@ export default function Home() {
 
         {/* Quick Actions - 2x2 Grid */}
         <section className="mb-7 pt-1">
-          <div className="px-4 md:px-8 lg:px-12">
+          <div className="px-4 md:px-10">
             <SectionHeader title="Connect" showViewAll={false} />
           </div>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 px-4 md:px-8 lg:px-12 xl:grid-cols-4">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 px-4 md:px-10 xl:grid-cols-4">
             {marketplace && cmsServices.length > 0 ? (
               cmsServices.map((svc, i) => (
                 <QuickActionCard
@@ -176,7 +144,7 @@ export default function Home() {
               ))
             ) : !marketplace ? (
               <>
-                <QuickActionCard title="Ask Your Kundli" icon={Sparkles} color="orange" onClick={() => setLocation('/ai-astrologer')} />
+                <QuickActionCard title="Ask your Kundli" icon={Sparkles} color="orange" onClick={() => setLocation('/ai-astrologer')} />
                 <QuickActionCard title="My Charts" icon={User} color="purple" onClick={() => setLocation('/kundli')} />
                 <QuickActionCard title="Reports" icon={FileText} color="green" onClick={() => setLocation('/reports')} />
                 <QuickActionCard title="Panchang" icon={CalendarDays} color="navy" onClick={() => setLocation('/panchang')} />
@@ -196,7 +164,7 @@ export default function Home() {
                   onClick={() => setLocation('/astrologers')}
                 />
                 <QuickActionCard
-                  title="AI Astrologer"
+                  title="Ask your Kundli"
                   icon={Sparkles}
                   color="orange"
                   onClick={() => setLocation('/ai-astrologer')}
@@ -215,10 +183,10 @@ export default function Home() {
         {/* Explore — marketplace services; the paused Connect row above covers the rest */}
         {marketplace && (
         <section className="mb-7 pt-1">
-          <div className="px-4 md:px-8 lg:px-12">
+          <div className="px-4 md:px-10">
             <SectionHeader title="Explore" showViewAll={false} />
           </div>
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-3 px-4 md:px-8 lg:px-12">
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-3 px-4 md:px-10">
             <QuickActionCard title="Live" icon={Radio} color="purple" onClick={() => setLocation('/live')} />
             <QuickActionCard title="Astromall" icon={ShoppingBag} color="orange" onClick={() => setLocation('/store')} />
             <QuickActionCard title="Reports" icon={FileText} color="green" onClick={() => setLocation('/reports')} />
@@ -229,7 +197,7 @@ export default function Home() {
         )}
 
         {/* Active Influences */}
-        <section className="mb-7 px-4 md:px-8 lg:px-12">
+        <section className="mb-7 px-4 md:px-10">
           <div className="grid gap-5 xl:grid-cols-[minmax(0,1.45fr)_360px]">
             <div>
               <SectionHeader
@@ -265,14 +233,14 @@ export default function Home() {
         {/* Online Astrologers */}
         {marketplace && (
         <section className="mb-7 relative">
-          <div className="px-4 md:px-8 lg:px-12">
+          <div className="px-4 md:px-10">
             <SectionHeader
               title="Online Astrologers"
               subtitle="Trusted experts, vetted and verified"
               viewAllLink="/astrologers"
             />
           </div>
-          <div className="flex md:grid md:grid-cols-3 lg:grid-cols-5 gap-4 overflow-x-auto md:overflow-visible px-4 md:px-8 lg:px-12 pb-4 pt-2 scrollbar-hide snap-x snap-mandatory md:snap-none">
+          <div className="flex md:grid md:grid-cols-3 lg:grid-cols-5 gap-4 overflow-x-auto md:overflow-visible px-4 md:px-10 pb-4 pt-2 scrollbar-hide snap-x snap-mandatory md:snap-none">
             {astrologersLoading && <LoadingSpinner />}
             {(astrologers || []).slice(0, 5).map((astrologer) => (
               <AstrologerCard
