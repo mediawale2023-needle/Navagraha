@@ -1,20 +1,22 @@
 import { Star, Phone, MessageCircle } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Link } from 'wouter';
+import { ratingLabel, experienceLabel, priceLabel } from '@/lib/astrologerDisplay';
 
 interface AstrologerCardProps {
     id?: number | string;
     name: string;
     image: string;
-    rating: number;
-    experience: number;
-    price: number;
+    rating?: string | number | null;
+    experience?: string | number | null;
+    price?: string | number | null;
     specialization: string;
+    isVerified?: boolean;
     isOnline: boolean;
 }
 
 export function AstrologerCard({
-    id = 1, name, image, rating, experience, price, specialization, isOnline
+    id, name, image, rating, experience, price, specialization, isVerified, isOnline
 }: AstrologerCardProps) {
     return (
         <div className="yantra-card w-[288px] shrink-0 p-4">
@@ -31,21 +33,23 @@ export function AstrologerCard({
                 <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
                         <h4 className="font-display truncate text-base text-foreground">{name}</h4>
-                        <span className="bg-nava-navy px-1.5 py-0.5 text-[0.55rem] font-bold tracking-[0.12em] text-primary">VERIFIED</span>
+                        {isVerified && <span className="bg-nava-navy px-1.5 py-0.5 text-[0.55rem] font-bold tracking-[0.12em] text-primary">VERIFIED</span>}
                     </div>
                     <p className="mt-1 text-xs text-muted-foreground">{specialization}</p>
                     <div className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
                         <span className="flex items-center gap-1">
                             <Star className="h-3.5 w-3.5 fill-primary text-primary" />
-                            {rating}
+                            {ratingLabel(rating)}
                         </span>
-                        <span>{experience}y exp</span>
+                        {experienceLabel(experience) && <span>{experienceLabel(experience)}</span>}
                     </div>
                 </div>
-                <div className="text-right">
-                    <div className="font-display text-lg text-[var(--primary-border)]">₹{price}</div>
-                    <div className="text-[0.65rem] uppercase tracking-[0.12em] text-muted-foreground">per min</div>
-                </div>
+                {priceLabel(price) && (
+                    <div className="text-right">
+                        <div className="font-display text-lg text-[var(--primary-border)]">{priceLabel(price)}</div>
+                        <div className="text-[0.65rem] uppercase tracking-[0.12em] text-muted-foreground">per min</div>
+                    </div>
+                )}
             </div>
             <div className="mt-4 flex gap-2">
                 <Link href={`/call/${id}?type=voice`} className="flex-1">

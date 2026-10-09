@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useRoute, Link } from "wouter";
-import { Loader2, Star, ChevronRight, ArrowLeft, Heart, TrendingUp, Activity } from "lucide-react";
+import { Loader2, Star, ChevronRight, ArrowLeft, Heart, TrendingUp } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -14,18 +14,18 @@ interface PersonalDailyData {
   limitedReason?: string;
   date?: string;
   person?: string;
+  unavailable?: boolean;
   content?: {
     headline: string;
     overall: string;
-    rating: number;
     career: string;
     love: string;
-    health: string;
     finance: string;
+    advice: string;
+    dayLord?: string;
     luckyColor: string;
     luckyNumber: number;
-    advice: string;
-  };
+  } | null;
 }
 
 function PersonalDaily() {
@@ -64,11 +64,21 @@ function PersonalDaily() {
     );
   }
   const c = data.content;
-  if (!c) return null;
+  if (!c) {
+    return data.unavailable ? (
+      <Card className="yantra-card mb-6 border-primary/25" data-testid="card-daily-unavailable">
+        <CardContent className="p-5 flex items-center justify-between gap-3">
+          <p className="text-sm text-muted-foreground">Today's personal card isn't ready yet. Ask your Kundli anything about today in the meantime.</p>
+          <Link href="/ai-astrologer?q=What%20does%20today%20hold%20for%20me%3F">
+            <Button variant="outline" className="shrink-0 rounded-[9px]">Ask about today</Button>
+          </Link>
+        </CardContent>
+      </Card>
+    ) : null;
+  }
   const areas = [
     { Icon: TrendingUp, label: "Career", v: c.career },
     { Icon: Heart, label: "Love", v: c.love },
-    { Icon: Activity, label: "Health", v: c.health },
     { Icon: Star, label: "Finance", v: c.finance },
   ];
   return (
@@ -78,11 +88,7 @@ function PersonalDaily() {
           <span className="yantra-eyebrow text-[var(--primary-border)]">
             Your Day{data.person ? ` · ${data.person}` : ""}
           </span>
-          <div className="flex items-center gap-0.5">
-            {[1, 2, 3, 4, 5].map((n) => (
-              <Star key={n} className={`w-3.5 h-3.5 ${n <= (c.rating || 3) ? "text-nava-amber fill-nava-amber" : "text-muted-foreground/30"}`} />
-            ))}
-          </div>
+
         </div>
         <h2 className="text-lg font-bold text-foreground">{c.headline}</h2>
         <p className="text-sm text-foreground/90 mt-1 leading-relaxed">{c.overall}</p>
@@ -99,8 +105,9 @@ function PersonalDaily() {
           )}
         </div>
         <div className="flex flex-wrap items-center gap-2 mt-4">
-          {c.luckyColor && <Badge className="bg-primary/15 text-[var(--primary-border)] border-0">Lucky colour: {c.luckyColor}</Badge>}
-          {c.luckyNumber != null && <Badge className="bg-nava-magenta/10 text-nava-magenta border-0">Lucky number: {c.luckyNumber}</Badge>}
+          {c.dayLord && <Badge className="bg-muted text-muted-foreground border-0" title="The weekday's ruling planet; its colour and number are the same for everyone today.">Day of {c.dayLord}</Badge>}
+          {c.luckyColor && <Badge className="bg-primary/15 text-[var(--primary-border)] border-0">Colour: {c.luckyColor}</Badge>}
+          {c.luckyNumber != null && <Badge className="bg-nava-magenta/10 text-nava-magenta border-0">Number: {c.luckyNumber}</Badge>}
         </div>
         {c.advice && <p className="text-sm italic text-muted-foreground mt-3">Today's tip — {c.advice}</p>}
       </CardContent>
@@ -109,38 +116,47 @@ function PersonalDaily() {
 }
 
 const ZODIAC_SIGNS = [
-  { id: "aries", emoji: "🐏", name: "Mesh", englishName: "Aries", dates: "Mar 21 - Apr 19", bg: "bg-nava-amber" },
-  { id: "taurus", emoji: "🐂", name: "Vrishabh", englishName: "Taurus", dates: "Apr 20 - May 20", bg: "bg-nava-teal" },
-  { id: "gemini", emoji: "👥", name: "Mithun", englishName: "Gemini", dates: "May 21 - Jun 20", bg: "bg-nava-magenta" },
-  { id: "cancer", emoji: "🦀", name: "Kark", englishName: "Cancer", dates: "Jun 21 - Jul 22", bg: "bg-nava-aqua" },
-  { id: "leo", emoji: "🦁", name: "Simha", englishName: "Leo", dates: "Jul 23 - Aug 22", bg: "bg-nava-amber" },
-  { id: "virgo", emoji: "👩", name: "Kanya", englishName: "Virgo", dates: "Aug 23 - Sep 22", bg: "bg-nava-teal" },
-  { id: "libra", emoji: "⚖️", name: "Tula", englishName: "Libra", dates: "Sep 23 - Oct 22", bg: "bg-nava-magenta" },
-  { id: "scorpio", emoji: "🦂", name: "Vrishchik", englishName: "Scorpio", dates: "Oct 23 - Nov 21", bg: "bg-nava-aqua" },
-  { id: "sagittarius", emoji: "🏹", name: "Dhanu", englishName: "Sagittarius", dates: "Nov 22 - Dec 21", bg: "bg-nava-teal" },
-  { id: "capricorn", emoji: "🐐", name: "Makar", englishName: "Capricorn", dates: "Dec 22 - Jan 19", bg: "bg-nava-amber" },
-  { id: "aquarius", emoji: "🏺", name: "Kumbh", englishName: "Aquarius", dates: "Jan 20 - Feb 18", bg: "bg-nava-magenta" },
-  { id: "pisces", emoji: "🐟", name: "Meen", englishName: "Pisces", dates: "Feb 19 - Mar 20", bg: "bg-nava-aqua" },
+  { id: "aries", emoji: "🐏", name: "Mesh", englishName: "Aries", bg: "bg-nava-amber" },
+  { id: "taurus", emoji: "🐂", name: "Vrishabh", englishName: "Taurus", bg: "bg-nava-teal" },
+  { id: "gemini", emoji: "👥", name: "Mithun", englishName: "Gemini", bg: "bg-nava-magenta" },
+  { id: "cancer", emoji: "🦀", name: "Kark", englishName: "Cancer", bg: "bg-nava-aqua" },
+  { id: "leo", emoji: "🦁", name: "Simha", englishName: "Leo", bg: "bg-nava-amber" },
+  { id: "virgo", emoji: "👩", name: "Kanya", englishName: "Virgo", bg: "bg-nava-teal" },
+  { id: "libra", emoji: "⚖️", name: "Tula", englishName: "Libra", bg: "bg-nava-magenta" },
+  { id: "scorpio", emoji: "🦂", name: "Vrishchik", englishName: "Scorpio", bg: "bg-nava-aqua" },
+  { id: "sagittarius", emoji: "🏹", name: "Dhanu", englishName: "Sagittarius", bg: "bg-nava-teal" },
+  { id: "capricorn", emoji: "🐐", name: "Makar", englishName: "Capricorn", bg: "bg-nava-amber" },
+  { id: "aquarius", emoji: "🏺", name: "Kumbh", englishName: "Aquarius", bg: "bg-nava-magenta" },
+  { id: "pisces", emoji: "🐟", name: "Meen", englishName: "Pisces", bg: "bg-nava-aqua" },
 ];
 
 type Period = "today" | "tomorrow" | "weekly" | "monthly";
 
 interface HoroscopeData {
   sign: string;
+  rashi: string;
+  period: Period;
+  from: string;
+  to: string;
+  headline: string;
   prediction: string;
-  lucky?: { color?: string; number?: string; day?: string; time?: string };
-  generatedAt?: string;
+  highlights: Array<{ planet: string; sign: string; houseFromMoon: number; favourable: boolean; theme: string; changesTo?: { sign: string; houseFromMoon: number; favourable: boolean; on: string } }>;
+  sadeSati: { active: boolean; phase: string | null };
+  basis: string;
 }
+
+const viewerTimeZone = () => {
+  try { return Intl.DateTimeFormat().resolvedOptions().timeZone || ''; } catch { return ''; }
+};
 
 function HoroscopeDetail({ sign }: { sign: (typeof ZODIAC_SIGNS)[0] }) {
   const [period, setPeriod] = useState<Period>("today");
 
+  const tz = viewerTimeZone();
+  const url = `/api/horoscope/${sign.id}?period=${period}${tz ? `&tz=${encodeURIComponent(tz)}` : ""}`;
   const { data, isLoading, error } = useQuery<HoroscopeData>({
-    queryKey: [`/api/ai/horoscope/${sign.id}`, period],
-    queryFn: async () => {
-      const res = await apiRequest("GET", `/api/ai/horoscope/${sign.id}?type=${period}`);
-      return res.json();
-    },
+    queryKey: [url],
+    queryFn: () => apiRequest<HoroscopeData>("GET", url),
     staleTime: 30 * 60 * 1000,
   });
 
@@ -161,7 +177,7 @@ function HoroscopeDetail({ sign }: { sign: (typeof ZODIAC_SIGNS)[0] }) {
           </div>
           <div>
             <h1 className="font-display text-3xl text-white">{sign.name}</h1>
-            <p className="text-white/80 text-sm">{sign.englishName} | {sign.dates}</p>
+            <p className="text-white/80 text-sm">{sign.englishName} Moon sign (Rashi)</p>
           </div>
         </div>
       </div>
@@ -194,44 +210,33 @@ function HoroscopeDetail({ sign }: { sign: (typeof ZODIAC_SIGNS)[0] }) {
                 Prediction
               </span>
             </div>
+            <p className="text-xs text-muted-foreground mb-2">{data.from === data.to ? data.from : `${data.from} to ${data.to}`}</p>
+            <h2 className="font-display text-lg text-foreground mb-3" data-testid="text-sign-headline">{data.headline}</h2>
             <p className="text-foreground leading-relaxed whitespace-pre-line">{data.prediction}</p>
 
-            {/* Insights Grid */}
-            <div className="grid grid-cols-3 gap-3 mt-6 pt-4 border-t border-border">
-              {[
-                { icon: Heart, label: 'Love', stars: 4, color: 'text-nava-magenta' },
-                { icon: TrendingUp, label: 'Career', stars: 3, color: 'text-nava-amber' },
-                { icon: Activity, label: 'Health', stars: 4, color: 'text-nava-teal' },
-              ].map(({ icon: Icon, label, stars, color }) => (
-                <div key={label} className="rounded-[8px] bg-background p-3 text-center">
-                  <Icon className={`w-4 h-4 ${color} mx-auto mb-2`} />
-                  <p className="text-[10px] font-semibold text-muted-foreground mb-2">{label}</p>
-                  <div className="flex gap-0.5 justify-center">
-                    {Array.from({ length: 5 }).map((_, i) => (
-                      <Star key={i} className={`w-2.5 h-2.5 ${i < stars ? 'fill-nava-amber text-nava-amber' : 'text-border'}`} />
-                    ))}
-                  </div>
-                </div>
-              ))}
+            <div className="mt-4 overflow-x-auto">
+              <table className="w-full text-xs" data-testid="table-gochara">
+                <thead>
+                  <tr className="border-b border-border text-left text-muted-foreground">
+                    <th className="py-1.5 pr-2 font-medium">Planet</th>
+                    <th className="py-1.5 pr-2 font-medium">Sign</th>
+                    <th className="py-1.5 pr-2 font-medium">From Moon</th>
+                    <th className="py-1.5 font-medium">Reading</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.highlights.map((h) => (
+                    <tr key={h.planet} className="border-b border-border/40">
+                      <td className="py-1.5 pr-2 font-medium text-foreground">{h.planet}</td>
+                      <td className="py-1.5 pr-2">{h.sign}{h.changesTo ? ` → ${h.changesTo.sign}` : ""}</td>
+                      <td className="py-1.5 pr-2 tabular-nums">{h.houseFromMoon}{h.changesTo ? ` → ${h.changesTo.houseFromMoon}` : ""}</td>
+                      <td className="py-1.5">{h.favourable ? "Supportive" : "Demanding"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
-
-            {data.lucky && (
-              <div className="mt-4 pt-4 border-t border-border">
-                <p className="text-xs text-muted-foreground uppercase tracking-wider mb-3">Lucky Today</p>
-                <div className="flex flex-wrap gap-2">
-                  {data.lucky.number && (
-                    <Badge className="bg-primary/15 text-[var(--primary-border)] border-primary/30 text-xs">
-                      Number: {data.lucky.number}
-                    </Badge>
-                  )}
-                  {data.lucky.color && (
-                    <Badge className="bg-primary/15 text-[var(--primary-border)] border-primary/30 text-xs">
-                      Color: {data.lucky.color}
-                    </Badge>
-                  )}
-                </div>
-              </div>
-            )}
+            <p className="mt-4 text-[11px] text-muted-foreground">{data.basis}</p>
           </CardContent>
         </Card>
       ) : null}
@@ -251,7 +256,7 @@ function SignGrid({ onSelect }: { onSelect: (sign: (typeof ZODIAC_SIGNS)[0]) => 
         </Link>
         <div>
             <h1 className="font-display text-2xl text-foreground">Daily Horoscope</h1>
-          <p className="text-sm text-muted-foreground">Know your Rashi predictions</p>
+          <p className="text-sm text-muted-foreground">Pick your Moon sign (Rashi), not your Western sun sign</p>
         </div>
       </div>
 

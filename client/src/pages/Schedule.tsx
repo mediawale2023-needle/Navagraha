@@ -35,7 +35,7 @@ export default function Schedule() {
 
   const selectedAstrologer = astrologers?.find(a => a.id === selectedAstrologerId);
   const estimatedCost = selectedAstrologer
-    ? parseFloat(selectedAstrologer.pricePerMinute || '25') * parseInt(durationMinutes || '30')
+    ? (Number(selectedAstrologer.pricePerMinute) || 0) * parseInt(durationMinutes || '30')
     : 0;
 
   // Min datetime = now + 30 minutes
@@ -186,9 +186,9 @@ export default function Schedule() {
                     {[15, 30, 45, 60, 90].map(d => (
                       <SelectItem key={d} value={String(d)}>
                         {d} minutes
-                        {selectedAstrologer && (
+                        {Number(selectedAstrologer?.pricePerMinute) > 0 && (
                           <span className="text-muted-foreground ml-2">
-                            — ₹{parseFloat(selectedAstrologer.pricePerMinute || '25') * d}
+                            — ₹{Number(selectedAstrologer!.pricePerMinute) * d}
                           </span>
                         )}
                       </SelectItem>

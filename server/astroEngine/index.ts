@@ -15,10 +15,9 @@ import type { CanonicalChart } from '@shared/v3/canonical';
 
 export { BirthInputError };
 import { calculateNumerology } from './numerology.js';
-import { getDailyHoroscope as _getDailyHoroscope } from './horoscope.js';
 
 // Re-export horoscope types for convenience
-export { getDailyHoroscope } from './horoscope.js';
+export { signHoroscope, resolveSign, HOROSCOPE_PERIODS, type HoroscopePeriod, type SignHoroscope } from './gochara.js';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -33,14 +32,10 @@ export interface NativeMatchResult {
   compatibility:  string;
   recommendation: string;
   dosha:          { hasDosha: boolean; type: string; description: string };
+  doshas:         Array<{ type: string; cancelled: boolean; cancellation: string | null }>;
+  /** Which person was scored as the bride; `assumed` when the genders did not decide it. */
+  roles:          { bride: 'person1' | 'person2'; assumed: boolean };
   raw: Record<string, unknown>;
-}
-
-export interface NativeHoroscope {
-  sign:       string;
-  date:       string;
-  prediction: string;
-  lucky: { number: string; color: string; time: string };
 }
 
 export interface NativeNumerology {
@@ -105,7 +100,10 @@ export interface TransitInfo {
   /** Null when the birth time is approximate: houses are then counted from the Moon only. */
   natalLagnaSign: string | null;
   planets: Array<{ planet: string; sign: string; houseFromMoon: number; houseFromLagna: number | null; sav: number | null; retrograde: boolean }>;
-  sadeSati: { active: boolean; phase: string; saturnSign: string; houseFromMoon: number; note: string; sinceApprox?: string; untilApprox?: string };
+  /** `determined` is false when the natal Moon sign itself is uncertain; then `active` is false and nothing is claimed. */
+  sadeSati: { active: boolean; determined: boolean; phase: string; saturnSign: string; houseFromMoon: number; note: string; sinceApprox?: string; untilApprox?: string };
+  /** False when the natal Moon sign could differ across the birth date (approximate time): houses from the Moon are then unreliable. */
+  moonSignCertain: boolean;
   jupiter: { sign: string; houseFromMoon: number; favourable: boolean };
 }
 
@@ -134,6 +132,7 @@ export function getTransits(
   natalLagnaSign: string | number | null,
   savBySign?: number[],
   when: Date = new Date(),
+  moonSignCertain = true,
 ): TransitInfo {
   const moonIdx = resolveSignIndex(natalMoonSign);
   const lagnaIdx = natalLagnaSign == null ? null : resolveSignIndex(natalLagnaSign);
@@ -162,6 +161,11 @@ export function getTransits(
   else if (hMoonSat === 2) { active = true; phase = 'Setting phase — Saturn in the 2nd from Moon'; }
   else if (hMoonSat === 4) { phase = 'Kantaka Shani — Saturn in the 4th from Moon'; note = 'Ardha-ashtama (small panoti), a ~2.5-year Saturn test.'; }
   else if (hMoonSat === 8) { phase = 'Ashtama Shani — Saturn in the 8th from Moon'; note = 'Dhaiya (small panoti), a ~2.5-year Saturn test.'; }
+  if (!moonSignCertain) {
+    active = false;
+    phase = 'Undetermined — the natal Moon sign could differ across the birth date with an approximate birth time';
+    note = '';
+  }
 
   // Approximate the current Saturn-sign window at month resolution.
   const monthFmt = (d: Date) => d.toLocaleString('en-US', { month: 'short', year: 'numeric' });
@@ -189,7 +193,8 @@ export function getTransits(
     natalMoonSign: SIGNS[moonIdx],
     natalLagnaSign: lagnaIdx == null ? null : SIGNS[lagnaIdx],
     planets,
-    sadeSati: { active, phase, saturnSign: SIGNS[satSign], houseFromMoon: hMoonSat, note, sinceApprox, untilApprox },
+    sadeSati: { active, determined: moonSignCertain, phase, saturnSign: SIGNS[satSign], houseFromMoon: hMoonSat, note, sinceApprox, untilApprox },
+    moonSignCertain,
     jupiter: { sign: SIGNS[jupSign], houseFromMoon: hMoonJup, favourable: [2, 5, 7, 9, 11].includes(hMoonJup) },
   };
 }
@@ -198,20 +203,25 @@ export function getTransits(
 export function transitsForChart(canonical: CanonicalChart, savBySign?: number[], when?: Date): TransitInfo {
   const moon = canonical.planets.find((p) => p.name === 'Moon')!;
   const lagna = canonical.birth.timeAccuracy === 'approximate' ? null : canonical.ascendant.sign;
-  return getTransits(moon.sign, lagna, savBySign, when);
+  return getTransits(moon.sign, lagna, savBySign, when, canonical.uncertainty.moonSignStableAcrossBirthDate);
 }
 
 /** Compact text summary of transits for AI prompts. */
 export function transitSummary(t: TransitInfo): string {
   const lines = t.planets
-    .map((p) => `- ${p.planet}: ${p.sign} (${p.houseFromMoon}th from Moon${p.houseFromLagna != null ? `, ${p.houseFromLagna}th from Lagna` : ''}${p.sav != null ? `, SAV ${p.sav}` : ''}${p.retrograde ? ', retrograde' : ''})`)
+    .map((p) => `- ${p.planet}: ${p.sign} (${t.moonSignCertain ? `${p.houseFromMoon}th from Moon` : 'house from Moon uncertain'}${p.houseFromLagna != null ? `, ${p.houseFromLagna}th from Lagna` : ''}${p.sav != null ? `, SAV ${p.sav}` : ''}${p.retrograde ? ', retrograde' : ''})`)
     .join('\n');
-  const ss = t.sadeSati.active
+  const ss = !t.sadeSati.determined
+    ? 'Sade Sati undetermined: the natal Moon sign is uncertain, so do not say whether Sade Sati is active.'
+    : t.sadeSati.active
     ? `Sade Sati ACTIVE — ${t.sadeSati.phase}. Saturn in ${t.sadeSati.saturnSign} (~${t.sadeSati.sinceApprox} to ~${t.sadeSati.untilApprox}).`
     : `Sade Sati not active. ${t.sadeSati.phase}.${t.sadeSati.note ? ' ' + t.sadeSati.note : ''}`;
-  const jup = `Jupiter transiting ${t.jupiter.sign} (${t.jupiter.houseFromMoon}th from Moon) — ${t.jupiter.favourable ? 'favourable' : 'mixed'}.`;
+  const jup = t.moonSignCertain
+    ? `Jupiter transiting ${t.jupiter.sign} (${t.jupiter.houseFromMoon}th from Moon) — ${t.jupiter.favourable ? 'favourable' : 'mixed'}.`
+    : `Jupiter transiting ${t.jupiter.sign}.`;
   const lagna = t.natalLagnaSign ? `Lagna ${t.natalLagnaSign}` : 'Lagna not used — birth time approximate';
-  return `Current transits as of ${t.date} (natal Moon ${t.natalMoonSign}, ${lagna}):\n${lines}\n${ss}\n${jup}`;
+  const moon = t.moonSignCertain ? `natal Moon ${t.natalMoonSign}` : 'natal Moon sign uncertain';
+  return `Current transits as of ${t.date} (${moon}, ${lagna}):\n${lines}\n${ss}\n${jup}`;
 }
 
 // ─── Kundli Matching ──────────────────────────────────────────────────────────
@@ -222,34 +232,34 @@ export function transitSummary(t: TransitInfo): string {
  * Both persons' Moon positions are needed. We compute them from their
  * birth data so the caller only needs to supply the same fields as for getKundli.
  */
-export async function getKundliMatching(
-  person1: { dateOfBirth: Date | string; timeOfBirth: string; latitude: number; longitude: number },
-  person2: { dateOfBirth: Date | string; timeOfBirth: string; latitude: number; longitude: number },
-): Promise<NativeMatchResult> {
+type MatchPerson = { dateOfBirth: Date | string; timeOfBirth: string; latitude: number; longitude: number; gender?: string | null };
+
+/** Ashtakoota is defined for a bride and a groom; with any other pair, person 1 is scored as the bride and that is disclosed. */
+export function matchRoles(person1: MatchPerson, person2: MatchPerson): NativeMatchResult['roles'] {
+  const g1 = person1.gender?.toLowerCase();
+  const g2 = person2.gender?.toLowerCase();
+  if (g1 === 'male' && g2 === 'female') return { bride: 'person2', assumed: false };
+  if (g1 === 'female' && g2 === 'male') return { bride: 'person1', assumed: false };
+  return { bride: 'person1', assumed: true };
+}
+
+export async function getKundliMatching(person1: MatchPerson, person2: MatchPerson): Promise<NativeMatchResult> {
   // Each person's Moon at their own resolved UTC birth instant.
-  const moonLon = (p: typeof person1) => {
+  const moonLon = (p: MatchPerson) => {
     const birth = resolveBirthWithCoordinates({
       date: birthDateString(p.dateOfBirth), time: p.timeOfBirth, latitude: p.latitude, longitude: p.longitude, timeAccuracy: 'exact',
     });
     return siderealPositions(new Date(birth.birthUTC)).bodies.Moon.longitude;
   };
 
-  const girlMoon = moonLon(person1);
-  const boyMoon  = moonLon(person2);
+  const roles = matchRoles(person1, person2);
+  const [bride, groom] = roles.bride === 'person1' ? [person1, person2] : [person2, person1];
+  const girlMoon = moonLon(bride);
+  const boyMoon  = moonLon(groom);
 
   const result = ashtakootMatch(girlMoon, boyMoon);
 
-  return { ...result, raw: { girlMoon, boyMoon } };
-}
-
-// ─── Daily Horoscope ──────────────────────────────────────────────────────────
-
-export async function getNativeHoroscope(
-  sign: string,
-  date: 'today' | 'yesterday' | 'tomorrow' = 'today',
-  type: 'general' | 'career' | 'health' | 'love' = 'general',
-): Promise<NativeHoroscope> {
-  return _getDailyHoroscope(sign, date, type);
+  return { ...result, roles, raw: { girlMoon, boyMoon } };
 }
 
 // ─── Numerology ───────────────────────────────────────────────────────────────

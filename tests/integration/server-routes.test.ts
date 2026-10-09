@@ -22,7 +22,7 @@ import { createServer } from 'http';
 // Build a minimal Express app that wires only the routes we can test
 // without a real database (public routes only)
 import {
-  getDailyHoroscope,
+  signHoroscope,
   getKundliMatching,
   getNumerology,
 } from '../../server/astroEngine/index';
@@ -45,8 +45,7 @@ function buildTestApp() {
   app.get('/api/horoscope/:sign', async (req, res) => {
     try {
       const sign = req.params.sign.toLowerCase();
-      const h = await getDailyHoroscope(sign, 'today', 'general');
-      res.json({ sign, prediction: h.prediction, lucky: h.lucky });
+      res.json(signHoroscope(sign, 'today'));
     } catch {
       res.status(500).json({ message: 'Failed to fetch horoscope' });
     }
@@ -135,9 +134,10 @@ describe('GET /api/horoscope/:sign', () => {
     expect(res.body.sign).toBe('taurus');
   });
 
-  it('has a lucky field', async () => {
+  it('lists each transit counted from the Moon sign', async () => {
     const res = await request(app).get('/api/horoscope/gemini');
-    expect(res.body).toHaveProperty('lucky');
+    expect(res.body.highlights.length).toBe(9);
+    expect(res.body).not.toHaveProperty('lucky');
   });
 });
 

@@ -563,11 +563,14 @@ export const reportOrders = pgTable("report_orders", {
   reportTypeId: varchar("report_type_id").references(() => reportTypes.id).notNull(),
   kundliId: varchar("kundli_id").references(() => kundlis.id),
   subjectName: varchar("subject_name"), // person the report is for (shown in list)
-  status: varchar("status").default("processing"), // processing | ready | failed
+  status: varchar("status").default("processing"), // processing | ready | failed (refundedAt set once refunded)
   amount: decimal("amount", { precision: 10, scale: 2 }).notNull(),
   content: jsonb("content"), // generated report payload
   createdAt: timestamp("created_at").defaultNow(),
   readyAt: timestamp("ready_at"),
+  chargedAmount: decimal("charged_amount", { precision: 10, scale: 2 }), // what the wallet was debited (0 for free access); null on orders before refunds existed
+  refundedAt: timestamp("refunded_at"),
+  failureReason: text("failure_reason"),
 });
 
 export type ReportOrder = typeof reportOrders.$inferSelect;

@@ -30,6 +30,13 @@ const COMBUST_ORB: Record<string, number> = { Moon: 12, Mars: 17, Mercury: 14, J
 const WAR_PLANETS = ['Mars', 'Mercury', 'Jupiter', 'Venus', 'Saturn'];
 const AVASTHA = ['Bala (infant)', 'Kumara (youth)', 'Yuva (adult)', 'Vriddha (old)', 'Mrita (dead)'];
 
+/** Naisargika (natural) relationship of `planet` towards `other`, for the seven grahas. */
+export function naturalRelation(planet: string, other: string): 'friend' | 'neutral' | 'enemy' {
+  if (FRIENDS[planet]?.includes(other)) return 'friend';
+  if (ENEMIES[planet]?.includes(other)) return 'enemy';
+  return 'neutral';
+}
+
 export interface PlanetDignity {
   planet: string;
   sign: string;

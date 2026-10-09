@@ -5,7 +5,9 @@ import { db } from "./db";
 import { sql, eq, asc, desc, and, inArray } from "drizzle-orm";
 import { setupAuth, isAuthenticated, isAdmin } from "./auth";
 import { runCouncil } from "./agents/orchestrator";
+import { localise } from "./agents/localise.js";
 import { features } from "./features";
+import { marketplaceGate } from "./marketplace";
 import { setupSwagger } from "./swagger";
 import rateLimit from "express-rate-limit";
 import {
@@ -30,14 +32,17 @@ import {
   getKundli,
   BirthInputError,
   getKundliMatching,
-  getNativeHoroscope,
+  signHoroscope,
+  resolveSign,
+  HOROSCOPE_PERIODS,
+  type HoroscopePeriod,
   getNumerology,
   transitsForChart,
   transitSummary,
 } from "./astroEngine/index.js";
 import { computePrashna, PRASHNA_CATEGORIES } from "./astroEngine/prashna.js";
 import { CalculationError } from "./astroEngine/canonical/compute.js";
-import { upgradeLegacyKundli, chartVersionStatus, listedChart, withReconciledRemedies } from "./astroEngine/canonical/upgrade.js";
+import { upgradeLegacyKundli, chartVersionStatus, listedChart, withReconciledRemedies, withCurrentDoshaRules } from "./astroEngine/canonical/upgrade.js";
 import { buildInsights } from "./astroEngine/evidence/insights.js";
 import { routeQuestion, buildEvidencePacket, answerSimple, answerWithoutChart, guardAnswer, packetSummary, limitedChartReply } from "./agents/askKundli.js";
 import { canonicalChartSchema, isCurrentCanonicalChart } from "@shared/v3/canonical";
@@ -70,6 +75,7 @@ import { notifyUser, notifyAstrologer } from "./websocketService";
 import { sendPushToUser, sendPushToAstrologer } from "./pushService";
 import {
   interpretKundli,
+  InterpretationUnavailableError,
   generatePreConsultBrief,
   generatePostConsultFollowUp,
   matchAstrologerToChart,
@@ -78,6 +84,7 @@ import {
   generateDailyHoroscope,
   extractMemories,
 } from "./aiAstrologerService";
+import { fulfilReportOrder, isOfferedReportCategory, reportsAvailable } from "./reportOrders";
 import { computeJyotishChart } from "./astroEngine/jyotishEngine.js";
 import { streamTraditionReading, answerSessionQuery, type Tradition } from "./jyotishAiService.js";
 import { insertJyotishClientProfileSchema } from "@shared/schema";
@@ -129,17 +136,20 @@ const FINALISE_WINDOW_MS = 5 * 60 * 1000;
 
 export async function registerRoutes(app: Express, existingServer?: Server): Promise<Server> {
 
-  // Mount Swagger UI
-  setupSwagger(app);
-
   try {
     await setupAuth(app);
   } catch (err) {
     console.error('[startup] Auth setup failed (continuing without auth):', err);
   }
 
+  // After auth, so the production guard can see the signed-in admin.
+  setupSwagger(app, isAdmin);
+
   // NOTE: /api/config is registered in index.ts (before async init) so it
   // responds immediately for Railway healthchecks. Do NOT duplicate here.
+
+  // While the marketplace is off, nothing can start, book or charge for it (server/marketplace.ts).
+  app.use(marketplaceGate);
 
   // ─── User Email Auth ──────────────────────────────────────
 
@@ -242,7 +252,7 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
   const upgradesInFlight = new Map<string, Promise<Kundli>>();
   async function currentChart<T extends Kundli | null | undefined>(kundli: T): Promise<T> {
     if (!kundli?.id) return kundli;
-    if (isCurrentCanonicalChart((kundli.chartData as any)?.canonical)) return withReconciledRemedies(kundli) as T;
+    if (isCurrentCanonicalChart((kundli.chartData as any)?.canonical)) return withReconciledRemedies(withCurrentDoshaRules(kundli)) as T;
     const id = kundli.id;
     let pending = upgradesInFlight.get(id);
     if (!pending) {
@@ -427,6 +437,8 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
       }
 
       const content = await generateDailyHoroscope(kundli, today, language);
+      // No card is better than an unchecked one; a missing card is not cached, so a later visit retries.
+      if (!content) return res.json({ hasChart: true, date: today, language, person: kundli.name, content: null, unavailable: true });
       await storage.saveDailyHoroscope({ userId, kundliId: kundli.id, horoDate: today, language, content }).catch(() => {});
       res.json({ hasChart: true, date: today, language, person: kundli.name, content });
     } catch (err) {
@@ -435,14 +447,29 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
     }
   });
 
-  app.get('/api/horoscope/:sign', async (req, res) => {
+  // Rashi horoscope from today's transits (Gochara). Results only change with the date, so they are cached per day.
+  const signHoroscopeCache = new Map<string, ReturnType<typeof signHoroscope>>();
+  app.get('/api/horoscope/:sign', (req, res) => {
+    const sign = resolveSign(req.params.sign);
+    if (!sign) return res.status(400).json({ message: 'Unknown sign.', field: 'sign' });
+    const period = (typeof req.query.period === 'string' ? req.query.period : 'today') as HoroscopePeriod;
+    if (!HOROSCOPE_PERIODS.includes(period)) return res.status(400).json({ message: `period must be one of ${HOROSCOPE_PERIODS.join(', ')}.`, field: 'period' });
+    let timeZone = typeof req.query.tz === 'string' && req.query.tz ? req.query.tz : 'Asia/Kolkata';
+    try { new Intl.DateTimeFormat('en', { timeZone }); } catch { timeZone = 'Asia/Kolkata'; }
     try {
-      const sign = req.params.sign.toLowerCase();
-      const type = (req.query.type as string) || 'general';
-      const date = (req.query.date as string) || 'today';
-      const horoscope = await getNativeHoroscope(sign, date as any, type as any);
-      res.json({ sign: horoscope.sign, prediction: horoscope.prediction, lucky: horoscope.lucky });
-    } catch { res.status(500).json({ message: "Failed to fetch horoscope" }); }
+      const day = new Intl.DateTimeFormat('en-CA', { timeZone }).format(new Date());
+      const key = `${sign}|${period}|${timeZone}|${day}`;
+      let h = signHoroscopeCache.get(key);
+      if (!h) {
+        h = signHoroscope(sign, period, new Date(), timeZone);
+        if (signHoroscopeCache.size > 500) signHoroscopeCache.clear();
+        signHoroscopeCache.set(key, h);
+      }
+      res.json(h);
+    } catch (e) {
+      console.error('Sign horoscope error:', e);
+      res.status(500).json({ message: 'Failed to calculate the horoscope' });
+    }
   });
 
   // ─── Panchang ─────────────────────────────────────────────
@@ -484,8 +511,8 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
           field: !c1 ? 'person1Place' : 'person2Place',
         });
       }
-      const p1 = { dateOfBirth: person1Date, timeOfBirth: person1Time, latitude: c1.lat, longitude: c1.lng };
-      const p2 = { dateOfBirth: person2Date, timeOfBirth: person2Time, latitude: c2.lat, longitude: c2.lng };
+      const p1 = { dateOfBirth: person1Date, timeOfBirth: person1Time, latitude: c1.lat, longitude: c1.lng, gender: req.body.person1Gender };
+      const p2 = { dateOfBirth: person2Date, timeOfBirth: person2Time, latitude: c2.lat, longitude: c2.lng, gender: req.body.person2Gender };
       const result = await getKundliMatching(p1, p2);
       res.json({
         totalScore: result.percentage,
@@ -495,6 +522,13 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
         recommendation: result.recommendation,
         details: result.details,
         dosha: result.dosha,
+        doshas: result.doshas,
+        roles: {
+          ...result.roles,
+          note: result.roles.assumed
+            ? `Ashtakoota scores a bride and a groom; ${person1Name || 'Person 1'} was scored as the bride. Varna, Vashya and Gana can change if the roles are swapped.`
+            : null,
+        },
         person1: person1Name,
         person2: person2Name,
       });
@@ -824,7 +858,8 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
     try {
       const astrologerId = req.session.astrologerId;
       const { about, specializations, languages, pricePerMinute, experience, certifications, upiId, bankAccountName, bankAccountNumber, bankIfsc, phoneNumber } = req.body;
-      const updated = await storage.updateAstrologer(astrologerId, { about, specializations, languages, pricePerMinute, experience, certifications, upiId, bankAccountName, bankAccountNumber, bankIfsc, phoneNumber });
+      // An empty rate field leaves the stored rate unchanged rather than writing an invalid price.
+      const updated = await storage.updateAstrologer(astrologerId, { about, specializations, languages, pricePerMinute: pricePerMinute === '' ? undefined : pricePerMinute, experience, certifications, upiId, bankAccountName, bankAccountNumber, bankIfsc, phoneNumber });
       const { passwordHash: _ph, ...safe } = updated;
       res.json(safe);
     } catch (error) {
@@ -1778,7 +1813,9 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
       const selection = selectChart(req.body);
       if (selection.kind === 'invalid') return res.status(400).json({ message: selection.message });
       const reportType = await storage.getReportTypeById(reportTypeId);
-      if (!reportType || !reportType.isActive) return res.status(404).json({ message: 'Report not available' });
+      if (!reportType || !reportType.isActive || !isOfferedReportCategory(reportType.category)) return res.status(404).json({ message: 'Report not available' });
+      // Paid reports are AI-written and quality-checked; nothing templated is ever sold in their place.
+      if (!reportsAvailable()) return res.status(503).json({ message: 'Reports are temporarily unavailable. You have not been charged.', code: 'reports_unavailable' });
 
       // Resolve a chart: an explicit saved chart, an on-the-fly chart computed
       // from entered birth details (NOT saved to the user's charts), or — only
@@ -1829,37 +1866,26 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
         return res.status(409).json({ message: chartVersionStatus(kundli).notes[0] ?? 'This chart needs to be recreated with its birth place before a report can be generated.', chartStatus: chartVersionStatus(kundli) });
       }
 
-      const price = parseFloat(reportType.price);
-      const debit = await storage.debitWallet(userId, price, `Report: ${reportType.name}`);
-      if (!debit) return res.status(402).json({ message: 'Insufficient wallet balance. Please recharge to order this report.' });
-
-      const order = await storage.createReportOrder({
+      if (reportType.category === 'life_complete' && (kundli.chartData as any)?.canonical?.birth?.timeAccuracy === 'approximate') {
+        return res.status(409).json({ message: 'The Complete Life Report reads every house, so it needs an exact birth time. You have not been charged.' });
+      }
+      const placed = await storage.placeReportOrder({
         userId,
         reportTypeId: reportType.id,
         kundliId: kundliRef,
         subjectName: (kundli as any).name || undefined,
-        amount: reportType.price,
+        price: parseFloat(reportType.price),
+        description: `Report: ${reportType.name}`,
       });
+      if (!placed) return res.status(402).json({ message: 'Insufficient wallet balance. Please recharge to order this report.' });
+      const { order } = placed;
 
-      // Generate asynchronously; client polls until status === 'ready'
-      (async () => {
-        try {
-          const content = reportType.category === 'life_complete'
-            ? await generateLifeReport(kundli)
-            : await generateReport(reportType.category || 'life', kundli);
-          await storage.setReportOrderContent(order.id, content);
-          await storage.createNotification({
-            userId, type: 'system', title: 'Report Ready',
-            body: `Your ${reportType.name} is ready to view.`,
-          });
-          sendPushToUser(userId, { title: 'Report Ready', body: `Your ${reportType.name} is ready.`, link: '/reports' });
-        } catch (genErr) {
-          console.error('Report generation failed:', genErr);
-          await storage.markReportOrderFailed(order.id).catch(() => {});
-        }
-      })();
+      // Generated asynchronously; the client polls until the order is ready or failed (refunded).
+      void fulfilReportOrder(order, reportType.name, () => reportType.category === 'life_complete'
+        ? generateLifeReport(kundli)
+        : generateReport(reportType.category || 'life', kundli));
 
-      res.status(201).json({ orderId: order.id, newBalance: debit.balance });
+      res.status(201).json({ orderId: order.id, newBalance: placed.balance });
     } catch (err) {
       if (err instanceof BirthInputError || err instanceof CalculationError) return res.status(400).json({ message: err.message });
       console.error('Report order error:', err);
@@ -2271,17 +2297,18 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
         const packet = buildEvidencePacket(canonical, route, new Date(), transits);
         evidenceSummary = packetSummary(packet);
         if (route.depth === 'deep' && features.aiCouncil()) {
+          // Generated and checked in English; translated only after the guard (localise.ts).
           const reading = await runCouncil({
             birthDetails: { date: birthDate, time: birthTime, place: birthPlace },
-            chartData, profession: 'User', language, memories, transits, verifiedEvents, accuracyNote,
+            chartData, profession: 'User', language: 'English', memories, transits, verifiedEvents, accuracyNote,
             evidencePacket: packet.text, currentQuery: message,
           });
-          const guarded = await guardAnswer(packet, reading, async () => (await answerSimple(packet, message, { language, memories, history })).text);
-          aiResponseText = guarded.text;
+          const guarded = await guardAnswer(packet, reading, async () => (await answerSimple(packet, message, { memories, history })).text);
+          aiResponseText = await localise(guarded.text, language);
           answerSource = guarded.source;
         } else {
-          const answer = await answerSimple(packet, message, { language, memories, history });
-          aiResponseText = answer.text;
+          const answer = await answerSimple(packet, message, { memories, history });
+          aiResponseText = await localise(answer.text, language);
           answerSource = answer.source;
         }
       } else if (kundli) {
@@ -2342,6 +2369,7 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
       const interpretation = await interpretKundli(kundli);
       res.json(interpretation);
     } catch (error: any) {
+      if (error instanceof InterpretationUnavailableError) return res.status(409).json({ message: error.message });
       if (error.message?.includes("OPENAI_API_KEY")) {
         return res.status(503).json({ message: "AI features not configured. Set OPENAI_API_KEY." });
       }
@@ -2407,6 +2435,14 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
   });
 
   // ─── Admin / Developer Dashboard ──────────────────────────
+  // Paid Pooja bookings and store orders still open while the marketplace is paused:
+  // each needs fulfilling or refunding.
+  app.get('/api/admin/marketplace/open-items', isAdmin, adminLimiter, async (_req, res) => {
+    try {
+      res.json({ marketplaceEnabled: features.marketplace(), ...(await storage.getOpenPaidMarketplaceItems()) });
+    } catch { res.status(500).json({ message: 'Failed to load open marketplace items' }); }
+  });
+
   // Settle pending Razorpay recharges whose confirmation never arrived (also runs on a timer).
   // Dry run unless ?apply=1; ?days=N (default 7) limits it to recharges from the last N days.
   app.post('/api/admin/payments/reconcile', isAdmin, adminLimiter, async (req, res) => {
@@ -2421,6 +2457,31 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
       console.error('Reconcile error:', err);
       res.status(500).json({ message: 'Reconciliation failed' });
     }
+  });
+
+  // Report orders that need a decision: failed orders never refunded, and delivered orders
+  // whose content is the old templated placeholder. Refunds are explicit, one order at a time.
+  app.get('/api/admin/reports/review', isAdmin, adminLimiter, async (_req, res) => {
+    try {
+      res.json(await storage.getReportOrdersNeedingReview());
+    } catch { res.status(500).json({ message: 'Failed to load report orders' }); }
+  });
+
+  app.post('/api/admin/reports/:id/refund', isAdmin, adminLimiter, async (req, res) => {
+    try {
+      const order = await storage.getReportOrderById(req.params.id);
+      if (!order) return res.status(404).json({ message: 'Report order not found' });
+      if (order.status === 'processing') return res.status(409).json({ message: 'This order is still being prepared.' });
+      const result = order.status === 'ready'
+        ? await storage.refundPlaceholderReport(order.id)
+        : await storage.failAndRefundReportOrder(order.id, order.failureReason ?? 'refunded by admin');
+      if (!result) return res.status(409).json({ message: 'This order has already been refunded.' });
+      await storage.createNotification({
+        userId: order.userId, type: 'system', title: 'Report refunded',
+        body: result.refunded > 0 ? `₹${result.refunded.toFixed(0)} for a report that did not meet our standard has been returned to your wallet.` : 'A report that did not meet our standard has been marked refunded.',
+      }).catch(() => {});
+      res.json({ orderId: order.id, refunded: result.refunded });
+    } catch { res.status(500).json({ message: 'Refund failed' }); }
   });
 
   app.get('/api/admin/stats', isAdmin, adminLimiter, async (_req, res) => {

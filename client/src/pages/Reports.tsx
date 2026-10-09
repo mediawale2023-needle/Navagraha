@@ -34,6 +34,8 @@ interface ReportOrder {
   subjectName?: string | null;
   content: ReportContent | null;
   createdAt: string;
+  refundedAt?: string | null;
+  reportName?: string | null;
 }
 interface Kundli { id: string; name: string }
 
@@ -77,6 +79,9 @@ export default function Reports() {
   };
 
   const { data: types, isLoading } = useQuery<ReportType[]>({ queryKey: ['/api/reports/types'] });
+  const { data: config } = useQuery<{ reportsAvailable?: boolean }>({ queryKey: ['/api/config'], refetchOnWindowFocus: false });
+  // Reports are AI-written; without the AI service none can be prepared, so none are sold.
+  const reportsAvailable = config?.reportsAvailable !== false;
   const { data: kundlis } = useQuery<Kundli[]>({ queryKey: ['/api/kundli'] });
   const { data: myReports } = useQuery<ReportOrder[]>({
     queryKey: ['/api/reports/orders'],
@@ -106,7 +111,7 @@ export default function Reports() {
       return res.json();
     },
     onSuccess: () => {
-      toast({ title: 'Report ordered', description: 'Your report is being prepared. It will be ready shortly.' });
+      toast({ title: 'Report ordered', description: 'Your report is being prepared. If it cannot be prepared, you will be refunded automatically.' });
       setSelected(null);
       setKundliId('');
       setBirth(emptyBirth);
@@ -149,6 +154,11 @@ export default function Reports() {
           <Button variant={tab === 'mine' ? 'default' : 'outline'} className={`rounded-[9px] ${tab === 'mine' ? 'bg-nava-navy text-primary hover:bg-nava-navy/90' : ''}`} onClick={() => setTab('mine')} data-testid="tab-mine">My Reports</Button>
         </div>
 
+        {tab === 'browse' && !reportsAvailable && (
+          <p className="mb-4 rounded-[9px] border border-border bg-muted/50 p-3 text-sm text-muted-foreground" data-testid="text-reports-unavailable">
+            Report preparation is temporarily unavailable, so reports cannot be ordered right now. Your saved reports remain under My Reports.
+          </p>
+        )}
         {tab === 'browse' && (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {types?.map((t) => (
@@ -161,8 +171,8 @@ export default function Reports() {
                   <p className="text-sm text-muted-foreground mt-1 flex-1">{t.description}</p>
                   <div className="flex items-center justify-between mt-4">
                     <span className="text-lg font-bold">₹{parseFloat(t.price).toFixed(0)}</span>
-                    <Button size="sm" className="rounded-[9px] bg-primary text-primary-foreground hover:bg-primary/90" onClick={() => openOrder(t)} data-testid={`button-order-${t.slug}`}>
-                      Get Report
+                    <Button size="sm" className="rounded-[9px] bg-primary text-primary-foreground hover:bg-primary/90" onClick={() => openOrder(t)} disabled={!reportsAvailable} data-testid={`button-order-${t.slug}`}>
+                      {reportsAvailable ? 'Get Report' : 'Unavailable'}
                     </Button>
                   </div>
                 </CardContent>
@@ -185,7 +195,7 @@ export default function Reports() {
                 <Card key={r.id} className="yantra-card" data-testid={`my-report-${r.id}`}>
                   <CardContent className="p-4 flex items-center justify-between">
                     <div>
-                      <p className="font-display text-lg">{r.content?.title || t?.name || 'Report'}</p>
+                      <p className="font-display text-lg">{r.content?.title || t?.name || r.reportName || 'Report'}</p>
                       {(r.content?.birthDetails?.name || r.subjectName) && (
                         <p className="text-xs text-foreground/80">
                           {r.content?.birthDetails?.name || r.subjectName}
@@ -195,10 +205,17 @@ export default function Reports() {
                       )}
                       <p className="text-xs text-muted-foreground">{new Date(r.createdAt).toLocaleDateString()} · ₹{parseFloat(r.amount).toFixed(0)}</p>
                     </div>
-                    {r.status === 'ready' ? (
+                    {r.status === 'ready' && r.refundedAt ? (
+                      <div className="flex items-center gap-2">
+                        <Badge variant="outline" title="This report did not meet our standard, and what you paid was returned to your wallet.">Refunded</Badge>
+                        <Button size="sm" variant="outline" className="rounded-[9px]" onClick={() => setViewing(r)} data-testid={`button-view-${r.id}`}>View</Button>
+                      </div>
+                    ) : r.status === 'ready' ? (
                       <Button size="sm" className="rounded-[9px]" onClick={() => setViewing(r)} data-testid={`button-view-${r.id}`}>
                         <CheckCircle2 className="w-4 h-4 mr-1 text-emerald-600" /> View
                       </Button>
+                    ) : r.status === 'failed' && r.refundedAt ? (
+                      <Badge variant="outline" title="This report could not be prepared, and what you paid was returned to your wallet.">Not delivered · refunded</Badge>
                     ) : r.status === 'failed' ? (
                       <Badge variant="destructive">Failed</Badge>
                     ) : (

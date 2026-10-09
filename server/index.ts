@@ -1,10 +1,13 @@
 import express, { type Request, Response, NextFunction } from "express";
 import { createServer } from "http";
 import { registerRoutes } from "./routes";
+import { apiNotFound, metricsAllowed } from "./httpGuards";
 import { setupVite, serveStatic, log } from "./vite";
 import { runMigrations } from "./migrate";
 import { startRechargeReconciler } from "./rechargeSettlement";
+import { reportsAvailable, startReportOrderSweeper } from "./reportOrders";
 import { FREE_CHAT_MINUTES } from "./paymentService";
+import { features } from "./features";
 import { waitForDatabase } from "./db";
 import { setupWebSocket } from "./websocketService";
 import { runAstronomySelfCheck } from "./astroEngine/selfCheck";
@@ -72,7 +75,10 @@ const httpServer = createServer(app);
 const collectDefaultMetrics = client.collectDefaultMetrics;
 collectDefaultMetrics({ register: client.register });
 
-app.get('/metrics', async (_req, res) => {
+// Process metrics reveal internals: in production they need `Authorization: Bearer $METRICS_TOKEN`
+// and are not served at all without one.
+app.get('/metrics', async (req, res) => {
+  if (!metricsAllowed(req.headers.authorization)) return res.status(404).json({ message: 'Not found' });
   res.set('Content-Type', client.register.contentType);
   res.end(await client.register.metrics());
 });
@@ -105,6 +111,8 @@ app.get("/api/config", (_req, res) => {
     agoraAppId: process.env.AGORA_APP_ID || "",
     posthogKey: process.env.POSTHOG_API_KEY || "",
     freeChatMinutes: FREE_CHAT_MINUTES,
+    marketplaceEnabled: features.marketplace(),
+    reportsAvailable: reportsAvailable(),
     firebase: {
       apiKey: process.env.FIREBASE_API_KEY || "",
       authDomain: process.env.FIREBASE_AUTH_DOMAIN || "",
@@ -153,6 +161,9 @@ waitForDatabase()
       return;
     }
 
+    // An unknown API path is a JSON 404, never the SPA's HTML.
+    app.use('/api', apiNotFound);
+
     app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
       const status = err.status || err.statusCode || 500;
       const message = err.message || "Internal Server Error";
@@ -173,6 +184,7 @@ waitForDatabase()
       startupError = null;
       log("startup ready");
       startRechargeReconciler();
+      startReportOrderSweeper();
     } catch (err) {
       startupError = err instanceof Error ? err.message : "migration failed";
       console.error("[startup/migrate] Migration failed:", err);

@@ -19,6 +19,7 @@ import type { JyotishChartData } from './astroEngine/jyotishEngine.js';
 import { isCurrentCanonicalChart } from '@shared/v3/canonical';
 import { buildInsights } from './astroEngine/evidence/insights.js';
 import { features } from './features.js';
+import { textProblems } from './reportQuality.js';
 
 export type Tradition = 'parashar' | 'kn_rao' | 'kamakhya';
 
@@ -35,11 +36,11 @@ const DISCIPLINE = `Discipline: tie every prediction to the activating dasha + a
 
 Depth and structure (mandatory — this is a working reference for a professional astrologer, not a short summary; write the full length needed to satisfy every point below, do not compress or truncate):
 1. THIS IS NOT A DASHA-ONLY REPORT: begin with a full chart-darshan before timeline work. Open by naming the chart's foundational architecture — Lagna, Lagna lord, Atmakaraka, Karakamsha, Ishta Devata, strongest yoga(s), standout dosha(s), special coincidences, and any rare signature explicitly supplied by the chart data. Explain what kind of life this chart is fundamentally built for before you start period analysis.
-2. PAST: Walk through every COMPLETED Mahadasha (and Antardasha where given) in the timeline supplied, oldest to most recent. For each, state what that period most plausibly delivered (career/finance, relationships/marriage, health, family, education, relocation, spiritual life) and WHY — name the specific placement driving it (planet's sign, house, dignity/avastha, nakshatra, yoga/dosha involvement, aspect, or karaka role). Mark each period explicitly as favourable, mixed, or difficult for the life areas it touched, with causal reasoning, not bare assertion.
+2. PAST: Walk through every COMPLETED Mahadasha (and Antardasha where given) in the timeline supplied, oldest to most recent. For each, state what that period most plausibly delivered (career/finance, relationships/marriage, family, education, relocation, spiritual life) and WHY — name the specific placement driving it (planet's sign, house, dignity/avastha, nakshatra, yoga/dosha involvement, aspect, or karaka role). Mark each period explicitly as favourable, mixed, or difficult for the life areas it touched, with causal reasoning, not bare assertion.
 3. PRESENT: Analyse the CURRENT Mahadasha → Antardasha → Pratyantardasha stack in detail. State precisely what is active right now, which life areas it activates, whether it is fundamentally supportive or challenging for each of those areas (explicit: favourable, unfavourable, or mixed — never hedge into vagueness), and the chart-placement reasoning behind that verdict.
 4. FUTURE: Project forward through every UPCOMING Mahadasha given (and their Antardasha if supplied), in chronological order, with the approximate date ranges drawn from the dasha periods given. For each: what it is likely to bring, which life areas, favourable/unfavourable/mixed verdict, and the placement-based reasoning. Flag the single strongest opportunity window and the single most cautious window across the whole forward timeline, each with its "why".
 5. EXPLAIN THE "WHY" EVERYWHERE: every prediction — past, present, or future — must cite at least one concrete chart fact (sign, house, dignity, retrogression, combustion, nakshatra, aspect, yoga, dosha, or karaka) as its cause. Never state an outcome without grounding it. If two confirmations agree, say so; if they conflict, say which wins and why.
-6. GOOD/BAD FRAMING: for every period and every life domain discussed (career, wealth, relationships/marriage, health, family, spirituality, travel/relocation), explicitly characterise it as favourable, unfavourable, or mixed — never leave the astrologer guessing the verdict.
+6. GOOD/BAD FRAMING: for every period and every life domain discussed (career, wealth, relationships/marriage, family, spirituality, travel/relocation), explicitly characterise it as favourable, unfavourable, or mixed — never leave the astrologer guessing the verdict.
 7. AFTER THE CORE CHART DARSHAN, MOVE THROUGH DISTINCT LAYERS: foundation of the chart, soul-signature (Atmakaraka/Karakamsha/Ishta Devata), named yogas/doshas, marriage/partnership signature (especially Daarakaraka if supplied), career/artha signature, spiritual/tantric signature where relevant, THEN the dasha activation sequence. The reading must feel like a full chart revelation, not a spreadsheet of periods.
 8. CLOSE with a short chronological digest (period → ruling planet(s) → one-line verdict) covering the full past-through-future arc, so the astrologer can scan the whole life timeline before reading the detailed sections.
 9. THE NAMED TRADITION IS THE METHOD, NOT A LABEL: the tradition-specific technique described in your system role (BPHS houses, K.N. Rao's triple dasha confirmation, or Kamakhya's Mahavidya/Devi-form mapping) must be the actual reasoning engine you use to arrive at EVERY period's prediction in the past/present/future walk above — not generic dignity/yoga commentary with the tradition's name attached afterward, and not a separate decorative section bolted on top. If a reader swapped the tradition name in your header, the reasoning in every period should visibly stop making sense for that other tradition — that's the bar.
@@ -148,7 +149,8 @@ function fmtYogasDoshas(chartData: JyotishChartData): string {
     d.pitruDosha ? 'Pitru Dosha' : null,
     d.vishaYoga ? 'Visha Yoga' : null,
   ].filter(Boolean).join(', ') || 'None detected';
-  return `Yogas:\n${yogaLines}\n\nDoshas: ${doshaList}`;
+  const mangalNote = d.mangalCancelledBy?.length ? `\nMangal Dosha meets the house rule but is CANCELLED (do not describe it as present): ${d.mangalCancelledBy.join('; ')}.` : '';
+  return `Yogas:\n${yogaLines}\n\nDoshas: ${doshaList}${mangalNote}`;
 }
 
 function fmtRemedies(chartData: JyotishChartData): string {
@@ -289,6 +291,38 @@ async function streamChatCompletion(
   return full;
 }
 
+// ─── Chart check ────────────────────────────────────────────────────────────
+
+/**
+ * A streamed reading cannot be un-sent, so it is checked once complete and any statement the
+ * calculated chart contradicts is listed after it, visibly, for the astrologer.
+ */
+export function chartCheckNote(text: string, chartData: JyotishChartData, factsText: string, language?: string): string {
+  const canonical = (chartData as any)?.canonical;
+  if (!isCurrentCanonicalChart(canonical)) return '';
+  if (language && language.trim().toLowerCase() !== 'english') {
+    return '\n\n---\nChart check: the automatic consistency check reads English only; verify placements against the chart tabs.';
+  }
+  const problems = textProblems(text, { chart: canonical, factsText, asOf: new Date() }, 0);
+  if (!problems.length) return '';
+  return `\n\n---\nChart check: ${problems.length} statement${problems.length === 1 ? '' : 's'} above disagree${problems.length === 1 ? 's' : ''} with the calculated chart — ${problems.join('; ')}. Rely on the chart tabs for these.`;
+}
+
+async function streamChecked(
+  system: string,
+  user: string,
+  chartData: JyotishChartData,
+  factsText: string,
+  onToken: (delta: string) => void,
+  language?: string,
+  maxTokens?: number,
+): Promise<string> {
+  const full = await streamChatCompletion(system, user, onToken, maxTokens);
+  const note = chartCheckNote(full, chartData, factsText, language);
+  if (note) onToken(note);
+  return full + note;
+}
+
 // ─── Public API ─────────────────────────────────────────────────────────────
 
 /**
@@ -304,7 +338,7 @@ export async function streamTraditionReading(
 ): Promise<string> {
   const system = systemPromptFor(tradition, language);
   const user = `Give a full, detailed reading for this chart in the ${TRADITION_LABELS[tradition]} tradition. This must read like a real master-astrologer consultation, not a dasha-only report and not a generic app summary. First reveal the chart's foundational nature, soul-signature, named yogas/doshas, marriage/career/spiritual signatures, and only then move into the dasha activation sequence. Cover the client's PAST (every completed Mahadasha/Antardasha given — what happened and why), PRESENT (current Mahadasha/Antardasha/Pratyantardasha — what's active and why), and FUTURE (every upcoming Mahadasha given — what to expect, when, and why), with an explicit favourable/unfavourable/mixed verdict for each life area in each period, and the specific chart placement causing each verdict. Do not summarize briefly — be exhaustive, layered, and in-character.\n\n${chartSummaryForPrompt(profile, chartData)}`;
-  return streamChatCompletion(system, user, onToken);
+  return streamChecked(system, user, chartData, chartSummaryForPrompt(profile, chartData), onToken, language);
 }
 
 /**
@@ -342,7 +376,7 @@ Hard rules for this quick-answer mode:
 11. No soft generic encouragement. Every line must help the astrologer answer the client immediately.
 12. End with a concrete action or timing instruction the astrologer can actually say out loud to the client right now.`;
   const user = `Chart:\n${chartSummaryForPrompt(profile, chartData)}\n\nClient's question right now: ${question}\n\nAnswer in this structure:\n- VERDICT\n- WHY THIS IS HAPPENING NOW\n- JOB vs BUSINESS vs CONSULTING (only if relevant)\n- NEXT OPENING WINDOW\n- WHAT TO TELL THE CLIENT RIGHT NOW`;
-  return streamChatCompletion(system, user, onToken, 700);
+  return streamChecked(system, user, chartData, chartSummaryForPrompt(profile, chartData), onToken, language, 700);
 }
 
 export function isJyotishAiAvailable(): boolean {

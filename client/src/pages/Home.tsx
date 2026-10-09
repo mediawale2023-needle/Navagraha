@@ -1,6 +1,8 @@
+import { isAstrologerAvailable } from '@/lib/astrologerPresence';
 import { useQuery } from '@tanstack/react-query';
 import { type LucideIcon, Phone, MessageCircle, Calendar, Sparkles, User, Wallet, LogOut, ArrowRight, Radio, ShoppingBag, FileText, Flame, CalendarDays } from 'lucide-react';
 import { Link, useLocation } from 'wouter';
+import { isMarketplacePath, useMarketplace } from '@/lib/marketplace';
 import { QuickActionCard } from '@/components/QuickActionCard';
 import { HeroBanner } from '@/components/HeroBanner';
 import { SectionHeader } from '@/components/SectionHeader';
@@ -32,8 +34,10 @@ export default function Home() {
     queryKey: ['/api/auth/user'],
   });
 
+  const marketplace = useMarketplace();
   const { data: astrologers, isLoading: astrologersLoading } = useQuery<Astrologer[]>({
     queryKey: ['/api/astrologers'],
+    enabled: marketplace,
   });
 
   const { data: wallet } = useQuery<{ balance: number }>({
@@ -49,8 +53,10 @@ export default function Home() {
   });
   const latestChart = kundlis?.[0];
 
-  const cmsBanner = cmsContent?.banners?.[0];
-  const cmsServices = cmsContent?.services ?? [];
+  // CMS content may point into the marketplace; while it is paused those entries are skipped.
+  const visible = <T extends { href?: string | null }>(items: T[] = []) => (marketplace ? items : items.filter((i) => !isMarketplacePath(i.href)));
+  const cmsBanner = visible(cmsContent?.banners)[0];
+  const cmsServices = visible(cmsContent?.services);
   const balance = Number(wallet?.balance || 0);
 
   if (userLoading) {
@@ -122,7 +128,7 @@ export default function Home() {
                 <div>
                   <p className="yantra-eyebrow">Wallet</p>
                   <p className="font-display mt-2 text-3xl text-foreground">₹{balance.toFixed(0)}</p>
-                  <p className="mt-1 text-sm text-muted-foreground">Ready for chats, calls, and reports</p>
+                  <p className="mt-1 text-sm text-muted-foreground">{marketplace ? 'Ready for chats, calls, and reports' : 'Ready for reports'}</p>
                 </div>
                 <div className="rounded-[8px] bg-primary/20 p-3">
                   <Wallet className="w-5 h-5 text-[var(--primary-border)]" />
@@ -143,7 +149,7 @@ export default function Home() {
           <div className="grid gap-4 xl:grid-cols-[minmax(0,1.55fr)_minmax(280px,0.9fr)]">
             <HeroBanner
               title={cmsBanner?.title || 'Your cosmic blueprint awaits.'}
-              subtitle={cmsBanner?.subtitle ?? 'Kundli, personalised guidance, and expert consultations.'}
+              subtitle={cmsBanner?.subtitle ?? (marketplace ? 'Kundli, personalised guidance, and expert consultations.' : 'Kundli and personalised guidance from your own chart.')}
               cta={cmsBanner?.cta ?? 'Generate kundli'}
               href={cmsBanner?.href ?? undefined}
               className="h-full"
@@ -158,7 +164,7 @@ export default function Home() {
             <SectionHeader title="Connect" showViewAll={false} />
           </div>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3 px-4 md:px-8 lg:px-12 xl:grid-cols-4">
-            {cmsServices.length > 0 ? (
+            {marketplace && cmsServices.length > 0 ? (
               cmsServices.map((svc, i) => (
                 <QuickActionCard
                   key={svc.id}
@@ -168,6 +174,13 @@ export default function Home() {
                   onClick={() => setLocation(svc.href || '/')}
                 />
               ))
+            ) : !marketplace ? (
+              <>
+                <QuickActionCard title="Ask Your Kundli" icon={Sparkles} color="orange" onClick={() => setLocation('/ai-astrologer')} />
+                <QuickActionCard title="My Charts" icon={User} color="purple" onClick={() => setLocation('/kundli')} />
+                <QuickActionCard title="Reports" icon={FileText} color="green" onClick={() => setLocation('/reports')} />
+                <QuickActionCard title="Panchang" icon={CalendarDays} color="navy" onClick={() => setLocation('/panchang')} />
+              </>
             ) : (
               <>
                 <QuickActionCard
@@ -199,7 +212,8 @@ export default function Home() {
           </div>
         </section>
 
-        {/* Explore */}
+        {/* Explore — marketplace services; the paused Connect row above covers the rest */}
+        {marketplace && (
         <section className="mb-7 pt-1">
           <div className="px-4 md:px-8 lg:px-12">
             <SectionHeader title="Explore" showViewAll={false} />
@@ -212,6 +226,7 @@ export default function Home() {
             <QuickActionCard title="Panchang" icon={CalendarDays} color="purple" onClick={() => setLocation('/panchang')} />
           </div>
         </section>
+        )}
 
         {/* Active Influences */}
         <section className="mb-7 px-4 md:px-8 lg:px-12">
@@ -232,7 +247,9 @@ export default function Home() {
               <p className="mt-3 text-sm text-muted-foreground">
                 {latestChart
                   ? `See the evidence behind each area of ${latestChart.name}'s chart, and ask about it.`
-                  : 'Generate your kundli to unlock chart-specific guidance, stronger remedies, and better astrologer matching.'}
+                  : marketplace
+                    ? 'Generate your kundli to unlock chart-specific guidance, stronger remedies, and better astrologer matching.'
+                    : 'Generate your kundli to unlock chart-specific guidance and remedies.'}
               </p>
               <button
                 onClick={() => setLocation(latestChart ? `/kundli/${latestChart.id}` : '/kundli/new')}
@@ -246,6 +263,7 @@ export default function Home() {
         </section>
 
         {/* Online Astrologers */}
+        {marketplace && (
         <section className="mb-7 relative">
           <div className="px-4 md:px-8 lg:px-12">
             <SectionHeader
@@ -262,15 +280,17 @@ export default function Home() {
                 id={astrologer.id}
                 name={astrologer.name}
                 image={astrologer.profileImageUrl || ''}
-                rating={astrologer.rating ? Number(astrologer.rating) : 4.9}
-                experience={astrologer.experience || 10}
-                price={astrologer.pricePerMinute ? Number(astrologer.pricePerMinute) : 25}
+                rating={astrologer.rating}
+                experience={astrologer.experience}
+                price={astrologer.pricePerMinute}
                 specialization={astrologer.specializations?.[0] || 'Vedic Astrology'}
-                isOnline={astrologer.isOnline || astrologer.availability === 'available'}
+                isVerified={Boolean(astrologer.isVerified)}
+                isOnline={isAstrologerAvailable(astrologer)}
               />
             ))}
           </div>
         </section>
+        )}
 
       </div>
     </div>

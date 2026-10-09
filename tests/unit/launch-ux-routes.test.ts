@@ -6,7 +6,7 @@ import { getKundli } from '../../server/astroEngine';
 const mocks = vi.hoisted(() => ({
   storage: {
     getKundliById: vi.fn(), getUser: vi.fn(), getUserKundlis: vi.fn(), createKundli: vi.fn(),
-    getReportTypeById: vi.fn(), debitWallet: vi.fn(), createReportOrder: vi.fn(),
+    getReportTypeById: vi.fn(), debitWallet: vi.fn(), createReportOrder: vi.fn(), placeReportOrder: vi.fn(), setReportOrderContent: vi.fn(), failAndRefundReportOrder: vi.fn(),
     setReportOrderContent: vi.fn(), createNotification: vi.fn(),
     saveAiChatMessage: vi.fn(), getUserMemories: vi.fn(), getPredictionFeedbacksByUser: vi.fn(), getPatternStatistics: vi.fn(),
   },
@@ -60,6 +60,8 @@ beforeEach(() => {
   mocks.storage.getPatternStatistics.mockResolvedValue(null);
   mocks.storage.debitWallet.mockResolvedValue(true);
   mocks.storage.createReportOrder.mockResolvedValue({ id: 'order' });
+  mocks.storage.placeReportOrder.mockResolvedValue({ order: { id: 'order', userId: 'u1' }, balance: '0' });
+  vi.stubEnv('OPENAI_API_KEY', 'test-key');
   mocks.storage.setReportOrderContent.mockResolvedValue(undefined);
   mocks.storage.createNotification.mockResolvedValue({});
   mocks.runCouncil.mockResolvedValue('Reading');
@@ -92,10 +94,18 @@ describe('error responses name the field at fault', () => {
   });
 
   it('report orders keep the 402 shape the client maps to the recharge panel', async () => {
-    mocks.storage.debitWallet.mockResolvedValue(null);
+    mocks.storage.placeReportOrder.mockResolvedValue(null);
     const res = await request(app).post('/api/reports/order').set('x-user', 'owner').send({ kundliId: 'chart', reportTypeId: 'type' });
     expect(res.status).toBe(402);
     expect(res.body.message).toMatch(/insufficient wallet balance/i);
+  });
+
+  it('without the AI service no report is sold: 503 before any charge', async () => {
+    vi.stubEnv('OPENAI_API_KEY', '');
+    const res = await request(app).post('/api/reports/order').set('x-user', 'owner').send({ kundliId: 'chart', reportTypeId: 'type' });
+    expect(res.status).toBe(503);
+    expect(res.body).toMatchObject({ code: 'reports_unavailable', message: expect.stringMatching(/not been charged/) });
+    expect(mocks.storage.placeReportOrder).not.toHaveBeenCalled();
   });
 });
 
@@ -140,5 +150,27 @@ describe('stored charts are served with current rules', () => {
     const res = await request(app).post('/api/ai/chat').set('x-user', 'owner').send({ kundliId: 'chart', message: 'How is my career?' });
     expect(res.status).toBe(200);
     expect(res.body.answerSource).toBe('deterministic');
+  });
+});
+
+describe('GET /api/horoscope/:sign (Gochara)', () => {
+  it('returns a transit reading for a Rashi', async () => {
+    const res = await request(app).get('/api/horoscope/Mesha?period=weekly&tz=Europe/London');
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ sign: 'aries', rashi: 'Mesha', period: 'weekly' });
+    expect(res.body.highlights.length).toBeGreaterThan(0);
+    expect(res.body).not.toHaveProperty('lucky');
+  });
+
+  it('rejects an unknown sign or period', async () => {
+    expect((await request(app).get('/api/horoscope/ophiuchus')).status).toBe(400);
+    const bad = await request(app).get('/api/horoscope/aries?period=yearly');
+    expect(bad.status).toBe(400);
+    expect(bad.body.field).toBe('period');
+  });
+
+  it('falls back to India time for an invalid time zone', async () => {
+    const res = await request(app).get('/api/horoscope/leo?tz=Not/AZone');
+    expect(res.status).toBe(200);
   });
 });

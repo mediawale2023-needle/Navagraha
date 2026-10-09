@@ -18,6 +18,7 @@ import { BirthInputError } from '../errors.js';
 import { getKundli, birthDateString } from '../index.js';
 import { CalculationError } from './compute.js';
 import { reconcileBirthStarRemedies } from '../remedies.js';
+import { mangalDosha } from '../doshas.js';
 
 export interface ChartVersionStatus {
   version: 'v3' | 'v3-recalculated-from-legacy' | 'limited';
@@ -140,4 +141,22 @@ export function withReconciledRemedies<T extends Pick<Kundli, 'chartData' | 'rem
   if (!lord || !Array.isArray(houseLords)) return kundli;
   const remedies = reconcileBirthStarRemedies(kundli.remedies as any[], lord, houseLords, chart.birth.timeAccuracy === 'approximate');
   return { ...kundli, remedies };
+}
+
+/**
+ * Applies the Mangal Dosha cancellation rules to V3 charts saved before they
+ * were evaluated (their record has no `cancelledBy`). Read-only and idempotent.
+ */
+export function withCurrentDoshaRules<T extends Pick<Kundli, 'chartData' | 'doshas'>>(kundli: T): T {
+  const cd = (kundli.chartData ?? {}) as Record<string, any>;
+  if (!isCurrentCanonicalChart(cd.canonical)) return kundli;
+  const chart = cd.canonical as CanonicalChart;
+  const current = chart.doshas.find((d) => d.id === 'mangal');
+  const mars = chart.planets.find((p) => p.name === 'Mars');
+  const jupiter = chart.planets.find((p) => p.name === 'Jupiter');
+  if (!current || current.cancelledBy || !mars || !jupiter) return kundli;
+  const mangal = mangalDosha(mars.house, mars.signIndex, jupiter.signIndex);
+  const canonical = { ...chart, doshas: chart.doshas.map((d) => (d.id === 'mangal' ? mangal : d)) };
+  const doshas = kundli.doshas && typeof kundli.doshas === 'object' ? { ...(kundli.doshas as Record<string, unknown>), mangalDosha: mangal.present } : kundli.doshas;
+  return { ...kundli, chartData: { ...cd, canonical }, doshas };
 }

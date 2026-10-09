@@ -37,6 +37,8 @@ import LiveStudio from "@/pages/LiveStudio";
 import Panchang from "@/pages/Panchang";
 import Remedies from "@/pages/Remedies";
 import NotFound from "@/pages/not-found";
+import { MarketplacePaused } from "@/components/MarketplacePaused";
+import { useMarketplace } from "@/lib/marketplace";
 import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { initAnalytics, trackEvent, identifyUser } from "@/lib/analytics";
@@ -44,6 +46,9 @@ import { enablePushNotifications, type FirebaseConfig } from "@/lib/push";
 
 function Router() {
   const { isAuthenticated, isLoading, user } = useAuth();
+  const marketplace = useMarketplace();
+  // Marketplace pages show a paused notice while the marketplace is off.
+  const market = <T,>(page: T) => (marketplace ? page : MarketplacePaused);
   const [showSplash, setShowSplash] = useState(true);
 
   // Initialize PostHog from server config
@@ -97,7 +102,7 @@ function Router() {
       <Route path="/astrologer/login" component={AstrologerLogin} />
       <Route path="/astrologer/dashboard" component={AstrologerDashboard} />
       <Route path="/astrologer/pro" component={AstrologerPro} />
-      <Route path="/astrologer/live" component={LiveStudio} />
+      <Route path="/astrologer/live" component={market(LiveStudio)} />
 
       {/* Admin login — always accessible (works logged in or out) */}
       <Route path="/admin/login" component={AdminLogin} />
@@ -105,7 +110,7 @@ function Router() {
       {/* Public routes — accessible without login */}
       <Route path="/horoscope" component={Horoscope} />
       <Route path="/horoscope/:sign" component={Horoscope} />
-      <Route path="/astrologers" component={Astrologers} />
+      <Route path="/astrologers" component={market(Astrologers)} />
       <Route path="/kundli/matchmaking" component={Matchmaking} />
       <Route path="/prashna" component={Prashna} />
       <Route path="/kundli" component={MyCharts} />
@@ -113,11 +118,11 @@ function Router() {
       <Route path="/kundli/:id" component={KundliView} />
       <Route path="/numerology" component={Numerology} />
       <Route path="/ai-astrologer" component={AIAstrologer} />
-      <Route path="/store" component={Store} />
+      <Route path="/store" component={market(Store)} />
       <Route path="/reports" component={Reports} />
-      <Route path="/pooja" component={Pooja} />
-      <Route path="/live" component={Live} />
-      <Route path="/live/:id" component={LiveStream} />
+      <Route path="/pooja" component={market(Pooja)} />
+      <Route path="/live" component={market(Live)} />
+      <Route path="/live/:id" component={market(LiveStream)} />
       <Route path="/panchang" component={Panchang} />
       <Route path="/remedies" component={Remedies} />
 
@@ -135,9 +140,9 @@ function Router() {
           {/* Authenticated user routes */}
           <Route path="/" component={Home} />
           <Route path="/wallet" component={Wallet} />
-          <Route path="/chat/:astrologerId" component={Chat} />
-          <Route path="/call/:astrologerId" component={CallRoom} />
-          <Route path="/schedule" component={Schedule} />
+          <Route path="/chat/:astrologerId" component={market(Chat)} />
+          <Route path="/call/:astrologerId" component={market(CallRoom)} />
+          <Route path="/schedule" component={market(Schedule)} />
           <Route path="/profile" component={Profile} />
           <Route path="/admin">{() => <Redirect to="/admin/dashboard" />}</Route>
           <Route path="/admin/dashboard" component={AdminDashboard} />

@@ -1,3 +1,4 @@
+import { ratingLabel, experienceLabel, priceLabel } from '@/lib/astrologerDisplay';
 import { useState } from 'react';
 import { isAstrologerAvailable } from '@/lib/astrologerPresence';
 import { useQuery, useMutation } from '@tanstack/react-query';
@@ -15,6 +16,7 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest } from '@/lib/queryClient';
 import type { Astrologer } from '@shared/schema';
+import { isMarketplacePath, useMarketplace } from '@/lib/marketplace';
 
 const CATEGORIES = [
   { label: 'Talk to\nAstrologer', icon: Phone, href: '/astrologers', color: 'bg-nava-teal' },
@@ -26,7 +28,8 @@ const CATEGORIES = [
 ];
 
 export default function Landing() {
-  const { data: astrologers } = useQuery<Astrologer[]>({ queryKey: ['/api/astrologers'] });
+  const marketplace = useMarketplace();
+  const { data: astrologers } = useQuery<Astrologer[]>({ queryKey: ['/api/astrologers'], enabled: marketplace });
   const [authOpen, setAuthOpen] = useState(false);
   const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
   const [email, setEmail] = useState('');
@@ -38,6 +41,10 @@ export default function Landing() {
   const { data: config } = useQuery<{ freeChatMinutes?: number }>({ queryKey: ['/api/config'] });
   const freeChatMinutes = config?.freeChatMinutes;
   const featuredAstrologers = astrologers?.slice(0, 4) || [];
+  // While the marketplace is paused, marketplace shortcuts give way to Ask Your Kundli.
+  const categories = marketplace
+    ? CATEGORIES
+    : [{ label: 'Ask Your\nKundli', icon: Sparkles, href: '/ai-astrologer', color: 'bg-nava-teal' }, ...CATEGORIES.filter((c) => !isMarketplacePath(c.href))];
 
   const authMutation = useMutation({
     mutationFn: async () => {
@@ -149,14 +156,25 @@ export default function Landing() {
                 <Sparkles className="w-4 h-4 text-white/70" />
               </div>
               
-              <h3 className="font-display text-[var(--nava-navy)] text-2xl mb-2">{freeChatMinutes ? 'Your first chat starts free' : 'Talk to an expert astrologer'}</h3>
-              <p className="text-[var(--nava-navy)]/80 text-sm font-medium mb-4" data-testid="landing-free-chat-terms">
-                {freeChatMinutes ? `The first ${freeChatMinutes} minutes of your first chat are free` : 'Verified astrologers, by chat or call'}
-              </p>
-              
-              <button className="rounded-[9px] bg-nava-navy px-6 py-2.5 font-bold text-primary transition-all hover:scale-105 shadow-md">
-                Talk to Astrologer
-              </button>
+              {marketplace ? (
+                <>
+                  <h3 className="font-display text-[var(--nava-navy)] text-2xl mb-2">{freeChatMinutes ? 'Your first chat starts free' : 'Talk to an expert astrologer'}</h3>
+                  <p className="text-[var(--nava-navy)]/80 text-sm font-medium mb-4" data-testid="landing-free-chat-terms">
+                    {freeChatMinutes ? `The first ${freeChatMinutes} minutes of your first chat are free` : 'Verified astrologers, by chat or call'}
+                  </p>
+                  <button className="rounded-[9px] bg-nava-navy px-6 py-2.5 font-bold text-primary transition-all hover:scale-105 shadow-md">
+                    Talk to Astrologer
+                  </button>
+                </>
+              ) : (
+                <>
+                  <h3 className="font-display text-[var(--nava-navy)] text-2xl mb-2">Ask your own Kundli</h3>
+                  <p className="text-[var(--nava-navy)]/80 text-sm font-medium mb-4">Answers grounded in your birth chart, with the evidence behind them</p>
+                  <button className="rounded-[9px] bg-nava-navy px-6 py-2.5 font-bold text-primary transition-all hover:scale-105 shadow-md">
+                    Get started
+                  </button>
+                </>
+              )}
             </div>
           </motion.div>
 
@@ -166,6 +184,7 @@ export default function Landing() {
             transition={{ duration: 0.5, delay: 0.4 }}
             className="grid grid-cols-2 gap-3"
           >
+            {marketplace ? (
             <div className="yantra-card p-4">
               <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">Live</p>
               <div className="mt-2 flex items-center gap-2">
@@ -174,6 +193,13 @@ export default function Landing() {
               </div>
               <p className="mt-1 text-sm text-muted-foreground">{onlineCount === 1 ? 'Astrologer available right now' : 'Astrologers available right now'}</p>
             </div>
+            ) : (
+              <Link href="/panchang" className="yantra-card block p-4 transition-colors hover:bg-muted/40">
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">Today</p>
+                <p className="mt-2 font-display text-lg text-foreground">Panchang</p>
+                <p className="mt-1 text-sm text-muted-foreground">Tithi, nakshatra and timings for your place</p>
+              </Link>
+            )}
             <div
               className="yantra-card cursor-pointer border-primary/30 bg-primary/10 p-4 transition-colors hover:bg-primary/15"
               onClick={() => setAuthOpen(true)}
@@ -205,7 +231,7 @@ export default function Landing() {
                 </div>
               </div>
               <div className="mt-4 grid grid-cols-2 gap-3">
-                {CATEGORIES.slice(0, 4).map(({ label, href, icon: Icon, color }) => (
+                {categories.slice(0, 4).map(({ label, href, icon: Icon, color }) => (
                   <Link key={label} href={href}>
                     <button className={`w-full rounded-[10px] p-4 text-left shadow-sm transition-transform hover:-translate-y-0.5 ${color} ${color === 'bg-nava-amber' ? 'text-[var(--nava-navy)]' : 'text-white'}`}>
                       <Icon className="w-5 h-5 mb-3" />
@@ -216,6 +242,7 @@ export default function Landing() {
               </div>
             </div>
 
+            {marketplace && (
             <div className="yantra-card p-5">
               <div className="flex items-center justify-between mb-4">
                 <div>
@@ -240,14 +267,17 @@ export default function Landing() {
                       </div>
                       <p className="truncate text-xs text-muted-foreground">{astrologer.specializations?.[0] || 'Vedic Astrology'}</p>
                     </div>
-                    <div className="text-right">
-                      <p className="font-display text-sm text-[var(--primary-border)]">₹{astrologer.pricePerMinute || '25'}</p>
-                      <p className="text-xs text-muted-foreground">per min</p>
-                    </div>
+                    {priceLabel(astrologer.pricePerMinute) && (
+                      <div className="text-right">
+                        <p className="font-display text-sm text-[var(--primary-border)]">{priceLabel(astrologer.pricePerMinute)}</p>
+                        <p className="text-xs text-muted-foreground">per min</p>
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
             </div>
+            )}
           </motion.aside>
         </div>
       </div>
@@ -257,7 +287,7 @@ export default function Landing() {
         <div className="max-w-lg mx-auto">
           <h2 className="font-bold text-lg text-foreground mb-4">Quick Actions</h2>
           <div className="grid grid-cols-3 gap-3">
-            {CATEGORIES.map(({ label, icon: Icon, href, color }, idx) => (
+            {categories.map(({ label, icon: Icon, href, color }, idx) => (
               <motion.div
                 key={label}
                 initial={{ opacity: 0, y: 20 }}
@@ -282,6 +312,7 @@ export default function Landing() {
         </div>
       </div>
 
+      {marketplace && (<>
       {/* ─── Featured Astrologers ────────────────────────── */}
       <div className="py-8 px-4 md:px-6">
         <div className="max-w-6xl mx-auto">
@@ -313,12 +344,14 @@ export default function Landing() {
                       {astrologer?.name?.charAt(0) || 'A'}
                     </AvatarFallback>
                   </Avatar>
-                  <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 bg-emerald-500 rounded-full border-2 border-card" />
+                  {astrologer && isAstrologerAvailable(astrologer) && (
+                    <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 bg-emerald-500 rounded-full border-2 border-card" aria-label="Available now" />
+                  )}
                 </div>
 
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-1.5 mb-0.5">
-                    <h3 className="font-bold text-sm text-foreground truncate">{astrologer?.name || 'Astrologer Name'}</h3>
+                    <h3 className="font-bold text-sm text-foreground truncate">{astrologer?.name}</h3>
                     {astrologer?.isVerified && <CheckCircle2 className="w-3.5 h-3.5 text-nava-amber shrink-0" />}
                   </div>
                   <p className="mb-1 text-xs font-medium text-muted-foreground">
@@ -327,18 +360,19 @@ export default function Landing() {
                   <div className="flex items-center gap-2 text-xs text-muted-foreground">
                     <span className="flex items-center gap-0.5">
                       <Star className="w-3 h-3 fill-nava-amber text-nava-amber" />
-                      {astrologer?.rating || '4.9'}
+                      {ratingLabel(astrologer?.rating)}
                     </span>
-                    <span>|</span>
-                    <span>{astrologer?.experience || '10'}y exp</span>
+                    {experienceLabel(astrologer?.experience) && (<><span>|</span><span>{experienceLabel(astrologer?.experience)}</span></>)}
                   </div>
                 </div>
 
                 <div className="text-right shrink-0">
-                  <div className="mb-2">
-                    <span className="font-display text-[var(--primary-border)]">₹{astrologer?.pricePerMinute || '25'}</span>
-                    <span className="text-xs text-muted-foreground">/min</span>
-                  </div>
+                  {priceLabel(astrologer?.pricePerMinute) && (
+                    <div className="mb-2">
+                      <span className="font-display text-[var(--primary-border)]">{priceLabel(astrologer?.pricePerMinute)}</span>
+                      <span className="text-xs text-muted-foreground">/min</span>
+                    </div>
+                  )}
                   <Button
                     size="sm"
                     className="h-8 rounded-[9px] bg-primary px-4 font-semibold text-primary-foreground hover:bg-primary/90"
@@ -353,6 +387,8 @@ export default function Landing() {
         </div>
       </div>
 
+      </>)}
+
       {/* ─── CTA Section ─────────────────────────────── */}
       <div className="py-12 px-4 md:px-6">
         <div className="max-w-6xl mx-auto">
@@ -366,7 +402,7 @@ export default function Landing() {
               Ready to explore your destiny?
             </h2>
             <p className="text-muted-foreground mb-6">
-              Join thousands of seekers who have found clarity through Navagraha.
+              Calculate your Kundli, then ask what it shows — every answer explains the chart behind it.
             </p>
             <Button
               size="lg"
@@ -477,7 +513,7 @@ export default function Landing() {
           </div>
 
           <div className="flex gap-6 text-sm text-muted-foreground mb-6">
-            <Link href="/astrologers" className="hover:text-foreground transition-colors">Astrologers</Link>
+            {marketplace && <Link href="/astrologers" className="hover:text-foreground transition-colors">Astrologers</Link>}
             <Link href="/horoscope" className="hover:text-foreground transition-colors">Horoscope</Link>
             <Link href="/kundli/new" className="hover:text-foreground transition-colors">Kundli</Link>
           </div>

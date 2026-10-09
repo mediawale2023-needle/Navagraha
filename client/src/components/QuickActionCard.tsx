@@ -7,6 +7,8 @@ interface QuickActionCardProps {
   color?: 'purple' | 'green' | 'orange' | 'navy';
   onClick?: () => void;
   className?: string;
+  /** Small label above the title; only when it is true of this action (never derived from the colour). */
+  eyebrow?: string;
 }
 
 /**
@@ -21,6 +23,7 @@ export function QuickActionCard({
   color = 'purple',
   onClick,
   className = '',
+  eyebrow,
 }: QuickActionCardProps) {
   const colorVariants = {
     purple: {
@@ -28,28 +31,24 @@ export function QuickActionCard({
       iconBg: 'bg-white/15',
       iconColor: 'text-white',
       text: 'text-white',
-      label: 'Live',
     },
     green: {
       bg: 'bg-[var(--nava-magenta)]',
       iconBg: 'bg-white/15',
       iconColor: 'text-white',
       text: 'text-white',
-      label: 'Instant',
     },
     orange: {
       bg: 'bg-primary',
       iconBg: 'bg-black/10',
       iconColor: 'text-[var(--nava-navy)]',
       text: 'text-[var(--nava-navy)]',
-      label: 'Free',
     },
     navy: {
       bg: 'bg-[var(--nava-navy)]',
       iconBg: 'bg-white/10',
       iconColor: 'text-primary',
       text: 'text-primary',
-      label: 'Schedule',
     },
   };
 
@@ -65,7 +64,7 @@ export function QuickActionCard({
       >
         <Icon className={`w-5 h-5 ${variant.iconColor}`} />
       </div>
-      <p className="text-[0.6rem] font-bold uppercase tracking-[0.18em] opacity-70">{variant.label}</p>
+      {eyebrow && <p className="text-[0.6rem] font-bold uppercase tracking-[0.18em] opacity-70">{eyebrow}</p>}
       <h3 className="font-display mt-1 text-base leading-tight">{title}</h3>
     </button>
   );

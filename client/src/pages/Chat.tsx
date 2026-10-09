@@ -1,3 +1,4 @@
+import { priceLabel } from '@/lib/astrologerDisplay';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useRoute, Link, useLocation } from 'wouter';
@@ -169,7 +170,7 @@ export default function Chat() {
         }));
       }
 
-      toast({ title: 'Session Started', description: `Billing at ₹${astrologer?.pricePerMinute || 25}/minute` });
+      toast({ title: 'Session Started', description: priceLabel(astrologer?.pricePerMinute) ? `Billing at ${priceLabel(astrologer?.pricePerMinute)}/minute` : 'Billing per minute at the listed rate' });
     },
     onError: (error: any) => {
       toast({ title: 'Cannot Start Session', description: error.message || 'Failed to start session', variant: 'destructive' });

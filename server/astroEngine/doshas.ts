@@ -19,6 +19,48 @@ export function hasMangalDosha(marsHouse: number): boolean {
   return [1, 2, 4, 7, 8, 12].includes(marsHouse);
 }
 
+// Sign exceptions per house (B.V. Raman's widely used list); 0 = Aries.
+const MANGAL_SIGN_EXCEPTIONS: Record<number, number[]> = {
+  1: [0],      // Aries
+  2: [2, 5],   // Gemini, Virgo
+  4: [0, 7],   // Aries, Scorpio
+  7: [3, 9],   // Cancer, Capricorn
+  8: [8, 11],  // Sagittarius, Pisces
+  12: [1, 6],  // Taurus, Libra
+};
+const SIGN = ['Aries', 'Taurus', 'Gemini', 'Cancer', 'Leo', 'Virgo', 'Libra', 'Scorpio', 'Sagittarius', 'Capricorn', 'Aquarius', 'Pisces'];
+
+/**
+ * Classical cancellation (bhanga) conditions for a flagged Mangal Dosha.
+ * Schools differ on the exact list; this evaluates the conditions most
+ * sources share and returns each one that applies, in plain words.
+ */
+export function mangalCancellations(marsHouse: number, marsSignIndex: number, jupiterSignIndex: number): string[] {
+  if (!hasMangalDosha(marsHouse)) return [];
+  const out: string[] = [];
+  if (marsSignIndex === 0 || marsSignIndex === 7) out.push(`Mars is in its own sign (${SIGN[marsSignIndex]})`);
+  if (marsSignIndex === 9) out.push('Mars is exalted (Capricorn)');
+  if (MANGAL_SIGN_EXCEPTIONS[marsHouse]?.includes(marsSignIndex) && marsSignIndex !== 0 && marsSignIndex !== 7 && marsSignIndex !== 9) {
+    out.push(`Mars in ${SIGN[marsSignIndex]} in house ${marsHouse} is a listed exception`);
+  }
+  const jupToMars = ((marsSignIndex - jupiterSignIndex + 12) % 12) + 1;
+  if (jupToMars === 1) out.push('Jupiter is conjunct Mars');
+  else if ([5, 7, 9].includes(jupToMars)) out.push(`Jupiter aspects Mars (${jupToMars}th-sign aspect)`);
+  return out;
+}
+
+/** The canonical Mangal Dosha record: the house rule, then the cancellations. */
+export function mangalDosha(marsHouse: number, marsSignIndex: number, jupiterSignIndex: number) {
+  const flagged = hasMangalDosha(marsHouse);
+  const cancelledBy = mangalCancellations(marsHouse, marsSignIndex, jupiterSignIndex);
+  const rule = !flagged
+    ? `Mars in house ${marsHouse} from the Lagna; the rule flags houses 1, 2, 4, 7, 8 and 12.`
+    : cancelledBy.length
+      ? `Mars in house ${marsHouse} from the Lagna meets the house rule, but the dosha is cancelled: ${cancelledBy.join('; ')}.`
+      : `Mars in house ${marsHouse} from the Lagna; the rule flags houses 1, 2, 4, 7, 8 and 12, and none of the evaluated cancellations (own sign or exaltation, the listed sign exceptions, Jupiter's conjunction or aspect) applies.`;
+  return { id: 'mangal' as const, name: 'Mangal (Kuja) Dosha', present: flagged && cancelledBy.length === 0, rule, cancelledBy };
+}
+
 // ─── Kaal Sarp Dosha ─────────────────────────────────────────────────────────
 
 /**

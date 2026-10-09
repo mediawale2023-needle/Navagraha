@@ -57,6 +57,8 @@ export interface JyotishChartData {
     kaalSarpDosha: boolean;
     pitruDosha: boolean;
     vishaYoga: boolean;
+    /** Cancellation conditions met by a house-rule Mangal Dosha (then `mangalDosha` is false). */
+    mangalCancelledBy: string[];
   };
   remedies: {
     functional: ReturnType<typeof computeRemedies>;
@@ -153,7 +155,7 @@ export function projectJyotishChart(canonical: CanonicalChart): JyotishChartSumm
       yoginiDasha: calculateYoginiDasha(moon.longitude, birthUTC),
       jaimini: { charKarakas, karakamsha, charaDasha: calculateCharaDasha(ascSidereal, sidereal, birthUTC) },
       mahavidya: computeMahavidyaMapping(ascSidereal, charKarakas),
-      doshas: { mangalDosha: dosha('mangal'), kaalSarpDosha: dosha('kaalSarp'), pitruDosha: dosha('pitru'), vishaYoga: dosha('vishaYoga') },
+      doshas: { mangalDosha: dosha('mangal'), kaalSarpDosha: dosha('kaalSarp'), pitruDosha: dosha('pitru'), vishaYoga: dosha('vishaYoga'), mangalCancelledBy: canonical.doshas.find((d) => d.id === 'mangal')!.cancelledBy ?? [] },
       remedies: {
         functional: computeRemedies(dignities, bhava.houseLords),
         // Generic birth-star list, kept for the practitioner; flagged when this chart's functional rules forbid its stone.

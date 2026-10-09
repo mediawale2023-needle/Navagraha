@@ -153,7 +153,7 @@ export default function AstrologerDashboard() {
       setIsOnline(dashboard.astrologer.isOnline || false);
       setProfile({
         about: dashboard.astrologer.about || '',
-        pricePerMinute: dashboard.astrologer.pricePerMinute || '25',
+        pricePerMinute: dashboard.astrologer.pricePerMinute || '',
         experience: dashboard.astrologer.experience || '',
         upiId: dashboard.astrologer.upiId || '',
         bankAccountName: dashboard.astrologer.bankAccountName || '',

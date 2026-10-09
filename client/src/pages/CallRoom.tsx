@@ -1,3 +1,4 @@
+import { priceLabel } from '@/lib/astrologerDisplay';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useRoute, Link, useLocation } from 'wouter';
@@ -338,7 +339,7 @@ export default function CallRoom() {
       {callState === 'active' && (
         <div className="bg-foreground/5 py-2 text-center">
           <span className="text-foreground/80 text-sm">
-            ₹{astrologer?.pricePerMinute || '25'}/min •
+            {priceLabel(astrologer?.pricePerMinute) && `${priceLabel(astrologer?.pricePerMinute)}/min • `}
             <Clock className="w-3 h-3 inline mx-1" />
             {formatTime(sessionTime)}
           </span>

@@ -7,7 +7,7 @@ import { isCurrentCanonicalChart } from '../../shared/v3/canonical';
 const mocks = vi.hoisted(() => ({
   storage: {
     getKundliById: vi.fn(), getUser: vi.fn(), getUserKundlis: vi.fn(), createKundli: vi.fn(),
-    getReportTypeById: vi.fn(), debitWallet: vi.fn(), createReportOrder: vi.fn(),
+    getReportTypeById: vi.fn(), debitWallet: vi.fn(), createReportOrder: vi.fn(), placeReportOrder: vi.fn(), setReportOrderContent: vi.fn(), failAndRefundReportOrder: vi.fn(),
     setReportOrderContent: vi.fn(), createNotification: vi.fn(),
     saveAiChatMessage: vi.fn(), getUserMemories: vi.fn(), getPredictionFeedbacksByUser: vi.fn(), getPatternStatistics: vi.fn(),
   },
@@ -61,6 +61,8 @@ beforeEach(() => {
   mocks.storage.getPatternStatistics.mockResolvedValue(null);
   mocks.storage.debitWallet.mockResolvedValue(true);
   mocks.storage.createReportOrder.mockResolvedValue({ id: 'order' });
+  mocks.storage.placeReportOrder.mockResolvedValue({ order: { id: 'order', userId: 'u1' }, balance: '0' });
+  vi.stubEnv('OPENAI_API_KEY', 'test-key');
   mocks.storage.setReportOrderContent.mockResolvedValue(undefined);
   mocks.storage.createNotification.mockResolvedValue({});
   mocks.runCouncil.mockResolvedValue('Reading');
@@ -89,7 +91,7 @@ for (const route of protectedRoutes) describe(`${route.method} ${route.path} own
     expect(res.body).toEqual({ message: 'Kundli not found' });
     expect(mocks.runCouncil).not.toHaveBeenCalled();
     expect(mocks.interpretKundli).not.toHaveBeenCalled();
-    expect(mocks.storage.debitWallet).not.toHaveBeenCalled();
+    expect(mocks.storage.placeReportOrder).not.toHaveBeenCalled();
     expect(mocks.storage.saveAiChatMessage).not.toHaveBeenCalled();
     expect(mocks.storage.getUserKundlis).not.toHaveBeenCalled();
   });
@@ -157,7 +159,7 @@ describe('P0 route regressions', () => {
     expect(mocks.storage.createKundli).not.toHaveBeenCalled();
     expect(mocks.runCouncil).not.toHaveBeenCalled();
     expect(mocks.storage.saveAiChatMessage).not.toHaveBeenCalled();
-    expect(mocks.storage.debitWallet).not.toHaveBeenCalled();
+    expect(mocks.storage.placeReportOrder).not.toHaveBeenCalled();
   });
   const couple = { person1Date: '1990-08-15', person1Time: '06:30', person2Date: '1992-03-22', person2Time: '14:45' };
   it.each(['/api/matchmaking', '/api/synastry'])('%s rejects unavailable locations instead of Delhi/Mumbai', async path => {
