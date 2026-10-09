@@ -1,14 +1,13 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Link } from 'wouter';
-import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
 import { PlacesAutocomplete } from '@/components/PlacesAutocomplete';
-import { ArrowLeft, Sun, Moon, Sparkles, Clock, CalendarDays, LocateFixed } from 'lucide-react';
+import { LocateFixed } from 'lucide-react';
+import { tithiName, tithiHi, nakshatraHi, yogaHi, karanaHi, VARA_HI } from '@/lib/jyotishNames';
 import { loadPanchangPlace, savePanchangPlace, localToday, panchangUrl, type PanchangPlace } from '@/lib/panchangPlace';
-import { PageHeader } from '@/components/shell/PageHeader';
+import { PageHeader, PageBody } from '@/components/shell/PageHeader';
 
 interface PanchangData {
   date: string;
@@ -59,21 +58,30 @@ export default function Panchang() {
     );
   };
 
-  const Limb = ({ label, value, sub }: { label: string; value?: string; sub?: string }) => (
-    <div className="flex items-center justify-between py-3 border-b border-border/50 last:border-0">
-      <span className="text-sm text-muted-foreground">{label}</span>
-      <span className="text-sm font-semibold text-right">{value}{sub && <span className="block text-xs font-normal text-muted-foreground">{sub}</span>}</span>
+  const vara = data ? ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'].indexOf(data.vara) : -1;
+  const tithi = data ? tithiName(data.tithi.name, data.tithi.number) : '';
+  const limbs = data ? [
+    { k: 'Tithi', hi: tithiHi(tithi), v: tithi, sub: `${data.tithi.paksha} Paksha` },
+    { k: 'Nakshatra', hi: nakshatraHi(data.nakshatra.name), v: data.nakshatra.name, sub: `Lord ${data.nakshatra.lord}` },
+    { k: 'Yoga', hi: yogaHi(data.yoga), v: data.yoga },
+    { k: 'Karana', hi: karanaHi(data.karana), v: data.karana },
+    { k: 'Vara', hi: vara >= 0 ? VARA_HI[vara] : null, v: data.vara },
+  ] : [];
+  const Row = ({ label, value, testId }: { label: string; value: string; testId?: string }) => (
+    <div className="flex justify-between gap-3 border-b border-hairline py-2.5 last:border-0">
+      <dt className="text-sm text-ink-muted">{label}</dt>
+      <dd className="m-0 text-base font-semibold tabular-nums" data-testid={testId}>{value}</dd>
     </div>
   );
 
   return (
     <div>
-      <PageHeader title="Panchang" gloss="पञ्चाङ्ग" sub="Tithi, nakshatra, yoga and karana for a day and place" width="max-w-3xl" />
+      <PageHeader title="Panchang" gloss="पञ्चाङ्ग" sub="The five limbs of the day at local sunrise, with the day's timings" />
 
-      <div className="w-full max-w-3xl mx-auto px-4 md:px-10 py-6 space-y-4">
-        <div className="flex flex-col sm:flex-row gap-2">
-          <Input type="date" value={date} onChange={(e) => e.target.value && setDate(e.target.value)} className="sm:max-w-[11rem] rounded-[10px]" data-testid="input-date" />
-          <div className="flex-1">
+      <PageBody className="flex flex-col gap-6">
+        <div className="flex flex-col gap-2 md:flex-row md:items-center">
+          <Input type="date" aria-label="Date" value={date} onChange={(e) => e.target.value && setDate(e.target.value)} className="md:max-w-[12rem]" data-testid="input-date" />
+          <div className="min-w-0 flex-1 md:max-w-md">
             <PlacesAutocomplete
               value={placeText}
               onChange={setPlaceText}
@@ -82,61 +90,59 @@ export default function Panchang() {
               testId="input-panchang-place"
             />
           </div>
-          <Button type="button" variant="outline" onClick={useMyLocation} className="rounded-[10px]" data-testid="button-my-location">
-            <LocateFixed className="w-4 h-4 mr-1" /> My location
+          <Button type="button" variant="outline" onClick={useMyLocation} className="gap-1" data-testid="button-my-location">
+            <LocateFixed className="h-4 w-4" /> My location
           </Button>
         </div>
-        {geoError && <p className="text-xs text-destructive">{geoError}</p>}
+        {geoError && <p className="text-sm text-negative">{geoError}</p>}
 
         {error ? (
-          <Card className="yantra-card"><CardContent className="p-5 text-sm" data-testid="panchang-error">{(error as Error).message}</CardContent></Card>
+          <p className="rounded-lg border border-line bg-surface p-4 text-base" data-testid="panchang-error">{(error as Error).message}</p>
         ) : isLoading || !data ? <LoadingSpinner /> : (
           <>
-            <p className="text-xs text-muted-foreground" data-testid="panchang-location">
-              For {data.location.place ?? `${data.location.latitude.toFixed(2)}, ${data.location.longitude.toFixed(2)}`}
-              {data.location.isDefault && ' (default — choose your city for local timings)'} · {data.location.timezone} (UTC{data.location.utcOffset})
-            </p>
-            <Card className="yantra-card">
-              <CardContent className="p-5">
-                <div className="flex items-center justify-between mb-2">
-                  <p className="font-semibold text-lg">{data.vara}</p>
-                  <span className="text-sm text-muted-foreground">{new Date(`${data.date}T00:00:00Z`).toLocaleDateString(undefined, { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' })}</span>
-                </div>
-                <Limb label="Tithi" value={data.tithi.name} sub={`${data.tithi.paksha} Paksha`} />
-                <Limb label="Nakshatra" value={data.nakshatra.name} sub={`Lord: ${data.nakshatra.lord}`} />
-                <Limb label="Yoga" value={data.yoga} />
-                <Limb label="Karana" value={data.karana} />
-                <p className="text-xs text-muted-foreground mt-2">Limbs at local sunrise.</p>
-              </CardContent>
-            </Card>
-
-            <div className="grid grid-cols-2 gap-3">
-              <Card className="yantra-card">
-                <CardContent className="p-4 flex items-center gap-3">
-                  <Sun className="w-6 h-6 text-amber" />
-                  <div><div className="text-xs text-muted-foreground">Sunrise</div><div className="font-semibold" data-testid="text-sunrise">{data.sunrise}</div></div>
-                </CardContent>
-              </Card>
-              <Card className="yantra-card">
-                <CardContent className="p-4 flex items-center gap-3">
-                  <Moon className="w-6 h-6 text-amber-text" />
-                  <div><div className="text-xs text-muted-foreground">Sunset</div><div className="font-semibold" data-testid="text-sunset">{data.sunset}</div></div>
-                </CardContent>
-              </Card>
+            <div className="flex flex-col gap-1">
+              <p className="font-display text-card-title font-semibold text-amber-text md:text-heading">
+                {data.vara}, {new Date(`${data.date}T00:00:00Z`).toLocaleDateString(undefined, { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' })}
+              </p>
+              <p className="text-sm text-ink-muted" data-testid="panchang-location">
+                For {data.location.place ?? `${data.location.latitude.toFixed(2)}, ${data.location.longitude.toFixed(2)}`}
+                {data.location.isDefault && ' (default: choose your city for local timings)'} · {data.location.timezone} (UTC{data.location.utcOffset})
+              </p>
             </div>
 
-            <Card className="yantra-card">
-              <CardContent className="p-5">
-                <p className="font-semibold mb-1 flex items-center gap-2"><Clock className="w-4 h-4 text-red-500" /> Inauspicious Timings</p>
-                <Limb label="Rahu Kaal" value={`${data.rahuKaal.start} – ${data.rahuKaal.end}`} />
-                <Limb label="Gulika Kaal" value={`${data.gulikaKaal.start} – ${data.gulikaKaal.end}`} />
-                <Limb label="Yamaganda" value={`${data.yamaganda.start} – ${data.yamaganda.end}`} />
-                <p className="text-xs text-muted-foreground mt-2 flex items-center gap-1"><Sparkles className="w-3 h-3" /> Local times in {data.location.timezone}, from the actual sunrise and sunset at this place.</p>
-              </CardContent>
-            </Card>
+            <ul className="m-0 grid list-none grid-cols-2 gap-0 overflow-hidden rounded-lg border border-line bg-surface p-0 md:grid-cols-5" aria-label="The five limbs">
+              {limbs.map((l, i) => (
+                <li key={l.k} className={`flex flex-col gap-0.5 border-hairline p-4 md:p-[22px] ${i < limbs.length - 1 ? 'border-b md:border-b-0 md:border-r' : ''} ${i % 2 === 0 ? 'max-md:border-r' : ''}`}>
+                  <span className="text-sm text-ink-muted">{l.k}</span>
+                  {l.hi && <span lang="hi" className="font-display text-subhead font-semibold leading-tight md:text-heading">{l.hi}</span>}
+                  <span className="text-base font-semibold">{l.v}</span>
+                  {l.sub && <span className="text-caption text-ink-muted">{l.sub}</span>}
+                </li>
+              ))}
+            </ul>
+            <p className="-mt-3 text-caption text-ink-muted">Limbs at local sunrise.</p>
+
+            <div className="grid gap-6 md:grid-cols-2">
+              <section aria-labelledby="sun-h" className="flex flex-col gap-2 rounded-lg border border-line bg-surface p-4 md:p-[22px]">
+                <h2 id="sun-h" className="m-0 font-display text-card-title font-semibold">Sun</h2>
+                <dl className="m-0">
+                  <Row label="Sunrise" value={data.sunrise} testId="text-sunrise" />
+                  <Row label="Sunset" value={data.sunset} testId="text-sunset" />
+                </dl>
+              </section>
+              <section aria-labelledby="kaal-h" className="flex flex-col gap-2 rounded-lg border border-line bg-surface p-4 md:p-[22px]">
+                <h2 id="kaal-h" className="m-0 font-display text-card-title font-semibold">Inauspicious periods</h2>
+                <dl className="m-0">
+                  <Row label="Rahu Kaal" value={`${data.rahuKaal.start} – ${data.rahuKaal.end}`} />
+                  <Row label="Gulika Kaal" value={`${data.gulikaKaal.start} – ${data.gulikaKaal.end}`} />
+                  <Row label="Yamaganda" value={`${data.yamaganda.start} – ${data.yamaganda.end}`} />
+                </dl>
+                <p className="text-caption text-ink-muted">Local times in {data.location.timezone}, from the actual sunrise and sunset at this place.</p>
+              </section>
+            </div>
           </>
         )}
-      </div>
+      </PageBody>
     </div>
   );
 }

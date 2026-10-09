@@ -83,13 +83,11 @@ const state = (page) => page.evaluate(() => {
   return { value: el.value, focused: document.activeElement === el, disabled: el.disabled, gm: [...el.classList].some((c) => c.startsWith('gm')), placeholder: el.placeholder };
 });
 
-async function openStep3(page) {
+async function openForm(page) {
   await page.goto(`${BASE}/kundli/new`, { waitUntil: 'networkidle' });
   await page.locator('input[name="name"]').fill('Acceptance Person');
-  await page.getByRole('button', { name: /Continue/ }).click();
   await page.locator('input[type="date"]').fill('1990-05-15');
   await page.locator('input[type="time"]').fill('10:30');
-  await page.getByRole('button', { name: /Continue/ }).click();
   const input = page.getByTestId('input-place');
   await input.waitFor();
   return input;
@@ -133,7 +131,7 @@ async function check(viewport, id, name, browser, fn, opts) {
 
 async function run(browser, viewport) {
   await check(viewport, 'BP1', 'continuous typing keeps focus and every character; suggestions appear', browser, async (page, shot) => {
-    const input = await openStep3(page);
+    const input = await openForm(page);
     await typeContinuously(page, input, 'Varanasi, Uttar');
     await page.getByTestId('input-place-option').first().waitFor({ timeout: 5000 });
     assert((await state(page)).focused, 'focus lost when suggestions opened');
@@ -144,7 +142,7 @@ async function run(browser, viewport) {
   });
 
   await check(viewport, 'BP2', 'mouse/touch selection fills the place and sends its exact coordinates; server resolves the time zone', browser, async (page, shot) => {
-    const input = await openStep3(page);
+    const input = await openForm(page);
     await typeContinuously(page, input, 'Vara');
     const option = page.getByTestId('input-place-option').filter({ hasText: 'Varanasi' }).first();
     await option.waitFor({ timeout: 5000 });
@@ -163,7 +161,7 @@ async function run(browser, viewport) {
   });
 
   await check(viewport, 'BP3', 'keyboard: arrows move, Enter selects, Escape closes; western longitude keeps its sign', browser, async (page) => {
-    const input = await openStep3(page);
+    const input = await openForm(page);
     await typeContinuously(page, input, 'Va');
     await page.getByTestId('input-place-option').nth(2).waitFor({ timeout: 5000 });
     await page.keyboard.press('Escape');
@@ -184,7 +182,7 @@ async function run(browser, viewport) {
   });
 
   await check(viewport, 'BP4', 'editing after selecting drops the coordinates (never a stale location)', browser, async (page) => {
-    const input = await openStep3(page);
+    const input = await openForm(page);
     await typeContinuously(page, input, 'Vara');
     await page.getByTestId('input-place-option').first().waitFor({ timeout: 5000 });
     await page.keyboard.press('ArrowDown');
@@ -200,7 +198,7 @@ async function run(browser, viewport) {
   });
 
   await check(viewport, 'BP5', 'no matches: a clear empty state, field stays usable', browser, async (page, shot) => {
-    const input = await openStep3(page);
+    const input = await openForm(page);
     await page.evaluate(() => { window.__places.mode = 'empty'; });
     await typeContinuously(page, input, 'Qzxw');
     await page.getByTestId('input-place-status').filter({ hasText: /No matching places/ }).waitFor({ timeout: 5000 });
@@ -211,7 +209,7 @@ async function run(browser, viewport) {
   });
 
   await check(viewport, 'BP6', 'search API error: message shown, typing continues, recovers when the API does', browser, async (page, shot) => {
-    const input = await openStep3(page);
+    const input = await openForm(page);
     await page.evaluate(() => { window.__places.mode = 'error'; });
     await typeContinuously(page, input, 'Mumbai');
     await page.getByTestId('input-place-status').filter({ hasText: /not responding/ }).waitFor({ timeout: 5000 });
@@ -225,14 +223,14 @@ async function run(browser, viewport) {
   });
 
   await check(viewport, 'BP7', 'Maps script fails to load: field still types freely and says suggestions are unavailable', browser, async (page, shot) => {
-    const input = await openStep3(page);
+    const input = await openForm(page);
     await typeContinuously(page, input, 'Varanasi');
     await page.getByTestId('input-place-status').filter({ hasText: /could not load/ }).waitFor({ timeout: 5000 });
     await shot('bp7-unavailable');
   }, { mapsScript: 'fail' });
 
   await check(viewport, 'BP8', 'layout: pin icon, text and spinner do not overlap', browser, async (page, shot) => {
-    const input = await openStep3(page);
+    const input = await openForm(page);
     await typeContinuously(page, input, 'Varanasi');
     const box = await page.evaluate(() => {
       const el = document.querySelector('[data-testid="input-place"]');

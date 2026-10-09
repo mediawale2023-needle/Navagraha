@@ -12,7 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest } from '@/lib/queryClient';
 import { isApiError } from '@/lib/apiError';
-import { ArrowLeft, Heart, Loader2 } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import { PlacesAutocomplete } from '@/components/PlacesAutocomplete';
 import { PageHeader } from '@/components/shell/PageHeader';
 
@@ -86,19 +86,19 @@ export default function Matchmaking() {
 
 
   return (
-    <div className="text-foreground">
+    <div>
       <PageHeader title="Kundli Milan" gloss="कुण्डली मिलान" sub="Ashtakoota matching of two birth charts" back={{ href: "/", label: "Today" }} width="max-w-5xl" />
 
-      <div className="max-w-5xl mx-auto px-4 md:px-10 py-6">
+      <div className="mx-auto w-full max-w-5xl px-4 py-4 md:px-10 md:py-8">
         {!result ? (
           <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+            <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col gap-6">
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {/* Person 1 */}
-                <Card className="yantra-card overflow-hidden">
-                  <CardHeader className="border-b border-border bg-primary/10">
-                    <CardTitle className="font-display text-foreground">Person 1 Details</CardTitle>
-                    <CardDescription>Enter first person's birth information</CardDescription>
+                <Card>
+                  <CardHeader className="border-b border-hairline">
+                    <CardTitle className="font-display text-card-title font-semibold">First person</CardTitle>
+                    <CardDescription>Birth details as exactly as known</CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-4 pt-4">
                     <FormField
@@ -108,7 +108,7 @@ export default function Matchmaking() {
                         <FormItem>
                           <FormLabel>Name</FormLabel>
                           <FormControl>
-                            <Input className="rounded-[10px]" placeholder="Full name" {...field} data-testid="input-person1-name" />
+                            <Input placeholder="Full name" {...field} data-testid="input-person1-name" />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
@@ -123,7 +123,7 @@ export default function Matchmaking() {
                           <FormLabel>Gender</FormLabel>
                           <Select onValueChange={field.onChange} defaultValue={field.value}>
                             <FormControl>
-                              <SelectTrigger className="rounded-[10px]" data-testid="select-person1-gender">
+                              <SelectTrigger data-testid="select-person1-gender">
                                 <SelectValue placeholder="Select gender" />
                               </SelectTrigger>
                             </FormControl>
@@ -145,7 +145,7 @@ export default function Matchmaking() {
                         <FormItem>
                           <FormLabel>Date of Birth</FormLabel>
                           <FormControl>
-                            <Input className="rounded-[10px]" type="date" {...field} data-testid="input-person1-date" />
+                            <Input type="date" {...field} data-testid="input-person1-date" />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
@@ -159,7 +159,7 @@ export default function Matchmaking() {
                         <FormItem>
                           <FormLabel>Time of Birth</FormLabel>
                           <FormControl>
-                            <Input className="rounded-[10px]" type="time" {...field} data-testid="input-person1-time" />
+                            <Input type="time" {...field} data-testid="input-person1-time" />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
@@ -189,10 +189,10 @@ export default function Matchmaking() {
                 </Card>
 
                 {/* Person 2 */}
-                <Card className="yantra-card overflow-hidden">
-                  <CardHeader className="border-b border-border bg-card">
-                    <CardTitle className="font-display text-foreground">Person 2 Details</CardTitle>
-                    <CardDescription>Enter second person's birth information</CardDescription>
+                <Card>
+                  <CardHeader className="border-b border-hairline">
+                    <CardTitle className="font-display text-card-title font-semibold">Second person</CardTitle>
+                    <CardDescription>Birth details as exactly as known</CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-4 pt-4">
                     <FormField
@@ -202,7 +202,7 @@ export default function Matchmaking() {
                         <FormItem>
                           <FormLabel>Name</FormLabel>
                           <FormControl>
-                            <Input className="rounded-[10px]" placeholder="Full name" {...field} data-testid="input-person2-name" />
+                            <Input placeholder="Full name" {...field} data-testid="input-person2-name" />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
@@ -217,7 +217,7 @@ export default function Matchmaking() {
                           <FormLabel>Gender</FormLabel>
                           <Select onValueChange={field.onChange} defaultValue={field.value}>
                             <FormControl>
-                              <SelectTrigger className="rounded-[10px]" data-testid="select-person2-gender">
+                              <SelectTrigger data-testid="select-person2-gender">
                                 <SelectValue placeholder="Select gender" />
                               </SelectTrigger>
                             </FormControl>
@@ -239,7 +239,7 @@ export default function Matchmaking() {
                         <FormItem>
                           <FormLabel>Date of Birth</FormLabel>
                           <FormControl>
-                            <Input className="rounded-[10px]" type="date" {...field} data-testid="input-person2-date" />
+                            <Input type="date" {...field} data-testid="input-person2-date" />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
@@ -253,7 +253,7 @@ export default function Matchmaking() {
                         <FormItem>
                           <FormLabel>Time of Birth</FormLabel>
                           <FormControl>
-                            <Input className="rounded-[10px]" type="time" {...field} data-testid="input-person2-time" />
+                            <Input type="time" {...field} data-testid="input-person2-time" />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
@@ -286,19 +286,18 @@ export default function Matchmaking() {
               <Button
                 type="submit"
                 size="lg"
-                className="w-full rounded-[9px] bg-primary text-primary-foreground hover:bg-primary/90"
+                className="w-full md:w-auto md:self-end"
                 disabled={mutation.isPending}
                 data-testid="button-calculate-compatibility"
               >
                 {mutation.isPending ? (
                   <>
                     <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                    Calculating Compatibility...
+                    Calculating…
                   </>
                 ) : (
                   <>
-                    <Heart className="w-5 h-5 mr-2" />
-                    Calculate Compatibility
+                    Calculate Guna Milan
                   </>
                 )}
               </Button>
@@ -307,36 +306,30 @@ export default function Matchmaking() {
         ) : (
           <div className="space-y-6">
             {/* Overall score: the Ashtakoota guna total, out of 36 */}
-            <Card className="yantra-card overflow-hidden border-0">
-              <CardContent className="p-0">
-                <div className="bg-primary p-8 text-center text-ink">
-                  <h2 className="font-display text-3xl mb-2">Ashtakoota Guna Milan</h2>
-                  <p className="mb-4 text-ink/70" data-testid="text-person-names">
-                    {result.person1} & {result.person2}
-                  </p>
-                  <div className="mx-auto mb-3 flex h-32 w-40 flex-col items-center justify-center rounded-[8px] bg-ink">
-                    <span className="font-display text-5xl text-primary" data-testid="text-compatibility-score">
-                      {result.gunaScore}<span className="text-2xl">/{result.maxGunaScore}</span>
-                    </span>
-                    <span className="text-xs uppercase tracking-[0.12em] text-primary/80">gunas</span>
-                  </div>
-                  <p className="text-lg" data-testid="text-compatibility-label">{result.compatibility}</p>
-                  <p className="mt-2 text-sm text-ink/80">{result.recommendation}</p>
-                </div>
-              </CardContent>
-            </Card>
+            <section className="flex flex-col gap-3 rounded-lg border border-line bg-surface p-4 md:flex-row md:items-center md:gap-8 md:p-[22px]">
+              <p className="m-0 flex items-baseline gap-1 font-display font-semibold tabular-nums">
+                <span className="text-hero" data-testid="text-compatibility-score">{result.gunaScore}<span className="text-heading text-ink-muted">/{result.maxGunaScore}</span></span>
+                <span className="text-base font-normal text-ink-muted">gunas</span>
+              </p>
+              <div className="flex flex-col gap-1">
+                <h2 className="m-0 font-display text-card-title font-semibold md:text-heading">Ashtakoota Guna Milan <span lang="hi" className="text-base font-normal text-ink-muted">अष्टकूट</span></h2>
+                <p className="text-sm text-ink-muted" data-testid="text-person-names">{result.person1} & {result.person2}</p>
+                <p className="text-lead font-semibold" data-testid="text-compatibility-label">{result.compatibility}</p>
+                <p className="max-w-[65ch] text-base">{result.recommendation}</p>
+              </div>
+            </section>
 
             {/* The eight kootas exactly as calculated */}
-            <Card className="yantra-card">
+            <Card>
               <CardHeader>
-                <CardTitle className="font-display text-foreground">Koota breakdown</CardTitle>
+                <CardTitle className="font-display text-card-title font-semibold">Koota breakdown</CardTitle>
                 <CardDescription>The eight factors of Ashtakoota matching, from both Moons' signs and nakshatras.</CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm" data-testid="table-kootas">
                     <thead>
-                      <tr className="border-b border-border text-left text-muted-foreground">
+                      <tr className="border-b border-line text-left text-ink-muted">
                         <th className="py-2 pr-3 font-medium">Koota</th>
                         <th className="py-2 pr-3 font-medium">What it reflects</th>
                         <th className="py-2 text-right font-medium">Points</th>
@@ -344,9 +337,9 @@ export default function Matchmaking() {
                     </thead>
                     <tbody>
                       {(result.details as Array<{ koot: string; score: number; maxScore: number; description: string }>).map((k) => (
-                        <tr key={k.koot} className="border-b border-border/40">
-                          <td className="py-2 pr-3 font-medium text-foreground">{k.koot}</td>
-                          <td className="py-2 pr-3 text-muted-foreground">{k.description}</td>
+                        <tr key={k.koot} className="border-b border-hairline last:border-0">
+                          <td className="py-2 pr-3 font-semibold">{k.koot}</td>
+                          <td className="py-2 pr-3 text-ink-muted">{k.description}</td>
                           <td className="py-2 text-right tabular-nums text-foreground">{k.score} / {k.maxScore}</td>
                         </tr>
                       ))}
@@ -357,9 +350,9 @@ export default function Matchmaking() {
             </Card>
 
             {result.dosha?.hasDosha && (
-              <Card className="yantra-card" data-testid="card-matching-dosha">
+              <Card data-testid="card-matching-dosha">
                 <CardHeader>
-                  <CardTitle className="font-display text-foreground">{result.dosha.type}</CardTitle>
+                  <CardTitle className="font-display text-card-title font-semibold">{result.dosha.type}</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <p className="text-sm text-muted-foreground">{result.dosha.description}</p>
@@ -385,7 +378,7 @@ export default function Matchmaking() {
             <div className="flex gap-4">
               <Button
                 variant="outline"
-                className="flex-1 rounded-[9px]"
+                className="flex-1 md:flex-none"
                 onClick={() => {
                   setResult(null);
                   form.reset({
