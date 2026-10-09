@@ -22,7 +22,7 @@ describe('primary navigation', () => {
     ['/kundli', '', 'kundli'],
     ['/kundli/new', '', 'kundli'],
     ['/kundli/abc', '?tab=chart', 'kundli'],
-    ['/kundli/abc', '?tab=dashas', 'dasha'],
+    ['/kundli/abc/dasha', '', 'dasha'],
     ['/kundli', '?for=dasha', 'dasha'],
     ['/ai-astrologer', '?kundliId=1', 'ask'],
     ['/panchang', '', 'panchang'],
@@ -64,7 +64,8 @@ describe('one shell, one header', () => {
 
   it.each(consumerPages)('%s uses the shared PageHeader and draws no navigation or sticky header of its own', (f) => {
     const src = read(`${pagesDir}/${f}`);
-    expect(src).toContain('<PageHeader');
+    // Today's header is its Panchang hero, the navy band of the Today mockup.
+    expect(src).toContain(f === 'Home.tsx' ? '<TodayHero' : '<PageHeader');
     expect(src).not.toMatch(/BottomNav|TopNav|sticky top-0|<header/);
   });
 });

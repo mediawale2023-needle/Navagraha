@@ -9,7 +9,7 @@ import { LoadingSpinner } from '@/components/LoadingSpinner';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
 } from '@/components/ui/dialog';
-import { ArrowLeft, Calendar, Clock, MapPin, Download, ChevronDown, ChevronRight, Wallet, Sparkles, Info, ArrowRight } from 'lucide-react';
+import { ArrowLeft, Calendar, Clock, MapPin, Download, Wallet, Sparkles, Info, ArrowRight } from 'lucide-react';
 import { PageHeader, PageBody } from '@/components/shell/PageHeader';
 import { recreateHref } from '@/lib/recreateChart';
 import { BalanceShortfall } from '@/components/BalanceShortfall';
@@ -23,10 +23,15 @@ import { VerifyEventDialog } from '@/components/VerifyEventDialog';
 import { TrustBadge } from '@/components/TrustBadge';
 import { CalculationInfo } from '@/components/CalculationInfo';
 import { PriorityRemedyCard } from '@/components/PriorityRemedyCard';
-import { NorthIndianChartEnhanced } from '@/components/NorthIndianChartEnhanced';
+import { RashiChart } from '@/components/kundli/RashiChart';
+import { ChartToggles } from '@/components/kundli/ChartToggles';
+import { GrahaGrid, GrahaStrip, grahaCards } from '@/components/kundli/GrahaGrid';
+import { VimshottariScale } from '@/components/kundli/VimshottariScale';
+import { summariseYogasAndDoshas } from '@/lib/kundliSummary';
+import { SIGN_HI } from '@/lib/jyotishNames';
+import type { ChartLabels } from '@/lib/rashiChart';
 import { AIInsightSheet, type InsightSubject } from '@/components/AIInsightSheet';
 import { ChartGlance } from '@/components/v3/ChartGlance';
-import { LifeTimeline } from '@/components/v3/LifeTimeline';
 import { selectRunningPeriods, monthYear } from '@/lib/runningPeriods';
 import type { KundliInsights, EvidenceItem } from '@shared/v3/evidence';
 import type { CanonicalChart } from '@shared/v3/canonical';
@@ -124,7 +129,7 @@ function InsufficientModal({ open, balance, onClose, onRecharge }: { open: boole
 
 export default function KundliView() {
   const [chartStyle, setChartStyle] = useState<'north' | 'south'>('north');
-  const [expandedDasha, setExpandedDasha] = useState<number | null>(null);
+  const [labels, setLabels] = useState<ChartLabels>('hi');
   const [pdfChecking, setPdfChecking] = useState(false);
   const [pdfConfirming, setPdfConfirming] = useState(false);
   const [modal, setModal] = useState<PdfModal>(null);
@@ -205,13 +210,11 @@ export default function KundliView() {
     enabled: isPreview ? !!canonical : !!kundliId,
   });
 
+  // The dasha periods and life timeline moved to their own page; old ?tab= links land there.
   useEffect(() => {
-    if (kundli) {
-      const dashas = (kundli.dashas as any[]) || [];
-      const idx = dashas.findIndex(isRunning);
-      setExpandedDasha(idx >= 0 ? idx : null);
-    }
-  }, [kundli]);
+    const tab = new URLSearchParams(window.location.search).get('tab');
+    if (kundliId && !isPreview && (tab === 'dashas' || tab === 'insights')) navigate(`/kundli/${kundliId}/dasha`, { replace: true });
+  }, [kundliId, isPreview, navigate]);
 
   const handlePlanetClick = (planet: any) => {
     if (!canonical || !canonical.planets.some((p) => p.name === planet.planet)) return;
@@ -257,248 +260,204 @@ export default function KundliView() {
     ? legacyAd?.pratyantardashas?.find(isRunning) : undefined;
   const curYogini = exactTime ? (chartData?.yoginiDasha as any[] | undefined)?.find(isRunning) : undefined;
   const periodRange = (p: { start: string; end: string }) => (running?.showDates ? ` (${monthYear(p.start)} – ${monthYear(p.end)})` : '');
-  const dashas = (kundli.dashas as any[]) || [];
   const doshas = (kundli.doshas as any) || {};
   const remedies = (kundli.remedies as any[]) || [];
   // A chart the V3 engine could not recalculate: its stored placements are unverified, so none are shown.
   const limited = (kundli as any).chartStatus?.version === 'limited';
   const requestedTab = typeof window === 'undefined' ? null : new URLSearchParams(window.location.search).get('tab');
-  const initialTab = requestedTab && ['overview', 'chart', 'insights', 'dashas', 'remedies'].includes(requestedTab) ? requestedTab : 'overview';
+  const initialTab = requestedTab && ['overview', 'chart', 'remedies'].includes(requestedTab) ? requestedTab : 'overview';
   const chartView: ChartTabView = canonical ? chartTabView(canonical) : { mode: 'exact' };
   const moonSignUncertain = chartView.mode === 'table';
+
+  const moonPlanet = canonical?.planets.find((p) => p.name === 'Moon');
+  const sunPlanet = canonical?.planets.find((p) => p.name === 'Sun');
+  const exactTimeV3 = canonical?.birth.timeAccuracy === 'exact';
+  const nakshatraKnown = !!canonical && (exactTimeV3 || canonical.uncertainty.moonNakshatraStableAcrossBirthDate);
+  const lagnaLine = canonical ? (exactTimeV3 ? `${canonical.ascendant.sign} Lagna` : 'Lagna unknown') : null;
+  const moonLine = moonPlanet ? (moonSignUncertain ? 'Moon sign uncertain' : `${moonPlanet.sign} Moon${nakshatraKnown ? ` in ${moonPlanet.nakshatra.name}` : ''}`) : null;
+  const cards = canonical ? grahaCards(canonical, { lagnaKnown: chartView.mode === 'exact', moonSignKnown: !moonSignUncertain, nakshatraKnown, maha: running?.maha?.lord, antar: running?.antar?.lord }) : [];
+  const placements = canonical?.planets.map((p) => ({ planet: p.name, signIndex: p.signIndex, retrograde: p.retrograde })) ?? [];
+  const firstHouseSign = chartView.mode === 'chandra' ? moonPlanet!.signIndex : canonical?.ascendant.signIndex ?? 0;
+  const selectPlanet = (planet: string) => handlePlanetClick({ planet });
+  const chartTitle = `${chartView.mode === 'chandra' ? 'Chandra Lagna' : 'North Indian'} chart for ${kundli.name}`;
+  const yogaLine = canonical ? summariseYogasAndDoshas(canonical).map((seg, i) => (seg.bold ? <b key={i}>{seg.text}</b> : <span key={i}>{seg.text}</span>)) : null;
 
   return (
     <div>
       <PageHeader
-        title={kundli.name}
-        gloss="कुण्डली"
+        title={canonical ? (exactTimeV3 ? <><span lang="hi">{SIGN_HI[canonical.ascendant.sign]} लग्न</span> · {lagnaLine}</> : lagnaLine) : kundli.name}
+        sub={canonical ? [kundli.name, moonLine, `${sunPlanet?.sign} Sun`].filter(Boolean).join(' · ') : undefined}
         back={isPreview ? undefined : { href: '/kundli', label: 'Kundli' }}
-        width="max-w-4xl"
-        actions={limited ? undefined : (
-          <>
-            <Button variant="outline" onClick={handleDownloadPDF} disabled={pdfChecking || pdfConfirming} className="gap-2">
-              <Download className="w-4 h-4" />
-              {pdfChecking ? 'Checking…' : 'Download PDF'}
-            </Button>
-            <TrustBadge variant="calculated" />
-          </>
-        )}
+        desktop={false}
       />
-      <div className="max-w-4xl mx-auto px-4 py-6 md:px-10">
 
-        {/* Info Card */}
-        <Card className="card-clean mb-6">
-          <CardHeader>
-            <div className="flex items-start justify-between flex-wrap gap-3">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">Your Kundli</p>
-                <CardTitle className="font-display text-2xl mb-1">{kundli.name}</CardTitle>
-                {canonical && (
-                  <div className="mb-2" data-testid="kundli-headline">
-                    <p className="font-display text-lg text-foreground">
-                      {canonical.birth.timeAccuracy === 'approximate' ? 'Lagna unknown' : `${canonical.ascendant.sign} Lagna`}
-                      {' · '}{canonical.birth.timeAccuracy === 'approximate' && !canonical.uncertainty.moonSignStableAcrossBirthDate
-                        ? 'Moon sign uncertain'
-                        : `${canonical.planets.find((p) => p.name === 'Moon')?.sign} Moon`}
-                      {' · '}{canonical.planets.find((p) => p.name === 'Sun')?.sign} Sun
-                    </p>
-                    <p className="text-xs text-muted-foreground">Calculated using Swiss Ephemeris · {canonical.meta.ayanamsa} Ayanamsa · {canonical.birth.timezone} (UTC{canonical.birth.utcOffset})</p>
-                  </div>
-                )}
-                {(kundli as any).chartStatus?.version === 'v3-recalculated-from-legacy' && (
-                  <div className="mb-2 rounded-[8px] border border-primary/25 bg-primary/10 p-2.5 text-xs text-foreground" data-testid="migration-notice">
-                    {(kundli as any).chartStatus.notes.map((n: string) => <p key={n}>{n}</p>)}
-                  </div>
-                )}
-                {limited && (
-                  <div className="mb-3 space-y-2 rounded-[8px] border border-line bg-highlight p-3 text-xs text-amber-text" data-testid="limited-chart-notice">
-                    <p>{(kundli as any).chartStatus.notes[0]}</p>
-                    <p>Its placements are hidden because they cannot be verified. This saved chart stays in your list unchanged.</p>
-                    <Link href={recreateHref(kundli as any)}>
-                      <Button size="sm" className="rounded-[9px] bg-primary text-primary-foreground hover:bg-primary/90" data-testid="button-recreate-chart">
-                        Recreate with birth place
-                        <ArrowRight className="w-4 h-4 ml-1" />
-                      </Button>
-                    </Link>
-                  </div>
-                )}
-                {chartData?.isBirthTimeApproximate && (
-                  <p className="text-sm text-muted-foreground">Birth time is approximate; Ascendant and house positions may be unreliable.</p>
-                )}
-                <div className="flex flex-wrap gap-4 text-muted-foreground text-sm">
-                  <div className="flex items-center gap-1.5">
-                    <Calendar className="w-4 h-4" />
-                    <span>{birthDate.toLocaleDateString()}</span>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <Clock className="w-4 h-4" />
-                    <span>{kundli.timeOfBirth}{chartData?.isBirthTimeApproximate ? " (approximate)" : ""}</span>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <MapPin className="w-4 h-4" />
-                    <span>{kundli.placeOfBirth}</span>
-                  </div>
-                </div>
-              </div>
-              {!limited && (
-                <div className="flex flex-wrap gap-2">
-                  <Badge variant="secondary" className="bg-primary/15 text-amber-text">
-                    {kundli.zodiacSign || '—'}
-                  </Badge>
-                  <Badge variant="secondary" className="bg-positive/10 text-positive">
-                    Moon: {moonSignUncertain ? 'uncertain' : kundli.moonSign || '—'}
-                  </Badge>
-                </div>
-              )}
+      <div className="mx-auto flex w-full max-w-[1320px] flex-col gap-5 px-4 pb-12 pt-4 md:gap-8 md:px-10 md:pt-9">
+        {/* Which chart this is and the page actions: one line, since the mockup assumes a single chart. */}
+        <div className="hidden flex-wrap items-center justify-between gap-x-4 gap-y-2 md:flex" data-testid="kundli-identity">
+          <p className="min-w-0 text-sm text-ink-muted">
+            {!isPreview && <><Link href="/kundli" className="hover:text-amber-text">← Kundli</Link>{' · '}</>}
+            <span className="font-semibold text-ink">{kundli.name}</span>
+            {' · '}{birthDate.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}, {kundli.timeOfBirth}{chartData?.isBirthTimeApproximate ? ' (approximate)' : ''} · {kundli.placeOfBirth}
+          </p>
+          {!limited && (
+            <div className="flex flex-wrap items-center gap-2">
+              <Button variant="outline" size="sm" onClick={handleDownloadPDF} disabled={pdfChecking || pdfConfirming} className="gap-2">
+                <Download className="h-4 w-4" />
+                {pdfChecking ? 'Checking…' : 'Download PDF'}
+              </Button>
+              <TrustBadge variant="calculated" />
             </div>
-          </CardHeader>
-        </Card>
+          )}
+        </div>
+        {canonical && !exactTimeV3 && (
+          <div className="rounded-md border border-line bg-highlight px-4 py-3 text-sm text-ink" data-testid="kundli-headline">
+            <p>Birth time is approximate; Ascendant and house positions may be unreliable.</p>
+            <p className="text-ink-muted">
+              <span data-testid="overview-ascendant">Lagna: Unknown — birth time approximate</span>
+              {moonSignUncertain && <> · Uncertain — the Moon changed sign on this birth date</>}
+            </p>
+          </div>
+        )}
+        {!canonical && chartData?.isBirthTimeApproximate && (
+          <p className="text-caption text-ink-muted">Birth time is approximate; Ascendant and house positions may be unreliable.</p>
+        )}
+
+        {(kundli as any).chartStatus?.version === 'v3-recalculated-from-legacy' && (
+          <div className="rounded-md border border-line bg-highlight p-3 text-sm text-ink" data-testid="migration-notice">
+            {(kundli as any).chartStatus.notes.map((n: string) => <p key={n}>{n}</p>)}
+          </div>
+        )}
+        {limited && (
+          <div className="flex flex-col items-start gap-3 rounded-lg border border-line bg-surface p-[22px] text-base" data-testid="limited-chart-notice">
+            <p>{(kundli as any).chartStatus.notes[0]}</p>
+            <p className="text-ink-muted">Its placements are hidden because they cannot be verified. This saved chart stays in your list unchanged.</p>
+            <Link href={recreateHref(kundli as any)}>
+              <Button data-testid="button-recreate-chart">
+                Recreate with birth place
+                <ArrowRight className="ml-1 h-4 w-4" />
+              </Button>
+            </Link>
+          </div>
+        )}
 
         {!limited && (<>
+        {canonical && (
+          <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] lg:gap-12">
+            <section aria-label="Rashi chart" className="flex flex-col items-center gap-3.5">
+              <p className="hidden self-start font-display text-lg text-ink-muted md:block">
+                {chartView.mode === 'chandra' ? <><span lang="hi">चन्द्र लग्न</span> · Moon chart</> : <><span lang="hi">राशि चक्र</span> · Rashi chart</>}
+              </p>
+              {chartView.mode === 'table' ? (
+                <div className="w-full rounded-lg border border-line bg-surface p-4" data-testid="approximate-planet-table">
+                  <p className="mb-3 text-caption text-ink-muted">Birth time is approximate and the Moon changed sign on this birth date, so no house chart can be drawn. Only sign positions are shown.</p>
+                  <table className="w-full text-sm">
+                    <thead><tr className="text-left text-caption text-ink-muted"><th className="py-1.5 font-medium">Planet</th><th className="py-1.5 font-medium">Sign</th><th className="py-1.5 text-right font-medium">Degree</th></tr></thead>
+                    <tbody>
+                      {chartView.rows.map((r) => (
+                        <tr key={r.planet} className="border-t border-hairline">
+                          <td className="py-1.5">{r.planet}{r.retrograde && r.planet !== 'Rahu' && r.planet !== 'Ketu' ? ' ℞' : ''}</td>
+                          <td className="py-1.5">{r.signUncertain ? `${r.sign} at the entered time · may differ` : r.sign}</td>
+                          <td className="py-1.5 text-right tabular-nums">{r.signUncertain ? '—' : `${r.degree.toFixed(2)}°`}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <>
+                  <div className="border border-frame bg-surface p-[5px] md:p-2">
+                    <div className="border-[3px] border-double border-frame p-1.5 md:p-2.5">
+                      <div className="md:hidden"><RashiChart placements={placements} firstHouseSign={firstHouseSign} firstHouse={chartView.mode === 'chandra' ? 'chandra' : 'lagna'} labels={labels} style={chartStyle} size={320} title={chartTitle} onSelect={selectPlanet} /></div>
+                      <div className="hidden md:block"><RashiChart placements={placements} firstHouseSign={firstHouseSign} firstHouse={chartView.mode === 'chandra' ? 'chandra' : 'lagna'} labels={labels} style={chartStyle} size={380} title={chartTitle} onSelect={selectPlanet} /></div>
+                    </div>
+                  </div>
+                  <div className="hidden md:block"><ChartToggles labels={labels} style={chartStyle} onChange={(l, st) => { setLabels(l); setChartStyle(st); }} /></div>
+                  {chartView.mode === 'chandra' && (
+                    <p className="text-center text-caption text-ink-muted" data-testid="chandra-lagna-note">Birth time is approximate, so houses are counted from the Moon ({chartView.moonSign}), not from the Lagna.</p>
+                  )}
+                </>
+              )}
+            </section>
+
+            <section aria-labelledby="kundli-grahas" className="flex min-w-0 flex-col gap-3.5">
+              <div className="flex flex-wrap items-baseline justify-between gap-2">
+                <h1 id="kundli-grahas" className="m-0 font-display text-section font-semibold max-md:sr-only md:text-title">Nine grahas <span lang="hi" className="text-lg font-normal text-ink-muted md:text-subhead">नवग्रह</span></h1>
+                <span className="hidden text-sm text-ink-muted md:inline">{[lagnaLine, moonSignUncertain ? null : `${moonPlanet?.sign} Moon`].filter(Boolean).join(' · ')}</span>
+              </div>
+              <div className="hidden md:block"><GrahaGrid cards={cards} onSelect={selectPlanet} /></div>
+              <div className="flex flex-col gap-2 md:hidden"><GrahaStrip cards={cards} onSelect={selectPlanet} />{chartView.mode !== 'table' && <ChartToggles labels={labels} style={chartStyle} onChange={(l, st) => { setLabels(l); setChartStyle(st); }} />}</div>
+              {yogaLine && <p className="text-nav" data-testid="yoga-line">{yogaLine}</p>}
+              {chartView.mode !== 'exact' && (
+                <p className="text-caption text-ink-muted" data-testid="vargas-withheld">Divisional charts (D9, D10, D60), yogas and house bindus depend on the exact Lagna, so they are not shown for an approximate birth time.</p>
+              )}
+            </section>
+          </div>
+        )}
+
+        {insights && canonical && (
+          <VimshottariScale
+            periods={insights.timeline}
+            birth={new Date(canonical.birth.birthUTC)}
+            maha={running?.maha?.lord}
+            antar={running?.antar?.lord}
+            note={insights.timing?.note}
+          />
+        )}
+        {insights && canonical && !isPreview && kundliId && (
+          <Link href={`/kundli/${kundliId}/dasha`} className="-mt-4 self-start text-sm underline hover:text-amber-text" data-testid="link-dasha-timeline">
+            Every Mahadasha and Antardasha, with what each engages →
+          </Link>
+        )}
+
         {/* Tabs */}
-        <Tabs defaultValue={initialTab} className="w-full mb-6">
-          <TabsList className="grid w-full grid-cols-5 bg-muted p-1">
-            <TabsTrigger value="overview" className="rounded-[6px] data-[state=active]:bg-ink data-[state=active]:text-primary">Overview</TabsTrigger>
-            <TabsTrigger value="chart" className="rounded-[6px] data-[state=active]:bg-ink data-[state=active]:text-primary">Chart</TabsTrigger>
-            <TabsTrigger value="insights" className="rounded-[6px] data-[state=active]:bg-ink data-[state=active]:text-primary">Insights</TabsTrigger>
-            <TabsTrigger value="dashas" className="rounded-[6px] data-[state=active]:bg-ink data-[state=active]:text-primary">Dashas</TabsTrigger>
-            <TabsTrigger value="remedies" className="rounded-[6px] data-[state=active]:bg-ink data-[state=active]:text-primary">Remedies</TabsTrigger>
+        <Tabs defaultValue={initialTab} className="w-full" id="kundli-tabs">
+          <TabsList aria-label="More about this chart">
+            <TabsTrigger value="overview">Life areas</TabsTrigger>
+            <TabsTrigger value="chart">Divisional charts &amp; strength</TabsTrigger>
+            <TabsTrigger value="remedies">Remedies</TabsTrigger>
           </TabsList>
 
           {/* Overview */}
           <TabsContent value="overview">
-            {insights && (
-              <Card className="card-clean mb-4">
-                <CardHeader>
-                  <CardTitle className="font-display">Your Chart at a Glance</CardTitle>
-                  {insights.headline.timeAccuracy === 'approximate' && (
-                    <p className="text-xs text-muted-foreground">Birth time is approximate, so house-based indicators are set aside and every confidence is low.</p>
-                  )}
-                </CardHeader>
-                <CardContent>
-                  <ChartGlance domains={insights.domains} onWhy={(d) => { setSheetSubject({ kind: 'domain', resolution: d }); setAiSheetOpen(true); }} />
-                  <p className="mt-3 text-xs text-muted-foreground">{insights.notes[insights.notes.length - 1]}</p>
-                </CardContent>
-              </Card>
+            {insights ? (
+              <section className="flex flex-col gap-3 rounded-lg border border-line bg-surface p-[22px]" aria-labelledby="kundli-areas">
+                <h2 id="kundli-areas" className="m-0 font-display text-subhead font-semibold">Life areas, ranked</h2>
+                {insights.headline.timeAccuracy === 'approximate' && (
+                  <p className="text-caption text-ink-muted">Birth time is approximate, so house-based indicators are set aside and every confidence is low.</p>
+                )}
+                <ChartGlance domains={insights.domains} onWhy={(d) => { setSheetSubject({ kind: 'domain', resolution: d }); setAiSheetOpen(true); }} />
+                <p className="text-caption text-ink-muted">{insights.notes[insights.notes.length - 1]}</p>
+              </section>
+            ) : (
+              <p className="text-sm text-ink-muted" role="status">{canonical ? 'Reading the evidence for each life area…' : 'This chart predates the V3 engine; open it again after it has been recalculated.'}</p>
             )}
-            <Card className="card-clean">
-              <CardHeader>
-                <CardTitle className="font-display">Astrological Overview</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div>
-                    <h4 className="font-semibold mb-2 text-foreground">Basic Details</h4>
-                    <div className="space-y-2 text-sm">
-                      <div className="flex justify-between">
-                        <span className="text-muted-foreground">Zodiac Sign (Sun):</span>
-                        <span className="font-medium">{kundli.zodiacSign || '—'}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-muted-foreground">Moon Sign:</span>
-                        {moonSignUncertain ? (
-                          <span className="text-right text-muted-foreground">Uncertain — the Moon changed sign on this birth date</span>
-                        ) : (
-                          <span className="font-medium">{kundli.moonSign || '—'}</span>
-                        )}
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-muted-foreground">Ascendant (Lagna):</span>
-                        {canonical?.birth.timeAccuracy === 'approximate' ? (
-                          <span className="text-right text-muted-foreground" data-testid="overview-ascendant">Unknown — birth time approximate</span>
-                        ) : (
-                          <span className="font-medium" data-testid="overview-ascendant">{canonical?.ascendant.sign ?? '—'}</span>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                  <div>
-                    <h4 className="font-semibold mb-2 text-foreground">Planetary Positions</h4>
-                    <div className="space-y-1.5 text-sm">
-                      {chartData?.planetaryPositions?.filter((p: any) => p.planet !== 'Ascendant').slice(0, 5).map((p: any) => (
-                        <div key={p.planet} className="flex justify-between">
-                          <span className="text-muted-foreground">{p.planet}:</span>
-                          <span className="font-medium">{moonSignUncertain && p.planet === 'Moon' ? 'Uncertain' : `${p.sign} ${p.degree}°${p.isRetrograde ? ' (R)' : ''}`}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
           </TabsContent>
 
           {/* Chart */}
-          <TabsContent value="chart">
-            <Card className="card-clean">
-              <CardHeader>
-                <div className="flex items-center justify-between flex-wrap gap-3">
-                  <CardTitle className="font-display">{chartView.mode === 'chandra' ? 'Moon Chart (Chandra Lagna)' : chartView.mode === 'table' ? 'Planet Positions' : 'Birth Chart'}</CardTitle>
-                  <div className="flex rounded-lg border border-border overflow-hidden">
-                    <button onClick={() => setChartStyle('north')} className={`px-4 py-1.5 text-sm font-medium transition-colors ${chartStyle === 'north' ? 'bg-ink text-primary' : 'bg-card hover:bg-muted'}`}>
-                      North Indian
-                    </button>
-                    <button onClick={() => setChartStyle('south')} className={`px-4 py-1.5 text-sm font-medium transition-colors ${chartStyle === 'south' ? 'bg-ink text-primary' : 'bg-card hover:bg-muted'}`}>
-                      South Indian
-                    </button>
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="flex flex-col items-center gap-4 p-1 sm:p-4">
-                  {chartView.mode === 'table' ? (
-                    <div className="w-full" data-testid="approximate-planet-table">
-                      <p className="mb-3 text-xs text-muted-foreground">Birth time is approximate and the Moon changed sign on this birth date, so no house chart can be drawn. Only sign positions are shown.</p>
-                      <table className="w-full text-sm">
-                        <thead><tr className="text-left text-xs text-muted-foreground"><th className="py-1.5 font-medium">Planet</th><th className="py-1.5 font-medium">Sign</th><th className="py-1.5 font-medium text-right">Degree</th></tr></thead>
-                        <tbody>
-                          {chartView.rows.map((r) => (
-                            <tr key={r.planet} className="border-t border-border/50">
-                              <td className="py-1.5">{r.planet}{r.retrograde && r.planet !== 'Rahu' && r.planet !== 'Ketu' ? ' ℞' : ''}</td>
-                              <td className="py-1.5">{r.signUncertain ? `${r.sign} at the entered time · may differ` : r.sign}</td>
-                              <td className="py-1.5 text-right tabular-nums">{r.signUncertain ? '—' : `${r.degree.toFixed(2)}°`}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  ) : chartStyle === 'north' ? (
-                    <NorthIndianChartEnhanced chartData={chartView.mode === 'chandra' ? chartView.chartData : chartData} onPlanetClick={handlePlanetClick} />
-                  ) : (
-                    <div className="text-center text-muted-foreground">South Indian chart coming soon</div>
-                  )}
-                  {chartView.mode === 'chandra' && (
-                    <p className="text-xs text-muted-foreground text-center" data-testid="chandra-lagna-note">Birth time is approximate, so houses are counted from the Moon ({chartView.moonSign}), not from the Lagna.</p>
-                  )}
-                  {chartView.mode !== 'table' && <p className="text-xs text-muted-foreground text-center">Tap any planet for detailed insights</p>}
-                  {chartView.mode !== 'exact' && (
-                    <p className="w-full border-t border-border/40 pt-4 text-xs text-muted-foreground text-center" data-testid="vargas-withheld">Divisional charts (D9, D10, D60), yogas and house bindus depend on the exact Lagna, so they are not shown for an approximate birth time.</p>
-                  )}
-
-                  {chartView.mode === 'exact' && chartData?.navamsa?.planetaryPositions && (
-                    <div className="w-full pt-4 mt-2 border-t border-border/40">
-                      <h3 className="text-sm font-semibold text-amber-text text-center mb-1">Navamsa (D9)</h3>
-                      <p className="text-xs text-muted-foreground text-center mb-3">Marriage, dharma & true planetary strength</p>
-                      <NorthIndianChartEnhanced chartData={chartData.navamsa} />
-                    </div>
-                  )}
-                  {chartView.mode === 'exact' && chartData?.dasamsa?.planetaryPositions && (
-                    <div className="w-full pt-4 mt-2 border-t border-border/40">
-                      <h3 className="text-sm font-semibold text-amber-text text-center mb-1">Dasamsa (D10)</h3>
-                      <p className="text-xs text-muted-foreground text-center mb-3">Career & profession</p>
-                      <NorthIndianChartEnhanced chartData={chartData.dasamsa} />
-                    </div>
-                  )}
-                  {chartView.mode === 'exact' && chartData?.shashtiamsa?.planetaryPositions && (
-                    <div className="w-full pt-4 mt-2 border-t border-border/40">
-                      <h3 className="text-sm font-semibold text-amber-text text-center mb-1">Shashtiamsa (D60)</h3>
-                      <p className="text-xs text-muted-foreground text-center mb-3">Past-life karma — accurate only with an exact birth time</p>
-                      <NorthIndianChartEnhanced chartData={chartData.shashtiamsa} />
-                    </div>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
+          <TabsContent value="chart" className="flex flex-col gap-4">
+            {chartView.mode !== 'exact' && (
+              <p className="text-sm text-ink-muted">Divisional charts (D9, D10, D60), yogas and house bindus depend on the exact Lagna, so they are not shown for an approximate birth time.</p>
+            )}
+            <div className="grid gap-4 md:grid-cols-3">
+              {chartView.mode === 'exact' && chartData?.navamsa?.planetaryPositions && canonical && (
+                <figure className="m-0 flex flex-col items-center gap-2 rounded-lg border border-line bg-surface p-4">
+                  <figcaption className="text-center"><span className="font-display text-card-title font-semibold">Navamsa (D9)</span><span className="block text-caption text-ink-muted">Marriage, dharma and planetary strength</span></figcaption>
+                  <RashiChart placements={canonical.vargas.D9.placements.map((v) => ({ planet: v.planet, signIndex: v.signIndex, retrograde: false }))} firstHouseSign={canonical.vargas.D9.ascendantSignIndex} firstHouse="lagna" labels={labels} style={chartStyle} size={280} title={`Navamsa (D9) chart for ${kundli.name}`} />
+                </figure>
+              )}
+              {chartView.mode === 'exact' && chartData?.dasamsa?.planetaryPositions && canonical && (
+                <figure className="m-0 flex flex-col items-center gap-2 rounded-lg border border-line bg-surface p-4">
+                  <figcaption className="text-center"><span className="font-display text-card-title font-semibold">Dasamsa (D10)</span><span className="block text-caption text-ink-muted">Career and profession</span></figcaption>
+                  <RashiChart placements={canonical.vargas.D10.placements.map((v) => ({ planet: v.planet, signIndex: v.signIndex, retrograde: false }))} firstHouseSign={canonical.vargas.D10.ascendantSignIndex} firstHouse="lagna" labels={labels} style={chartStyle} size={280} title={`Dasamsa (D10) chart for ${kundli.name}`} />
+                </figure>
+              )}
+              {chartView.mode === 'exact' && chartData?.shashtiamsa?.planetaryPositions && canonical && (
+                <figure className="m-0 flex flex-col items-center gap-2 rounded-lg border border-line bg-surface p-4">
+                  <figcaption className="text-center"><span className="font-display text-card-title font-semibold">Shashtiamsa (D60)</span><span className="block text-caption text-ink-muted">Accurate only with an exact birth time</span></figcaption>
+                  <RashiChart placements={canonical.vargas.D60.placements.map((v) => ({ planet: v.planet, signIndex: v.signIndex, retrograde: false }))} firstHouseSign={canonical.vargas.D60.ascendantSignIndex} firstHouse="lagna" labels={labels} style={chartStyle} size={280} title={`Shashtiamsa (D60) chart for ${kundli.name}`} />
+                </figure>
+              )}
+            </div>
 
             {chartView.mode === 'exact' && chartData?.ashtakavarga?.savByHouse && (
               <Card className="mt-4">
@@ -510,7 +469,7 @@ export default function KundliView() {
                     <p className="text-xs font-semibold text-amber-text mb-2">Sarvashtakavarga (SAV) — strength by house</p>
                     <div className="grid grid-cols-6 gap-1.5">
                       {chartData.ashtakavarga.savByHouse.map((b: number, i: number) => (
-                        <div key={i} className={`rounded-lg p-2 text-center ${b >= 30 ? 'bg-green-600/15 text-green-700' : b < 25 ? 'bg-red-600/10 text-red-700' : 'bg-muted text-foreground'}`}>
+                        <div key={i} className={`rounded-lg p-2 text-center ${b >= 30 ? 'bg-positive/10 text-positive' : b < 25 ? 'bg-negative/10 text-negative' : 'bg-highlight text-ink'}`}>
                           <div className="text-xs text-muted-foreground">H{i + 1}</div>
                           <div className="text-sm font-bold">{b}</div>
                         </div>
@@ -561,7 +520,7 @@ export default function KundliView() {
                   {chartData.functionalRemedies.map((r: any, i: number) => (
                     <div key={i} className="rounded-lg border border-border/40 p-2.5">
                       <div className="flex items-center gap-2">
-                        <span className={`text-xs px-1.5 py-0.5 rounded-full ${r.action === 'Strengthen' ? 'bg-green-600/15 text-green-700' : 'bg-highlight text-amber-text'}`}>{r.action}</span>
+                        <span className={`text-xs px-1.5 py-0.5 rounded-full ${r.action === 'Strengthen' ? 'bg-positive/10 text-positive' : 'bg-highlight text-amber-text'}`}>{r.action}</span>
                         <span className="font-semibold text-sm text-foreground">{r.focus}</span>
                         {r.gemstone && <span className="text-xs text-muted-foreground">· {r.gemstone}</span>}
                       </div>
@@ -586,7 +545,7 @@ export default function KundliView() {
                       <div className="flex items-center gap-2">
                         <span className="font-semibold text-sm text-foreground">{y.name}</span>
                         <span className="text-xs px-1.5 py-0.5 rounded-full bg-highlight/60 text-amber-text">{y.category}</span>
-                        {y.cancelled && <span className="text-xs px-1.5 py-0.5 rounded-full bg-red-600/10 text-red-700">cancelled</span>}
+                        {y.cancelled && <span className="text-xs px-1.5 py-0.5 rounded-full bg-negative/10 text-negative">cancelled</span>}
                       </div>
                       <p className="text-xs text-muted-foreground mt-1">{y.description}</p>
                     </div>
@@ -615,7 +574,7 @@ export default function KundliView() {
                         <tr key={p.planet} className="border-b border-border/40">
                           <td className="p-1.5 font-medium">{p.planet}</td>
                           <td className="p-1.5">{p.sign}</td>
-                          <td className={`p-1.5 ${p.dignity === 'Exalted' || p.dignity === 'Own sign' || p.dignity === 'Moolatrikona' ? 'text-green-700' : p.dignity === 'Debilitated' ? 'text-red-700' : ''}`}>
+                          <td className={`p-1.5 ${p.dignity === 'Exalted' || p.dignity === 'Own sign' || p.dignity === 'Moolatrikona' ? 'text-positive' : p.dignity === 'Debilitated' ? 'text-negative' : ''}`}>
                             {p.dignity}{p.neechaBhanga ? ' (cancelled)' : ''}
                           </td>
                           <td className="p-1.5 text-muted-foreground">
@@ -722,66 +681,7 @@ export default function KundliView() {
             )}
           </TabsContent>
 
-          {/* Insights */}
-          <TabsContent value="insights">
-            <div className="space-y-3">
-              <Card className="card-clean">
-                <CardHeader>
-                  <CardTitle className="font-display">Life Timeline</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  {insights ? (
-                    <LifeTimeline periods={insights.timeline} timingNote={insights.timing?.note} />
-                  ) : (
-                    <p className="text-sm text-muted-foreground">
-                      {canonical ? 'Loading your timeline…' : 'This chart predates the V3 engine. Open it again after it has been recalculated, or create it anew.'}
-                    </p>
-                  )}
-                </CardContent>
-              </Card>
-            </div>
-          </TabsContent>
 
-          {/* Dashas */}
-          <TabsContent value="dashas">
-            <Card className="card-clean">
-              <CardHeader>
-                <CardTitle className="font-display">Vimshottari Dashas</CardTitle>
-                {insights?.timing?.note && <p className="text-xs text-amber-text" data-testid="dashas-timing-note">{insights.timing.note} Dates below are for the time entered.</p>}
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-2">
-                  {dashas.length > 0 ? dashas.map((dasha: any, i: number) => (
-                    <div key={i} className={`overflow-hidden rounded-[10px] border ${isRunning(dasha) ? 'border-primary/60' : 'border-border'}`}>
-                      <button className="w-full flex items-center justify-between p-4 text-left hover:bg-muted/40 transition-colors" onClick={() => setExpandedDasha(expandedDasha === i ? null : i)}>
-                        <div className="flex items-center gap-3">
-                          {expandedDasha === i ? <ChevronDown className="w-4 h-4 text-muted-foreground" /> : <ChevronRight className="w-4 h-4 text-muted-foreground" />}
-                          <div>
-                            <div className="font-semibold">{dasha.planet} Mahadasha</div>
-                            <div className="text-sm text-muted-foreground">{dasha.period}</div>
-                          </div>
-                        </div>
-                        {isRunning(dasha) && <Badge className="bg-ink text-primary">Current</Badge>}
-                      </button>
-                      {expandedDasha === i && dasha.antardashas?.length > 0 && (
-                        <div className="border-t border-border bg-muted/30">
-                          {dasha.antardashas.map((ad: any, j: number) => (
-                            <div key={j} className={`flex items-center justify-between border-b border-border/50 px-6 py-2.5 text-sm last:border-0 ${isRunning(ad) ? 'bg-primary/10' : ''}`}>
-                              <div>
-                                <span className="font-medium">{dasha.planet}/{ad.planet}</span>
-                                <span className="text-muted-foreground ml-2">{ad.period}</span>
-                              </div>
-                              {isRunning(ad) && <Badge variant="outline" className="text-xs">Active</Badge>}
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  )) : <p className="text-muted-foreground text-sm">No dasha data available.</p>}
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
 
           {/* Remedies */}
           <TabsContent value="remedies">
@@ -795,6 +695,16 @@ export default function KundliView() {
             </Card>
           </TabsContent>
         </Tabs>
+
+        {!limited && (
+          <div className="flex flex-wrap items-center gap-2 md:hidden">
+            <Button variant="outline" size="sm" onClick={handleDownloadPDF} disabled={pdfChecking || pdfConfirming} className="gap-2">
+              <Download className="h-4 w-4" />
+              {pdfChecking ? 'Checking…' : 'Download PDF'}
+            </Button>
+            <TrustBadge variant="calculated" />
+          </div>
+        )}
 
         {/* Calculation Method */}
         <div className="mb-6">
@@ -810,25 +720,6 @@ export default function KundliView() {
           )}
         </div>
 
-        {/* AI Astrologer CTA */}
-        <Card className="card-clean bg-primary/10 border-primary/30">
-          <CardContent className="p-5">
-            <div className="flex items-center gap-3 mb-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-[8px] bg-ink">
-                <Sparkles className="w-5 h-5 text-primary" />
-              </div>
-              <div>
-                <h3 className="font-display text-foreground">Ask your Kundli</h3>
-                <p className="text-xs text-muted-foreground">Get personalized answers about your chart</p>
-              </div>
-            </div>
-            <Link href="/ai-astrologer">
-              <Button className="w-full rounded-[9px] bg-primary text-primary-foreground hover:bg-primary/90">
-                Ask a Question
-              </Button>
-            </Link>
-          </CardContent>
-        </Card>
         </>)}
       </div>
 

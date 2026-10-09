@@ -57,7 +57,7 @@ export function activeNav(path: string, search: string): NavId | null {
   if (path === '/panchang') return 'panchang';
   if (path === '/reports') return 'reports';
   if (path === '/kundli' && params.get('for') === 'dasha') return 'dasha';
-  if (/^\/kundli\/[^/]+$/.test(path) && params.get('tab') === 'dashas') return 'dasha';
+  if (/^\/kundli\/[^/]+\/dasha$/.test(path)) return 'dasha';
   if (path === '/kundli' || path.startsWith('/kundli/')) return 'kundli';
   return null;
 }

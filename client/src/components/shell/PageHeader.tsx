@@ -18,13 +18,15 @@ export interface PageHeaderProps {
   width?: string;
   /** The compact header the Ask mockup uses (15px title, 12px sub). */
   compact?: boolean;
+  /** False when the page's desktop layout opens with its own heading (Kundli). */
+  desktop?: boolean;
 }
 
 /**
  * The one page header (Direction 3): a navy header on mobile, a title block under the navy
  * navigation band on desktop. Pages never draw their own header or navigation.
  */
-export function PageHeader({ title, gloss, eyebrow, sub, back, actions, width = 'max-w-[1320px]', compact }: PageHeaderProps) {
+export function PageHeader({ title, gloss, eyebrow, sub, back, actions, width = 'max-w-[1320px]', compact, desktop = true }: PageHeaderProps) {
   return (
     <>
       <header className={cn('flex items-center gap-1.5 bg-ink text-on-navy md:hidden', compact ? 'p-3' : 'px-5 pb-3.5 pt-4')} data-testid="page-header-mobile">
@@ -35,7 +37,7 @@ export function PageHeader({ title, gloss, eyebrow, sub, back, actions, width = 
         )}
         <div className="flex min-w-0 flex-1 flex-col gap-0.5">
           {eyebrow && <p className="font-display text-base text-amber">{eyebrow}</p>}
-          <h1 className={cn('m-0 text-balance', compact ? 'text-nav font-semibold' : 'font-display text-heading font-semibold leading-tight')}>
+          <h1 className={cn('m-0 text-balance', compact ? 'text-nav font-semibold' : 'font-display text-heading font-semibold leading-[1.2]')}>
             {title}
             {gloss && <span lang="hi" className={cn('font-normal text-on-navy-3', compact ? 'text-caption' : 'text-base')}> {gloss}</span>}
           </h1>
@@ -45,7 +47,7 @@ export function PageHeader({ title, gloss, eyebrow, sub, back, actions, width = 
       </header>
       {actions && <div className="flex flex-wrap gap-2 px-4 pt-3 md:hidden">{actions}</div>}
 
-      <div className={cn('mx-auto hidden w-full flex-col gap-1.5 px-10 pt-9 md:flex', width)} data-testid="page-header-desktop">
+      {desktop && <div className={cn('mx-auto hidden w-full flex-col gap-1.5 px-10 pt-9 md:flex', width)} data-testid="page-header-desktop">
         {back && (
           <Link href={back.href} className="self-start text-sm text-ink-muted hover:text-amber-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
             ← {back.label}
@@ -62,7 +64,7 @@ export function PageHeader({ title, gloss, eyebrow, sub, back, actions, width = 
           </div>
           {actions && <div className="flex flex-wrap gap-2">{actions}</div>}
         </div>
-      </div>
+      </div>}
     </>
   );
 }
