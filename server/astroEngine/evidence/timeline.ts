@@ -25,7 +25,11 @@ function status(start: string, end: string, t: number): TimelinePeriod['status']
 }
 
 function describe(ix: ChartIndex, level: TimelinePeriod['level'], lord: Graha, start: string, end: string, t: number, dashaTimeSensitive: boolean): TimelinePeriod {
-  const links = planetDomainLinks(ix, lord).filter((l) => !(ix.approximate && l.requiresBirthTime));
+  // A link kept for an approximate time stands on the planet's natural significations; its house
+  // reasons (rulership, occupancy) depend on the Lagna and are dropped, not quoted.
+  const links = planetDomainLinks(ix, lord)
+    .filter((l) => !(ix.approximate && l.requiresBirthTime))
+    .map((l) => (ix.approximate ? { ...l, reasons: l.reasons.filter((r) => r.includes('significator')) } : l));
   const cond = planetCondition(ix, lord);
   const domains = links.map((l) => ({ domain: l.domain, direction: cond.direction, reasons: l.reasons }));
   // Each reason is classified once, by its own direction (never both lists).

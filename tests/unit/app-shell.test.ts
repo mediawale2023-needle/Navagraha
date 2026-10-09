@@ -22,7 +22,7 @@ describe('primary navigation', () => {
     ['/kundli', '', 'kundli'],
     ['/kundli/new', '', 'kundli'],
     ['/kundli/abc', '?tab=chart', 'kundli'],
-    ['/kundli/abc', '?tab=dashas', 'dasha'],
+    ['/kundli/abc/dasha', '', 'dasha'],
     ['/kundli', '?for=dasha', 'dasha'],
     ['/ai-astrologer', '?kundliId=1', 'ask'],
     ['/panchang', '', 'panchang'],

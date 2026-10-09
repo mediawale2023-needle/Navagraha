@@ -20,7 +20,7 @@ describe('no hard-coded personal astrology on consumer screens', () => {
   });
   it('the evidence UI explains, it does not invent', () => {
     const glance = src('components/v3/ChartGlance.tsx');
-    const timeline = src('components/v3/LifeTimeline.tsx');
+    const timeline = src('pages/DashaTimeline.tsx');
     expect(glance).toContain('d.verdict');
     expect(timeline).toContain('p.whyItMatters');
   });
