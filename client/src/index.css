@@ -22,7 +22,7 @@
   --on-navy-3: #c9bd9f;
   --navy-line: #3a3a52;
   --navy-control: #4a4a66;
-  --positive: #0c7f4d;
+  --positive: #0b7848;
   --negative: #8b1a1a;
   --font-size: 16px;
   /* Mobile tab bar: 6px top padding, 48px items, 18px (or the safe area) below, 1px border. */
@@ -453,6 +453,17 @@
   .animate-slide-up,
   .animate-chart-draw {
     animation: none;
+  }
+  /* Sheets, accordions and hover transitions appear at once; a loading spinner may still turn. */
+  *:not(.animate-spin),
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+  html {
+    scroll-behavior: auto !important;
   }
 }
 

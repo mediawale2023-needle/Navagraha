@@ -1,0 +1,258 @@
+{
+  "base": "http://127.0.0.1:5000",
+  "at": "2026-10-09T14:04:09.384Z",
+  "results": [
+    {
+      "viewport": "mobile",
+      "id": "F05",
+      "name": "landing shows a real online count and the true free-chat terms",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "viewport": "mobile",
+      "id": "F01",
+      "name": "Today shows the running period of the chart in use",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "viewport": "mobile",
+      "id": "F02",
+      "name": "every filled button and link on Today has its text at AA contrast",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "viewport": "mobile",
+      "id": "F08a",
+      "name": "unpicked birth place is reported on the field, not as raw JSON",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "viewport": "mobile",
+      "id": "F08b",
+      "name": "matchmaking reports the unresolved birth place on the field",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "viewport": "mobile",
+      "id": "F11",
+      "name": "My Charts states no Ascendant for approximate or unverified charts",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "viewport": "mobile",
+      "id": "F12",
+      "name": "approximate chart Overview says the Ascendant is unknown",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "viewport": "mobile",
+      "id": "F39a",
+      "name": "approximate chart (stable Moon sign) draws a Chandra Lagna chart, no Lagna, no vargas",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "viewport": "mobile",
+      "id": "F39b",
+      "name": "approximate chart (Moon changes sign that day) shows a sign-only table and no house chart",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "viewport": "mobile",
+      "id": "F13",
+      "name": "limited legacy chart hides unverified placements and offers a prefilled recreation",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "viewport": "mobile",
+      "id": "F14",
+      "name": "chart labels are legible, use ℞, and are keyboard reachable",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "viewport": "mobile",
+      "id": "F16",
+      "name": "no gemstone for a planet the functional rules say to pacify (Pearl, Leo Lagna)",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "viewport": "mobile",
+      "id": "F19",
+      "name": "the evidence sheet shows the experimental indicators its note mentions",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "viewport": "mobile",
+      "id": "F21",
+      "name": "each answer is labelled by its real source; no blanket \"Powered by AI\"",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "viewport": "mobile",
+      "id": "F40",
+      "name": "Ask withholds periods an approximate birth time could move",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "viewport": "mobile",
+      "id": "F29a",
+      "name": "too little balance shows the shortfall and a recharge path, not a raw 402",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "viewport": "mobile",
+      "id": "F29b",
+      "name": "admin free access",
+      "status": "SKIP",
+      "detail": "ADMIN_EMAIL/ADMIN_PASSWORD not set"
+    },
+    {
+      "viewport": "mobile",
+      "id": "F16b",
+      "name": "Pro birth-star gemstone list",
+      "status": "SKIP",
+      "detail": "PRO_EMAIL/PRO_PASSWORD not set"
+    },
+    {
+      "viewport": "desktop",
+      "id": "F05",
+      "name": "landing shows a real online count and the true free-chat terms",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "viewport": "desktop",
+      "id": "F01",
+      "name": "Today shows the running period of the chart in use",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "viewport": "desktop",
+      "id": "F02",
+      "name": "every filled button and link on Today has its text at AA contrast",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "viewport": "desktop",
+      "id": "F08a",
+      "name": "unpicked birth place is reported on the field, not as raw JSON",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "viewport": "desktop",
+      "id": "F08b",
+      "name": "matchmaking reports the unresolved birth place on the field",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "viewport": "desktop",
+      "id": "F11",
+      "name": "My Charts states no Ascendant for approximate or unverified charts",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "viewport": "desktop",
+      "id": "F12",
+      "name": "approximate chart Overview says the Ascendant is unknown",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "viewport": "desktop",
+      "id": "F39a",
+      "name": "approximate chart (stable Moon sign) draws a Chandra Lagna chart, no Lagna, no vargas",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "viewport": "desktop",
+      "id": "F39b",
+      "name": "approximate chart (Moon changes sign that day) shows a sign-only table and no house chart",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "viewport": "desktop",
+      "id": "F13",
+      "name": "limited legacy chart hides unverified placements and offers a prefilled recreation",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "viewport": "desktop",
+      "id": "F14",
+      "name": "chart labels are legible, use ℞, and are keyboard reachable",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "viewport": "desktop",
+      "id": "F16",
+      "name": "no gemstone for a planet the functional rules say to pacify (Pearl, Leo Lagna)",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "viewport": "desktop",
+      "id": "F19",
+      "name": "the evidence sheet shows the experimental indicators its note mentions",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "viewport": "desktop",
+      "id": "F21",
+      "name": "each answer is labelled by its real source; no blanket \"Powered by AI\"",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "viewport": "desktop",
+      "id": "F40",
+      "name": "Ask withholds periods an approximate birth time could move",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "viewport": "desktop",
+      "id": "F29a",
+      "name": "too little balance shows the shortfall and a recharge path, not a raw 402",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "viewport": "desktop",
+      "id": "F29b",
+      "name": "admin free access",
+      "status": "SKIP",
+      "detail": "ADMIN_EMAIL/ADMIN_PASSWORD not set"
+    },
+    {
+      "viewport": "desktop",
+      "id": "F16b",
+      "name": "Pro birth-star gemstone list",
+      "status": "SKIP",
+      "detail": "PRO_EMAIL/PRO_PASSWORD not set"
+    }
+  ]
+}

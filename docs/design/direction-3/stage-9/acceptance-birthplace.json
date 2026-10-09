@@ -1,0 +1,118 @@
+{
+  "base": "http://127.0.0.1:5000",
+  "at": "2026-10-09T14:04:51.864Z",
+  "results": [
+    {
+      "viewport": "mobile",
+      "id": "BP1",
+      "name": "continuous typing keeps focus and every character; suggestions appear",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "viewport": "mobile",
+      "id": "BP2",
+      "name": "mouse/touch selection fills the place and sends its exact coordinates; server resolves the time zone",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "viewport": "mobile",
+      "id": "BP3",
+      "name": "keyboard: arrows move, Enter selects, Escape closes; western longitude keeps its sign",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "viewport": "mobile",
+      "id": "BP4",
+      "name": "editing after selecting drops the coordinates (never a stale location)",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "viewport": "mobile",
+      "id": "BP5",
+      "name": "no matches: a clear empty state, field stays usable",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "viewport": "mobile",
+      "id": "BP6",
+      "name": "search API error: message shown, typing continues, recovers when the API does",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "viewport": "mobile",
+      "id": "BP7",
+      "name": "Maps script fails to load: field still types freely and says suggestions are unavailable",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "viewport": "mobile",
+      "id": "BP8",
+      "name": "layout: pin icon, text and spinner do not overlap",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "viewport": "desktop",
+      "id": "BP1",
+      "name": "continuous typing keeps focus and every character; suggestions appear",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "viewport": "desktop",
+      "id": "BP2",
+      "name": "mouse/touch selection fills the place and sends its exact coordinates; server resolves the time zone",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "viewport": "desktop",
+      "id": "BP3",
+      "name": "keyboard: arrows move, Enter selects, Escape closes; western longitude keeps its sign",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "viewport": "desktop",
+      "id": "BP4",
+      "name": "editing after selecting drops the coordinates (never a stale location)",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "viewport": "desktop",
+      "id": "BP5",
+      "name": "no matches: a clear empty state, field stays usable",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "viewport": "desktop",
+      "id": "BP6",
+      "name": "search API error: message shown, typing continues, recovers when the API does",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "viewport": "desktop",
+      "id": "BP7",
+      "name": "Maps script fails to load: field still types freely and says suggestions are unavailable",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "viewport": "desktop",
+      "id": "BP8",
+      "name": "layout: pin icon, text and spinner do not overlap",
+      "status": "PASS",
+      "detail": ""
+    }
+  ]
+}
