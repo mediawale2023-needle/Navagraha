@@ -15,6 +15,9 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import ReactMarkdown from "react-markdown";
 import { PageHeader } from '@/components/shell/PageHeader';
+import { AnswerCard, termsIn, type EvidenceSummary } from '@/components/ask/AnswerCard';
+import { GlossaryAside, GlossarySheet } from '@/components/ask/Glossary';
+import type { GlossaryEntry } from '@/lib/glossary';
 
 interface Kundli {
   id: string;
@@ -41,10 +44,6 @@ interface FullKundli extends Kundli {
   dashas?: DashaEntry[];
 }
 
-interface EvidenceSummary {
-  domains: Array<{ domain: string; label: string; verdict: string; confidence: string; supporting: number; conflicting: number }>;
-  disclosure?: string | null;
-}
 
 interface ChatMessage {
   role: "user" | "assistant";
@@ -82,7 +81,6 @@ const LIFE_AREA_PROMPTS = [
   { label: 'Career', q: 'What does my birth chart say about my career and the right path forward?' },
   { label: 'Love & Marriage', q: 'What does my chart reveal about love, marriage timing and my partner?' },
   { label: 'Finance', q: 'What does my chart indicate about wealth, income and favourable times for money?' },
-  { label: 'Health', q: 'What does my chart say about my health and the periods I should be careful about?' },
   { label: 'Year Ahead', q: 'What are the key themes and turning points for me over the next 12 months?' },
   { label: 'Remedies', q: 'What remedies should I follow based on my chart and current dasha?' },
 ];
@@ -134,6 +132,8 @@ export default function AIAstrologer() {
   const [showInterpretation, setShowInterpretation] = useState(false);
   const [interpretation, setInterpretation] = useState<AiInterpretation | null>(null);
   const [questionsUsed, setQuestionsUsed] = useState<number | null>(null);
+  const [activeTerm, setActiveTerm] = useState<GlossaryEntry | null>(null);
+  const [contextOpen, setContextOpen] = useState(false);
 
   const { data: questionCount } = useQuery<{ used: number; free: number; remaining: number }>({
     queryKey: ['/api/ai/question-count'],
@@ -201,6 +201,7 @@ export default function AIAstrologer() {
   const startNewSession = useCallback(() => {
     setSessionId(sessionForKey(selectedKundliId, true));
     setMessages([]);
+    setContextOpen(false);
     if (sessionId) queryClient.removeQueries({ queryKey: [`/api/ai/chat/${sessionId}`] });
   }, [selectedKundliId, sessionId, queryClient]);
 
@@ -297,88 +298,78 @@ export default function AIAstrologer() {
   const currentMahadasha = running?.maha ? { planet: running.maha.lord, period: periodDates(running.maha) } : undefined;
   const currentAntardasha = running?.antar ? { planet: running.antar.lord, period: periodDates(running.antar) } : undefined;
 
+  const chartId = !detailsMode && selectedKundliId !== "none" ? selectedKundliId : null;
+  const chartName = detailsMode ? (birth.name.trim() || null) : selectedKundli?.name ?? null;
+  const lastAnswer = [...messages].reverse().find((m) => m.role === "assistant");
+  const lastDomain = lastAnswer?.evidence?.domains?.[0]?.label;
+  const asideTerms = lastAnswer ? termsIn([lastAnswer.content, ...(lastAnswer.evidence?.domains?.[0]?.items ?? []).map((i) => i.explanation)].join(' ')) : [];
+  const recentQuestions = messages.filter((m) => m.role === "user").slice(-5).reverse();
+  const runningForCard = running ? { maha: running.maha, antar: running.antar, showDates: running.showDates } : null;
+  const openTerm = (t: GlossaryEntry) => {
+    setActiveTerm(t);
+    document.getElementById(`term-${t.term}`)?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  };
+
   return (
     <div className="flex flex-col">
       <PageHeader
-        title="Ask your Kundli"
-        gloss="प्रश्न"
-        sub={<>Answers checked against your chart{freeRemaining !== null && freeRemaining > 0 && <> · {freeRemaining} free {freeRemaining === 1 ? 'question' : 'questions'} left</>}</>}
-        actions={messages.length > 0 ? (
-          <Button variant="outline" size="sm" onClick={startNewSession} className="gap-2">
-            <RotateCcw className="w-4 h-4" /> New conversation
-          </Button>
-        ) : undefined}
+        compact
+        title={<><span lang="hi">प्रश्न</span> · {lastDomain ?? 'Ask your Kundli'}</>}
+        sub={chartName ? `${chartName}’s chart` : detailsMode ? 'Birth details' : 'No chart selected'}
+        back={{ href: '/', label: 'Today' }}
+        desktop={false}
       />
 
-      <div className="mx-auto flex w-full max-w-[1320px] flex-1 flex-col px-4 py-4 md:px-10">
-
-        {/* Kundli Selector */}
-        <Card className="mb-4 bg-card border-border/50 shadow-sm">
-          <CardContent className="p-4">
-            <div className="flex flex-wrap items-center gap-3">
-              <Stars className="w-5 h-5 text-amber flex-shrink-0" />
-              <div className="flex-1 min-w-[180px]">
-                <Select value={selectedKundliId} onValueChange={setSelectedKundliId}>
-                  <SelectTrigger className="bg-background border-border">
-                    <SelectValue placeholder="Select a birth chart (optional)" />
-                  </SelectTrigger>
-                  <SelectContent className="bg-card border-border">
-                    <SelectItem value="none">No chart — general guidance</SelectItem>
-                    {kundlis.map((k) => (
-                      <SelectItem key={k.id} value={k.id}>
-                        {k.name}
-                      </SelectItem>
-                    ))}
-                    <SelectItem value={DETAILS_KEY}>Enter birth details…</SelectItem>
-                  </SelectContent>
-                </Select>
+      <div className="mx-auto flex w-full max-w-[1320px] flex-1 flex-wrap gap-10 px-4 pt-4 md:px-10 md:pt-8">
+        <main className="flex min-w-0 max-w-[760px] flex-[999_1_560px] flex-col gap-[22px]">
+          {/* Which chart and language the answers use (the mockup assumes one chart and English). */}
+          <div className="flex flex-col gap-2.5" data-testid="ask-context">
+            {/* On a phone the conversation takes the screen once it starts; the selectors fold into one line. */}
+            {messages.length > 0 && !contextOpen && (
+              <div className="flex items-center gap-3 text-sm text-ink-muted md:hidden" data-testid="ask-context-compact">
+                <span className="min-w-0 flex-1 truncate">{chartName ?? 'General guidance'} · {language}</span>
+                <button type="button" onClick={() => setContextOpen(true)} className="underline hover:text-amber-text">Change</button>
+                <button type="button" onClick={startNewSession} className="flex items-center gap-1 underline hover:text-amber-text"><RotateCcw className="h-3.5 w-3.5" />New</button>
               </div>
-              <div className="min-w-[130px]">
-                <Select
-                  value={language}
-                  onValueChange={(v) => { setLanguage(v); localStorage.setItem(LANGUAGE_STORAGE_KEY, v); }}
-                >
-                  <SelectTrigger className="bg-background border-border" data-testid="select-language">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent className="bg-card border-border max-h-72">
-                    {LANGUAGES.map((l) => (
-                      <SelectItem key={l} value={l}>{l}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              {!detailsMode && selectedKundliId !== "none" && (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="border-amber/50 text-amber-text hover:bg-amber/10"
-                  onClick={() => interpretMutation.mutate(selectedKundliId)}
-                  disabled={interpretMutation.isPending}
-                >
-                  {interpretMutation.isPending ? (
-                    <Loader2 className="w-4 h-4 animate-spin mr-1" />
-                  ) : (
-                    <BookOpen className="w-4 h-4 mr-1" />
-                  )}
-                  Full Reading
+            )}
+            <div className={`${messages.length > 0 && !contextOpen ? 'hidden md:flex' : 'flex'} flex-wrap items-center gap-2 text-sm text-ink-muted`}>
+              <span>Asking about</span>
+              <Select value={selectedKundliId} onValueChange={setSelectedKundliId}>
+                <SelectTrigger className="h-10 w-auto min-w-[160px] max-w-[240px]" aria-label="Chart">
+                  <SelectValue placeholder="Choose a chart" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">No chart — general guidance</SelectItem>
+                  {kundlis.map((k) => <SelectItem key={k.id} value={k.id}>{k.name}</SelectItem>)}
+                  <SelectItem value={DETAILS_KEY}>Enter birth details…</SelectItem>
+                </SelectContent>
+              </Select>
+              <span>in</span>
+              <Select value={language} onValueChange={(v) => { setLanguage(v); localStorage.setItem(LANGUAGE_STORAGE_KEY, v); }}>
+                <SelectTrigger className="h-10 w-auto min-w-[120px]" aria-label="Language" data-testid="select-language"><SelectValue /></SelectTrigger>
+                <SelectContent className="max-h-72">{LANGUAGES.map((l) => <SelectItem key={l} value={l}>{l}</SelectItem>)}</SelectContent>
+              </Select>
+              {chartId && (
+                <Button size="sm" variant="outline" onClick={() => interpretMutation.mutate(chartId)} disabled={interpretMutation.isPending} className="gap-1.5">
+                  {interpretMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <BookOpen className="h-4 w-4" />}
+                  Full reading
+                </Button>
+              )}
+              {messages.length > 0 && (
+                <Button size="sm" variant="ghost" onClick={startNewSession} className="gap-1.5">
+                  <RotateCcw className="h-4 w-4" /> New conversation
                 </Button>
               )}
             </div>
-
-            {/* Birth-details entry (no saved chart needed) */}
+            {freeRemaining !== null && freeRemaining > 0 && (
+              <p className={`${messages.length > 0 && !contextOpen ? 'hidden md:block' : ''} text-caption text-ink-muted`}>{freeRemaining} free {freeRemaining === 1 ? 'question' : 'questions'} left</p>
+            )}
             {detailsMode && (
-              <div className="mt-3 space-y-2">
-                <Input
-                  placeholder="Full name"
-                  value={birth.name}
-                  onChange={(e) => setBirth({ ...birth, name: e.target.value })}
-                  className="bg-background"
-                  data-testid="ai-bd-name"
-                />
+              <div className="flex flex-col gap-2 rounded-lg border border-line bg-surface p-4">
+                <Input placeholder="Full name" value={birth.name} onChange={(e) => setBirth({ ...birth, name: e.target.value })} data-testid="ai-bd-name" />
                 <div className="grid grid-cols-2 gap-2">
-                  <Input type="date" value={birth.dateOfBirth} onChange={(e) => setBirth({ ...birth, dateOfBirth: e.target.value })} className="bg-background" data-testid="ai-bd-date" />
-                  <Input type="time" value={birth.timeOfBirth} onChange={(e) => setBirth({ ...birth, timeOfBirth: e.target.value })} className="bg-background" data-testid="ai-bd-time" />
+                  <Input type="date" aria-label="Date of birth" value={birth.dateOfBirth} onChange={(e) => setBirth({ ...birth, dateOfBirth: e.target.value })} data-testid="ai-bd-date" />
+                  <Input type="time" aria-label="Time of birth" value={birth.timeOfBirth} onChange={(e) => setBirth({ ...birth, timeOfBirth: e.target.value })} data-testid="ai-bd-time" />
                 </div>
                 <PlacesAutocomplete
                   value={birth.placeOfBirth}
@@ -386,267 +377,130 @@ export default function AIAstrologer() {
                   onPlaceSelect={(place) => setBirthCoords({ lat: place.lat, lng: place.lng })}
                   placeholder="City, State, Country"
                 />
-                {!birthValid && (
-                  <p className="text-xs text-muted-foreground">Enter name, date, time and place to get a personalised reading.</p>
-                )}
+                {!birthValid && <p className="text-caption text-ink-muted">Enter name, date, time and place to get a personalised reading. The chart is calculated for this conversation and not saved.</p>}
               </div>
             )}
-
-            {selectedKundli && (
-              <div className="mt-2 flex flex-wrap gap-1.5">
-                {selectedKundli.zodiacSign && (
-                  <Badge className="bg-amber/10 text-amber-text border-0 text-xs">
-                    Sun: {selectedKundli.zodiacSign}
-                  </Badge>
-                )}
-                {selectedKundli.moonSign && (
-                  <Badge className="bg-primary/15 text-amber-text border-0 text-xs">
-                    Moon: {selectedKundli.moonSign}
-                  </Badge>
-                )}
-                {selectedKundli.ascendant && (
-                  <Badge className="bg-highlight text-amber-text border-0 text-xs">
-                    Asc: {selectedKundli.ascendant}
-                  </Badge>
-                )}
+            {kundlis.length === 0 && !detailsMode && (
+              <div className="flex flex-wrap items-center gap-3 rounded-lg border border-line bg-surface px-4 py-3">
+                <p className="flex-1 text-sm">Create your Kundli, or enter birth details above, for answers from your own chart.</p>
+                <Link href="/kundli/new"><Button size="sm" className="gap-1"><Plus className="h-4 w-4" />Create Kundli</Button></Link>
               </div>
             )}
-
-            {/* No kundlis — CTA to create one */}
-            {kundlis.length === 0 && (
-              <div className="mt-3 flex items-center gap-3 bg-amber/5 border border-amber/20 rounded-xl px-4 py-3">
-                <Sparkles className="w-4 h-4 text-amber flex-shrink-0" />
-                <p className="text-sm text-foreground flex-1">
-                  Generate your Kundli for personalized AI readings
-                </p>
-                <Link href="/kundli/new">
-                  <Button size="sm" className="shrink-0 gap-1 rounded-[9px] bg-primary text-primary-foreground hover:bg-primary/90">
-                    <Plus className="w-3.5 h-3.5" />
-                    Create Kundli
-                  </Button>
-                </Link>
-              </div>
+            {chartId && running && !running.maha && running.note && (
+              <p className="rounded-md border border-line bg-surface px-4 py-3 text-caption text-ink-muted" data-testid="ask-periods-withheld">{running.note}</p>
             )}
-          </CardContent>
-        </Card>
+          </div>
 
-        {/* Live Dasha Timeline — shown when a kundli with dasha data is selected */}
-        {!detailsMode && selectedKundliId !== "none" && running && !running.maha && running.note && (
-          <p className="mb-4 rounded-[10px] border border-border bg-card px-4 py-3 text-xs text-muted-foreground" data-testid="ask-periods-withheld">{running.note}</p>
-        )}
-        {!detailsMode && selectedKundliId !== "none" && (currentMahadasha || currentAntardasha) && (
-          <Card className="mb-4 bg-card border-border/50 shadow-sm">
-            <CardContent className="p-4">
-              <h3 className="yantra-eyebrow text-amber-text mb-3">
-                Current Planetary Periods
-              </h3>
-              <div className="space-y-2">
-                {currentMahadasha && (
-                  <div className="flex items-center justify-between rounded-[10px] border border-primary/25 bg-primary/10 px-4 py-2.5">
-                    <div>
-                      <span className="text-xs font-semibold uppercase tracking-wider text-amber-text">Mahadasha</span>
-                      <p className="font-bold text-foreground text-sm">{currentMahadasha.planet}</p>
-                    </div>
-                    <span className="text-xs text-muted-foreground">{currentMahadasha.period}</span>
-                  </div>
-                )}
-                {currentAntardasha && (
-                  <div className="flex items-center justify-between bg-highlight border border-line rounded-xl px-4 py-2.5 ml-4">
-                    <div>
-                      <span className="text-xs font-semibold text-amber-text uppercase tracking-wider">Antardasha</span>
-                      <p className="font-bold text-foreground text-sm">{currentAntardasha.planet}</p>
-                    </div>
-                    <span className="text-xs text-muted-foreground">{currentAntardasha.period}</span>
-                  </div>
-                )}
+          {showInterpretation && interpretation && (
+            <section className="flex flex-col gap-3 rounded-lg border border-line bg-surface p-[22px]" aria-labelledby="ask-reading">
+              <div className="flex items-center justify-between gap-2">
+                <h2 id="ask-reading" className="m-0 font-display text-subhead font-semibold">Full reading</h2>
+                <Button variant="ghost" size="sm" onClick={() => setShowInterpretation(false)}>Close</Button>
               </div>
-            </CardContent>
-          </Card>
-        )}
+              {[
+                { label: "Overview", value: interpretation.overview },
+                { label: "Personality", value: interpretation.personality },
+                { label: "Career", value: interpretation.career },
+                { label: "Relationships", value: interpretation.relationships },
+                { label: "Current periods", value: interpretation.currentPeriods },
+                { label: "Dosha analysis", value: interpretation.doshaAnalysis },
+              ].map(({ label, value }) => value ? (
+                <div key={label}>
+                  <h3 className="m-0 font-display text-card-title font-semibold">{label}</h3>
+                  <p className="text-base">{typeof value === 'string' ? value : Array.isArray(value) ? (value as any).join(', ') : JSON.stringify(value)}</p>
+                </div>
+              ) : null)}
+            </section>
+          )}
 
-        {/* Full Interpretation Panel */}
-        {showInterpretation && interpretation && (
-          <Card className="mb-4 border-primary/25 bg-primary/10">
-            <CardContent className="p-5">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="font-display text-base text-amber-text">
-                  Your Complete Vedic Reading
-                </h2>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setShowInterpretation(false)}
-                  className="text-muted-foreground"
-                >
-                  <ChevronDown className="w-4 h-4" />
-                </Button>
-              </div>
-
-              <div className="grid gap-4">
-                {[
-                  { label: "Overview", value: interpretation.overview },
-                  { label: "Personality", value: interpretation.personality },
-                  { label: "Career", value: interpretation.career },
-                  { label: "Relationships", value: interpretation.relationships },
-                  { label: "Current periods", value: interpretation.currentPeriods },
-                  { label: "Dosha Analysis", value: interpretation.doshaAnalysis },
-                ].map(({ label, value }) =>
-                  value ? (
-                    <div key={label}>
-                      <h3 className="mb-1 text-xs font-semibold uppercase tracking-wider text-amber-text">
-                        {label}
-                      </h3>
-                      <p className="text-foreground text-sm leading-relaxed">
-                        {typeof value === 'string' 
-                          ? value 
-                          : Array.isArray(value) 
-                            ? (value as any).join(', ') 
-                            : JSON.stringify(value)}
-                      </p>
-                    </div>
-                  ) : null
-                )}
-
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Chat Messages */}
-        <div className="flex-1 overflow-y-auto space-y-4 mb-4 min-h-[300px]">
           {messages.length === 0 && (
-            <div className="text-center py-8">
-              <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-[8px] bg-primary/20">
-                <Sparkles className="w-8 h-8 text-amber-text" />
+            <section className="flex flex-col gap-4" aria-labelledby="ask-empty">
+              <div>
+                <h1 id="ask-empty" className="m-0 font-display text-section font-semibold md:text-title">Ask your Kundli <span lang="hi" className="text-lg font-normal text-ink-muted md:text-subhead">प्रश्न</span></h1>
+                <p className="text-base text-ink-muted">Every answer is drawn from {chartName ? `${chartName}’s chart` : 'a chart'} and checked against it: house, graha, dasha and rule.</p>
               </div>
-              <p className="text-muted-foreground mb-6 text-sm">
-                Ask your Kundli anything about your chart,
-                <br />
-                or select a birth chart above for personalised insights.
-              </p>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-2 max-w-2xl mx-auto">
+              <div className="flex flex-wrap gap-2">
                 {SUGGESTED_QUESTIONS.slice(0, 4).map((q) => (
-                  <button
-                    key={q}
-                    onClick={() => sendMessage(q)}
-                    className="text-left text-xs text-foreground bg-card hover:bg-muted border border-border/50 rounded-xl p-3 transition-colors"
-                  >
-                    {q}
-                  </button>
+                  <button key={q} type="button" onClick={() => sendMessage(q)} className="min-h-10 rounded-sm border border-line bg-surface px-3.5 py-2 text-left text-sm hover:bg-highlight">{q}</button>
                 ))}
               </div>
-            </div>
+            </section>
           )}
 
           {messages.map((msg, i) => (
-            <div
-              key={msg.id || i}
-              className={`flex gap-3 ${msg.role === "user" ? "justify-end" : "justify-start"}`}
-            >
-              {msg.role === "assistant" && (
-                <div className="mt-1 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-[8px] bg-primary">
-                  <Sparkles className="w-4 h-4 text-white" />
-                </div>
-              )}
-              <div
-                className={`max-w-[85%] rounded-2xl px-4 py-3 text-sm leading-relaxed ${
-                  msg.role === "user"
-                    ? "bg-ink text-primary ml-8"
-                    : "bg-card border border-border/50 text-foreground"
-                }`}
-              >
-                {msg.role === "assistant" ? (
-                  <>
-                    <div className="prose prose-sm dark:prose-invert max-w-none prose-headings:text-amber-text prose-a:text-amber-text prose-strong:text-foreground prose-p:leading-relaxed text-foreground">
-                      <ReactMarkdown>
-                        {msg.content}
-                      </ReactMarkdown>
-                    </div>
-                    {msg.answerSource && (
-                      <p className="mt-2 text-xs font-medium text-muted-foreground" data-testid="answer-source">
-                        {msg.answerSource === "deterministic" ? "From your chart's evidence" : "AI explanation · checked against your chart"}
-                      </p>
-                    )}
-                    {msg.evidence?.domains?.length ? (
-                      <div className="mt-3 border-t border-border/50 pt-2 text-xs text-muted-foreground" data-testid="answer-evidence">
-                        Based on your chart:{" "}
-                        {msg.evidence.domains.map((d) => `${d.label} — ${d.verdict} (${d.confidence} confidence; ${d.supporting} supporting, ${d.conflicting} conflicting)`).join(" · ")}
-                        {msg.evidence.disclosure && <span className="mt-1 block text-amber-text" data-testid="answer-time-disclosure">{msg.evidence.disclosure}</span>}
-                      </div>
-                    ) : null}
-                  </>
-                ) : (
-                  msg.content
-                )}
-              </div>
-              {msg.role === "user" && (
-                <div className="mt-1 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-[8px] bg-ink">
-                  <span className="text-xs font-bold text-primary">U</span>
-                </div>
-              )}
-            </div>
+            msg.role === "user" ? (
+              <p key={msg.id || i} id={`q-${msg.id}`} className="m-0 max-w-[80%] self-end rounded-[14px_14px_4px_14px] bg-ink px-4 py-3 text-nav text-on-navy md:max-w-[75%] md:text-base">{msg.content}</p>
+            ) : (
+              <AnswerCard
+                key={msg.id || i}
+                content={msg.content}
+                evidence={msg.evidence}
+                answerSource={msg.answerSource}
+                running={msg.evidence ? runningForCard : null}
+                chartId={chartId}
+                onFollowUp={(q) => sendMessage(q)}
+                onTerm={openTerm}
+              />
+            )
           ))}
 
           {chatMutation.isPending && (
-            <div className="flex gap-3 justify-start">
-              <div className="mt-1 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-[8px] bg-primary">
-                <Sparkles className="w-4 h-4 text-white animate-pulse" />
-              </div>
-              <div className="bg-card border border-border/50 rounded-2xl px-4 py-3 flex items-center gap-3">
-                {/* Orbiting planet — a clear "AI is working" cue */}
-                <div className="relative w-7 h-7 shrink-0">
-                  <div className="absolute inset-0 rounded-full border border-amber/30" />
-                  <div className="absolute inset-0 animate-spin" style={{ animationDuration: "1.4s" }}>
-                    <span className="absolute -top-[3px] left-1/2 -translate-x-1/2 w-2.5 h-2.5 rounded-full bg-amber shadow-sm" />
-                  </div>
-                  <span className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-2 h-2 rounded-full bg-[var(--primary-border)]" />
-                </div>
-                <span className="text-sm text-muted-foreground">{THINKING_STEPS[thinkingStep]}</span>
-              </div>
-            </div>
+            <p className="m-0 flex items-center gap-3 rounded-answer border border-line bg-surface px-[22px] py-4 text-base text-ink-muted" role="status">
+              <span aria-hidden="true" className="h-2.5 w-2.5 rounded-full bg-amber motion-safe:animate-pulse" />
+              {THINKING_STEPS[thinkingStep]}
+            </p>
           )}
-
           <div ref={bottomRef} />
-        </div>
 
-        {/* Input */}
-        <div className="sticky bottom-[var(--tabbar-height)] bg-background pt-3 pb-3 md:bottom-0 md:pb-safe">
-          {/* Life-area quick questions */}
-          <div className="flex gap-2 overflow-x-auto pb-2 -mx-1 px-1">
-            {LIFE_AREA_PROMPTS.map((a) => (
-              <button
-                key={a.label}
-                onClick={() => sendMessage(a.q)}
-                disabled={chatMutation.isPending}
-                className="shrink-0 rounded-[999px] border border-primary/25 bg-primary/10 px-3 py-1.5 text-xs font-medium text-amber-text transition-colors hover:bg-primary/15 disabled:opacity-50"
-                data-testid={`chip-${a.label.toLowerCase().replace(/\s+/g, '-')}`}
-              >
-                {a.label}
-              </button>
-            ))}
-          </div>
-          <div className="flex gap-2">
-            <Textarea
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder="Ask anything…"
-              rows={1}
-              className="flex-1 bg-card border-border resize-none min-h-[48px] max-h-[120px] rounded-xl text-sm leading-snug"
-            />
-            <Button
-              onClick={() => sendMessage()}
-              disabled={!input.trim() || chatMutation.isPending}
-              className="h-12 rounded-[9px] bg-primary px-4 text-primary-foreground hover:bg-primary/90"
-            >
-              <Send className="w-4 h-4" />
-            </Button>
-          </div>
-          <p className="text-center text-xs text-muted-foreground mt-1.5 pb-24">
-            For guidance only — consult a qualified Jyotish for big decisions.
-          </p>
-        </div>
+          {/* The docked composer (Direction 3): sits above the mobile tab bar. */}
+          <form
+            onSubmit={(e) => { e.preventDefault(); sendMessage(); }}
+            className="sticky bottom-[var(--tabbar-height)] mt-auto flex flex-col gap-1.5 bg-background pb-3 pt-3 md:bottom-0 md:pb-[26px]"
+          >
+            <div className="flex gap-2 overflow-x-auto pb-1">
+              {LIFE_AREA_PROMPTS.map((a) => (
+                <button key={a.label} type="button" onClick={() => sendMessage(a.q)} disabled={chatMutation.isPending}
+                  className="shrink-0 rounded-sm border border-line px-3 py-1.5 text-sm text-ink hover:bg-highlight disabled:opacity-50"
+                  data-testid={`chip-${a.label.toLowerCase().replace(/\s+/g, '-')}`}>
+                  {a.label}
+                </button>
+              ))}
+            </div>
+            <label htmlFor="ask-input" className="sr-only">{messages.length ? 'Ask a follow-up' : 'Ask a question'}</label>
+            <div className="flex items-end gap-2 rounded-lg border-[1.5px] border-ink bg-surface py-1.5 pl-4 pr-1.5">
+              <Textarea
+                id="ask-input"
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder={messages.length ? `Ask a follow-up${chartName ? ` about ${chartName}’s chart` : '…'}` : `Ask anything${chartName ? ` about ${chartName}’s chart` : '…'}`}
+                rows={1}
+                className="min-h-11 max-h-[120px] flex-1 resize-none border-0 bg-transparent px-0 py-2.5 focus-visible:ring-0 focus-visible:ring-offset-0"
+              />
+              <Button type="submit" disabled={!input.trim() || chatMutation.isPending} aria-label="Ask" className="h-11 w-11 px-0 md:w-auto md:px-[18px]">
+                <span className="hidden md:inline">Ask</span>
+                <svg className="md:hidden" width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5M5 12l7-7 7 7" fill="none" stroke="currentColor" strokeWidth="2" /></svg>
+              </Button>
+            </div>
+            <p className="text-center text-caption text-ink-muted">Checked against your chart · Jyotish describes tendencies, not certainties</p>
+          </form>
+        </main>
+
+        <aside className="hidden max-w-[340px] flex-[1_1_280px] flex-col gap-8 md:flex" aria-label="About this answer">
+          <GlossaryAside terms={asideTerms} active={activeTerm?.term ?? null} />
+          {recentQuestions.length > 0 && (
+            <section aria-labelledby="ask-recent" className="flex flex-col gap-2">
+              <h2 id="ask-recent" className="m-0 font-display text-card-title font-semibold">Recent questions</h2>
+              <ul className="m-0 flex list-none flex-col gap-1.5 p-0 text-sm">
+                {recentQuestions.map((m) => (
+                  <li key={m.id}><button type="button" onClick={() => document.getElementById(`q-${m.id}`)?.scrollIntoView({ behavior: 'smooth' })} className="text-left underline decoration-line underline-offset-2 hover:text-amber-text">{m.content}</button></li>
+                ))}
+              </ul>
+            </section>
+          )}
+        </aside>
       </div>
+      <div className="md:hidden"><GlossarySheet term={activeTerm} onClose={() => setActiveTerm(null)} /></div>
     </div>
   );
 }

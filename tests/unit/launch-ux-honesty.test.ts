@@ -68,8 +68,12 @@ describe('labels say only what is true', () => {
     const ask = read('pages/AIAstrologer.tsx');
     expect(ask).not.toContain('Powered by AI');
     expect(ask).toContain('answerSource: data.answerSource');
-    expect(ask).toContain(`"From your chart's evidence"`);
-    expect(ask).toContain('"AI explanation · checked against your chart"');
+    // The answer card renders the label.
+    const card = read('components/ask/AnswerCard.tsx');
+    expect(ask).toContain('answerSource={msg.answerSource}');
+    expect(card).toContain(`"From your chart's evidence"`);
+    expect(card).toContain("'AI explanation · checked against your chart'");
+    expect(card).not.toContain('Powered by AI');
   });
 });
 

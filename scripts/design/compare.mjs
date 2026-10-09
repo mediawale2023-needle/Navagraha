@@ -20,10 +20,11 @@ mkdirSync(OUT, { recursive: true });
 const SCREENS = {
   'today-desktop': { path: '/', viewport: { width: 1440, height: 1040 } },
   'kundli-desktop': { path: '/kundli/{chart}', viewport: { width: 1440, height: 1040 } },
-  'ask-desktop': { path: '/ai-astrologer?kundliId={chart}', viewport: { width: 1440, height: 1040 } },
+  // The Ask mockups show an answer to this question.
+  'ask-desktop': { path: '/ai-astrologer?kundliId={chart}', viewport: { width: 1440, height: 1040 }, ask: 'How does my career look this year?' },
   'today-mobile': { path: '/', viewport: { width: 390, height: 844 } },
   'kundli-mobile': { path: '/kundli/{chart}', viewport: { width: 390, height: 844 } },
-  'ask-mobile': { path: '/ai-astrologer?kundliId={chart}', viewport: { width: 390, height: 844 } },
+  'ask-mobile': { path: '/ai-astrologer?kundliId={chart}', viewport: { width: 390, height: 844 }, ask: 'How does my career look this year?' },
 };
 const wanted = process.argv.slice(2).length ? process.argv.slice(2) : Object.keys(SCREENS);
 
@@ -53,6 +54,17 @@ for (const name of wanted) {
   await page.setViewportSize(s.viewport);
   await page.goto(BASE + s.path.replace('{chart}', chart.json.id), { waitUntil: 'networkidle' });
   await page.evaluate(() => document.fonts.ready);
+  if (s.ask) {
+    // Each screen starts its own thread; otherwise the previous screen's stored conversation is restored first.
+    await page.evaluate(() => localStorage.clear());
+    await page.reload({ waitUntil: 'networkidle' });
+    const box = page.locator('#ask-input');
+    await box.fill(s.ask);
+    await box.press('Enter');
+    await page.getByTestId('answer-card').last().waitFor({ timeout: 60000 });
+    await page.waitForTimeout(1200); // let the page's own scroll-to-answer settle
+    await page.evaluate(() => window.scrollTo(0, 0));
+  }
   await page.waitForTimeout(500);
   const app = await page.screenshot({ fullPage: s.viewport.width > 600 });
   const ref = readFileSync(join(REF, `${name}.png`));
