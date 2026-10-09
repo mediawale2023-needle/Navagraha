@@ -825,7 +825,8 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
     try {
       const astrologerId = req.session.astrologerId;
       const { about, specializations, languages, pricePerMinute, experience, certifications, upiId, bankAccountName, bankAccountNumber, bankIfsc, phoneNumber } = req.body;
-      const updated = await storage.updateAstrologer(astrologerId, { about, specializations, languages, pricePerMinute, experience, certifications, upiId, bankAccountName, bankAccountNumber, bankIfsc, phoneNumber });
+      // An empty rate field leaves the stored rate unchanged rather than writing an invalid price.
+      const updated = await storage.updateAstrologer(astrologerId, { about, specializations, languages, pricePerMinute: pricePerMinute === '' ? undefined : pricePerMinute, experience, certifications, upiId, bankAccountName, bankAccountNumber, bankIfsc, phoneNumber });
       const { passwordHash: _ph, ...safe } = updated;
       res.json(safe);
     } catch (error) {

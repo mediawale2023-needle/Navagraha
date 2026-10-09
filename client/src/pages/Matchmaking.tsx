@@ -9,7 +9,6 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Progress } from '@/components/ui/progress';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest } from '@/lib/queryClient';
 import { isApiError } from '@/lib/apiError';
@@ -84,12 +83,6 @@ export default function Matchmaking() {
     mutation.mutate(data);
   };
 
-  const compatibilityColors = [
-    'gradient-primary',
-    'bg-green-500',
-    'bg-blue-500',
-    'bg-rose-500',
-  ];
 
   return (
     <div className="yantra-shell min-h-screen pb-20 text-foreground">
@@ -329,82 +322,71 @@ export default function Matchmaking() {
           </Form>
         ) : (
           <div className="space-y-6">
-            {/* Overall Score */}
+            {/* Overall score: the Ashtakoota guna total, out of 36 */}
             <Card className="yantra-card overflow-hidden border-0">
               <CardContent className="p-0">
                 <div className="bg-primary p-8 text-center text-[var(--nava-navy)]">
-                  <h2 className="font-display text-3xl mb-2">Compatibility Score</h2>
+                  <h2 className="font-display text-3xl mb-2">Ashtakoota Guna Milan</h2>
                   <p className="mb-4 text-[var(--nava-navy)]/70" data-testid="text-person-names">
-                    {result.person1 || 'Person 1'} & {result.person2 || 'Person 2'}
+                    {result.person1} & {result.person2}
                   </p>
-                  <div className="mx-auto mb-3 flex h-32 w-32 items-center justify-center rounded-[8px] bg-nava-navy">
-                    <span className="font-display text-6xl text-primary" data-testid="text-compatibility-score">
-                      {result.totalScore || 78}%
+                  <div className="mx-auto mb-3 flex h-32 w-40 flex-col items-center justify-center rounded-[8px] bg-nava-navy">
+                    <span className="font-display text-5xl text-primary" data-testid="text-compatibility-score">
+                      {result.gunaScore}<span className="text-2xl">/{result.maxGunaScore}</span>
                     </span>
+                    <span className="text-xs uppercase tracking-[0.12em] text-primary/80">gunas</span>
                   </div>
-                  <p className="text-lg">
-                    {result.totalScore >= 70 ? 'Excellent Match!' :
-                      result.totalScore >= 50 ? 'Good Match' : 'Fair Match'}
-                  </p>
+                  <p className="text-lg" data-testid="text-compatibility-label">{result.compatibility}</p>
+                  <p className="mt-2 text-sm text-[var(--nava-navy)]/80">{result.recommendation}</p>
                 </div>
               </CardContent>
             </Card>
 
-            {/* Detailed Breakdown */}
+            {/* The eight kootas exactly as calculated */}
             <Card className="yantra-card">
               <CardHeader>
-                <CardTitle className="font-display text-foreground">Compatibility Breakdown</CardTitle>
-                <CardDescription>Detailed analysis across different aspects</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                {[
-                  { label: 'Mental Compatibility', score: result.mentalScore || 85 },
-                  { label: 'Physical Compatibility', score: result.physicalScore || 72 },
-                  { label: 'Emotional Compatibility', score: result.emotionalScore || 80 },
-                  { label: 'Financial Compatibility', score: result.financialScore || 68 },
-                ].map((item, i) => (
-                  <div key={i}>
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="font-medium text-foreground">{item.label}</span>
-                      <span className="text-2xl font-bold text-foreground">{item.score}%</span>
-                    </div>
-                    <div className="h-3 w-full overflow-hidden rounded-full bg-muted">
-                      <div
-                        className={`h-full rounded-full ${compatibilityColors[i]} transition-all duration-500`}
-                        style={{ width: `${item.score}%` }}
-                      />
-                    </div>
-                  </div>
-                ))}
-              </CardContent>
-            </Card>
-
-            {/* Recommendations */}
-            <Card className="yantra-card">
-              <CardHeader>
-                <CardTitle className="font-display text-foreground">Astrological Insights</CardTitle>
+                <CardTitle className="font-display text-foreground">Koota breakdown</CardTitle>
+                <CardDescription>The eight factors of Ashtakoota matching, from both Moons' signs and nakshatras.</CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="space-y-4">
-                  <div className="rounded-[10px] border border-green-200 bg-green-50 p-4">
-                    <h4 className="font-semibold mb-2 text-green-700">Strengths</h4>
-                    <ul className="text-sm text-muted-foreground space-y-1 list-disc list-inside">
-                      <li>Strong emotional connection</li>
-                      <li>Compatible moon signs foster understanding</li>
-                      <li>Mutual respect and shared values</li>
-                    </ul>
-                  </div>
-
-                  <div className="rounded-[10px] border border-primary/30 bg-primary/10 p-4">
-                    <h4 className="mb-2 font-semibold text-[var(--primary-border)]">Areas to Work On</h4>
-                    <ul className="text-sm text-muted-foreground space-y-1 list-disc list-inside">
-                      <li>Communication during stressful times</li>
-                      <li>Financial planning requires attention</li>
-                    </ul>
-                  </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm" data-testid="table-kootas">
+                    <thead>
+                      <tr className="border-b border-border text-left text-muted-foreground">
+                        <th className="py-2 pr-3 font-medium">Koota</th>
+                        <th className="py-2 pr-3 font-medium">What it reflects</th>
+                        <th className="py-2 text-right font-medium">Points</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(result.details as Array<{ koot: string; score: number; maxScore: number; description: string }>).map((k) => (
+                        <tr key={k.koot} className="border-b border-border/40">
+                          <td className="py-2 pr-3 font-medium text-foreground">{k.koot}</td>
+                          <td className="py-2 pr-3 text-muted-foreground">{k.description}</td>
+                          <td className="py-2 text-right tabular-nums text-foreground">{k.score} / {k.maxScore}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
               </CardContent>
             </Card>
+
+            {result.dosha?.hasDosha && (
+              <Card className="yantra-card" data-testid="card-matching-dosha">
+                <CardHeader>
+                  <CardTitle className="font-display text-foreground">{result.dosha.type}</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-sm text-muted-foreground">{result.dosha.description}</p>
+                </CardContent>
+              </Card>
+            )}
+
+            <p className="text-xs text-muted-foreground">
+              Guna Milan is one traditional input to a match, not a verdict on a relationship. It compares only the two Moons;
+              a full matching also weighs each chart as a whole.
+            </p>
 
             <div className="flex gap-4">
               <Button
@@ -428,9 +410,6 @@ export default function Matchmaking() {
                 data-testid="button-new-calculation"
               >
                 New Calculation
-              </Button>
-              <Button className="flex-1 rounded-[9px] bg-nava-navy text-primary hover:bg-nava-navy/90" data-testid="button-download-report">
-                Download Report
               </Button>
             </div>
           </div>

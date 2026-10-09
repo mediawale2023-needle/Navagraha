@@ -1,3 +1,4 @@
+import { ratingLabel, experienceLabel, priceLabel } from '@/lib/astrologerDisplay';
 import { useState } from 'react';
 import { isAstrologerAvailable } from '@/lib/astrologerPresence';
 import { useQuery, useMutation } from '@tanstack/react-query';
@@ -266,10 +267,12 @@ export default function Landing() {
                       </div>
                       <p className="truncate text-xs text-muted-foreground">{astrologer.specializations?.[0] || 'Vedic Astrology'}</p>
                     </div>
-                    <div className="text-right">
-                      <p className="font-display text-sm text-[var(--primary-border)]">₹{astrologer.pricePerMinute || '25'}</p>
-                      <p className="text-xs text-muted-foreground">per min</p>
-                    </div>
+                    {priceLabel(astrologer.pricePerMinute) && (
+                      <div className="text-right">
+                        <p className="font-display text-sm text-[var(--primary-border)]">{priceLabel(astrologer.pricePerMinute)}</p>
+                        <p className="text-xs text-muted-foreground">per min</p>
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
@@ -341,12 +344,14 @@ export default function Landing() {
                       {astrologer?.name?.charAt(0) || 'A'}
                     </AvatarFallback>
                   </Avatar>
-                  <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 bg-emerald-500 rounded-full border-2 border-card" />
+                  {astrologer && isAstrologerAvailable(astrologer) && (
+                    <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 bg-emerald-500 rounded-full border-2 border-card" aria-label="Available now" />
+                  )}
                 </div>
 
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-1.5 mb-0.5">
-                    <h3 className="font-bold text-sm text-foreground truncate">{astrologer?.name || 'Astrologer Name'}</h3>
+                    <h3 className="font-bold text-sm text-foreground truncate">{astrologer?.name}</h3>
                     {astrologer?.isVerified && <CheckCircle2 className="w-3.5 h-3.5 text-nava-amber shrink-0" />}
                   </div>
                   <p className="mb-1 text-xs font-medium text-muted-foreground">
@@ -355,18 +360,19 @@ export default function Landing() {
                   <div className="flex items-center gap-2 text-xs text-muted-foreground">
                     <span className="flex items-center gap-0.5">
                       <Star className="w-3 h-3 fill-nava-amber text-nava-amber" />
-                      {astrologer?.rating || '4.9'}
+                      {ratingLabel(astrologer?.rating)}
                     </span>
-                    <span>|</span>
-                    <span>{astrologer?.experience || '10'}y exp</span>
+                    {experienceLabel(astrologer?.experience) && (<><span>|</span><span>{experienceLabel(astrologer?.experience)}</span></>)}
                   </div>
                 </div>
 
                 <div className="text-right shrink-0">
-                  <div className="mb-2">
-                    <span className="font-display text-[var(--primary-border)]">₹{astrologer?.pricePerMinute || '25'}</span>
-                    <span className="text-xs text-muted-foreground">/min</span>
-                  </div>
+                  {priceLabel(astrologer?.pricePerMinute) && (
+                    <div className="mb-2">
+                      <span className="font-display text-[var(--primary-border)]">{priceLabel(astrologer?.pricePerMinute)}</span>
+                      <span className="text-xs text-muted-foreground">/min</span>
+                    </div>
+                  )}
                   <Button
                     size="sm"
                     className="h-8 rounded-[9px] bg-primary px-4 font-semibold text-primary-foreground hover:bg-primary/90"
@@ -396,7 +402,7 @@ export default function Landing() {
               Ready to explore your destiny?
             </h2>
             <p className="text-muted-foreground mb-6">
-              Join thousands of seekers who have found clarity through Navagraha.
+              Calculate your Kundli, then ask what it shows — every answer explains the chart behind it.
             </p>
             <Button
               size="lg"

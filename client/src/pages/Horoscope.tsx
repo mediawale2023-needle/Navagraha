@@ -78,11 +78,13 @@ function PersonalDaily() {
           <span className="yantra-eyebrow text-[var(--primary-border)]">
             Your Day{data.person ? ` · ${data.person}` : ""}
           </span>
-          <div className="flex items-center gap-0.5">
-            {[1, 2, 3, 4, 5].map((n) => (
-              <Star key={n} className={`w-3.5 h-3.5 ${n <= (c.rating || 3) ? "text-nava-amber fill-nava-amber" : "text-muted-foreground/30"}`} />
-            ))}
-          </div>
+          {c.rating ? (
+            <div className="flex items-center gap-0.5" aria-label={`${c.rating} of 5`}>
+              {[1, 2, 3, 4, 5].map((n) => (
+                <Star key={n} className={`w-3.5 h-3.5 ${n <= c.rating ? "text-nava-amber fill-nava-amber" : "text-muted-foreground/30"}`} />
+              ))}
+            </div>
+          ) : null}
         </div>
         <h2 className="text-lg font-bold text-foreground">{c.headline}</h2>
         <p className="text-sm text-foreground/90 mt-1 leading-relaxed">{c.overall}</p>

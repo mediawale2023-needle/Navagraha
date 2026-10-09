@@ -1,3 +1,4 @@
+import { ratingLabel, experienceLabel, priceLabel } from '@/lib/astrologerDisplay';
 import { useState, useEffect, useRef } from 'react';
 import { isAstrologerAvailable } from '@/lib/astrologerPresence';
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
@@ -110,9 +111,9 @@ export default function Astrologers() {
     const matchesOnline = !filterOnline || isOnline(a);
     return matchesSearch && matchesCategory && matchesOnline;
   })?.sort((a, b) => {
-    if (sortBy === 'price') return Number(a.pricePerMinute || 25) - Number(b.pricePerMinute || 25);
+    if (sortBy === 'price') return Number(a.pricePerMinute || 0) - Number(b.pricePerMinute || 0);
     if (sortBy === 'experience') return (b.experience || 0) - (a.experience || 0);
-    return Number(b.rating || 4.5) - Number(a.rating || 4.5);
+    return Number(b.rating || 0) - Number(a.rating || 0);
   });
 
   const onlineCount = astrologers?.filter(isOnline).length || 0;
@@ -293,10 +294,9 @@ export default function Astrologers() {
                       <div className="flex items-center gap-2 text-xs text-muted-foreground">
                         <span className="flex items-center gap-0.5">
                           <Star className="w-3 h-3 fill-nava-amber text-nava-amber" />
-                          {astrologer.rating || '4.9'}
+                          {ratingLabel(astrologer.rating)}
                         </span>
-                        <span>|</span>
-                        <span>{astrologer.experience || 10}y exp</span>
+                        {experienceLabel(astrologer.experience) && (<><span>|</span><span>{experienceLabel(astrologer.experience)}</span></>)}
                       </div>
                     </div>
 
@@ -310,10 +310,12 @@ export default function Astrologers() {
                       >
                         <Heart className={`w-4 h-4 ${following.has(astrologer.id) ? 'fill-red-500 text-red-500' : 'text-muted-foreground'}`} />
                       </button>
-                      <div className="mb-2">
-                        <span className="font-display text-lg text-[var(--primary-border)]">₹{astrologer.pricePerMinute || '25'}</span>
-                        <span className="text-xs text-muted-foreground">/min</span>
-                      </div>
+                      {priceLabel(astrologer.pricePerMinute) && (
+                        <div className="mb-2">
+                          <span className="font-display text-lg text-[var(--primary-border)]">{priceLabel(astrologer.pricePerMinute)}</span>
+                          <span className="text-xs text-muted-foreground">/min</span>
+                        </div>
+                      )}
                     </div>
                   </div>
 
