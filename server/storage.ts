@@ -1675,6 +1675,19 @@ export class DatabaseStorage implements IStorage {
     return row;
   }
 
+  async getRechargesForReview(): Promise<Array<Pick<Transaction, "id" | "userId" | "amount" | "gatewayOrderId" | "gatewayPaymentId" | "gatewayAmountPaise" | "gatewayCurrency" | "reviewReason" | "createdAt">>> {
+    return db
+      .select({
+        id: transactions.id, userId: transactions.userId, amount: transactions.amount, gatewayOrderId: transactions.gatewayOrderId,
+        gatewayPaymentId: transactions.gatewayPaymentId, gatewayAmountPaise: transactions.gatewayAmountPaise,
+        gatewayCurrency: transactions.gatewayCurrency, reviewReason: transactions.reviewReason, createdAt: transactions.createdAt,
+      })
+      .from(transactions)
+      .where(and(eq(transactions.type, "recharge"), eq(transactions.status, "review")))
+      .orderBy(desc(transactions.createdAt))
+      .limit(200);
+  }
+
   async getStalePendingRecharges(createdBefore: Date, createdAfter?: Date): Promise<Transaction[]> {
     return db
       .select()

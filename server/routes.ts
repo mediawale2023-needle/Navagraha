@@ -2448,6 +2448,14 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
 
   // Settle pending Razorpay recharges whose confirmation never arrived (also runs on a timer).
   // Dry run unless ?apply=1; ?days=N (default 7) limits it to recharges from the last N days.
+  // Recharges whose gateway payment did not match the order (amount, currency or order):
+  // never credited automatically; listed for an admin to resolve with the gateway.
+  app.get('/api/admin/payments/review', isAdmin, adminLimiter, async (_req, res) => {
+    try {
+      res.json(await storage.getRechargesForReview());
+    } catch { res.status(500).json({ message: 'Failed to list payments for review' }); }
+  });
+
   app.post('/api/admin/payments/reconcile', isAdmin, adminLimiter, async (req, res) => {
     try {
       const days = Math.min(Math.max(Number(req.query.days) || 7, 1), 90);
