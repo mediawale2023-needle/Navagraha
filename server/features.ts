@@ -18,4 +18,10 @@ export const features = {
    * records and code are kept for when it returns. On only with the billing rebuild (audit A3).
    */
   marketplace: () => on('FEATURE_MARKETPLACE'),
+  /**
+   * Ask Your Kundli allowance enforcement. Off: every question is metered (free, paid or
+   * "unmetered") and counts are reported, but nobody is refused. On only with Release B's
+   * paid questions and email verification, so no existing user loses access unexpectedly.
+   */
+  askMeteringEnforced: () => on('FEATURE_ASK_METERING_ENFORCE'),
 };

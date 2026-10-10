@@ -114,6 +114,15 @@ const THINKING_STEPS = [
   'Composing your reading…',
 ];
 
+interface AskAllowance {
+  enforced: boolean;
+  freeQuestionsTotal: number;
+  freeQuestionsUsed: number;
+  freeQuestionsRemaining: number;
+  paidQuestionsRemaining: number;
+  followUpsRemaining: number | null;
+}
+
 export default function AIAstrologer() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -132,17 +141,18 @@ export default function AIAstrologer() {
   const [thinkingStep, setThinkingStep] = useState(0);
   const [showInterpretation, setShowInterpretation] = useState(false);
   const [interpretation, setInterpretation] = useState<AiInterpretation | null>(null);
-  const [questionsUsed, setQuestionsUsed] = useState<number | null>(null);
+  const [allowance, setAllowance] = useState<AskAllowance | null>(null);
   const [activeTerm, setActiveTerm] = useState<GlossaryEntry | null>(null);
   const [contextOpen, setContextOpen] = useState(false);
 
-  const { data: questionCount } = useQuery<{ used: number; free: number; remaining: number }>({
+  const { data: questionCount } = useQuery<AskAllowance>({
     queryKey: ['/api/ai/question-count'],
   });
 
-  const freeRemaining = questionsUsed !== null
-    ? Math.max(0, 3 - questionsUsed)
-    : (questionCount?.remaining ?? null);
+  // Counts come from the server's metering. They are shown only while the allowance is
+  // enforced; until then nobody is limited, so a "questions left" count would be untrue.
+  const current = allowance ?? questionCount ?? null;
+  const freeRemaining = current?.enforced ? current.freeQuestionsRemaining : null;
 
   const { data: kundlis = [] } = useQuery<Kundli[]>({
     queryKey: ["/api/kundli"],
@@ -213,7 +223,7 @@ export default function AIAstrologer() {
   const chatMutation = useMutation({
     mutationFn: async (message: string) => {
       const history = messages.slice(-20).map(({ role, content }) => ({ role, content }));
-      const body: any = { message, history, language, sessionId };
+      const body: any = { message, history, language, sessionId, requestId: crypto.randomUUID() };
       if (detailsMode) {
         body.birthDetails = {
           name: birth.name,
@@ -231,7 +241,7 @@ export default function AIAstrologer() {
     },
     onSuccess: (data) => {
       if (data.sessionId && data.sessionId !== sessionId) setSessionId(data.sessionId);
-      if (data.questionsUsed !== undefined) setQuestionsUsed(data.questionsUsed);
+      if (data.allowance) setAllowance(data.allowance);
       setMessages((prev) => [
         ...prev,
         { role: "assistant", content: data.reply, id: crypto.randomUUID(), evidence: data.evidence ?? null, answerSource: data.answerSource },

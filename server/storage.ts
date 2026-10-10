@@ -32,6 +32,9 @@ import {
   jyotishClientProfiles,
   jyotishReadings,
   jyotishSessionQueries,
+  askUsage,
+  entitlements,
+  type AskUsage,
   type JyotishClientProfile,
   type InsertJyotishClientProfile,
   type JyotishReading,
@@ -98,6 +101,37 @@ export interface PendingRechargeInput {
   coupon?: { id: string; code: string; bonus: number };
   quotedCredit: number;
   description: string;
+}
+
+// A reservation not settled within this long is treated as released (its request died).
+export const ASK_RESERVATION_TTL_MS = 10 * 60 * 1000;
+const ASK_RESERVATION_TTL_SQL = "10 minutes";
+const isStaleReservation = (u: AskUsage) => Boolean(u.createdAt) && Date.now() - new Date(u.createdAt!).getTime() > ASK_RESERVATION_TTL_MS;
+
+export interface AskReserveInput {
+  userId: string;
+  chartKey: string;
+  sessionId: string;
+  idempotencyKey: string;
+  freeQuestions: number;
+  freeFollowUps: number;
+  /** Refuse when no allowance is left (otherwise the question is recorded as unmetered). */
+  enforce: boolean;
+  /** Admin accounts: recorded, never drawn from an allowance. */
+  unlimited: boolean;
+}
+
+export type AskReservation =
+  | { kind: "reserved"; usage: AskUsage }
+  | { kind: "replay"; usage: AskUsage }
+  | { kind: "in_flight" }
+  | { kind: "exhausted" };
+
+export interface AskAllowanceCounts {
+  freeQuestionsUsed: number;
+  freeQuestionsRemaining: number;
+  paidQuestionsRemaining: number;
+  followUpsRemaining: number | null;
 }
 
 export type RechargeSettlement =
@@ -236,6 +270,11 @@ export interface IStorage {
   // AI Chat operations
   saveAiChatMessage(data: InsertAiChatMessage): Promise<AiChatMessage>;
   getAiChatHistory(userId: string, sessionId: string): Promise<AiChatMessage[]>;
+  getAiChatMessage(userId: string, id: string): Promise<AiChatMessage | undefined>;
+  reserveAskUsage(input: AskReserveInput): Promise<AskReservation>;
+  settleAskUsage(id: string, outcome: "consumed" | "released", replyMessageId?: string): Promise<AskUsage | null>;
+  releaseStaleAskReservations(): Promise<number>;
+  getAskAllowance(userId: string, opts: { freeQuestions: number; sessionId?: string; chartKey?: string }): Promise<AskAllowanceCounts>;
   getAiChatSessions(userId: string): Promise<{ sessionId: string; createdAt: Date | null; preview: string }[]>;
 }
 
@@ -948,6 +987,131 @@ export class DatabaseStorage implements IStorage {
   async saveAiChatMessage(data: InsertAiChatMessage): Promise<AiChatMessage> {
     const [msg] = await db.insert(aiChatMessages).values(data).returning();
     return msg;
+  }
+
+  async getAiChatMessage(userId: string, id: string): Promise<AiChatMessage | undefined> {
+    const [row] = await db.select().from(aiChatMessages).where(and(eq(aiChatMessages.id, id), eq(aiChatMessages.userId, userId)));
+    return row;
+  }
+
+  // ─── Ask Your Kundli metering ──────────────────────────────
+  // Reservations are taken before the answer is generated and settled after it: consumed when
+  // a model answer was delivered, released (never counted) when generation failed. All
+  // decisions for one user run under a per-user lock, so concurrent messages cannot both take
+  // the last free question or the last follow-up.
+
+  async reserveAskUsage(input: AskReserveInput): Promise<AskReservation> {
+    return db.transaction(async (tx) => {
+      await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${"ask:" + input.userId}))`);
+      const [existing] = await tx.select().from(askUsage)
+        .where(and(eq(askUsage.userId, input.userId), eq(askUsage.idempotencyKey, input.idempotencyKey)));
+      if (existing?.status === "consumed") return { kind: "replay", usage: existing };
+      if (existing?.status === "reserved" && !isStaleReservation(existing)) return { kind: "in_flight" };
+      if (existing) await tx.delete(askUsage).where(eq(askUsage.id, existing.id));
+
+      const counting = sql`(${askUsage.status} = 'consumed' OR (${askUsage.status} = 'reserved' AND ${askUsage.createdAt} > now() - ${ASK_RESERVATION_TTL_SQL}::interval))`;
+      const [parent] = await tx.select().from(askUsage)
+        .where(and(
+          eq(askUsage.userId, input.userId), eq(askUsage.sessionId, input.sessionId), eq(askUsage.chartKey, input.chartKey),
+          eq(askUsage.kind, "question"), counting,
+        ))
+        .orderBy(desc(askUsage.createdAt))
+        .limit(1);
+      if (parent) {
+        const [{ n }] = await tx.select({ n: sql<number>`count(*)::int` }).from(askUsage)
+          .where(and(eq(askUsage.parentId, parent.id), counting));
+        if (n < parent.followUpsAllowed) {
+          const [usage] = await tx.insert(askUsage).values({
+            userId: input.userId, chartKey: input.chartKey, sessionId: input.sessionId, kind: "follow_up", parentId: parent.id,
+            entitlement: parent.entitlement, followUpsAllowed: 0, idempotencyKey: input.idempotencyKey,
+          }).returning();
+          return { kind: "reserved", usage };
+        }
+      }
+
+      let entitlement: "free" | "paid" | "unmetered" | "admin";
+      let entitlementId: string | null = null;
+      let followUpsAllowed = input.freeFollowUps;
+      if (input.unlimited) {
+        entitlement = "admin";
+      } else {
+        const [{ n: freeUsed }] = await tx.select({ n: sql<number>`count(*)::int` }).from(askUsage)
+          .where(and(eq(askUsage.userId, input.userId), eq(askUsage.kind, "question"), eq(askUsage.entitlement, "free"), counting));
+        if (freeUsed < input.freeQuestions) {
+          entitlement = "free";
+        } else {
+          const [paid] = await tx.execute(sql`
+            UPDATE entitlements SET used = used + 1
+            WHERE id = (
+              SELECT id FROM entitlements
+              WHERE user_id = ${input.userId} AND kind = 'ask_questions' AND used < quantity AND (expires_at IS NULL OR expires_at > now())
+              ORDER BY expires_at ASC NULLS LAST, created_at ASC
+              LIMIT 1
+              FOR UPDATE
+            )
+            RETURNING id, follow_ups_each`).then((r: any) => r.rows ?? r);
+          if (paid) {
+            entitlement = "paid";
+            entitlementId = String(paid.id);
+            followUpsAllowed = Number(paid.follow_ups_each);
+          } else if (input.enforce) {
+            return { kind: "exhausted" };
+          } else {
+            entitlement = "unmetered";
+          }
+        }
+      }
+      const [usage] = await tx.insert(askUsage).values({
+        userId: input.userId, chartKey: input.chartKey, sessionId: input.sessionId, kind: "question",
+        entitlement, entitlementId, followUpsAllowed, idempotencyKey: input.idempotencyKey,
+      }).returning();
+      return { kind: "reserved", usage };
+    });
+  }
+
+  /** Settles a reservation once. Releasing a paid question returns it to its entitlement. */
+  async settleAskUsage(id: string, outcome: "consumed" | "released", replyMessageId?: string): Promise<AskUsage | null> {
+    return db.transaction(async (tx) => {
+      const [row] = await tx.update(askUsage)
+        .set({ status: outcome, settledAt: new Date(), ...(replyMessageId ? { replyMessageId } : {}) })
+        .where(and(eq(askUsage.id, id), eq(askUsage.status, "reserved")))
+        .returning();
+      if (!row) return null;
+      if (outcome === "released" && row.kind === "question" && row.entitlementId) {
+        await tx.update(entitlements).set({ used: sql`${entitlements.used} - 1` })
+          .where(and(eq(entitlements.id, row.entitlementId), sql`${entitlements.used} > 0`));
+      }
+      return row;
+    });
+  }
+
+  /** Releases reservations whose request never settled (process restart mid-answer). */
+  async releaseStaleAskReservations(): Promise<number> {
+    const stale = await db.select({ id: askUsage.id }).from(askUsage)
+      .where(and(eq(askUsage.status, "reserved"), sql`${askUsage.createdAt} <= now() - ${ASK_RESERVATION_TTL_SQL}::interval`))
+      .limit(500);
+    let released = 0;
+    for (const { id } of stale) if (await this.settleAskUsage(id, "released")) released++;
+    return released;
+  }
+
+  async getAskAllowance(userId: string, opts: { freeQuestions: number; sessionId?: string; chartKey?: string }): Promise<AskAllowanceCounts> {
+    const counting = sql`(${askUsage.status} = 'consumed' OR (${askUsage.status} = 'reserved' AND ${askUsage.createdAt} > now() - ${ASK_RESERVATION_TTL_SQL}::interval))`;
+    const [{ n: freeUsed }] = await db.select({ n: sql<number>`count(*)::int` }).from(askUsage)
+      .where(and(eq(askUsage.userId, userId), eq(askUsage.kind, "question"), eq(askUsage.entitlement, "free"), counting));
+    const [{ n: paidRemaining }] = await db.select({ n: sql<number>`coalesce(sum(${entitlements.quantity} - ${entitlements.used}), 0)::int` }).from(entitlements)
+      .where(and(eq(entitlements.userId, userId), eq(entitlements.kind, "ask_questions"), sql`(${entitlements.expiresAt} IS NULL OR ${entitlements.expiresAt} > now())`));
+    let followUpsRemaining: number | null = null;
+    if (opts.sessionId && opts.chartKey) {
+      const [parent] = await db.select().from(askUsage)
+        .where(and(eq(askUsage.userId, userId), eq(askUsage.sessionId, opts.sessionId), eq(askUsage.chartKey, opts.chartKey), eq(askUsage.kind, "question"), counting))
+        .orderBy(desc(askUsage.createdAt)).limit(1);
+      if (parent) {
+        const [{ n }] = await db.select({ n: sql<number>`count(*)::int` }).from(askUsage).where(and(eq(askUsage.parentId, parent.id), counting));
+        followUpsRemaining = Math.max(0, parent.followUpsAllowed - n);
+      }
+    }
+    return { freeQuestionsUsed: freeUsed, freeQuestionsRemaining: Math.max(0, opts.freeQuestions - freeUsed), paidQuestionsRemaining: paidRemaining, followUpsRemaining };
   }
 
   // ─── Long-term user memory ─────────────────────────────────

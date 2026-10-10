@@ -6,6 +6,7 @@ import { setupVite, serveStatic, log } from "./vite";
 import { runMigrations } from "./migrate";
 import { startRechargeReconciler } from "./rechargeSettlement";
 import { reportsAvailable, startReportOrderSweeper } from "./reportOrders";
+import { startAskReservationSweeper } from "./askMetering";
 import { FREE_CHAT_MINUTES } from "./paymentService";
 import { features } from "./features";
 import { waitForDatabase } from "./db";
@@ -185,6 +186,7 @@ waitForDatabase()
       log("startup ready");
       startRechargeReconciler();
       startReportOrderSweeper();
+      startAskReservationSweeper();
     } catch (err) {
       startupError = err instanceof Error ? err.message : "migration failed";
       console.error("[startup/migrate] Migration failed:", err);

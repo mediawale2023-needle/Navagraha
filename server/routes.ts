@@ -72,6 +72,7 @@ import {
 import { generateAgoraToken, getChannelName } from "./agoraService";
 import { notifyUser, notifyAstrologer } from "./websocketService";
 import { audit } from "./audit";
+import { ASK_FREE_FOLLOW_UPS, ASK_FREE_QUESTIONS, askChartKey, askEnforced, askIdempotencyKey } from "./askMetering";
 import { sendPushToUser, sendPushToAstrologer } from "./pushService";
 import {
   interpretKundli,
@@ -1261,7 +1262,7 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
     } catch { res.status(500).json({ message: "Failed to fetch messages" }); }
   });
 
-  app.post('/api/chat/:astrologerId', isAuthenticated, (req: any, res, next) => (req.params.astrologerId === 'ai-astrologer' ? aiLimiter(req, res, next) : next()), async (req: any, res) => {
+  app.post('/api/chat/:astrologerId', isAuthenticated, async (req: any, res) => {
     try {
       const user = req.user as any;
       const userId = user.id;
@@ -1270,25 +1271,13 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
       if (!message || !sender) return res.status(400).json({ message: "Message and sender required" });
       if (typeof message !== 'string' || message.length > 2000) return res.status(400).json({ message: "Message is too long (2000 characters max)" });
 
-      const chatMessage = await storage.createChatMessage({ userId, astrologerId, message, sender });
-      
-      // AI Astrologer Integration
-      if (astrologerId === 'ai-astrologer' && sender === 'user') {
-        // Same evidence-grounded path as /api/ai/chat; never a chart-less council.
-        const latest = await currentChart((await storage.getUserKundlis(userId))?.[0] ?? null);
-        const canonical = (latest?.chartData as any)?.canonical;
-        const aiResponseText = isCurrentCanonicalChart(canonical)
-          ? (await answerSimple(buildEvidencePacket(canonical, routeQuestion(message)), message)).text
-          : latest ? limitedChartReply(chartVersionStatus(latest).notes[0]) : (await answerWithoutChart(message)).text;
-        const aiMessage = await storage.createChatMessage({
-          userId,
-          astrologerId,
-          message: aiResponseText,
-          sender: 'astrologer'
-        });
-        
-        return res.json({ userMessage: chatMessage, aiMessage: aiMessage });
+      // The old AI-astrologer chat duplicated Ask Your Kundli without its metering; no client
+      // uses it. Ask questions go through /api/ai/chat only.
+      if (astrologerId === 'ai-astrologer') {
+        return res.status(410).json({ code: 'use_ask_kundli', message: "Ask your Kundli at /api/ai/chat." });
       }
+
+      const chatMessage = await storage.createChatMessage({ userId, astrologerId, message, sender });
 
       // Push the message to the recipient (best-effort)
       if (sender === 'user') {
@@ -2111,6 +2100,24 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
     }
   });
 
+  const askAllowance = async (userId: string, sessionId?: string, chartKey?: string) => {
+    const counts = await storage.getAskAllowance(userId, { freeQuestions: ASK_FREE_QUESTIONS, sessionId, chartKey });
+    return { enforced: askEnforced(), freeQuestionsTotal: ASK_FREE_QUESTIONS, ...counts };
+  };
+
+  // Ask allowance for the signed-in user (and, with sessionId + kundliId, the thread's follow-ups).
+  app.get('/api/ai/question-count', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = (req.user as any).id;
+      const sessionId = typeof req.query.sessionId === 'string' && req.query.sessionId.length <= 64 ? req.query.sessionId : undefined;
+      const kundliId = typeof req.query.kundliId === 'string' && req.query.kundliId.length <= 64 ? req.query.kundliId : undefined;
+      const allowance = await askAllowance(userId, sessionId, kundliId ? `kundli:${kundliId}` : undefined);
+      res.json({ used: allowance.freeQuestionsUsed, free: allowance.freeQuestionsTotal, remaining: allowance.freeQuestionsRemaining, ...allowance });
+    } catch {
+      res.status(500).json({ message: "Failed to fetch question count" });
+    }
+  });
+
   // Chat with AI Astrologer (Super-Council Orchestrator)
   app.post('/api/ai/chat', isAuthenticated, aiLimiter, async (req: any, res) => {
     try {
@@ -2121,6 +2128,7 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
       const selection = selectChart(req.body);
       if (selection.kind === 'invalid') return res.status(400).json({ message: selection.message });
 
+      if (sessionId != null && (typeof sessionId !== 'string' || sessionId.length > 64)) return res.status(400).json({ message: "Invalid session" });
       const activeSessionId = sessionId || crypto.randomUUID();
 
       let birthDate = user.dateOfBirth ? new Date(user.dateOfBirth).toISOString().split('T')[0] : 'Unknown';
@@ -2179,114 +2187,152 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
         };
       }
 
-      // Only persist accepted requests after chart ownership/location validation.
-      await storage.saveAiChatMessage({
-        userId: user.id,
-        sessionId: activeSessionId,
-        role: 'user',
-        content: message
+      // Metering: reserve this message (an independent question, or a follow-up within its
+      // question's allowance) before any model call; settled below.
+      const chartKey = askChartKey(selection as any, kundli?.id ?? null);
+      const reservation = await storage.reserveAskUsage({
+        userId: user.id, chartKey, sessionId: activeSessionId, idempotencyKey: askIdempotencyKey(req.body.requestId),
+        freeQuestions: ASK_FREE_QUESTIONS, freeFollowUps: ASK_FREE_FOLLOW_UPS, enforce: askEnforced(),
+        unlimited: await storage.hasFreeAccess(user.id),
       });
-
-      // Long-term memory: what we've learned about this user before.
-      const memories = await storage.getUserMemories(user.id, 30)
-        .then((rows) => rows.map((r) => r.content))
-        .catch(() => [] as string[]);
-
-      // Current transits (Gochar) for the bound chart.
-      let transits: string | undefined;
-      if (isCurrentCanonicalChart((kundli?.chartData as any)?.canonical)) {
-        try {
-          transits = transitSummary(transitsForChart((kundli!.chartData as any).canonical, (kundli!.chartData as any)?.ashtakavarga?.sav));
-        } catch (err) {
-          console.error('[chat] transit computation failed:', err);
-        }
+      if (reservation.kind === 'in_flight') return res.status(409).json({ code: 'ask_in_flight', message: "This question is already being answered." });
+      if (reservation.kind === 'exhausted') {
+        audit("ask.refused", { userId: user.id, chart: chartKey.split(":")[0] });
+        return res.status(402).json({ code: 'ask_allowance_exhausted', message: "You have used your free questions.", allowance: await askAllowance(user.id, activeSessionId, chartKey) });
       }
-
-      // Closed feedback loop: this user's verified past events + system accuracy.
-      let verifiedEvents: string[] = [];
-      let accuracyNote: string | undefined;
+      if (reservation.kind === 'replay') {
+        const prior = reservation.usage.replyMessageId ? await storage.getAiChatMessage(user.id, reservation.usage.replyMessageId) : undefined;
+        if (!prior) return res.status(409).json({ code: 'ask_in_flight', message: "This question was already answered." });
+        const allowance = await askAllowance(user.id, reservation.usage.sessionId, reservation.usage.chartKey);
+        return res.json({ sessionId: reservation.usage.sessionId, reply: prior.content, evidence: null, answerSource: 'replay', replayed: true, questionsUsed: allowance.freeQuestionsUsed, allowance });
+      }
+      const usage = reservation.usage;
+      audit("ask.reserved", { userId: user.id, usageId: usage.id, kind: usage.kind, entitlement: usage.entitlement, chart: chartKey.split(":")[0] });
+      let settledUsage = false;
+      const settleUsage = async (outcome: 'consumed' | 'released', replyMessageId?: string) => {
+        if (settledUsage) return;
+        settledUsage = true;
+        const row = await storage.settleAskUsage(usage.id, outcome, replyMessageId);
+        if (row) audit(outcome === 'consumed' ? "ask.consumed" : "ask.released", { userId: user.id, usageId: usage.id, kind: usage.kind, entitlement: usage.entitlement });
+      };
       try {
-        const fb = await storage.getPredictionFeedbacksByUser(user.id);
-        verifiedEvents = fb
-          .filter((f: any) => f.wasAccurate)
-          .map((f: any) => `${f.predictionCategory}${f.actualOccurrenceDate ? ` around ${new Date(f.actualOccurrenceDate).toISOString().slice(0, 7)}` : ''} (confirmed via ${f.dashaSystemUsed})`)
-          .slice(0, 20);
-        const stats = await storage.getPatternStatistics();
-        if (stats?.total > 0) accuracyNote = `Verified prediction accuracy so far: ${stats.accuracy}% over ${stats.total} confirmed predictions — calibrate confidence accordingly.`;
-      } catch (err) {
-        console.error('[chat] feedback load failed:', err);
-      }
+        // Only persist accepted requests after chart ownership/location validation.
+        await storage.saveAiChatMessage({
+          userId: user.id,
+          sessionId: activeSessionId,
+          role: 'user',
+          content: message
+        });
 
-      // Ask Your Kundli: route the question, build the deterministic evidence packet,
-      // then explain it (one model call) or, for deep questions, run the council.
-      // Prior turns come from this user's stored session, never from the client (which could forge assistant turns).
-      const history = sessionId
-        ? (await storage.getAiChatHistory(user.id, activeSessionId).catch(() => []))
-            .filter((h) => h.role === 'user' || h.role === 'assistant')
-            .slice(-7, -1)
-            .map((h) => ({ role: h.role as 'user' | 'assistant', content: String(h.content).slice(0, 4000) }))
-        : [];
-      const route = routeQuestion(message, { depth: req.body.depth === 'deep' ? 'deep' : undefined });
-      const canonical = kundli?.chartData?.canonical;
-      let aiResponseText: string;
-      let evidenceSummary: ReturnType<typeof packetSummary> | null = null;
-      let answerSource: 'llm' | 'deterministic' = 'llm';
-      if (isCurrentCanonicalChart(canonical)) {
-        const packet = buildEvidencePacket(canonical, route, new Date(), transits);
-        evidenceSummary = packetSummary(packet);
-        if (route.depth === 'deep' && features.aiCouncil()) {
-          // Generated and checked in English; translated only after the guard (localise.ts).
-          const reading = await runCouncil({
-            birthDetails: { date: birthDate, time: birthTime, place: birthPlace },
-            chartData, profession: 'User', language: 'English', memories, transits, verifiedEvents, accuracyNote,
-            evidencePacket: packet.text, currentQuery: message,
-          });
-          const guarded = await guardAnswer(packet, reading, async () => (await answerSimple(packet, message, { memories, history })).text);
-          aiResponseText = await localise(guarded.text, language);
-          answerSource = guarded.source;
+        // Long-term memory: what we've learned about this user before.
+        const memories = await storage.getUserMemories(user.id, 30)
+          .then((rows) => rows.map((r) => r.content))
+          .catch(() => [] as string[]);
+
+        // Current transits (Gochar) for the bound chart.
+        let transits: string | undefined;
+        if (isCurrentCanonicalChart((kundli?.chartData as any)?.canonical)) {
+          try {
+            transits = transitSummary(transitsForChart((kundli!.chartData as any).canonical, (kundli!.chartData as any)?.ashtakavarga?.sav));
+          } catch (err) {
+            console.error('[chat] transit computation failed:', err);
+          }
+        }
+
+        // Closed feedback loop: this user's verified past events + system accuracy.
+        let verifiedEvents: string[] = [];
+        let accuracyNote: string | undefined;
+        try {
+          const fb = await storage.getPredictionFeedbacksByUser(user.id);
+          verifiedEvents = fb
+            .filter((f: any) => f.wasAccurate)
+            .map((f: any) => `${f.predictionCategory}${f.actualOccurrenceDate ? ` around ${new Date(f.actualOccurrenceDate).toISOString().slice(0, 7)}` : ''} (confirmed via ${f.dashaSystemUsed})`)
+            .slice(0, 20);
+          const stats = await storage.getPatternStatistics();
+          if (stats?.total > 0) accuracyNote = `Verified prediction accuracy so far: ${stats.accuracy}% over ${stats.total} confirmed predictions — calibrate confidence accordingly.`;
+        } catch (err) {
+          console.error('[chat] feedback load failed:', err);
+        }
+
+        // Ask Your Kundli: route the question, build the deterministic evidence packet,
+        // then explain it (one model call) or, for deep questions, run the council.
+        // Prior turns come from this user's stored session, never from the client (which could forge assistant turns).
+        const history = sessionId
+          ? (await storage.getAiChatHistory(user.id, activeSessionId).catch(() => []))
+              .filter((h) => h.role === 'user' || h.role === 'assistant')
+              .slice(-7, -1)
+              .map((h) => ({ role: h.role as 'user' | 'assistant', content: String(h.content).slice(0, 4000) }))
+          : [];
+        const route = routeQuestion(message, { depth: req.body.depth === 'deep' ? 'deep' : undefined });
+        const canonical = kundli?.chartData?.canonical;
+        let aiResponseText: string;
+        let evidenceSummary: ReturnType<typeof packetSummary> | null = null;
+        let answerSource: 'llm' | 'deterministic' = 'llm';
+        if (isCurrentCanonicalChart(canonical)) {
+          const packet = buildEvidencePacket(canonical, route, new Date(), transits);
+          evidenceSummary = packetSummary(packet);
+          if (route.depth === 'deep' && features.aiCouncil()) {
+            // Generated and checked in English; translated only after the guard (localise.ts).
+            const reading = await runCouncil({
+              birthDetails: { date: birthDate, time: birthTime, place: birthPlace },
+              chartData, profession: 'User', language: 'English', memories, transits, verifiedEvents, accuracyNote,
+              evidencePacket: packet.text, currentQuery: message,
+            });
+            const guarded = await guardAnswer(packet, reading, async () => (await answerSimple(packet, message, { memories, history })).text);
+            aiResponseText = await localise(guarded.text, language);
+            answerSource = guarded.source;
+          } else {
+            const answer = await answerSimple(packet, message, { memories, history });
+            aiResponseText = await localise(answer.text, language);
+            answerSource = answer.source;
+          }
+        } else if (kundli) {
+          // A chart was chosen but has no verified V3 calculation: explain rather than guess from legacy data.
+          aiResponseText = limitedChartReply(chartVersionStatus(kundli).notes[0]);
+          answerSource = 'deterministic';
         } else {
-          const answer = await answerSimple(packet, message, { memories, history });
-          aiResponseText = await localise(answer.text, language);
+          const answer = await answerWithoutChart(message, { language, history });
+          aiResponseText = answer.text;
           answerSource = answer.source;
         }
-      } else if (kundli) {
-        // A chart was chosen but has no verified V3 calculation: explain rather than guess from legacy data.
-        aiResponseText = limitedChartReply(chartVersionStatus(kundli).notes[0]);
-        answerSource = 'deterministic';
-      } else {
-        const answer = await answerWithoutChart(message, { language, history });
-        aiResponseText = answer.text;
-        answerSource = answer.source;
-      }
 
-      // Save AI response to DB
-      await storage.saveAiChatMessage({
-        userId: user.id,
-        sessionId: activeSessionId,
-        role: 'assistant',
-        content: aiResponseText
-      });
+        // Save AI response to DB
+        const replyMessage = await storage.saveAiChatMessage({
+          userId: user.id,
+          sessionId: activeSessionId,
+          role: 'assistant',
+          content: aiResponseText
+        });
+        // Only a model answer uses the allowance; a deterministic fallback (model failed or
+        // unavailable, or a chart that cannot be read) restores it.
+        await settleUsage(answerSource === 'llm' ? 'consumed' : 'released', replyMessage?.id);
 
-      // Extract durable facts from this message into long-term memory (async).
-      extractMemories(message)
-        .then(async (mems) => {
-          if (!mems.length) return;
-          const existing = (await storage.getUserMemories(user.id, 200)).map((m) => m.content.toLowerCase());
-          for (const m of mems) {
-            if (!existing.includes(m.content.toLowerCase())) {
-              await storage.addUserMemory({ userId: user.id, kind: m.kind, content: m.content, sourceSessionId: activeSessionId });
+        // Extract durable facts from this message into long-term memory (async).
+        extractMemories(message)
+          .then(async (mems) => {
+            if (!mems.length) return;
+            const existing = (await storage.getUserMemories(user.id, 200)).map((m) => m.content.toLowerCase());
+            for (const m of mems) {
+              if (!existing.includes(m.content.toLowerCase())) {
+                await storage.addUserMemory({ userId: user.id, kind: m.kind, content: m.content, sourceSessionId: activeSessionId });
+              }
             }
-          }
-        })
-        .catch((err) => console.error('[memory] extraction failed:', err));
+          })
+          .catch((err) => console.error('[memory] extraction failed:', err));
 
-      res.json({
-        sessionId: activeSessionId,
-        reply: aiResponseText,
-        evidence: evidenceSummary,
-        answerSource,
-        questionsUsed: 0,
-      });
+        const allowance = await askAllowance(user.id, activeSessionId, chartKey);
+        res.json({
+          sessionId: activeSessionId,
+          reply: aiResponseText,
+          evidence: evidenceSummary,
+          answerSource,
+          questionsUsed: allowance.freeQuestionsUsed,
+          allowance,
+        });
+      } catch (err) {
+        await settleUsage('released').catch(() => {});
+        throw err;
+      }
     } catch (error: any) {
       if (error instanceof BirthInputError || error instanceof CalculationError) return res.status(400).json({ message: error.message });
       console.error("AI Chat Error:", error);
