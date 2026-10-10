@@ -18,6 +18,7 @@ import { BalanceShortfall } from '@/components/BalanceShortfall';
 import { downloadReportPdf, type ReportContent } from '@/lib/reportPdf';
 import { Clock } from 'lucide-react';
 import { PageHeader, PageBody } from '@/components/shell/PageHeader';
+import { birthDetailsReady, chartOrderable, chartSummary, type SavedChart } from '@/lib/reportOrderForm';
 
 interface ReportType {
   id: string;
@@ -38,7 +39,7 @@ interface ReportOrder {
   refundedAt?: string | null;
   reportName?: string | null;
 }
-interface Kundli { id: string; name: string }
+type Kundli = SavedChart;
 
 export default function Reports() {
   const { toast } = useToast();
@@ -60,12 +61,13 @@ export default function Reports() {
   const openOrder = (t: ReportType) => {
     setSelected(t);
     setOrderProblem(null);
+    const firstOrderable = kundlis?.find(chartOrderable);
     setOrderMode(kundlis && kundlis.length > 0 ? 'saved' : 'details');
-    setKundliId('');
+    setKundliId(firstOrderable?.id ?? '');
     setBirth(emptyBirth);
     setBirthCoords(null);
   };
-  const birthValid = !!(birth.name.trim() && birth.dateOfBirth && birth.timeOfBirth && birth.placeOfBirth.trim());
+  const birthValid = birthDetailsReady(birth, birthCoords);
 
   const handleDownload = async (content: ReportContent | null) => {
     if (!content) return;
@@ -249,7 +251,6 @@ export default function Reports() {
               type="button"
               variant={orderMode === 'saved' ? 'default' : 'outline'}
               className={`rounded-[9px] ${orderMode === 'saved' ? 'bg-ink text-primary hover:bg-ink/90' : ''}`}
-              disabled={!kundlis || kundlis.length === 0}
               onClick={() => setOrderMode('saved')}
               data-testid="mode-saved"
             >
@@ -267,17 +268,44 @@ export default function Reports() {
           </div>
 
           {orderMode === 'saved' ? (
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Select birth chart</label>
-              {kundlis && kundlis.length > 0 ? (
-                <select className="w-full rounded-[10px] border border-border bg-background px-3 py-2 text-sm" value={kundliId} onChange={(e) => { setKundliId(e.target.value); setOrderProblem(null); }} data-testid="select-kundli">
-                  <option value="">Most recent chart</option>
-                  {kundlis.map((k) => <option key={k.id} value={k.id}>{k.name}</option>)}
-                </select>
-              ) : (
-                <p className="text-sm text-muted-foreground">No saved chart. Switch to <span className="font-medium text-amber-text">Enter birth details</span>.</p>
-              )}
-            </div>
+            kundlis && kundlis.length > 0 ? (
+              <fieldset className="m-0 flex flex-col gap-2 border-0 p-0" data-testid="saved-charts">
+                <legend className="mb-1 text-sm font-medium">Choose a saved chart</legend>
+                {kundlis.map((k) => {
+                  const orderable = chartOrderable(k);
+                  const on = kundliId === k.id;
+                  return (
+                    <label
+                      key={k.id}
+                      className={`flex cursor-pointer items-start gap-3 rounded-md px-3.5 py-3 ${on ? 'border-[1.5px] border-ink bg-surface' : 'border border-line bg-surface hover:bg-highlight'} ${orderable ? '' : 'cursor-not-allowed opacity-60'}`}
+                      data-testid={`saved-chart-${k.id}`}
+                    >
+                      <input
+                        type="radio"
+                        name="saved-chart"
+                        className="mt-1"
+                        checked={on}
+                        disabled={!orderable}
+                        onChange={() => { setKundliId(k.id); setOrderProblem(null); }}
+                      />
+                      <span className="flex min-w-0 flex-col gap-0.5">
+                        <span className="font-semibold">{k.name}</span>
+                        <span className="text-caption text-ink-muted break-words">{chartSummary(k) || 'Birth details saved'}</span>
+                        {!orderable && <span className="text-caption text-amber-text">Needs its birth place: open the chart to recreate it.</span>}
+                      </span>
+                    </label>
+                  );
+                })}
+              </fieldset>
+            ) : (
+              <div className="flex flex-col gap-2 rounded-md border border-line bg-surface px-4 py-3 text-sm" data-testid="no-saved-charts">
+                <p className="m-0">You have no saved charts yet. Create one once and use it for every report, or enter birth details for this report only.</p>
+                <div className="flex flex-wrap gap-2">
+                  <Link href="/kundli/new"><Button size="sm" variant="outline">Create a chart</Button></Link>
+                  <Button size="sm" variant="ghost" onClick={() => setOrderMode('details')}>Enter birth details</Button>
+                </div>
+              </div>
+            )
           ) : (
             <div className="space-y-3">
               <div>
@@ -307,12 +335,16 @@ export default function Reports() {
                 <div className="mt-1">
                   <PlacesAutocomplete
                     value={birth.placeOfBirth}
-                    onChange={(v) => setBirth((b) => ({ ...b, placeOfBirth: v }))}
+                    onChange={(v) => { setBirth((b) => ({ ...b, placeOfBirth: v })); setBirthCoords(null); }}
                     onPlaceSelect={(place) => setBirthCoords({ lat: place.lat, lng: place.lng })}
                     placeholder="City, State, Country"
                   />
                 </div>
-                <p className="text-xs text-muted-foreground mt-1">Exact time &amp; place give the most accurate chart.</p>
+                <p className="text-xs text-muted-foreground mt-1" data-testid="place-hint">
+                  {birth.placeOfBirth.trim() && !birthCoords
+                    ? 'Pick the town from the suggestions: its coordinates and time zone fix the chart.'
+                    : 'Exact time & place give the most accurate chart.'}
+                </p>
               </div>
             </div>
           )}
@@ -343,7 +375,7 @@ export default function Reports() {
 
           <Button
             className="w-full rounded-[9px] bg-primary text-primary-foreground hover:bg-primary/90"
-            disabled={orderReport.isPending || (orderMode === 'saved' ? (!kundlis || kundlis.length === 0) : !birthValid)}
+            disabled={orderReport.isPending || (orderMode === 'saved' ? !kundliId : !birthValid)}
             onClick={() => orderReport.mutate()}
             data-testid="button-confirm-order"
           >

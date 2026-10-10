@@ -46,3 +46,16 @@ BASE_URL=http://127.0.0.1:5000 OUT_DIR=./out node birthplace.mjs
 ```
 
 It accepts `CHROMIUM_PATH` and `FORWARDED_PROTO` as above and creates guest charts only.
+
+## Report order dialog — `report-order.mjs`
+
+Drives the report order dialog at both viewports against a local build started with a dummy
+`OPENAI_API_KEY` (orders are accepted, generation fails, the order is refunded) and a
+disposable database (`DATABASE_URL`, used to set a wallet balance and insert a chart without
+coordinates). Places are a test double, as above. Checks: an account without charts can
+still choose Saved chart and is offered a way forward; typing "khamgaon" suggests Khamgaon,
+Maharashtra; typed text alone cannot be ordered and editing after a pick clears the
+coordinates; the order sends the picked coordinates and is charged the shown price, then
+refunded; saved charts show name, date, time and place, with a limited chart disabled; a saved
+chart orders by id only; another account's chart id is refused before any charge; without a
+Maps key the field says suggestions are unavailable.
