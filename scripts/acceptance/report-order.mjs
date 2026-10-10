@@ -199,6 +199,22 @@ for (const [label, viewport] of [['desktop', { width: 1280, height: 900 }], ['mo
     await ctx.close();
   }
 
+  // ── The chart list arriving after the dialog opened (a slow first load) ───
+  {
+    const { ctx, page } = await session(viewport);
+    await register(page, `${label}-slow`);
+    const own = (await api(page, 'POST', '/api/kundli', { name: 'Shivani', gender: 'female', dateOfBirth: '1995-11-02', timeOfBirth: '08:15', placeOfBirth: 'Khamgaon, Maharashtra, India', latitude: 20.7085, longitude: 76.5647 })).json;
+    await page.route(`${BASE}/api/kundli`, async (route) => { await new Promise((r) => setTimeout(r, 4000)); await route.continue(); });
+    await check(`[${label}] a chart list that arrives after the dialog opened is offered with the chart preselected`, async () => {
+      await openCareer(page);
+      await page.getByTestId('saved-charts').waitFor({ timeout: 15000 });
+      assert(await page.getByTestId(`saved-chart-${own.id}`).locator('input').isChecked(), 'chart not preselected');
+      assert(await page.getByTestId('button-confirm-order').isEnabled(), 'order disabled');
+      await shot(page, '06-late-chart-list');
+    });
+    await ctx.close();
+  }
+
   // ── A site without a Maps key ──────────────────────────────────────────────
   {
     const { ctx, page } = await session(viewport, { mapsKey: false });
