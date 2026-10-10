@@ -27,6 +27,9 @@
  *   packs       Release B question packs bought from the buyer's wallet (needs ≥ ₹327 and
  *               FEATURE_ASK_PACKS on staging): exact debits, entitlements, replay, overdraw
  *   reports     Release B report prices, stale-price refusal, failed-report refund, admin ₹0
+ *   replay      re-delivers payment.captured for a REAL settled test payment (--order, --payment,
+ *               --paise): 5 in a row and 10 at once, signed with the staging webhook secret;
+ *               the staging-wide completed-recharge total and the review list must not change
  *
  * `packs` and `reports` spend the buyer's staging TEST wallet; nothing touches production.
  *
@@ -404,9 +407,34 @@ async function reports() {
   record("R5", "admin report order is free (₹0 charged)", aOrder.status === 201 && Number(aOrder.body?.newBalance) >= 0 && (await admin.req("GET", `/api/reports/orders/${aOrder.body?.orderId}`)).body?.chargedAmount === "0.00", `status ${aOrder.status} ${aOrder.body?.code ?? ""}`, "check");
 }
 
-const commands: Record<string, () => Promise<unknown>> = { preflight, simulate, buyer, snapshot, reconcile, keycheck, ledger, packs, reports };
+async function adminView(admin: Client) {
+  const stats = await admin.req("GET", "/api/admin/stats");
+  const review = await admin.req("GET", "/api/admin/payments/review");
+  return { total: Number(stats.body?.totalRevenue ?? NaN), review: Array.isArray(review.body) ? review.body.length : NaN };
+}
+
+async function replay() {
+  if (!(await preflight())) process.exit(1);
+  const orderId = opt("order"), paymentId = opt("payment"), paise = Number(opt("paise"));
+  if (!orderId?.startsWith("order_") || !paymentId?.startsWith("pay_") || !(paise > 0)) {
+    console.error("Usage: replay --order order_… --payment pay_… --paise 10000"); process.exit(2);
+  }
+  const admin = await login(need("STAGING_ADMIN_EMAIL"), need("STAGING_ADMIN_PASSWORD"));
+  const before = await adminView(admin);
+  const entity = { id: paymentId, entity: "payment", order_id: orderId, amount: paise, currency: "INR", status: "captured", captured: true, amount_refunded: 0, method: "card" };
+  const { raw, sig } = signedWebhook(entity);
+  const seq: number[] = [];
+  for (let i = 0; i < 5; i++) seq.push((await sendWebhook(raw, sig)).status);
+  const burst = await Promise.all(Array.from({ length: 10 }, () => sendWebhook(raw, sig).then((r) => r.status)));
+  const after = await adminView(admin);
+  record("D1", "15 re-deliveries of the real payment.captured are acknowledged (200)", [...seq, ...burst].every((x) => x === 200), `sequential ${seq.join(",")} · concurrent ${[...new Set(burst)].join(",")}`);
+  record("D2", "no second credit: staging-wide completed recharges unchanged", before.total === after.total, `₹${before.total} → ₹${after.total}`);
+  record("D3", "nothing new held for review", before.review === after.review, `${before.review} → ${after.review}`);
+}
+
+const commands: Record<string, () => Promise<unknown>> = { preflight, simulate, buyer, snapshot, reconcile, keycheck, ledger, packs, reports, replay };
 if (!commands[command]) {
-  console.error("Usage: npx tsx scripts/staging/razorpay-verify.ts <preflight|keycheck|buyer|snapshot|ledger|simulate|reconcile|packs|reports> [--env file] [--apply] [--expect-paused]");
+  console.error("Usage: npx tsx scripts/staging/razorpay-verify.ts <preflight|keycheck|buyer|snapshot|ledger|simulate|reconcile|packs|reports|replay> [--env file] [--apply] [--expect-paused]");
   process.exit(2);
 }
 commands[command]()
