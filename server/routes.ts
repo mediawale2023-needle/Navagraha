@@ -75,6 +75,7 @@ import { audit } from "./audit";
 import { aiBudget, aiRequestContext } from "./ai/metering";
 import { ASK_FREE_FOLLOW_UPS, askChartKey, askEnforced, askFreeQuestionsFor, askIdempotencyKey } from "./askMetering";
 import { ASK_PACKS, ASK_PACK_FOLLOW_UPS, askPack, askPackRequestKey } from "./askPacks";
+import { pricedReportType, reportPrice } from "./reportPricing";
 import { sendPushToUser, sendPushToAstrologer } from "./pushService";
 import {
   interpretKundli,
@@ -1809,7 +1810,7 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
   // ─── Paid Reports ──────────────────────────────────────────
   app.get('/api/reports/types', async (_req, res) => {
     try {
-      res.json(await storage.getReportTypes());
+      res.json((await storage.getReportTypes()).map(pricedReportType));
     } catch { res.status(500).json({ message: 'Failed to fetch report types' }); }
   });
 
@@ -1821,6 +1822,11 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
       if (selection.kind === 'invalid') return res.status(400).json({ message: selection.message });
       const reportType = await storage.getReportTypeById(reportTypeId);
       if (!reportType || !reportType.isActive || !isOfferedReportCategory(reportType.category)) return res.status(404).json({ message: 'Report not available' });
+      // A client showing an older price is asked to confirm the current one before anything is charged.
+      const expectedPrice = req.body?.expectedPrice;
+      if (expectedPrice !== undefined && Number(expectedPrice) !== reportPrice(reportType)) {
+        return res.status(409).json({ code: 'price_changed', price: reportPrice(reportType), message: `The price of this report is now ₹${reportPrice(reportType)}. You have not been charged.` });
+      }
       // Paid reports are AI-written and quality-checked; nothing templated is ever sold in their place.
       if (!reportsAvailable()) return res.status(503).json({ message: 'Reports are temporarily unavailable. You have not been charged.', code: 'reports_unavailable' });
 
@@ -1881,7 +1887,7 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
         reportTypeId: reportType.id,
         kundliId: kundliRef,
         subjectName: (kundli as any).name || undefined,
-        price: parseFloat(reportType.price),
+        price: reportPrice(reportType),
         description: `Report: ${reportType.name}`,
       });
       if (!placed) return res.status(402).json({ message: 'Insufficient wallet balance. Please recharge to order this report.' });
