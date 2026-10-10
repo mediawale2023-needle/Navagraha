@@ -9,6 +9,8 @@ import { apiRequest } from '@/lib/queryClient';
 import { Copy, Check } from 'lucide-react';
 import type { User as UserType, Kundli } from '@shared/schema';
 import { PageHeader, PageBody } from '@/components/shell/PageHeader';
+import { VerifyEmailNotice } from '@/components/account/VerifyEmailNotice';
+import { useAppFeatures } from '@/lib/appConfig';
 
 interface ReferralInfo {
   code: string;
@@ -123,12 +125,14 @@ export default function Profile() {
     queryKey: ['/api/kundli'],
   });
 
+  const { emailVerification } = useAppFeatures();
+
   if (userLoading) return <LoadingSpinner />;
 
   const name = `${user?.firstName ?? ''} ${user?.lastName ?? ''}`.trim();
   const rows: Array<[string, string]> = [
     ['Name', name || 'Not set'],
-    ['Email', user?.email ?? 'Not set'],
+    ['Email', user?.email ? `${user.email}${user.emailVerifiedAt ? ' · confirmed' : emailVerification ? ' · not confirmed' : ''}` : 'Not set'],
     ...(user?.createdAt ? [['Member since', new Date(user.createdAt).toLocaleDateString(undefined, { month: 'long', year: 'numeric' })] as [string, string]] : []),
   ];
 
@@ -147,6 +151,8 @@ export default function Profile() {
             ))}
           </dl>
         </section>
+
+        <VerifyEmailNotice />
 
         <section aria-labelledby="charts-h" className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-line bg-surface p-4 md:p-[22px]">
           <div className="flex flex-col gap-1">

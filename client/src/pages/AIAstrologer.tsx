@@ -14,9 +14,13 @@ import { Input } from "@/components/ui/input";
 import { PlacesAutocomplete } from "@/components/PlacesAutocomplete";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
+import { isApiError } from "@/lib/apiError";
 import ReactMarkdown from "react-markdown";
 import { PageHeader } from '@/components/shell/PageHeader';
 import { AnswerCard, termsIn, type EvidenceSummary } from '@/components/ask/AnswerCard';
+import { AskAllowanceLine, AskLimitPanel, FollowUpHint, type AskAllowanceState } from '@/components/ask/AskAllowance';
+import { AskPacks } from '@/components/ask/AskPacks';
+import { useAppFeatures } from '@/lib/appConfig';
 import { GlossaryAside, GlossarySheet } from '@/components/ask/Glossary';
 import type { GlossaryEntry } from '@/lib/glossary';
 
@@ -114,14 +118,7 @@ const THINKING_STEPS = [
   'Composing your reading…',
 ];
 
-interface AskAllowance {
-  enforced: boolean;
-  freeQuestionsTotal: number;
-  freeQuestionsUsed: number;
-  freeQuestionsRemaining: number;
-  paidQuestionsRemaining: number;
-  followUpsRemaining: number | null;
-}
+type AskAllowance = AskAllowanceState;
 
 export default function AIAstrologer() {
   const { toast } = useToast();
@@ -142,6 +139,9 @@ export default function AIAstrologer() {
   const [showInterpretation, setShowInterpretation] = useState(false);
   const [interpretation, setInterpretation] = useState<AiInterpretation | null>(null);
   const [allowance, setAllowance] = useState<AskAllowance | null>(null);
+  // A question whose answer did not arrive; retrying sends the same request id, so the server
+  // answers it once and never takes a second question for it.
+  const [failed, setFailed] = useState<{ message: string; requestId: string; problem?: string } | null>(null);
   const [activeTerm, setActiveTerm] = useState<GlossaryEntry | null>(null);
   const [contextOpen, setContextOpen] = useState(false);
 
@@ -152,7 +152,8 @@ export default function AIAstrologer() {
   // Counts come from the server's metering. They are shown only while the allowance is
   // enforced; until then nobody is limited, so a "questions left" count would be untrue.
   const current = allowance ?? questionCount ?? null;
-  const freeRemaining = current?.enforced ? current.freeQuestionsRemaining : null;
+  const { askPacksEnabled } = useAppFeatures();
+  const [packsOpen, setPacksOpen] = useState(false);
 
   const { data: kundlis = [] } = useQuery<Kundli[]>({
     queryKey: ["/api/kundli"],
@@ -221,9 +222,9 @@ export default function AIAstrologer() {
   }, [messages]);
 
   const chatMutation = useMutation({
-    mutationFn: async (message: string) => {
+    mutationFn: async ({ message, requestId }: { message: string; requestId: string }) => {
       const history = messages.slice(-20).map(({ role, content }) => ({ role, content }));
-      const body: any = { message, history, language, sessionId, requestId: crypto.randomUUID() };
+      const body: any = { message, history, language, sessionId, requestId };
       if (detailsMode) {
         body.birthDetails = {
           name: birth.name,
@@ -240,6 +241,7 @@ export default function AIAstrologer() {
       return await apiRequest("POST", "/api/ai/chat", body);
     },
     onSuccess: (data) => {
+      setFailed(null);
       if (data.sessionId && data.sessionId !== sessionId) setSessionId(data.sessionId);
       if (data.allowance) setAllowance(data.allowance);
       setMessages((prev) => [
@@ -247,7 +249,14 @@ export default function AIAstrologer() {
         { role: "assistant", content: data.reply, id: crypto.randomUUID(), evidence: data.evidence ?? null, answerSource: data.answerSource },
       ]);
     },
-    onError: (err: any) => {
+    onError: (err: any, vars) => {
+      if (isApiError(err) && err.status === 402) {
+        const body = err.body as { code?: string; allowance?: AskAllowance } | undefined;
+        if (body?.allowance) setAllowance(body.allowance);
+        setFailed({ ...vars, problem: body?.code ?? 'ask_allowance_exhausted' });
+        return;
+      }
+      setFailed(vars);
       toast({
         title: "AI Unavailable",
         description: err.message || "Failed to get a response. Please try again.",
@@ -293,7 +302,13 @@ export default function AIAstrologer() {
     }
     setMessages((prev) => [...prev, { role: "user", content: msg, id: crypto.randomUUID() }]);
     setInput("");
-    chatMutation.mutate(msg);
+    setFailed(null);
+    chatMutation.mutate({ message: msg, requestId: crypto.randomUUID() });
+  }
+
+  function retryFailed() {
+    if (!failed || chatMutation.isPending) return;
+    chatMutation.mutate({ message: failed.message, requestId: failed.requestId });
   }
 
   function handleKeyDown(e: React.KeyboardEvent) {
@@ -372,8 +387,13 @@ export default function AIAstrologer() {
                 </Button>
               )}
             </div>
-            {freeRemaining !== null && freeRemaining > 0 && (
-              <p className={`${messages.length > 0 && !contextOpen ? 'hidden md:block' : ''} text-caption text-ink-muted`}>{freeRemaining} free {freeRemaining === 1 ? 'question' : 'questions'} left</p>
+            <div className={messages.length > 0 && !contextOpen ? 'hidden md:block' : ''}>
+              <AskAllowanceLine allowance={current} onBuy={askPacksEnabled ? () => setPacksOpen((o) => !o) : undefined} />
+            </div>
+            {packsOpen && askPacksEnabled && (
+              <div className="rounded-lg border border-line bg-surface p-4 md:p-[22px]">
+                <AskPacks onPurchased={() => { setPacksOpen(false); queryClient.invalidateQueries({ queryKey: ['/api/ai/question-count'] }); }} />
+              </div>
             )}
             {detailsMode && (
               <div className="flex flex-col gap-2 rounded-lg border border-line bg-surface p-4">
@@ -454,6 +474,22 @@ export default function AIAstrologer() {
               />
             )
           ))}
+
+          {failed?.problem && !chatMutation.isPending && (
+            <AskLimitPanel
+              problem={failed.problem}
+              packsEnabled={askPacksEnabled}
+              onPurchased={() => { setAllowance(null); queryClient.invalidateQueries({ queryKey: ['/api/ai/question-count'] }); retryFailed(); }}
+            />
+          )}
+          {!failed && !chatMutation.isPending && messages.length > 0 && <FollowUpHint allowance={current} />}
+
+          {failed && !failed.problem && !chatMutation.isPending && (
+            <div className="flex flex-wrap items-center gap-3 rounded-md border border-line bg-surface px-4 py-3 text-sm" role="alert" data-testid="ask-retry">
+              <span className="flex-1">That answer didn't come through. Trying again won't use another question.</span>
+              <Button size="sm" variant="outline" onClick={retryFailed} className="gap-1.5"><RotateCcw className="h-4 w-4" />Try again</Button>
+            </div>
+          )}
 
           {chatMutation.isPending && (
             <p className="m-0 flex items-center gap-3 rounded-answer border border-line bg-surface px-[22px] py-4 text-base text-ink-muted" role="status">

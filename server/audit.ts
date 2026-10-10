@@ -22,6 +22,11 @@ export type AuditEvent =
   | "ask.consumed"
   | "ask.released"
   | "ask.refused"
+  | "ask.pack_purchased"
+  | "ask.pack_refused"
+  | "auth.email_verification_sent"
+  | "auth.email_verification_throttled"
+  | "auth.email_verified"
   | "ai.usage"
   | "ai.budget_refused";
 

@@ -53,3 +53,12 @@ export function googleSignInEmail(
   if (!verified) return null;
   return { email: storedEmail ?? normalizeEmail(raw) };
 }
+
+/**
+ * Whether a Google sign-in verifies the account's email: Google only signs in an address it
+ * has verified, so the account's address is verified when it is that mailbox (in any case;
+ * older accounts were stored before addresses were lower-cased).
+ */
+export function googleVerifiesAccountEmail(googleEmail: string | null | undefined, accountEmail: string | null | undefined): boolean {
+  return Boolean(googleEmail && accountEmail && normalizeEmail(googleEmail) === normalizeEmail(accountEmail));
+}

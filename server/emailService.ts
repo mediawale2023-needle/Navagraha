@@ -81,16 +81,27 @@ function htmlShell(title: string, body: string): string {
 
 // ─── Safe send wrapper ────────────────────────────────────────────────────────
 
-async function sendEmail(to: string, subject: string, html: string): Promise<void> {
+/** True when SMTP is configured (and, in production, APP_URL, so links never point at localhost). */
+export function emailConfigured(): boolean {
+  const smtp = Boolean(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASSWORD);
+  return smtp && (process.env.NODE_ENV !== "production" || Boolean(process.env.APP_URL));
+}
+
+/** Sends one email; true when it was handed to SMTP. Never throws. */
+async function sendEmail(to: string, subject: string, html: string): Promise<boolean> {
   try {
     const transporter = getTransporter();
     await transporter.sendMail({ from: FROM, to, subject, html });
     console.log(`[email] Sent "${subject}" to ${to}`);
+    return true;
   } catch (err) {
     // Never crash the main flow for email failures
     console.error(`[email] Failed to send "${subject}" to ${to}:`, (err as Error).message);
+    return false;
   }
 }
+
+const escapeHtml = (s: string) => s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]!));
 
 // ─── Email templates ─────────────────────────────────────────────────────────
 
@@ -238,4 +249,21 @@ export async function sendPasswordResetEmail(
     </p>`;
 
   await sendEmail(to, "Reset Your Navagraha Password", htmlShell("Password Reset", body));
+}
+
+export async function sendVerificationEmail(to: string, firstName: string, token: string): Promise<boolean> {
+  const link = `${APP_URL.replace(/\/$/, "")}/api/auth/verify-email?token=${encodeURIComponent(token)}`;
+  const body = `
+    <h2>Confirm your email</h2>
+    <p>Hi ${escapeHtml(firstName || "there")}, please confirm this address for your Navagraha account.</p>
+    <p>Once it is confirmed you can ask your Kundli your first free questions.</p>
+    <div style="text-align:center">
+      <a class="btn" href="${link}">Confirm email</a>
+    </div>
+    <hr class="divider" />
+    <p style="font-size:13px;color:#718096">
+      This link works once and expires in 24 hours. If you did not create an account, you can ignore this email.
+    </p>`;
+
+  return sendEmail(to, "Confirm your Navagraha email", htmlShell("Confirm your email", body));
 }

@@ -9,6 +9,7 @@ import { reportsAvailable, startReportOrderSweeper } from "./reportOrders";
 import { startAskReservationSweeper } from "./askMetering";
 import { FREE_CHAT_MINUTES } from "./paymentService";
 import { features } from "./features";
+import { emailConfigured } from "./emailService";
 import { waitForDatabase } from "./db";
 import { setupWebSocket } from "./websocketService";
 import { runAstronomySelfCheck } from "./astroEngine/selfCheck";
@@ -121,6 +122,8 @@ app.get("/api/config", (_req, res) => {
     freeChatMinutes: FREE_CHAT_MINUTES,
     marketplaceEnabled: features.marketplace(),
     reportsAvailable: reportsAvailable(),
+    emailVerification: features.emailVerification() && emailConfigured(),
+    askPacksEnabled: features.askPacks(),
     firebase: {
       apiKey: process.env.FIREBASE_API_KEY || "",
       authDomain: process.env.FIREBASE_AUTH_DOMAIN || "",
@@ -191,6 +194,10 @@ waitForDatabase()
       startupReady = true;
       startupError = null;
       log("startup ready");
+      if (features.askMeteringEnforced() && !(features.emailVerification() && emailConfigured())) {
+        console.warn("[ask] FEATURE_ASK_METERING_ENFORCE is on but email verification is unavailable: email/password accounts get no free questions.");
+      }
+      if (features.emailVerification() && !emailConfigured()) console.warn("[email] FEATURE_EMAIL_VERIFICATION is on but SMTP/APP_URL is not configured: no links are sent.");
       startRechargeReconciler();
       startReportOrderSweeper();
       startAskReservationSweeper();
