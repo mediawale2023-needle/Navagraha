@@ -34,6 +34,7 @@ import {
   jyotishSessionQueries,
   askUsage,
   entitlements,
+  aiUsageDaily,
   type AskUsage,
   type JyotishClientProfile,
   type InsertJyotishClientProfile,
@@ -133,6 +134,9 @@ export interface AskAllowanceCounts {
   paidQuestionsRemaining: number;
   followUpsRemaining: number | null;
 }
+
+// Reports an admin (free access) account may generate per rolling day: each costs real model spend.
+export const FREE_ACCESS_REPORTS_PER_DAY = 5;
 
 export type RechargeSettlement =
   | { kind: "settled"; transaction: Transaction; balance: string; paidRupees: number; coupon: "applied" | "void" | "none"; couponVoidReason?: string }
@@ -274,6 +278,8 @@ export interface IStorage {
   reserveAskUsage(input: AskReserveInput): Promise<AskReservation>;
   settleAskUsage(id: string, outcome: "consumed" | "released", replyMessageId?: string): Promise<AskUsage | null>;
   releaseStaleAskReservations(): Promise<number>;
+  recordAiUsage(u: { subject: string; day: string; feature: string; inputTokens: number; outputTokens: number; costMicroUsd: number }): Promise<void>;
+  getAiUsageToday(subject: string, day: string): Promise<{ calls: number; costMicroUsd: number }>;
   getAskAllowance(userId: string, opts: { freeQuestions: number; sessionId?: string; chartKey?: string }): Promise<AskAllowanceCounts>;
   getAiChatSessions(userId: string): Promise<{ sessionId: string; createdAt: Date | null; preview: string }[]>;
 }
@@ -1114,6 +1120,30 @@ export class DatabaseStorage implements IStorage {
     return { freeQuestionsUsed: freeUsed, freeQuestionsRemaining: Math.max(0, opts.freeQuestions - freeUsed), paidQuestionsRemaining: paidRemaining, followUpsRemaining };
   }
 
+  // ─── AI usage (shared across instances) ────────────────────
+  async recordAiUsage(u: { subject: string; day: string; feature: string; inputTokens: number; outputTokens: number; costMicroUsd: number }): Promise<void> {
+    await db.insert(aiUsageDaily)
+      .values({ subject: u.subject, day: u.day, feature: u.feature, calls: 1, inputTokens: u.inputTokens, outputTokens: u.outputTokens, costMicroUsd: u.costMicroUsd })
+      .onConflictDoUpdate({
+        target: [aiUsageDaily.subject, aiUsageDaily.day, aiUsageDaily.feature],
+        set: {
+          calls: sql`${aiUsageDaily.calls} + 1`,
+          inputTokens: sql`${aiUsageDaily.inputTokens} + ${u.inputTokens}`,
+          outputTokens: sql`${aiUsageDaily.outputTokens} + ${u.outputTokens}`,
+          costMicroUsd: sql`${aiUsageDaily.costMicroUsd} + ${u.costMicroUsd}`,
+        },
+      });
+  }
+
+  /** Today's unpaid AI use for a subject: paid report generation is excluded. */
+  async getAiUsageToday(subject: string, day: string): Promise<{ calls: number; costMicroUsd: number }> {
+    const [row] = await db
+      .select({ calls: sql<number>`coalesce(sum(${aiUsageDaily.calls}), 0)::int`, cost: sql<number>`coalesce(sum(${aiUsageDaily.costMicroUsd}), 0)::bigint` })
+      .from(aiUsageDaily)
+      .where(and(eq(aiUsageDaily.subject, subject), eq(aiUsageDaily.day, day), sql`${aiUsageDaily.feature} NOT LIKE '/api/reports%'`));
+    return { calls: Number(row?.calls ?? 0), costMicroUsd: Number(row?.cost ?? 0) };
+  }
+
   // ─── Long-term user memory ─────────────────────────────────
   async addUserMemory(data: { userId: string; kind?: string; content: string; sourceSessionId?: string }): Promise<UserMemory> {
     const [row] = await db.insert(userMemories).values({
@@ -1841,10 +1871,27 @@ export class DatabaseStorage implements IStorage {
     subjectName?: string;
     price: number;
     description: string;
-  }): Promise<{ order: ReportOrder; balance: string } | null> {
+  }): Promise<{ order: ReportOrder; balance: string } | { refused: "duplicate" | "free_daily_limit"; order?: ReportOrder } | null> {
     const free = await this.hasFreeAccess(data.userId);
     if (!(await this.getWallet(data.userId))) await this.createWallet(data.userId);
     return db.transaction(async (tx) => {
+      // One user's orders are placed one at a time, so a double submit cannot buy the same
+      // report twice and concurrent free orders cannot pass the daily cap together.
+      await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${"report-order:" + data.userId}))`);
+      const [inProgress] = await tx.select().from(reportOrders).where(and(
+        eq(reportOrders.userId, data.userId),
+        eq(reportOrders.reportTypeId, data.reportTypeId),
+        eq(reportOrders.status, "processing"),
+        sql`coalesce(${reportOrders.kundliId}, '') = ${data.kundliId ?? ""}`,
+        sql`coalesce(${reportOrders.subjectName}, '') = ${data.subjectName ?? ""}`,
+      )).limit(1);
+      if (inProgress) return { refused: "duplicate" as const, order: inProgress };
+      if (free) {
+        const [{ n }] = await tx.select({ n: sql<number>`count(*)::int` }).from(reportOrders).where(and(
+          eq(reportOrders.userId, data.userId), sql`${reportOrders.chargedAmount} = 0`, sql`${reportOrders.createdAt} > now() - interval '1 day'`,
+        ));
+        if (n >= FREE_ACCESS_REPORTS_PER_DAY) return { refused: "free_daily_limit" as const };
+      }
       const charged = free ? 0 : data.price;
       let balance: string | null;
       if (charged > 0) {
@@ -2324,28 +2371,31 @@ export class DatabaseStorage implements IStorage {
   }
 
   /** Studio tier soft cap — resets calendar-monthly. Returns remaining credits. */
+  /**
+   * Takes `cost` Pro AI credits in one conditional UPDATE (the month rolls over in the same
+   * statement), so concurrent requests cannot both take the last credit.
+   */
   async consumeProAiCredit(astrologerId: string, cost = 1, monthlyLimit = 80): Promise<{ ok: boolean; used: number; limit: number }> {
-    const astro = await this.getAstrologerById(astrologerId);
-    if (!astro) return { ok: false, used: 0, limit: monthlyLimit };
-    const now = new Date();
-    let used = astro.proAiCreditsUsed ?? 0;
-    const resetAt = astro.proAiCreditsResetAt ? new Date(astro.proAiCreditsResetAt) : null;
-    const needsReset = !resetAt || resetAt.getUTCFullYear() !== now.getUTCFullYear() || resetAt.getUTCMonth() !== now.getUTCMonth();
-    if (needsReset) {
-      used = 0;
-    }
-    if (used + cost > monthlyLimit) {
-      return { ok: false, used, limit: monthlyLimit };
-    }
-    const nextUsed = used + cost;
-    await db
+    const newMonth = sql`(${astrologers.proAiCreditsResetAt} IS NULL OR date_trunc('month', ${astrologers.proAiCreditsResetAt}) <> date_trunc('month', now() AT TIME ZONE 'UTC'))`;
+    const nextUsed = sql`(CASE WHEN ${newMonth} THEN ${cost} ELSE coalesce(${astrologers.proAiCreditsUsed}, 0) + ${cost} END)`;
+    const [row] = await db
       .update(astrologers)
       .set({
         proAiCreditsUsed: nextUsed,
-        proAiCreditsResetAt: needsReset ? now : (astro.proAiCreditsResetAt ?? now),
+        proAiCreditsResetAt: sql`(CASE WHEN ${newMonth} THEN now() AT TIME ZONE 'UTC' ELSE ${astrologers.proAiCreditsResetAt} END)`,
       })
+      .where(and(eq(astrologers.id, astrologerId), sql`${nextUsed} <= ${monthlyLimit}`))
+      .returning({ used: astrologers.proAiCreditsUsed });
+    if (row) return { ok: true, used: Number(row.used), limit: monthlyLimit };
+    const usage = await this.getProAiUsage(astrologerId, monthlyLimit);
+    return { ok: false, used: usage.used, limit: monthlyLimit };
+  }
+
+  /** Returns credits taken for a generation that failed. */
+  async refundProAiCredit(astrologerId: string, cost = 1): Promise<void> {
+    await db.update(astrologers)
+      .set({ proAiCreditsUsed: sql`greatest(coalesce(${astrologers.proAiCreditsUsed}, 0) - ${cost}, 0)` })
       .where(eq(astrologers.id, astrologerId));
-    return { ok: true, used: nextUsed, limit: monthlyLimit };
   }
 
   async getProAiUsage(astrologerId: string, monthlyLimit = 80): Promise<{ used: number; limit: number; remaining: number }> {

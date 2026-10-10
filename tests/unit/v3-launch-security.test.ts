@@ -7,7 +7,7 @@ import { computeJyotishChart } from '../../server/astroEngine/jyotishEngine';
 const mocks = vi.hoisted(() => ({
   storage: {
     getKundliById: vi.fn(), getUser: vi.fn(), getUserKundlis: vi.fn(), persistLegacyUpgrade: vi.fn(),
-    getJyotishProfileById: vi.fn(), getJyotishReadingById: vi.fn(), consumeProAiCredit: vi.fn(), createJyotishSessionQuery: vi.fn(),
+    getJyotishProfileById: vi.fn(), getJyotishReadingById: vi.fn(), consumeProAiCredit: vi.fn(), refundProAiCredit: vi.fn(), getAstrologerById: vi.fn(), getAiUsageToday: vi.fn(), createJyotishSessionQuery: vi.fn(),
     saveAiChatMessage: vi.fn(), getUserMemories: vi.fn(), getPredictionFeedbacksByUser: vi.fn(), getPatternStatistics: vi.fn(),
     getReportTypeById: vi.fn(), debitWallet: vi.fn(), createReportOrder: vi.fn(), placeReportOrder: vi.fn(), setReportOrderContent: vi.fn(), failAndRefundReportOrder: vi.fn(), getDailyHoroscope: vi.fn(), updateJyotishReading: vi.fn(),
   },
@@ -55,6 +55,9 @@ beforeEach(() => {
   mocks.storage.getJyotishProfileById.mockImplementation(async (id: string) => ({ pA: profileA, pB: profileB } as any)[id]);
   mocks.storage.getJyotishReadingById.mockImplementation(async (id: string) => (id === 'rB' ? readingB : undefined));
   mocks.storage.consumeProAiCredit.mockResolvedValue({ ok: true, used: 1, limit: 80 });
+  mocks.storage.refundProAiCredit.mockResolvedValue(undefined);
+  mocks.storage.getAstrologerById.mockImplementation(async (id: string) => ({ id, isVerified: id !== 'unverified' }));
+  mocks.storage.getAiUsageToday.mockResolvedValue({ calls: 0, costMicroUsd: 0 });
   mocks.answerSessionQuery.mockResolvedValue('answer');
 });
 afterEach(() => { vi.unstubAllEnvs(); });
@@ -180,5 +183,42 @@ describe('launch review fixes', () => {
   });
   it('over-long chat messages are rejected before any model call', async () => {
     expect((await request(app).post('/api/ai/chat').set('x-user', 'msg-cap').send({ message: 'x'.repeat(2001) })).status).toBe(400);
+  });
+});
+
+describe('Pro workspace eligibility and AI credits (Release A)', () => {
+  const ask = (astro: string) =>
+    request(app).post('/api/astrologer/pro/session-queries').set('x-astro', astro).send({ profileId: 'pA', tradition: 'parashar', question: 'career?' });
+
+  it('an astrologer who registered but is not verified cannot use the Pro workspace or its AI', async () => {
+    mocks.storage.getJyotishProfileById.mockResolvedValue({ ...profileA, astrologerId: 'unverified' });
+    const res = await ask('unverified');
+    expect(res.status).toBe(403);
+    expect(res.body.code).toBe('pro_requires_verification');
+    expect(mocks.storage.consumeProAiCredit).not.toHaveBeenCalled();
+    expect(mocks.answerSessionQuery).not.toHaveBeenCalled();
+    expect((await request(app).get('/api/astrologer/pro/profiles').set('x-astro', 'unverified')).status).toBe(403);
+  });
+
+  it('a failed generation returns the credit it took', async () => {
+    mocks.answerSessionQuery.mockRejectedValueOnce(new Error('upstream 500'));
+    await ask('astroA'); // the stream has started, so the status is already 200
+    expect(mocks.storage.consumeProAiCredit).toHaveBeenCalledTimes(1);
+    expect(mocks.storage.refundProAiCredit).toHaveBeenCalledWith('astroA');
+  });
+
+  it("an astrologer over today's AI budget is refused before any credit or model call", async () => {
+    mocks.storage.getAiUsageToday.mockResolvedValue({ calls: 10_000, costMicroUsd: 0 });
+    const res = await ask('astroA');
+    expect(res.status).toBe(429);
+    expect(res.body.code).toBe('ai_daily_limit');
+    expect(mocks.storage.consumeProAiCredit).not.toHaveBeenCalled();
+    expect(mocks.answerSessionQuery).not.toHaveBeenCalled();
+  });
+
+  it('an over-long session question is refused before any credit is taken', async () => {
+    const res = await request(app).post('/api/astrologer/pro/session-queries').set('x-astro', 'astroA').send({ profileId: 'pA', tradition: 'parashar', question: 'x'.repeat(2001) });
+    expect(res.status).toBe(400);
+    expect(mocks.storage.consumeProAiCredit).not.toHaveBeenCalled();
   });
 });

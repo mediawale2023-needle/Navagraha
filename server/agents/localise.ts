@@ -3,7 +3,8 @@
  * English first and only then translated. A translation that changes any number (a year, a
  * house, a count) is discarded and the checked English is returned instead.
  */
-import OpenAI from 'openai';
+import type OpenAI from 'openai';
+import { createOpenAI } from '../ai/metering';
 
 const isEnglish = (language?: string | null) => !language || language.trim().toLowerCase() === 'english';
 const numbersIn = (text: string) => Array.from(text.matchAll(/\d+/g)).map((m) => m[0]).sort().join(',');
@@ -14,7 +15,7 @@ export function translationKeepsFacts(source: string, translated: string): boole
 }
 
 let client: OpenAI | null = null;
-const getClient = () => (process.env.OPENAI_API_KEY ? (client ??= new OpenAI({ apiKey: process.env.OPENAI_API_KEY })) : null);
+const getClient = () => (process.env.OPENAI_API_KEY ? (client ??= createOpenAI(process.env.OPENAI_API_KEY)) : null);
 
 const TRANSLATOR = (language: string) => `Translate the user's text into natural, fluent ${language}. It is an astrology reading that has already been checked against the person's chart. Translate faithfully: do not add, remove, soften or strengthen any statement; keep every number, year and date exactly (Western digits); planet, sign, nakshatra and dasha names may be transliterated but must stay recognisable. Output only the translation.`;
 

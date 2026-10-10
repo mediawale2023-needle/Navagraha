@@ -14,7 +14,8 @@
  * rather than crashing boot (see server/routes.ts convention for other
  * OpenAI-backed features).
  */
-import OpenAI from 'openai';
+import type OpenAI from 'openai';
+import { createOpenAI } from './ai/metering';
 import type { JyotishChartData } from './astroEngine/jyotishEngine.js';
 import { isCurrentCanonicalChart } from '@shared/v3/canonical';
 import { buildInsights } from './astroEngine/evidence/insights.js';
@@ -58,7 +59,7 @@ function getClient(): OpenAI {
     if (!process.env.OPENAI_API_KEY) {
       throw new Error('OPENAI_API_KEY must be set for the Jyotish AI Reading feature');
     }
-    _client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+    _client = createOpenAI(process.env.OPENAI_API_KEY);
   }
   return _client;
 }

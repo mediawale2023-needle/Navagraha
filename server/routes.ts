@@ -72,6 +72,7 @@ import {
 import { generateAgoraToken, getChannelName } from "./agoraService";
 import { notifyUser, notifyAstrologer } from "./websocketService";
 import { audit } from "./audit";
+import { aiBudget, aiRequestContext } from "./ai/metering";
 import { ASK_FREE_FOLLOW_UPS, ASK_FREE_QUESTIONS, askChartKey, askEnforced, askIdempotencyKey } from "./askMetering";
 import { sendPushToUser, sendPushToAstrologer } from "./pushService";
 import {
@@ -126,6 +127,14 @@ const aiLimiter = rateLimit({
   message: { message: 'Too many AI requests. Please wait a few minutes and try again.' },
 });
 
+// Pro workspace model calls, per astrologer (aiLimiter keys on users, so astrologers would share one bucket).
+const proAiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 30,
+  keyGenerator: (req: any) => `astrologer:${req.session?.astrologerId ?? 'anonymous'}`,
+  message: { message: 'Too many AI requests. Please wait a few minutes and try again.' },
+});
+
 // Unauthenticated guest-preview insights: pure computation, but still throttled per IP.
 const insightsLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
@@ -151,6 +160,9 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
 
   // While the marketplace is off, nothing can start, book or charge for it (server/marketplace.ts).
   app.use(marketplaceGate);
+
+  // Attributes every model call to the signed-in user or astrologer (cost logging, budgets).
+  app.use(aiRequestContext);
 
   // ─── User Email Auth ──────────────────────────────────────
 
@@ -418,7 +430,7 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
 
   // ─── Horoscope ────────────────────────────────────────────
   // Personalised daily horoscope from the user's chart, cached once per day.
-  app.get('/api/horoscope/personal', isAuthenticated, aiLimiter, async (req: any, res) => {
+  app.get('/api/horoscope/personal', isAuthenticated, aiLimiter, aiBudget('user'), async (req: any, res) => {
     try {
       const userId = (req.user as any).id;
       const language = (req.query.language as string) || 'English';
@@ -1733,7 +1745,7 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
     } catch { res.status(500).json({ message: 'Failed to fetch report types' }); }
   });
 
-  app.post('/api/reports/order', isAuthenticated, async (req: any, res) => {
+  app.post('/api/reports/order', isAuthenticated, aiLimiter, async (req: any, res) => {
     try {
       const userId = (req.user as any).id;
       const { reportTypeId } = req.body;
@@ -1805,7 +1817,14 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
         description: `Report: ${reportType.name}`,
       });
       if (!placed) return res.status(402).json({ message: 'Insufficient wallet balance. Please recharge to order this report.' });
+      if ('refused' in placed) {
+        if (placed.refused === 'duplicate') {
+          return res.status(409).json({ code: 'report_in_progress', orderId: placed.order?.id, message: 'This report is already being prepared. You have not been charged again.' });
+        }
+        return res.status(429).json({ code: 'free_report_daily_limit', message: 'Free-access accounts can generate a limited number of reports per day.' });
+      }
       const { order } = placed;
+      audit("wallet.debit", { userId, reason: 'report', orderId: order.id, amount: Number(order.chargedAmount ?? 0), reportTypeId: reportType.id });
 
       // Generated asynchronously; the client polls until the order is ready or failed (refunded).
       void fulfilReportOrder(order, reportType.name, () => reportType.category === 'life_complete'
@@ -2119,7 +2138,7 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
   });
 
   // Chat with AI Astrologer (Super-Council Orchestrator)
-  app.post('/api/ai/chat', isAuthenticated, aiLimiter, async (req: any, res) => {
+  app.post('/api/ai/chat', isAuthenticated, aiLimiter, aiBudget('user'), async (req: any, res) => {
     try {
       const user = req.user as any;
       const { message, sessionId, language } = req.body;
@@ -2341,7 +2360,7 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
   });
 
   // Interpret a saved Kundli with AI
-  app.post('/api/ai/interpret-kundli', isAuthenticated, aiLimiter, async (req: any, res) => {
+  app.post('/api/ai/interpret-kundli', isAuthenticated, aiLimiter, aiBudget('user'), async (req: any, res) => {
     try {
       const { kundliId } = req.body;
       if (!kundliId) return res.status(400).json({ message: "kundliId is required" });
@@ -2363,7 +2382,7 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
   });
 
   // Pre-consultation brief — talking points tailored to user's chart + astrologer
-  app.get('/api/ai/pre-consult-brief', isAuthenticated, aiLimiter, async (req: any, res) => {
+  app.get('/api/ai/pre-consult-brief', isAuthenticated, aiLimiter, aiBudget('user'), async (req: any, res) => {
     try {
       const userId = (req.user as any).id;
       const { astrologerId } = req.query;
@@ -2392,7 +2411,7 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
   });
 
   // Astrologer matching — rank online astrologers by chart compatibility
-  app.get('/api/ai/match-astrologer', isAuthenticated, aiLimiter, async (req: any, res) => {
+  app.get('/api/ai/match-astrologer', isAuthenticated, aiLimiter, aiBudget('user'), async (req: any, res) => {
     try {
       const userId = (req.user as any).id;
       const userKundlis = await storage.getUserKundlis(userId);
@@ -2776,7 +2795,7 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
   // Streams the AI narrative for one tradition, word-by-word, as a plain chunked
   // text/plain response (client reads via fetch()'s ReadableStream — no SSE
   // needed for a same-origin POST). Persists the full text once streaming ends.
-  app.post('/api/admin/jyotish/readings/:id/generate', isAdmin, adminLimiter, async (req, res) => {
+  app.post('/api/admin/jyotish/readings/:id/generate', isAdmin, adminLimiter, aiBudget('admin'), async (req, res) => {
     let tradition: Tradition;
     try {
       tradition = TRADITION_ENUM.parse(req.body?.tradition);
@@ -2815,7 +2834,7 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
   });
 
   // Quick mid-session Q&A ("session query box") — streamed the same way, logged for the record.
-  app.post('/api/admin/jyotish/session-queries', isAdmin, adminLimiter, async (req, res) => {
+  app.post('/api/admin/jyotish/session-queries', isAdmin, adminLimiter, aiBudget('admin'), async (req, res) => {
     const { profileId, readingId, question, language } = req.body || {};
     let tradition: Tradition;
     try {
@@ -2878,6 +2897,19 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
 
   // ─── Astrologer Pro: practice workspace (tenant = astrologer session) ──
   const PRO_AI_MONTHLY_LIMIT = 80;
+
+  // The workspace (and its paid-model calls) is for verified astrologers only: registering an
+  // astrologer account signs it in, but does not verify it.
+  app.use('/api/astrologer/pro', isAstrologerAuthenticated, async (req: any, res, next) => {
+    try {
+      const astro = await storage.getAstrologerById(req.session.astrologerId);
+      if (!astro?.isVerified) return res.status(403).json({ code: 'pro_requires_verification', message: 'The Pro workspace is available once your astrologer account is verified.' });
+      next();
+    } catch {
+      res.status(500).json({ message: 'Failed to check your account' });
+    }
+  });
+  const proAiGuards = [proAiLimiter, aiBudget('astrologer')];
 
   async function requireProProfile(req: any, profileId: string) {
     const profile = await storage.getJyotishProfileById(profileId);
@@ -2976,13 +3008,14 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
     } catch { res.status(500).json({ message: 'Failed to fetch reading' }); }
   });
 
-  app.post('/api/astrologer/pro/readings/:id/generate', isAstrologerAuthenticated, async (req: any, res) => {
+  app.post('/api/astrologer/pro/readings/:id/generate', isAstrologerAuthenticated, ...proAiGuards, async (req: any, res) => {
     let tradition: Tradition;
     try {
       tradition = TRADITION_ENUM.parse(req.body?.tradition);
     } catch {
       return res.status(400).json({ message: 'tradition must be one of parashar | kn_rao | kamakhya' });
     }
+    let creditTaken = false;
     try {
       const reading = await storage.getJyotishReadingById(req.params.id);
       if (!reading) return res.status(404).json({ message: 'Reading not found' });
@@ -2998,6 +3031,7 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
           limit: credit.limit,
         });
       }
+      creditTaken = true;
 
       res.setHeader('Content-Type', 'text/plain; charset=utf-8');
       res.setHeader('Cache-Control', 'no-cache');
@@ -3013,6 +3047,7 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
       await storage.updateJyotishReading(reading.id, { [READING_COLUMN[tradition]]: full, status: 'ready' } as any);
       res.end();
     } catch (err: any) {
+      if (creditTaken) await storage.refundProAiCredit(req.session.astrologerId).catch(() => {});
       if (!res.headersSent && (err instanceof BirthInputError || err instanceof CalculationError)) return res.status(400).json({ message: err.message });
       console.error('Pro generate reading error:', err);
       if (!res.headersSent && (err instanceof BirthInputError || err instanceof CalculationError)) return res.status(400).json({ message: err.message });
@@ -3024,7 +3059,7 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
     }
   });
 
-  app.post('/api/astrologer/pro/session-queries', isAstrologerAuthenticated, async (req: any, res) => {
+  app.post('/api/astrologer/pro/session-queries', isAstrologerAuthenticated, ...proAiGuards, async (req: any, res) => {
     const { profileId, readingId, question, language } = req.body || {};
     let tradition: Tradition;
     try {
@@ -3035,6 +3070,8 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
     if (!profileId || typeof question !== 'string' || !question.trim()) {
       return res.status(400).json({ message: 'profileId and question are required' });
     }
+    if (question.length > 2000) return res.status(400).json({ message: 'The question is too long (2000 characters max)' });
+    let creditTaken = false;
     try {
       const profile = await requireProProfile(req, profileId);
       if (!profile) return res.status(404).json({ message: 'Profile not found' });
@@ -3062,6 +3099,7 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
           limit: credit.limit,
         });
       }
+      creditTaken = true;
 
       res.setHeader('Content-Type', 'text/plain; charset=utf-8');
       res.setHeader('Cache-Control', 'no-cache');
@@ -3078,6 +3116,7 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
       await storage.createJyotishSessionQuery({ profileId, readingId: usedReadingId, tradition, question, answer });
       res.end();
     } catch (err: any) {
+      if (creditTaken) await storage.refundProAiCredit(req.session.astrologerId).catch(() => {});
       console.error('Pro session query error:', err);
       if (!res.headersSent && (err instanceof BirthInputError || err instanceof CalculationError)) return res.status(400).json({ message: err.message });
       if (!res.headersSent) {

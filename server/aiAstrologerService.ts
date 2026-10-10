@@ -11,7 +11,8 @@
  * Falls back gracefully when OPENAI_API_KEY is not set.
  */
 
-import OpenAI from "openai";
+import type OpenAI from "openai";
+import { createOpenAI } from "./ai/metering";
 import type { Kundli } from "@shared/schema";
 import { transitsForChart, transitSummary } from "./astroEngine/index.js";
 import { isCurrentCanonicalChart } from "@shared/v3/canonical";
@@ -32,7 +33,7 @@ function getClient(): OpenAI {
     if (!process.env.OPENAI_API_KEY) {
       throw new Error("OPENAI_API_KEY must be set for AI features");
     }
-    _client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+    _client = createOpenAI(process.env.OPENAI_API_KEY);
   }
   return _client;
 }
@@ -241,6 +242,7 @@ Birth chart:
 ${chartSummary(kundli)}${correction ? `\n\n${correction}` : ""}`;
     const response = await client.chat.completions.create({
       model: "gpt-4o-mini",
+      max_tokens: 2500,
       messages: [{ role: "user", content: prompt }],
       response_format: { type: "json_object" },
     });
@@ -757,6 +759,7 @@ Return ONLY a valid JSON object with these keys:
 
   const response = await client.chat.completions.create({
     model: "gpt-4o-mini",
+    max_tokens: 600,
     messages: [{ role: "user", content: prompt }],
     response_format: { type: "json_object" },
   });
@@ -799,6 +802,7 @@ Keep it under 120 words. No bullet points. Write naturally, like a message from 
 
   const response = await client.chat.completions.create({
     model: "gpt-4o-mini",
+    max_tokens: 300,
     messages: [{ role: "user", content: prompt }],
   });
 
@@ -841,6 +845,7 @@ Return ONLY a valid JSON object with the array under the key "matches":
 
   const response = await client.chat.completions.create({
     model: "gpt-4o-mini",
+    max_tokens: 600,
     messages: [{ role: "user", content: prompt }],
     response_format: { type: "json_object" },
   });
