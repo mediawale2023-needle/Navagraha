@@ -536,6 +536,61 @@ CREATE TABLE IF NOT EXISTS jyotish_session_queries (
   created_at timestamp DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS idx_jyotish_queries_profile ON jyotish_session_queries (profile_id, created_at);
+
+-- Release A: recharge breakdown verified at settlement, coupon redemption state, Ask metering,
+-- entitlements and shared AI usage. Additive only; see docs/RELEASE_A.md for rollback.
+ALTER TABLE transactions ADD COLUMN IF NOT EXISTS gateway_amount_paise integer;
+ALTER TABLE transactions ADD COLUMN IF NOT EXISTS gateway_currency varchar;
+ALTER TABLE transactions ADD COLUMN IF NOT EXISTS pack_bonus decimal(10, 2);
+ALTER TABLE transactions ADD COLUMN IF NOT EXISTS coupon_bonus decimal(10, 2);
+ALTER TABLE transactions ADD COLUMN IF NOT EXISTS review_reason text;
+ALTER TABLE coupon_redemptions ADD COLUMN IF NOT EXISTS status varchar;
+
+CREATE TABLE IF NOT EXISTS ask_usage (
+  id varchar PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id varchar NOT NULL REFERENCES users(id),
+  chart_key varchar NOT NULL,
+  session_id varchar NOT NULL,
+  kind varchar NOT NULL,
+  parent_id varchar,
+  entitlement varchar NOT NULL,
+  entitlement_id varchar,
+  follow_ups_allowed integer NOT NULL DEFAULT 0,
+  status varchar NOT NULL DEFAULT 'reserved',
+  idempotency_key varchar NOT NULL,
+  reply_message_id varchar,
+  created_at timestamp DEFAULT now(),
+  settled_at timestamp
+);
+CREATE UNIQUE INDEX IF NOT EXISTS ask_usage_idempotency_uq ON ask_usage (user_id, idempotency_key);
+CREATE INDEX IF NOT EXISTS ask_usage_thread_idx ON ask_usage (user_id, session_id, chart_key);
+
+CREATE TABLE IF NOT EXISTS entitlements (
+  id varchar PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id varchar NOT NULL REFERENCES users(id),
+  kind varchar NOT NULL,
+  quantity integer NOT NULL CHECK (quantity >= 0),
+  used integer NOT NULL DEFAULT 0,
+  follow_ups_each integer NOT NULL DEFAULT 0,
+  source varchar NOT NULL,
+  source_ref varchar,
+  expires_at timestamp,
+  created_at timestamp DEFAULT now(),
+  CONSTRAINT entitlements_used_within_quantity CHECK (used >= 0 AND used <= quantity)
+);
+CREATE INDEX IF NOT EXISTS entitlements_user_kind_idx ON entitlements (user_id, kind);
+CREATE UNIQUE INDEX IF NOT EXISTS entitlements_source_ref_uq ON entitlements (source_ref) WHERE source_ref IS NOT NULL;
+
+CREATE TABLE IF NOT EXISTS ai_usage_daily (
+  subject varchar NOT NULL,
+  day varchar NOT NULL,
+  feature varchar NOT NULL,
+  calls integer NOT NULL DEFAULT 0,
+  input_tokens integer NOT NULL DEFAULT 0,
+  output_tokens integer NOT NULL DEFAULT 0,
+  cost_micro_usd integer NOT NULL DEFAULT 0,
+  PRIMARY KEY (subject, day, feature)
+);
 `;
 
 const SEED_STORE_SQL = `
@@ -800,6 +855,12 @@ DO $$ BEGIN
     ON transactions (gateway_payment_id) WHERE gateway_payment_id IS NOT NULL;
 EXCEPTION WHEN unique_violation THEN
   RAISE WARNING 'transactions_gateway_payment_id_uq skipped: duplicate gateway_payment_id rows exist (SELECT gateway_payment_id, count(*) FROM transactions WHERE gateway_payment_id IS NOT NULL GROUP BY 1 HAVING count(*) > 1)';
+END $$;
+DO $$ BEGIN
+  CREATE UNIQUE INDEX IF NOT EXISTS coupon_redemptions_transaction_uq
+    ON coupon_redemptions (transaction_id) WHERE transaction_id IS NOT NULL;
+EXCEPTION WHEN unique_violation THEN
+  RAISE WARNING 'coupon_redemptions_transaction_uq skipped: a transaction has more than one coupon redemption (SELECT transaction_id, count(*) FROM coupon_redemptions WHERE transaction_id IS NOT NULL GROUP BY 1 HAVING count(*) > 1)';
 END $$;
 DO $$ BEGIN
   CREATE UNIQUE INDEX IF NOT EXISTS transactions_completed_recharge_order_uq

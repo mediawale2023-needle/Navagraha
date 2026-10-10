@@ -1,20 +1,36 @@
-import { storage } from "./storage";
+import { storage, type RechargeSettlement } from "./storage";
 import { sendPushToUser } from "./pushService";
 import { sendPaymentReceipt } from "./emailService";
-import { fetchOrderPayments, isRazorpayConfigured, REFEREE_REWARD, REFERRER_REWARD } from "./paymentService";
+import {
+  fetchOrderPayments, isRazorpayConfigured, REFEREE_REWARD, REFERRER_REWARD, REFERRAL_MIN_RECHARGE,
+  REFERRER_MONTHLY_REWARD_CAP, type GatewayPayment,
+} from "./paymentService";
+import { audit } from "./audit";
 import type { Transaction } from "@shared/schema";
 
-type Settled = { transaction: Transaction; balance: string };
+type Settled = Extract<RechargeSettlement, { kind: "settled" }>;
 
 /**
  * Side effects of a recharge that has just been credited. Called only by whoever won the
  * settlement (verify, webhook or reconciler), so each runs once per recharge.
  * Returns the payer's balance after any referral bonus.
  */
-async function afterRechargeSettled({ transaction, balance }: Settled, paymentId: string): Promise<number> {
+async function afterRechargeSettled(settled: Settled, paymentId: string): Promise<number> {
+  const { transaction, balance, paidRupees } = settled;
   const userId = transaction.userId;
   const credited = parseFloat(transaction.amount);
   let runningBalance = parseFloat(balance);
+
+  audit("payment.settled", {
+    userId, transactionId: transaction.id, orderId: transaction.gatewayOrderId, paymentId,
+    paidPaise: transaction.gatewayAmountPaise, currency: transaction.gatewayCurrency,
+  });
+  audit("wallet.credit", {
+    userId, transactionId: transaction.id, reason: "recharge", amount: credited,
+    packBonus: Number(transaction.packBonus ?? 0), couponBonus: Number(transaction.couponBonus ?? 0),
+  });
+  if (settled.coupon === "applied") audit("promo.coupon_applied", { userId, transactionId: transaction.id, code: transaction.couponCode, bonus: Number(transaction.couponBonus ?? 0) });
+  if (settled.coupon === "void") audit("promo.coupon_void", { userId, transactionId: transaction.id, code: transaction.couponCode, reason: settled.couponVoidReason });
 
   await storage.createNotification({
     userId, type: 'payment', title: 'Wallet Recharged', body: `₹${credited} added to your wallet successfully.`,
@@ -23,25 +39,26 @@ async function afterRechargeSettled({ transaction, balance }: Settled, paymentId
     title: 'Wallet Recharged', body: `₹${credited} added to your wallet successfully.`, link: '/wallet', data: { type: 'payment' },
   });
 
-  if (transaction.couponCode) {
-    const coupon = await storage.getCouponByCode(transaction.couponCode);
-    if (coupon) await storage.incrementCouponUsage(coupon.id);
-  }
-
-  // Referral reward on the invitee's first completed recharge, paid at most once.
+  // Referral reward on the invitee's first qualifying recharge, paid at most once.
   try {
     const referral = await storage.getReferralByReferee(userId);
-    if (referral?.status === 'pending') {
-      const refereeBalance = await storage.rewardReferral(referral, REFERRER_REWARD, REFEREE_REWARD);
-      if (refereeBalance !== null) {
-        runningBalance = parseFloat(refereeBalance);
+    if (referral?.status === 'pending' && paidRupees >= REFERRAL_MIN_RECHARGE) {
+      const reward = await storage.rewardReferral(referral, REFERRER_REWARD, REFEREE_REWARD, REFERRER_MONTHLY_REWARD_CAP);
+      if (reward) {
+        runningBalance = parseFloat(reward.refereeBalance);
+        audit("promo.referral_rewarded", {
+          userId, referralId: referral.id, refereeReward: REFEREE_REWARD, referrerReward: reward.referrerPaid ? REFERRER_REWARD : 0,
+          referrerCapped: !reward.referrerPaid,
+        });
         await storage.createNotification({
           userId, type: 'payment', title: 'Referral Bonus', body: `You received ₹${REFEREE_REWARD} referral bonus in your wallet.`,
         });
-        await storage.createNotification({
-          userId: referral.referrerId, type: 'payment', title: 'Referral Reward',
-          body: `Your friend recharged! ₹${REFERRER_REWARD} has been added to your wallet.`,
-        });
+        if (reward.referrerPaid) {
+          await storage.createNotification({
+            userId: referral.referrerId, type: 'payment', title: 'Referral Reward',
+            body: `Your friend recharged! ₹${REFERRER_REWARD} has been added to your wallet.`,
+          });
+        }
       }
     }
   } catch (refErr) {
@@ -57,18 +74,38 @@ async function afterRechargeSettled({ transaction, balance }: Settled, paymentId
   return runningBalance;
 }
 
+export type PaymentOutcome =
+  | { kind: "settled"; transaction: Transaction; balance: number }
+  | { kind: "mismatch"; transaction: Transaction; reason: string }
+  | { kind: "not_captured"; status: string }
+  | { kind: "none" };
+
 /**
- * Credits a captured Razorpay payment for its order, once. Null when the order has no
- * pending recharge (already settled by another path, or unknown). `userId` restricts the
- * settlement to that user's own order.
+ * Credits a Razorpay payment, as reported by Razorpay, to its pending recharge, once.
+ * `userId` restricts the settlement to that user's own order. A payment that is not yet
+ * captured credits nothing (the webhook or the reconciler settles it once captured).
  */
 export async function settleRazorpayPayment(
-  orderId: string, paymentId: string, signature?: string, userId?: string,
-): Promise<{ transaction: Transaction; balance: number } | null> {
-  const settled = await storage.settleRechargeOrder(orderId, paymentId, signature, userId);
-  if (!settled) return null;
-  return { transaction: settled.transaction, balance: await afterRechargeSettled(settled, paymentId) };
+  payment: GatewayPayment, opts: { signature?: string; userId?: string } = {},
+): Promise<PaymentOutcome> {
+  if (payment.status !== "captured") {
+    audit("payment.not_captured", { userId: opts.userId, orderId: payment.orderId, paymentId: payment.id, status: payment.status });
+    return { kind: "not_captured", status: payment.status };
+  }
+  const result = await storage.settleRechargeOrder(payment, opts);
+  if (result.kind === "none") return result;
+  if (result.kind === "mismatch") {
+    audit("payment.mismatch", {
+      userId: result.transaction.userId, transactionId: result.transaction.id, orderId: payment.orderId, paymentId: payment.id,
+      paidPaise: payment.amountPaise, currency: payment.currency, reason: result.reason,
+    });
+    console.error(`[payment] recharge ${result.transaction.id} held for review: ${result.reason}`);
+    return result;
+  }
+  return { kind: "settled", transaction: result.transaction, balance: await afterRechargeSettled(result, payment.id) };
 }
+
+type ReconcileAction = 'settle' | 'fail' | 'error';
 
 export const RECONCILE_AFTER_MS = 10 * 60 * 1000;
 export const ABANDON_AFTER_MS = 24 * 60 * 60 * 1000;
@@ -84,16 +121,16 @@ export async function reconcilePendingRecharges(
   now: Date = new Date(),
   fetchPayments: typeof fetchOrderPayments = fetchOrderPayments,
   opts: { createdAfter?: Date; dryRun?: boolean } = {},
-): Promise<{ checked: number; settled: number; failed: number; errors: number; dryRun: boolean; actions: Array<{ transactionId: string; orderId: string; userId: string; amount: string; action: 'settle' | 'fail' | 'error' }> }> {
-  const result = { checked: 0, settled: 0, failed: 0, errors: 0, dryRun: Boolean(opts.dryRun), actions: [] as Array<{ transactionId: string; orderId: string; userId: string; amount: string; action: 'settle' | 'fail' | 'error' }> };
+): Promise<{ checked: number; settled: number; failed: number; review: number; errors: number; dryRun: boolean; actions: Array<{ transactionId: string; orderId: string; userId: string; amount: string; action: ReconcileAction }> }> {
+  const result = { checked: 0, settled: 0, failed: 0, review: 0, errors: 0, dryRun: Boolean(opts.dryRun), actions: [] as Array<{ transactionId: string; orderId: string; userId: string; amount: string; action: ReconcileAction }> };
   const stale = await storage.getStalePendingRecharges(new Date(now.getTime() - RECONCILE_AFTER_MS), opts.createdAfter);
   for (const txn of stale) {
     if (!txn.gatewayOrderId) continue;
     result.checked++;
     const abandoned = Boolean(txn.createdAt) && now.getTime() - new Date(txn.createdAt!).getTime() > ABANDON_AFTER_MS;
-    const note = (action: 'settle' | 'fail' | 'error') =>
+    const note = (action: ReconcileAction) =>
       result.actions.push({ transactionId: txn.id, orderId: txn.gatewayOrderId!, userId: txn.userId, amount: txn.amount, action });
-    let payments: Array<{ id: string; status: string }>;
+    let payments: GatewayPayment[];
     try {
       payments = await fetchPayments(txn.gatewayOrderId);
     } catch (err) {
@@ -105,11 +142,15 @@ export async function reconcilePendingRecharges(
       if (abandoned && !opts.dryRun && await storage.failPendingRecharge(txn.id)) result.failed++;
       continue;
     }
-    const captured = payments.find((p) => p.status === 'captured');
+    const captured = payments.find((p) => p.status === 'captured' && p.orderId === txn.gatewayOrderId);
     if (captured) {
       note('settle');
       if (opts.dryRun) result.settled++;
-      else if (await settleRazorpayPayment(txn.gatewayOrderId, captured.id)) result.settled++;
+      else {
+        const outcome = await settleRazorpayPayment(captured);
+        if (outcome.kind === 'settled') result.settled++;
+        else if (outcome.kind === 'mismatch') result.review++;
+      }
     } else if (abandoned) {
       note('fail');
       if (opts.dryRun) result.failed++;
@@ -128,7 +169,7 @@ export function startRechargeReconciler(intervalMs = 15 * 60 * 1000): void {
   if (!isRazorpayConfigured()) return;
   const createdAfter = new Date(Date.now() - 60 * 60 * 1000);
   const run = () => reconcilePendingRecharges(new Date(), fetchOrderPayments, { createdAfter })
-    .then((r) => { if (r.settled || r.failed || r.errors) console.log('[reconcile] pending recharges', { ...r, actions: r.actions.length }); })
+    .then((r) => { if (r.settled || r.failed || r.review || r.errors) console.log('[reconcile] pending recharges', { ...r, actions: r.actions.length }); })
     .catch((err) => console.error('[reconcile] run failed:', err));
   setInterval(run, intervalMs).unref();
 }

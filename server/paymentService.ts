@@ -33,7 +33,7 @@ function getRazorpayInstance(): Razorpay {
 }
 
 export interface RazorpayOrderOptions {
-  amount: number; // in paise (₹1 = 100 paise)
+  amountPaise: number;
   currency?: string;
   receipt?: string;
   notes?: Record<string, string>;
@@ -45,9 +45,12 @@ export interface RazorpayOrderOptions {
  * modal if enabled in your Razorpay Dashboard.
  */
 export async function createRazorpayOrder(opts: RazorpayOrderOptions) {
+  if (!Number.isSafeInteger(opts.amountPaise) || opts.amountPaise <= 0) {
+    throw new Error(`Invalid order amount: ${opts.amountPaise}`);
+  }
   const rz = getRazorpayInstance();
   const order = await rz.orders.create({
-    amount: Math.round(opts.amount * 100), // convert ₹ to paise
+    amount: opts.amountPaise,
     currency: opts.currency || "INR",
     receipt: opts.receipt || `rcpt_${Date.now()}`,
     notes: opts.notes || {},
@@ -55,11 +58,33 @@ export async function createRazorpayOrder(opts: RazorpayOrderOptions) {
   return order;
 }
 
+/** A payment as Razorpay reports it. Settlement trusts only these fields, never the browser. */
+export interface GatewayPayment {
+  id: string;
+  orderId: string;
+  amountPaise: number;
+  currency: string;
+  status: string;
+}
+
+export function toGatewayPayment(p: any): GatewayPayment | null {
+  if (!p || typeof p.id !== "string" || typeof p.order_id !== "string") return null;
+  const amountPaise = Number(p.amount);
+  if (!Number.isSafeInteger(amountPaise)) return null;
+  return { id: p.id, orderId: p.order_id, amountPaise, currency: String(p.currency ?? ""), status: String(p.status ?? "") };
+}
+
 /** Payments made against a Razorpay order, for reconciling recharges whose confirmation never arrived. */
-export async function fetchOrderPayments(orderId: string): Promise<Array<{ id: string; status: string }>> {
+export async function fetchOrderPayments(orderId: string): Promise<GatewayPayment[]> {
   const rz = getRazorpayInstance();
   const res: any = await rz.orders.fetchPayments(orderId);
-  return (res?.items ?? []).map((p: any) => ({ id: String(p.id), status: String(p.status) }));
+  return (res?.items ?? []).map(toGatewayPayment).filter((p: GatewayPayment | null): p is GatewayPayment => p !== null);
+}
+
+/** One payment, fetched from Razorpay by id (the browser's verify call names it; we confirm it). */
+export async function fetchPayment(paymentId: string): Promise<GatewayPayment | null> {
+  const rz = getRazorpayInstance();
+  return toGatewayPayment(await rz.payments.fetch(paymentId));
 }
 
 export function isRazorpayConfigured(): boolean {
@@ -77,12 +102,19 @@ export function verifyRazorpaySignature(
 ): boolean {
   const keySecret = process.env.RAZORPAY_KEY_SECRET;
   if (!keySecret) return false;
+  if (typeof orderId !== "string" || typeof paymentId !== "string") return false;
   const body = `${orderId}|${paymentId}`;
   const expected = crypto
     .createHmac("sha256", keySecret)
     .update(body)
     .digest("hex");
-  return expected === signature;
+  return safeEqualHex(expected, signature);
+}
+
+/** Constant-time comparison of a computed hex digest with a received one. */
+export function safeEqualHex(expected: string, received: unknown): boolean {
+  if (typeof received !== "string" || received.length !== expected.length) return false;
+  return crypto.timingSafeEqual(Buffer.from(expected, "utf8"), Buffer.from(received, "utf8"));
 }
 
 /**
@@ -98,7 +130,7 @@ export function verifyRazorpayWebhookSignature(
     .createHmac("sha256", secret)
     .update(rawBody)
     .digest("hex");
-  return expected === signature;
+  return safeEqualHex(expected, signature);
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -185,7 +217,7 @@ export function verifySnapmintCallback(
   if (!apiKey) return false;
   const { checksum: _removed, ...rest } = params;
   const expected = generateSnapmintChecksum(rest, apiKey);
-  return expected === receivedChecksum;
+  return safeEqualHex(expected, receivedChecksum);
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -307,7 +339,7 @@ export function verifyPayUResponseHash(params: Record<string, string>): boolean 
   ].join("|");
 
   const expected = crypto.createHash("sha512").update(hashString).digest("hex");
-  return expected === params.hash;
+  return safeEqualHex(expected, params.hash);
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -322,6 +354,30 @@ export const RECHARGE_PACKS = [
   { id: "pack_2000", amount: 2000, bonus: 500, label: "₹2000 + ₹500 bonus", popular: false },
 ];
 
+export function packBonusFor(rupees: number): number {
+  return RECHARGE_PACKS.find((p) => p.amount === rupees)?.bonus ?? 0;
+}
+
+// Recharges are whole rupees within these bounds. The floor matches the wallet's custom-amount
+// minimum and stops ₹1 payments from qualifying for offers; the ceiling bounds a single payment.
+export const MIN_RECHARGE_RUPEES = 10;
+export const MAX_RECHARGE_RUPEES = 10000;
+
+export type RechargeAmount = { ok: true; rupees: number; paise: number } | { ok: false; message: string };
+
+/**
+ * Validates a recharge amount from a request body. Only a JSON number that is a whole number of
+ * rupees within the bounds is accepted: strings ("5" would concatenate into a larger credit),
+ * fractions, NaN, Infinity, zero and negatives are rejected.
+ */
+export function parseRechargeAmount(value: unknown): RechargeAmount {
+  if (typeof value !== "number" || !Number.isFinite(value)) return { ok: false, message: "Enter the recharge amount as a number." };
+  if (!Number.isInteger(value)) return { ok: false, message: "Recharge amounts are whole rupees." };
+  if (value < MIN_RECHARGE_RUPEES) return { ok: false, message: `The minimum recharge is ₹${MIN_RECHARGE_RUPEES}.` };
+  if (value > MAX_RECHARGE_RUPEES) return { ok: false, message: `The maximum recharge is ₹${MAX_RECHARGE_RUPEES}.` };
+  return { ok: true, rupees: value, paise: value * 100 };
+}
+
 // Platform takes 25% of each consultation
 export const PLATFORM_FEE_PERCENTAGE = 25;
 
@@ -333,6 +389,12 @@ export const PLATFORM_FEE_PERCENTAGE = 25;
 export const REFERRER_REWARD = 75;
 // Credited to the new user on their first recharge
 export const REFEREE_REWARD = 25;
+// A referral is rewarded on the invitee's first gateway recharge of at least this much, so a
+// throwaway account cannot earn the reward with a token payment.
+export const REFERRAL_MIN_RECHARGE = 100;
+// Referral rewards one inviter can earn in a rolling 30 days; beyond it the invitee is still
+// rewarded but the inviter is not (caps farming with self-made accounts).
+export const REFERRER_MONTHLY_REWARD_CAP = 20;
 // Number of free minutes on a user's very first chat consultation
 export const FREE_CHAT_MINUTES = 3;
 

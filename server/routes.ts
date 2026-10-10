@@ -57,12 +57,11 @@ import { selectChart } from "./birthDetails";
 import { computePanchang } from "./astroEngine/panchang";
 import {
   createRazorpayOrder,
+  fetchPayment,
+  toGatewayPayment,
+  parseRechargeAmount,
   verifyRazorpaySignature,
   verifyRazorpayWebhookSignature,
-  createSnapmintOrder,
-  verifySnapmintCallback,
-  createLazyPayOrder,
-  verifyPayUResponseHash,
   RECHARGE_PACKS,
   PLATFORM_FEE_PERCENTAGE,
   evaluateCoupon,
@@ -72,6 +71,7 @@ import {
 } from "./paymentService";
 import { generateAgoraToken, getChannelName } from "./agoraService";
 import { notifyUser, notifyAstrologer } from "./websocketService";
+import { audit } from "./audit";
 import { sendPushToUser, sendPushToAstrologer } from "./pushService";
 import {
   interpretKundli,
@@ -997,11 +997,13 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
   app.post('/api/coupons/validate', isAuthenticated, async (req: any, res) => {
     try {
       const userId = (req.user as any).id;
-      const { code, amount } = req.body;
-      const rechargeAmount = parseFloat(amount);
-      if (!code || !rechargeAmount || rechargeAmount <= 0) {
+      const { code } = req.body ?? {};
+      const amount = parseRechargeAmount(req.body?.amount);
+      if (typeof code !== 'string' || !code.trim() || code.length > 40) {
         return res.status(400).json({ valid: false, message: 'Enter a recharge amount and coupon code.' });
       }
+      if (!amount.ok) return res.status(400).json({ valid: false, message: amount.message });
+      const rechargeAmount = amount.rupees;
       const coupon = await storage.getCouponByCode(String(code).trim());
       if (!coupon) return res.status(404).json({ valid: false, message: 'Invalid coupon code.' });
 
@@ -1071,83 +1073,84 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
 
   // ─── Razorpay Payment ────────────────────────────────────
 
+  // Started-but-unpaid recharges one user may hold in 30 minutes.
+  const MAX_OPEN_RECHARGES = 5;
+
   app.post('/api/payment/razorpay/order', isAuthenticated, paymentLimiter, async (req: any, res) => {
     try {
       const userId = (req.user as any).id;
-      const { amount, packId, couponCode } = req.body;
-
-      if (!amount || amount < 1) return res.status(400).json({ message: "Invalid amount" });
-
-      // Find bonus if pack
-      const pack = RECHARGE_PACKS.find(p => p.id === packId);
-      if (packId && !pack) {
-        return res.status(400).json({ message: "Invalid recharge pack" });
+      const { packId, couponCode } = req.body ?? {};
+      const amount = parseRechargeAmount(req.body?.amount);
+      if (!amount.ok) return res.status(400).json({ message: amount.message, field: 'amount' });
+      if (packId !== undefined && packId !== null && typeof packId !== 'string') return res.status(400).json({ message: "Invalid recharge pack" });
+      if (couponCode !== undefined && couponCode !== null && (typeof couponCode !== 'string' || couponCode.length > 40)) {
+        return res.status(400).json({ message: "Invalid coupon code", field: 'couponCode' });
       }
-      if (pack && pack.amount !== amount) {
+
+      const pack = packId ? RECHARGE_PACKS.find(p => p.id === packId) : undefined;
+      if (packId && !pack) return res.status(400).json({ message: "Invalid recharge pack" });
+      if (pack && pack.amount !== amount.rupees) {
         return res.status(400).json({ message: "Recharge amount does not match selected pack" });
       }
       const bonus = pack?.bonus || 0;
 
-      // Apply coupon (if any) as additional wallet credit
-      let couponBonus = 0;
-      let appliedCouponCode: string | undefined;
-      let appliedCouponId: string | undefined;
+      if (await storage.countOpenRecharges(userId, new Date(Date.now() - 30 * 60 * 1000)) >= MAX_OPEN_RECHARGES) {
+        return res.status(429).json({ message: "You have several payments in progress. Finish or close them before starting another." });
+      }
+
+      // The coupon is checked here to quote it, and again at settlement, where it is applied
+      // only if still eligible (storage.settleRechargeOrder).
+      let coupon: { id: string; code: string; bonus: number } | undefined;
       if (couponCode) {
-        const coupon = await storage.getCouponByCode(String(couponCode).trim());
-        if (!coupon) return res.status(400).json({ message: "Invalid coupon code" });
+        const found = await storage.getCouponByCode(couponCode.trim());
+        if (!found) return res.status(400).json({ message: "Invalid coupon code", field: 'couponCode' });
         const isFirstRecharge = !(await storage.hasCompletedRecharge(userId));
-        const userRedemptionCount = await storage.getUserCouponRedemptionCount(userId, coupon.id);
-        const evalResult = evaluateCoupon(coupon, amount, { isFirstRecharge, userRedemptionCount });
-        if (!evalResult.ok) return res.status(400).json({ message: evalResult.message });
-        couponBonus = evalResult.bonus;
-        appliedCouponCode = coupon.code;
-        appliedCouponId = coupon.id;
+        const userRedemptionCount = await storage.getUserCouponRedemptionCount(userId, found.id);
+        const evalResult = evaluateCoupon(found, amount.rupees, { isFirstRecharge, userRedemptionCount });
+        if (!evalResult.ok) return res.status(400).json({ message: evalResult.message, field: 'couponCode' });
+        coupon = { id: found.id, code: found.code, bonus: evalResult.bonus };
       }
 
       const order = await createRazorpayOrder({
-        amount,
-        receipt: `wallet_${userId}_${Date.now()}`,
+        amountPaise: amount.paise,
+        receipt: `wallet_${Date.now()}`,
         notes: { userId, bonus: bonus.toString() },
       });
+      if (Number(order.amount) !== amount.paise || order.currency !== 'INR') {
+        console.error('[payment] Razorpay order does not match the request', { orderId: order.id });
+        return res.status(502).json({ message: "Failed to create payment order" });
+      }
 
-      const totalCredit = amount + bonus + couponBonus;
+      const totalCredit = amount.rupees + bonus + (coupon?.bonus ?? 0);
       const bonusLabel = [
         bonus > 0 ? `+₹${bonus} bonus` : '',
-        couponBonus > 0 ? `+₹${couponBonus} (${appliedCouponCode})` : '',
+        coupon ? `+₹${coupon.bonus} (${coupon.code})` : '',
       ].filter(Boolean).join(' ');
 
-      // Create pending transaction
-      const pendingTxn = await storage.createTransaction({
+      const pendingTxn = await storage.createPendingRecharge({
         userId,
-        amount: totalCredit.toString(),
-        type: 'recharge',
+        orderId: order.id,
+        amountPaise: amount.paise,
+        packBonus: bonus,
+        coupon,
+        quotedCredit: totalCredit,
         description: `Wallet recharge${bonusLabel ? ` (${bonusLabel})` : ''}`,
-        status: 'pending',
-        paymentMethod: 'razorpay',
-        gatewayOrderId: order.id,
-        couponCode: appliedCouponCode,
       });
-
-      // Stage the redemption (counts only once the transaction completes)
-      if (appliedCouponId && couponBonus > 0) {
-        await storage.recordCouponRedemption({
-          couponId: appliedCouponId,
-          userId,
-          transactionId: pendingTxn.id,
-          discountAmount: couponBonus.toString(),
-        });
-      }
+      audit("payment.order_created", {
+        userId, transactionId: pendingTxn.id, orderId: order.id, amountPaise: amount.paise, currency: 'INR',
+        packId: pack?.id, packBonus: bonus, couponCode: coupon?.code, couponBonus: coupon?.bonus ?? 0,
+      });
 
       res.json({
         orderId: order.id,
         amount: order.amount,
         currency: order.currency,
         keyId: process.env.RAZORPAY_KEY_ID,
-        couponBonus,
+        couponBonus: coupon?.bonus ?? 0,
         totalCredit,
       });
     } catch (error: any) {
-      console.error("Razorpay order error:", error);
+      console.error("Razorpay order error:", error?.message ?? error);
       if (error.message?.includes("must be set")) {
         return res.status(503).json({ message: "Payment gateway not configured. Contact support." });
       }
@@ -1155,16 +1158,28 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
     }
   });
 
+  // The browser reports a payment; it is credited only as Razorpay itself reports it
+  // (fetched by id): the signed order, captured, in INR, for exactly the order's amount.
   app.post('/api/payment/razorpay/verify', isAuthenticated, paymentLimiter, async (req: any, res) => {
     try {
       const userId = (req.user as any).id;
-      const { orderId, paymentId, signature } = req.body;
+      const { orderId, paymentId, signature } = req.body ?? {};
+      if (typeof orderId !== 'string' || typeof paymentId !== 'string' || typeof signature !== 'string') {
+        return res.status(400).json({ message: "Payment verification failed" });
+      }
+      if (!verifyRazorpaySignature(orderId, paymentId, signature)) return res.status(400).json({ message: "Payment verification failed" });
 
-      const valid = verifyRazorpaySignature(orderId, paymentId, signature);
-      if (!valid) return res.status(400).json({ message: "Payment verification failed" });
+      const payment = await fetchPayment(paymentId);
+      if (!payment || payment.orderId !== orderId) return res.status(400).json({ message: "Payment verification failed" });
 
-      const settled = await settleRazorpayPayment(orderId, paymentId, signature, userId);
-      if (settled) return res.json({ success: true, newBalance: settled.balance });
+      const outcome = await settleRazorpayPayment(payment, { signature, userId });
+      if (outcome.kind === 'settled') return res.json({ success: true, newBalance: outcome.balance });
+      if (outcome.kind === 'not_captured') {
+        return res.status(202).json({ success: false, pending: true, message: "Your payment is being confirmed. Your wallet will update shortly." });
+      }
+      if (outcome.kind === 'mismatch') {
+        return res.status(409).json({ code: 'payment_review', message: "This payment did not match its order and is held for review. Please contact support with your payment ID." });
+      }
 
       // Already credited by the webhook or the reconciler: answer success, credit nothing.
       const recharge = await storage.getRechargeByOrderId(orderId);
@@ -1173,139 +1188,62 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
         return res.json({ success: true, newBalance: parseFloat(wallet?.balance || "0"), alreadyCredited: true });
       }
       return res.status(404).json({ message: "Pending transaction not found" });
-    } catch (error) {
-      console.error("Razorpay verify error:", error);
+    } catch (error: any) {
+      console.error("Razorpay verify error:", error?.message ?? error);
       res.status(500).json({ message: "Payment verification failed" });
     }
   });
 
-  // Razorpay webhook (for server-side confirmation)
+  // Razorpay webhook (server-side confirmation). The signature covers the exact raw body,
+  // so the payment entity in it is Razorpay's own report of the payment.
   app.post('/api/payment/razorpay/webhook', async (req: any, res) => {
     try {
-      const signature = req.headers['x-razorpay-signature'] as string;
-      const rawBody = req.rawBody?.toString() || JSON.stringify(req.body);
-
-      if (!verifyRazorpayWebhookSignature(rawBody, signature)) {
+      const signature = req.headers['x-razorpay-signature'];
+      if (!Buffer.isBuffer(req.rawBody) || typeof signature !== 'string') {
+        return res.status(400).json({ message: "Invalid webhook signature" });
+      }
+      if (!verifyRazorpayWebhookSignature(req.rawBody.toString('utf8'), signature)) {
         return res.status(400).json({ message: "Invalid webhook signature" });
       }
 
       // The webhook credits on its own, so a payer who closes the tab before the
-      // browser's verify call still gets the money; settlement is idempotent.
+      // browser's verify call still gets the money; settlement is idempotent, and a
+      // replayed or out-of-order event finds nothing left to settle.
       const event = req.body;
-      if (event.event === 'payment.captured') {
-        const payment = event.payload?.payment?.entity;
-        if (payment?.order_id && payment?.id) {
-          const settled = await settleRazorpayPayment(String(payment.order_id), String(payment.id));
-          if (settled) {
-            notifyUser(settled.transaction.userId, { type: 'payment_confirmed', paymentId: payment.id, newBalance: settled.balance });
+      if (event?.event === 'payment.captured') {
+        const payment = toGatewayPayment(event.payload?.payment?.entity);
+        if (payment) {
+          const outcome = await settleRazorpayPayment(payment);
+          if (outcome.kind === 'settled') {
+            notifyUser(outcome.transaction.userId, { type: 'payment_confirmed', paymentId: payment.id, newBalance: outcome.balance });
           }
         }
+      } else if (typeof event?.event === 'string' && event.event.startsWith('refund.')) {
+        // Refunds are never issued by the app (failed reports refund to the wallet); one made
+        // from the Razorpay dashboard is recorded for an admin to reconcile the wallet.
+        const refund = event.payload?.refund?.entity;
+        audit("payment.refund_observed", { event: event.event, paymentId: refund?.payment_id, refundId: refund?.id, amountPaise: Number(refund?.amount) || null });
       }
       res.json({ status: 'ok' });
-    } catch { res.status(500).json({ message: "Webhook error" }); }
-  });
-
-  // ─── Snapmint Payment ─────────────────────────────────────
-
-  app.post('/api/payment/snapmint/order', isAuthenticated, paymentLimiter, async (req: any, res) => {
-    try {
-      const userId = (req.user as any).id;
-      const { amount } = req.body;
-      const user = await storage.getUser(userId);
-
-      const orderId = `snap_${userId}_${Date.now()}`;
-      const order = await createSnapmintOrder({
-        amount,
-        orderId,
-        customerName: `${user?.firstName || ''} ${user?.lastName || ''}`.trim() || 'User',
-        customerEmail: user?.email || '',
-        customerPhone: user?.phoneNumber || '',
-        returnUrl: `${process.env.APP_URL || 'http://localhost:5000'}/wallet?snapmint=callback`,
-      });
-
-      res.json(order);
-    } catch (error: any) {
-      if (error.message?.includes("not configured")) {
-        return res.status(503).json({ message: "Snapmint not configured. Use Razorpay or enable Snapmint in Razorpay Dashboard." });
-      }
-      res.status(500).json({ message: "Failed to create Snapmint order" });
+    } catch (err: any) {
+      console.error('Razorpay webhook error:', err?.message ?? err);
+      res.status(500).json({ message: "Webhook error" });
     }
   });
 
-  app.post('/api/payment/snapmint/callback', async (req: any, res) => {
-    try {
-      const { checksum, order_id, status, amount, user_id } = req.body;
-      const params = { ...req.body };
-      delete params.checksum;
-
-      if (!verifySnapmintCallback(params, checksum)) {
-        return res.status(400).json({ message: "Invalid callback signature" });
-      }
-
-      const credit = parseFloat(amount);
-      if (status === 'success' && user_id && order_id && credit > 0) {
-        const settled = await storage.settleExternalRecharge({
-          userId: String(user_id), orderId: String(order_id), amount: credit,
-          description: 'Snapmint EMI recharge', paymentMethod: 'snapmint',
-        });
-        if (settled) notifyUser(String(user_id), { type: 'payment_confirmed', newBalance: parseFloat(settled.balance) });
-      }
-      res.json({ status: 'ok' });
-    } catch { res.status(500).json({ message: "Callback error" }); }
-  });
-
-  // ─── LazyPay / PayU ───────────────────────────────────────
-
-  app.post('/api/payment/lazypay/order', isAuthenticated, paymentLimiter, async (req: any, res) => {
-    try {
-      const userId = (req.user as any).id;
-      const { amount } = req.body;
-      const user = await storage.getUser(userId);
-
-      const txnId = `lp_${userId}_${Date.now()}`;
-      const params = createLazyPayOrder({
-        amount,
-        txnId,
-        productInfo: 'Navagraha Wallet Recharge',
-        firstName: user?.firstName || 'User',
-        email: user?.email || '',
-        phone: user?.phoneNumber || '',
-        returnUrl: `${process.env.APP_URL || 'http://localhost:5000'}/wallet?lazypay=callback`,
-      });
-
-      res.json(params);
-    } catch (error: any) {
-      if (error.message?.includes("not configured")) {
-        return res.status(503).json({
-          message: "LazyPay/PayU not configured yet. Apply for a PayU merchant account at https://onboarding.payu.in. LazyPay is also available within Razorpay Checkout once enabled in your Razorpay Dashboard."
-        });
-      }
-      res.status(500).json({ message: "Failed to create LazyPay order" });
-    }
-  });
-
-  app.post('/api/payment/lazypay/callback', async (req: any, res) => {
-    try {
-      if (!verifyPayUResponseHash(req.body)) {
-        return res.status(400).json({ message: "Invalid callback signature" });
-      }
-      const { status, txnid, amount } = req.body;
-      if (status === 'success') {
-        // Extract userId from txnId (format: lp_{userId}_{timestamp})
-        const userId = String(txnid || '').split('_')[1];
-        const credit = parseFloat(amount);
-        if (userId && credit > 0) {
-          const settled = await storage.settleExternalRecharge({
-            userId, orderId: String(txnid), amount: credit,
-            description: 'LazyPay BNPL recharge', paymentMethod: 'lazypay',
-          });
-          if (settled) notifyUser(userId, { type: 'payment_confirmed', newBalance: parseFloat(settled.balance) });
-        }
-      }
-      // PayU requires redirect
-      res.redirect(`${process.env.APP_URL || 'http://localhost:5000'}/wallet`);
-    } catch { res.status(500).json({ message: "Callback error" }); }
-  });
+  // ─── Snapmint / LazyPay direct ────────────────────────────
+  // Disabled: these flows have no server-created pending order, take the amount and the
+  // user from the gateway callback, and cannot confirm the payment with the gateway, so a
+  // credit could not be verified to Release A's standard. Snapmint and LazyPay remain
+  // available inside Razorpay Checkout, which settles through the verified path above.
+  const directBnplDisabled = (req: any, res: any) => {
+    audit("payment.mismatch", { reason: 'direct BNPL route disabled', path: req.path });
+    res.status(503).json({ code: 'payment_method_unavailable', message: "This payment method is not available. Please pay with Razorpay (UPI, cards, EMI and pay-later options are available there)." });
+  };
+  app.post('/api/payment/snapmint/order', isAuthenticated, paymentLimiter, directBnplDisabled);
+  app.post('/api/payment/snapmint/callback', directBnplDisabled);
+  app.post('/api/payment/lazypay/order', isAuthenticated, paymentLimiter, directBnplDisabled);
+  app.post('/api/payment/lazypay/callback', directBnplDisabled);
 
   // ─── Transactions ─────────────────────────────────────────
   app.get('/api/transactions', isAuthenticated, async (req: any, res) => {

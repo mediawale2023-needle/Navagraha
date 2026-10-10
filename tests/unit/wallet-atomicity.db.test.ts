@@ -17,6 +17,10 @@ describe.skipIf(!url)('wallet money paths under concurrency (Postgres)', () => {
     await pool.query('INSERT INTO wallets (user_id, balance) VALUES ($1, $2)', [id, balance]);
     return id;
   };
+  // A captured INR payment for a legacy pending row (no recorded paise): credited the payment,
+  // capped at the row's amount. Payment ids are unique per run so the suite can be re-run.
+  const captured = (orderId: string, rupees: number, prefix = 'pay') =>
+    ({ id: `${prefix}_${crypto.randomUUID()}`, orderId, amountPaise: rupees * 100, currency: 'INR', status: 'captured' });
   const balanceOf = async (id: string) =>
     (await pool.query('SELECT balance FROM wallets WHERE user_id = $1', [id])).rows[0].balance as string;
 
@@ -65,10 +69,11 @@ describe.skipIf(!url)('wallet money paths under concurrency (Postgres)', () => {
       "INSERT INTO transactions (user_id, amount, type, description, status, payment_method, gateway_order_id) VALUES ($1, '575.00', 'recharge', 'Wallet recharge', 'pending', 'razorpay', $2)",
       [id, orderId],
     );
-    const results = await Promise.all(Array.from({ length: 6 }, (_, i) => storage.settleRechargeOrder(orderId, 'pay_1', i % 2 ? 'sig' : undefined)));
-    expect(results.filter(Boolean)).toHaveLength(1);
-    expect(await balanceOf(id)).toBe('575.00');
-    expect(await storage.settleRechargeOrder(orderId, 'pay_1')).toBeNull();
+    const payment = captured(orderId, 500);
+    const results = await Promise.all(Array.from({ length: 6 }, (_, i) => storage.settleRechargeOrder(payment, i % 2 ? { signature: 'sig' } : {})));
+    expect(results.filter((r) => r.kind === 'settled')).toHaveLength(1);
+    expect(await balanceOf(id)).toBe('575.00'); // ₹500 paid + the ₹75 pack bonus a ₹500 payment justifies
+    expect((await storage.settleRechargeOrder(payment)).kind).toBe('none');
   });
 
   it("settlement restricted to a user does not credit another user's order", async () => {
@@ -78,7 +83,7 @@ describe.skipIf(!url)('wallet money paths under concurrency (Postgres)', () => {
       "INSERT INTO transactions (user_id, amount, type, status, payment_method, gateway_order_id) VALUES ($1, '100.00', 'recharge', 'pending', 'razorpay', $2)",
       [owner, orderId],
     );
-    expect(await storage.settleRechargeOrder(orderId, 'pay_x', 'sig', 'someone-else')).toBeNull();
+    expect((await storage.settleRechargeOrder(captured(orderId, 100), { signature: 'sig', userId: 'someone-else' })).kind).toBe('none');
     expect(await balanceOf(owner)).toBe('0.00');
   });
 
@@ -98,7 +103,7 @@ describe.skipIf(!url)('wallet money paths under concurrency (Postgres)', () => {
     const { rows } = await pool.query("INSERT INTO referrals (referrer_id, referee_id, status) VALUES ($1, $2, 'pending') RETURNING id", [referrer, referee]);
     const referral = { id: rows[0].id, referrerId: referrer, refereeId: referee };
     const results = await Promise.all(Array.from({ length: 4 }, () => storage.rewardReferral(referral, 75, 25)));
-    expect(results.filter((r) => r !== null)).toEqual(['25.00']);
+    expect(results.filter((r) => r !== null)).toEqual([{ refereeBalance: '25.00', referrerPaid: true }]);
     expect(await balanceOf(referrer)).toBe('75.00');
     expect(await balanceOf(referee)).toBe('25.00');
   });
@@ -110,7 +115,7 @@ describe.skipIf(!url)('wallet money paths under concurrency (Postgres)', () => {
       "INSERT INTO transactions (user_id, amount, type, status, payment_method, gateway_order_id) VALUES ($1, '200.00', 'recharge', 'failed', 'razorpay', $2)",
       [id, orderId],
     );
-    expect(await storage.settleRechargeOrder(orderId, 'pay_late')).not.toBeNull();
+    expect((await storage.settleRechargeOrder(captured(orderId, 200, 'pay_late'))).kind).toBe('settled');
     expect(await balanceOf(id)).toBe('200.00');
   });
 
