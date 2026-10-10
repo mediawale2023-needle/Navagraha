@@ -238,7 +238,9 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
     try {
       const userId = (req.user as any).id;
       const user = await storage.getUser(userId);
-      res.json(user);
+      if (!user) return res.json(null);
+      const { passwordHash: _ph, ...safe } = user;
+      res.json(safe);
     } catch (error) {
       console.error("Error fetching user:", error);
       res.status(500).json({ message: "Failed to fetch user" });
@@ -250,7 +252,8 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
       const userId = (req.user as any).id;
       const { firstName, lastName, phoneNumber } = req.body;
       const user = await storage.updateUser(userId, { firstName, lastName, phoneNumber });
-      res.json(user);
+      const { passwordHash: _ph, ...safe } = user as any;
+      res.json(safe);
     } catch (error) {
       console.error("Error updating user:", error);
       res.status(500).json({ message: "Failed to update user" });

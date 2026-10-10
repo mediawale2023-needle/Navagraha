@@ -7,7 +7,7 @@ import { readFileSync } from 'node:fs';
 
 const mocks = vi.hoisted(() => ({
   storage: {
-    getUser: vi.fn(), getUserByEmail: vi.fn(), createUserWithPassword: vi.fn(), createWallet: vi.fn(),
+    getUser: vi.fn(), updateUser: vi.fn(), getUserByEmail: vi.fn(), createUserWithPassword: vi.fn(), createWallet: vi.fn(),
     getWallet: vi.fn(), updateWalletBalance: vi.fn(), createTransaction: vi.fn(),
     getAllAstrologers: vi.fn(), getAstrologerById: vi.fn(), getFollowerUserIds: vi.fn(),
   },
@@ -134,5 +134,25 @@ describe('4. public astrologer data', () => {
     expect(res.status).toBe(200);
     for (const key of PRIVATE_KEYS) expect(res.body).not.toHaveProperty(key);
     expect(res.body).toMatchObject({ id: 'a1', followerCount: 1, isFollowing: false });
+  });
+});
+
+describe('5. the signed-in user never receives their password hash', () => {
+  const row = { id: 'u1', email: 'me@audit.test', firstName: 'Me', passwordHash: '$2b$10$secret' };
+
+  it('GET /api/auth/user omits passwordHash', async () => {
+    mocks.storage.getUser.mockResolvedValue(row);
+    const res = await request(app).get('/api/auth/user').set('x-user', 'u1');
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ id: 'u1', email: 'me@audit.test' });
+    expect(res.body).not.toHaveProperty('passwordHash');
+  });
+
+  it('PUT /api/auth/user omits passwordHash', async () => {
+    mocks.storage.updateUser.mockResolvedValue({ ...row, firstName: 'New' });
+    const res = await request(app).put('/api/auth/user').set('x-user', 'u1').send({ firstName: 'New' });
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ firstName: 'New' });
+    expect(res.body).not.toHaveProperty('passwordHash');
   });
 });
