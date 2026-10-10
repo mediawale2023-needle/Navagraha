@@ -2397,7 +2397,7 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
         try {
           const fb = await storage.getPredictionFeedbacksByUser(user.id);
           verifiedEvents = fb
-            .filter((f: any) => f.wasAccurate)
+            .filter((f: any) => f.wasAccurate && f.predictionCategory)
             .map((f: any) => `${f.predictionCategory}${f.actualOccurrenceDate ? ` around ${new Date(f.actualOccurrenceDate).toISOString().slice(0, 7)}` : ''} (confirmed via ${f.dashaSystemUsed})`)
             .slice(0, 20);
           const stats = await storage.getPatternStatistics();
