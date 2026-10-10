@@ -17,6 +17,18 @@ describe.skipIf(!url)('recharge settlement integrity (Postgres)', () => {
     await pool.query('INSERT INTO users (id, email) VALUES ($1, $2)', [id, `${id}@pay.test`]);
     return id;
   };
+  // Rows written before the Release A guard existed (it only constrains new writes).
+  const insertPreGuardRow = async (text: string, values: unknown[]) => {
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      await client.query('SET LOCAL session_replication_role = replica');
+      await client.query(text, values);
+      await client.query('COMMIT');
+    } finally {
+      client.release();
+    }
+  };
   const balanceOf = async (id: string) =>
     (await pool.query('SELECT balance FROM wallets WHERE user_id = $1', [id])).rows[0]?.balance ?? '0';
   const payment = (orderId: string, paise: number, over: object = {}) =>
@@ -91,7 +103,7 @@ describe.skipIf(!url)('recharge settlement integrity (Postgres)', () => {
     const user = await newUser();
     const orderId = `order_${uid()}`;
     // Before Release A, amount "5" with no pack was stored as "500" (string concatenation) and charged ₹5.
-    await pool.query(
+    await insertPreGuardRow(
       "INSERT INTO transactions (user_id, amount, type, status, payment_method, gateway_order_id) VALUES ($1, '500.00', 'recharge', 'pending', 'razorpay', $2)",
       [user, orderId],
     );

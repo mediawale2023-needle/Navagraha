@@ -46,6 +46,7 @@ const settled = (over: object = {}, balance = '575.00') => ({ kind: 'settled', t
 
 beforeAll(async () => {
   app = express();
+  app.set('trust proxy', true); // lets each test present its own client IP to the rate limiters
   app.use(express.json({ verify: (req: any, _res, buf) => { req.rawBody = buf; } }));
   app.use((req, _res, next) => {
     const id = req.headers['x-user'];
@@ -245,7 +246,8 @@ describe('direct Snapmint and LazyPay flows are disabled', () => {
 });
 
 describe('creating a recharge order (critical: string amount)', () => {
-  const order = (body: object) => request(app).post('/api/payment/razorpay/order').set('x-user', 'payer').send(body);
+  let ip = 0;
+  const order = (body: object) => request(app).post('/api/payment/razorpay/order').set('x-user', 'payer').set('x-forwarded-for', `10.0.0.${++ip}`).send(body);
   beforeEach(() => {
     mocks.storage.countOpenRecharges.mockResolvedValue(0);
     mocks.storage.hasCompletedRecharge.mockResolvedValue(false);
@@ -277,6 +279,17 @@ describe('creating a recharge order (critical: string amount)', () => {
   it('a pack id with another amount is rejected', async () => {
     expect((await order({ amount: 100, packId: 'pack_2000' })).status).toBe(400);
     expect(mocks.createRazorpayOrder).not.toHaveBeenCalled();
+  });
+
+  it('with RECHARGES_PAUSED, no order is created (settlement of paid orders continues)', async () => {
+    vi.stubEnv('RECHARGES_PAUSED', 'true');
+    const res = await order({ amount: 500, packId: 'pack_500' });
+    expect(res.status).toBe(503);
+    expect(res.body.code).toBe('recharges_paused');
+    expect(mocks.createRazorpayOrder).not.toHaveBeenCalled();
+    mocks.storage.settleRechargeOrder.mockResolvedValue(settled());
+    const verify = await request(app).post('/api/payment/razorpay/verify').set('x-user', 'payer').send({ orderId: 'order_1', paymentId: 'pay_1', signature: sign('order_1', 'pay_1') });
+    expect(verify.body).toMatchObject({ success: true });
   });
 
   it('too many open recharges are refused before an order is created', async () => {

@@ -1090,6 +1090,9 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
   const MAX_OPEN_RECHARGES = 5;
 
   app.post('/api/payment/razorpay/order', isAuthenticated, paymentLimiter, async (req: any, res) => {
+    if (features.rechargesPaused()) {
+      return res.status(503).json({ code: 'recharges_paused', message: 'Recharges are paused for a few minutes for maintenance. Please try again shortly.' });
+    }
     try {
       const userId = (req.user as any).id;
       const { packId, couponCode } = req.body ?? {};
@@ -1745,7 +1748,7 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
     } catch { res.status(500).json({ message: 'Failed to fetch report types' }); }
   });
 
-  app.post('/api/reports/order', isAuthenticated, aiLimiter, async (req: any, res) => {
+  app.post('/api/reports/order', isAuthenticated, aiLimiter, aiBudget('admin'), async (req: any, res) => {
     try {
       const userId = (req.user as any).id;
       const { reportTypeId } = req.body;
@@ -2920,7 +2923,10 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
       res.status(500).json({ message: 'Failed to check your account' });
     }
   });
-  const proAiGuards = [proAiLimiter, aiBudget('astrologer')];
+  const proAiEnabled = (_req: any, res: any, next: any) => (features.proAi()
+    ? next()
+    : res.status(503).json({ code: 'pro_ai_disabled', message: 'AI readings in the Pro workspace are switched off for now. Your clients and charts are unaffected.' }));
+  const proAiGuards = [proAiEnabled, proAiLimiter, aiBudget('astrologer')];
 
   async function requireProProfile(req: any, profileId: string) {
     const profile = await storage.getJyotishProfileById(profileId);

@@ -133,11 +133,19 @@ store, Pooja and gift checkouts (paused with the marketplace).
 
 - Models are unchanged. The deep council stays off (`FEATURE_AI_COUNCIL`). The answer guard and evidence pipeline are unchanged.
 
+## AI access policy
+
+| Who | AI access | Spend control |
+|---|---|---|
+| Customers | Ask your Kundli, interpretation, daily card | Server-side metering, plus the per-call dollar budget ($0.50/day). Paid reports are paid for and not budgeted. |
+| Administrators | Free reports for testing (no wallet deduction), admin Jyotish reading | Report generation and admin Jyotish reading are logged and drawn from the admin testing budget ($5/day per admin, enforced per call), with at most 5 free reports a day. |
+| Astrologers | Pro workspace CRM and charts stay available | **Pro AI is off** (`FEATURE_PRO_AI`, default off) while the marketplace is paused, so it cannot spend. When it is turned on, it is limited to verified astrologers, 80 credits a month, the per-astrologer rate limit, and the $5/day astrologer budget. |
+
 ## Migrations
 
 All are additive and idempotent (`server/migrate.ts`, run on boot), and mirrored in `shared/schema.ts`:
 
-- `transactions`: `gateway_amount_paise`, `gateway_currency`, `pack_bonus`, `coupon_bonus`, `review_reason`.
+- `transactions`: `gateway_amount_paise`, `gateway_currency`, `pack_bonus`, `coupon_bonus`, `review_reason`, `settlement_verified_at`.
 - `coupon_redemptions.status`, plus the unique index `coupon_redemptions_transaction_uq`. The index is guarded: duplicates skip it with a warning instead of failing boot.
 - `users.email_verified_at`.
 - New tables:
@@ -145,16 +153,59 @@ All are additive and idempotent (`server/migrate.ts`, run on boot), and mirrored
   - `entitlements`, with `CHECK (used BETWEEN 0 AND quantity)` and unique `source_ref`;
   - `ai_usage_daily`, primary key `(subject, day, feature)`, bigint counters;
   - `ai_budget_daily`, primary key `(subject, day)`.
+- **The recharge guard** (trigger `release_a_recharge_guard` on `transactions`, installed on every boot). It enforces three rules in the database, for any code that writes recharges:
+  - a new Razorpay recharge order must record `gateway_amount_paise`;
+  - a Razorpay recharge becomes `completed` only with `settlement_verified_at`, which only verified settlement sets;
+  - direct Snapmint/LazyPay completed recharges are refused.
 
-No existing value is rewritten. Balances, transactions and orders are preserved.
+  Rows that already exist are untouched. Referral bonuses, debits, refunds and review rows are unaffected.
+
+No existing value is rewritten. Balances, transactions and orders are preserved. Older code booting against this schema runs its own migrations without error and leaves the guard in place (verified: `main` was booted against a migrated database).
+
+## Deployment procedure
+
+**The problem to prevent.** While Render swaps instances, the old build (`main`) still serves requests. On `main`:
+- order creation records string amounts (finding 1);
+- settlement credits without checking the payment;
+- the Snapmint/LazyPay callbacks credit what they are told.
+
+**How it is prevented.** The guard is installed by the new build's migrations, before that build serves any payment route. Payment routes answer 503 until migrations finish (`server/index.ts`). From that moment, the database refuses old-code recharge writes:
+- **Old order creation fails** (no `gateway_amount_paise`). The Razorpay order it made is never shown to the payer, so nobody pays.
+- **Old verify, webhook or reconciler settlement fails**, and its credit rolls back in the same transaction. The recharge stays `pending`:
+  - Razorpay retries the webhook (non-2xx responses are retried, with backoff, for up to 24 hours);
+  - the new build's reconciler settles it within 15 minutes, for rows created from an hour before it started;
+  - for older rows, the admin dry-run reconcile is used.
+- **Old direct BNPL settlement fails.**
+
+This was verified by running `main`'s own storage code against a migrated database: all three were refused, the wallet was unchanged, and the recharge stayed pending and was then settled by the new code (`tests/unit/deploy-guard.db.test.ts` keeps the SQL-level checks).
+
+**Steps (operator):**
+1. Run the historical audit below, read only, and keep its output.
+2. Optional, to keep the transition quiet: set `RECHARGES_PAUSED=true` in the new release's environment. New recharges get a 503 "paused" message. Verify, webhook and reconciler keep settling payments already made.
+3. Deploy the release (Render zero-downtime deploy). Wait for `GET /api/health` → `ready: true` on the new instance. That means migrations and the guard are in place.
+4. Check the guard is installed:
+   ```sql
+   SELECT tgname FROM pg_trigger WHERE tgname = 'release_a_recharge_guard';
+   ```
+   It must return one row.
+5. Check pending recharges settle: watch for `[audit] payment.settled` events. Run `POST /api/admin/payments/reconcile` (dry run) and confirm nothing is stuck.
+6. Remove `RECHARGES_PAUSED` (redeploy or restart).
+7. Confirm with one small **test-mode** payment, in staging, not production.
+
+**Database migration ordering.** Migrations run at boot, before payment routes are served. They are additive. The guard is created after its columns. Re-running is idempotent.
 
 ### Rollback
 
-Reverting the code is safe without touching the schema: the old code ignores the new columns and tables.
-- Recharges in `review` stay uncredited: old code claims only `pending`/`failed`.
-- `void` redemptions on completed recharges count against the old per-user check, which is conservative.
-
-Optional schema removal, after the code is reverted:
+- **A code rollback does not reopen the vulnerability.** After rolling back to `main`, the guard stays installed: `main`'s migrations neither know about it nor drop it. As a result:
+  - recharge creation and settlement **fail closed** (a payment error before anyone pays);
+  - every other feature works;
+  - pending payments wait in `pending` for a roll-forward, and Razorpay keeps retrying the webhook.
+- **Never drop the guard as part of a rollback.** Remove it only deliberately, after deploying code that is safe without it:
+  ```sql
+  DROP TRIGGER IF EXISTS release_a_recharge_guard ON transactions;
+  ```
+- Recharges in `review` stay uncredited. `void` redemptions count against the old per-user check, which is conservative.
+- The schema itself needs no rollback. Optional removal of the new tables and columns, after the code is reverted and only if needed:
 
 ```sql
 DROP TABLE IF EXISTS ai_usage_daily;
@@ -166,51 +217,115 @@ SELECT count(*) FROM entitlements;
 DROP TABLE IF EXISTS entitlements;
 DROP INDEX IF EXISTS coupon_redemptions_transaction_uq;
 ALTER TABLE coupon_redemptions DROP COLUMN IF EXISTS status;
+-- Keep settlement_verified_at and the guard (see above).
 ALTER TABLE transactions
   DROP COLUMN IF EXISTS gateway_amount_paise, DROP COLUMN IF EXISTS gateway_currency,
   DROP COLUMN IF EXISTS pack_bonus, DROP COLUMN IF EXISTS coupon_bonus, DROP COLUMN IF EXISTS review_reason;
 ```
 
+Note that dropping `gateway_amount_paise` while the guard exists makes recharge creation fail for any code. Leave the columns.
+
 ### Recovery
 
 - **Payments held for review:** `GET /api/admin/payments/review` (admin) lists them with the reason. Compare with the Razorpay dashboard and resolve there (refund) or by policy. No endpoint credits a wallet without a verified payment.
-- **Pending recharges** are reconciled every 15 minutes, as before. For older rows, use `POST /api/admin/payments/reconcile` (dry run unless `?apply=1`).
-- **Forensics for finding 1, before deploying (read only).** Find completed Razorpay recharges credited more than Razorpay captured.
-  - The tooling only reads:
-    - `scripts/forensics/recharge-forensics.sql` runs in a `READ ONLY` transaction that is rolled back, and uses only columns that exist before this migration;
-    - `scripts/forensics/recharge-forensics.ts` also sets the session read-only and makes no Razorpay API calls.
-  - Steps:
-    1. Export captured payments from the Razorpay dashboard (CSV columns: `id`, `amount`, `currency`, `status`, `amount_refunded`).
-    2. With a read-only database role, run:
-       ```
-       DATABASE_URL=<read-only role> npx tsx scripts/forensics/recharge-forensics.ts \
-         --payments razorpay-payments.csv --amount-unit rupees --out findings.csv
-       ```
-    3. Review `findings.csv`. Each row lists the credited amount, the captured amount, what the payment justified (captured + pack bonus + staged coupon), the excess, and flags: `over_credited`, `payment_not_in_export`, `not_inr`, `not_captured`, `refunded`.
-  - **No wallet balance is changed by this tooling.** Correcting any historical balance needs separate authorisation.
+- **Pending recharges** are reconciled every 15 minutes. For older rows, use `POST /api/admin/payments/reconcile` (dry run unless `?apply=1`).
 - **Stuck Ask reservations** are released by the sweeper (10 minutes).
+
+## Historical wallet audit (read only, before deploying)
+
+**Who runs it.** An authorised operator, with a **read-only** database role and a Razorpay dashboard export. This session had no production access, so it has **not** been run against production.
+
+**Guarantees.**
+- Both SQL files run in a `READ ONLY` transaction that is rolled back.
+- The comparison script also sets the session read-only, and calls no API.
+- They use only pre-migration columns. Both SQL files were verified on a database built by `main`'s migrations.
+- Nothing changes a wallet, transaction or account. Corrections need separate authorisation.
+
+1. **Read-only role** (a DBA runs this once; it grants reads only):
+   ```sql
+   CREATE ROLE navagraha_audit LOGIN PASSWORD '<set by the DBA>';
+   GRANT CONNECT ON DATABASE <db> TO navagraha_audit;
+   GRANT USAGE ON SCHEMA public TO navagraha_audit;
+   GRANT SELECT ON transactions, coupon_redemptions, coupons, referrals, wallets TO navagraha_audit;
+   ALTER ROLE navagraha_audit SET default_transaction_read_only = on;
+   ```
+2. **Consistency checks** (no Razorpay data needed):
+   ```
+   psql "$AUDIT_DATABASE_URL" -v ON_ERROR_STOP=1 -f scripts/forensics/wallet-consistency-checks.sql > checks.txt
+   ```
+   They report:
+   - duplicate credits per payment id and per order;
+   - string-amount candidates (`X00` / `X0<coupon>` credited amounts without a pack bonus);
+   - direct Snapmint/LazyPay credits;
+   - completed recharges with no payment id;
+   - coupon redemption mismatches and over-limit coupon use;
+   - referral rewards on a first recharge under ₹100;
+   - wallet-versus-ledger drift.
+3. **Reconciliation against Razorpay.** In the Razorpay dashboard: Transactions → Payments, the full date range, exported as CSV with `id`, `amount`, `currency`, `status`, `amount_refunded`. Then run:
+   ```
+   DATABASE_URL="$AUDIT_DATABASE_URL" npx tsx scripts/forensics/recharge-forensics.ts \
+     --payments razorpay-payments.csv --amount-unit rupees --out findings.csv
+   ```
+   `findings.csv` flags, per completed Razorpay recharge:
+   - `over_credited`: credit above captured + pack bonus + staged coupon;
+   - `string_amount_pattern`: the finding 1 signature;
+   - `under_credited`;
+   - `duplicate_payment_credit`;
+   - `not_inr`, `not_captured`, `refunded`;
+   - `payment_not_in_export`, `no_payment_id`.
+
+   A summary line gives the total over-credit.
+4. Bring `checks.txt` and `findings.csv` for review. Decide on corrections separately.
+
+## Razorpay staging verification (test mode)
+
+This needs, all in **test mode**:
+- a staging deployment of this branch with its own database (never production);
+- Razorpay **test** keys and a test webhook secret on that deployment;
+- a webhook from the Razorpay test dashboard to `https://<staging>/api/payment/razorpay/webhook` with event `payment.captured`, plus `payment.failed` and `refund.*` for observation.
+
+This session could not run it: no test keys, and the network policy here refuses `api.razorpay.com`.
+
+Test matrix: run each case as a fresh test user, and note the audit events in the staging logs.
+
+| # | Case | How | Expected |
+|---|---|---|---|
+| 1 | Successful recharge | ₹100 custom amount; test card `4111 1111 1111 1111`, any future expiry and CVV, OTP as the test page shows | Wallet +₹100. One `payment.settled` and one `wallet.credit`; the row has `gateway_amount_paise=10000` and `settlement_verified_at` set. |
+| 2 | Pack bonus | ₹500 pack | Wallet +₹575 (₹500 + ₹75). |
+| 3 | Payment failure | Test card failure flow, or a failure on the test page | No credit. The row stays `pending`, then becomes `failed` after a day. |
+| 4 | Amount mismatch | Create an order, then pay a **different** test order and replay its webhook with this order's id (signed with the test secret) | No credit; the row becomes `review` (`amount … expected …`). |
+| 5 | Currency mismatch | Replay a captured-payment webhook body with `"currency":"USD"`, signed with the test secret | No credit; the row becomes `review`. |
+| 6 | Duplicate webhook | Razorpay dashboard → Webhooks → resend the same `payment.captured` | Credited once; the second delivery has no effect. |
+| 7 | Delayed webhook | Disable the webhook, pay, close the tab before verify, then re-enable and resend | Credited once, by the webhook or by the reconciler within 15 minutes. |
+| 8 | Concurrent settlement | Pay; resend the webhook while verify is in flight (or run a script calling verify twice) | Credited once. |
+| 9 | Refund | Refund case 1's payment in the test dashboard | `payment.refund_observed` is logged; the wallet is not debited automatically (policy). A replayed `payment.captured` with `amount_refunded>0` goes to `review`. |
+| 10 | Reconciliation | Pay with the webhook disabled and skip verify; wait 15 minutes, or run `POST /api/admin/payments/reconcile?apply=1` | Credited once. |
+| 11 | Coupon | WELCOME50 on a ₹200 first recharge | Wallet +₹300; redemption `applied`. Repeat it: the offer is refused at order time. |
+| 12 | Paused | `RECHARGES_PAUSED=true` | New orders get 503; a payment already made is still credited. |
+
+**Pass condition:** in every case, the wallet credit equals the verified captured amount plus the permitted pack and coupon bonus, and nothing more.
 
 ## Production prerequisites
 
-These were not done here. They need the owner.
+These need the owner. None were done here.
 
-0. Run the read-only forensics above against production before deploying.
+1. Run the historical wallet audit above, read only, and decide on anything it flags.
+2. Run the Razorpay staging matrix above in test mode, and keep the evidence.
+3. In Razorpay, turn **auto-capture on** for all payment methods, including late authorisation. Keep **Offers** (instant discounts) and the **customer-fee-bearer** model off, or such payments will go to `review`.
+4. Configure the production webhook (`payment.captured`) with `RAZORPAY_WEBHOOK_SECRET`. Activating live keys is a separate owner decision.
+5. Deploy with the procedure above.
+6. Build email verification for email/password accounts before turning on `FEATURE_ASK_METERING_ENFORCE`.
+7. Confirm the direct Snapmint/LazyPay routes were never used (Razorpay, PayU and Snapmint records).
+8. Optionally set `POSTHOG_API_KEY` server-side so audit events reach PostHog.
 
-1. Run the forensics query above against production before deploying. Decide on any accounts it finds.
-2. Configure the Razorpay webhook (`payment.captured`) with `RAZORPAY_WEBHOOK_SECRET`. Verify with a **test-mode** payment in staging. No live credentials were used or changed.
-3. Email verification for email/password accounts, before turning on `FEATURE_ASK_METERING_ENFORCE`. The free allowance is per account, and unverified email accounts can be created at will.
-4. Referral rules (₹100 minimum, 20 per inviter per 30 days) and the AI and admin limits are approved as provisional safeguards. The reward amounts are unchanged.
-7. Razorpay **auto-capture must be on** for all payment methods, including late authorisation. The app credits only captured payments, and does not capture authorised ones. The reconciler audits payments stuck in `authorized`.
-8. Razorpay Offers (instant discounts) and the customer-fee-bearer model make the captured amount differ from the order, so such payments go to `review`. Keep both off, or extend settlement first.
-9. Deploy without old and new instances overlapping. Old code would settle new recharges without the amount check, and would leave coupon redemptions `staged`.
-10. Confirm in Razorpay/PayU/Snapmint records that the direct Snapmint/LazyPay routes were never used. The client has no button for them.
-5. Decide the AI daily limits (env, above), and set `POSTHOG_API_KEY` server-side if audit events should reach PostHog.
-6. The in-memory per-IP and per-user rate limiters are per instance. The shared controls are the database-backed budgets, metering and locks.
+The referral rules (₹100 minimum, 20 per inviter per 30 days) and the AI and admin limits are approved as provisional safeguards.
+
+The in-memory rate limiters are per instance. The shared controls are the database budgets, metering, locks and the guard.
 
 ## Verification levels
 
-- **Automated tests** (run here, all green):
-  - unit and route tests: `npm test`;
-  - Postgres suites: `TEST_DATABASE_URL=… npx vitest run --no-file-parallelism tests/unit/*.db.test.ts` — payment integrity, wallet atomicity, Ask metering, AI controls, report orders, consultation end, marketplace pause.
-- **Mocked providers:** Razorpay and OpenAI are mocked in tests. No sandbox and no live gateway call was made.
-- **Not done:** sandbox payment, live production verification, deployment.
+- **Automated tests** (all green): `npm test`, plus the Postgres suites (`TEST_DATABASE_URL=… npx vitest run --no-file-parallelism tests/unit/*.db.test.ts`). The suites cover payment integrity, wallet atomicity, the deploy guard, Ask metering, AI controls, report orders, consultation end and the marketplace pause.
+- **Old-code check (local):** `main`'s storage code was run against a migrated database and refused by the guard; `main`'s migrations left the guard in place.
+- **Pre-migration check (local):** both audit SQL files ran on a database built by `main`'s migrations.
+- **Mocked providers:** Razorpay and OpenAI are mocked in tests.
+- **Not done:** the Razorpay sandbox (staging), the production audit, and any production deployment.

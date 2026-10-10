@@ -11,6 +11,7 @@ import OpenAI from "openai";
 import { AsyncLocalStorage } from "node:async_hooks";
 import type { NextFunction, Request, Response } from "express";
 import { audit } from "../audit";
+import { isAdminAccount } from "../adminAccess";
 
 export interface AiContext {
   subject: string;
@@ -187,7 +188,12 @@ export function aiContextFor(req: Pick<Request, "path"> & { user?: any; session?
   const astrologerId = req.session?.astrologerId;
   const feature = featureOf(req.path);
   const lower = req.path.toLowerCase();
-  if (lower.startsWith("/api/reports")) return { subject: userId ? `user:${userId}` : "anonymous", feature, budget: null };
+  // Paid reports are not budgeted, except for free-access (admin) accounts, whose report
+  // generation is real spend drawn from the admin testing budget.
+  if (lower.startsWith("/api/reports")) {
+    if (userId && isAdminAccount(req.user)) return { subject: `admin:${userId}`, feature, budget: "admin" };
+    return { subject: userId ? `user:${userId}` : "anonymous", feature, budget: null };
+  }
   if (userId && lower.startsWith("/api/admin")) return { subject: `admin:${userId}`, feature, budget: "admin" };
   // One browser can hold a user and an astrologer sign-in at once: astrologer routes are the astrologer's.
   if (astrologerId && lower.startsWith("/api/astrologer")) return { subject: `astrologer:${astrologerId}`, feature, budget: "astrologer" };
@@ -220,10 +226,11 @@ export const aiDailyLimits = () => ({
 export function aiBudget(kind: "user" | "astrologer" | "admin") {
   return async (req: Request, res: Response, next: NextFunction) => {
     const ctx = aiContextFor(req as any);
+    if (!ctx.budget) return next();
     try {
       const { storage } = await loadStorage();
       const used = await storage.getAiUsageToday(ctx.subject, today());
-      const limit = aiDailyLimits()[ctx.budget ?? kind];
+      const limit = aiDailyLimits()[ctx.budget];
       if (used.costMicroUsd >= limit.costMicroUsd || used.calls >= limit.calls) {
         audit("ai.budget_refused", { subject: ctx.subject, feature: ctx.feature, calls: used.calls, costUsd: used.costMicroUsd / 1e6, at: "request" });
         return res.status(429).json({ code: "ai_daily_limit", message: "You have reached today's limit for AI answers. Please try again tomorrow." });

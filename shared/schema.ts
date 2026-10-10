@@ -171,6 +171,9 @@ export const transactions = pgTable("transactions", {
   packBonus: decimal("pack_bonus", { precision: 10, scale: 2 }),
   couponBonus: decimal("coupon_bonus", { precision: 10, scale: 2 }),
   reviewReason: text("review_reason"), // set with status 'review' when a payment did not match its order
+  // Set only by verified settlement; the release_a_recharge_guard trigger refuses to complete a
+  // Razorpay recharge without it, so code that predates the checks cannot credit one.
+  settlementVerifiedAt: timestamp("settlement_verified_at"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 

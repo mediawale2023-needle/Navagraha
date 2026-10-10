@@ -21,6 +21,9 @@ export interface CapturedPayment {
 
 export type Finding =
   | "over_credited"
+  | "under_credited"
+  | "string_amount_pattern"
+  | "duplicate_payment_credit"
   | "payment_not_in_export"
   | "no_payment_id"
   | "not_inr"
@@ -34,12 +37,23 @@ export interface ForensicRow extends CreditedRecharge {
   findings: Finding[];
 }
 
+/** "X" + 0 + 0 stored as "X00", and "X" + 0 + B as "X0B" (finding 1). */
+function looksLikeStringAmount(credited: number, capturedRupees: number, couponBonus: number): boolean {
+  if (!Number.isInteger(capturedRupees) || credited <= capturedRupees) return false;
+  const text = String(Math.round(credited * 100) / 100);
+  const base = String(capturedRupees);
+  return text === `${base}00` || (couponBonus > 0 && text === `${base}0${couponBonus}`);
+}
+
 export function compareRecharges(recharges: CreditedRecharge[], payments: Map<string, CapturedPayment>): ForensicRow[] {
+  const creditsPerPayment = new Map<string, number>();
+  for (const r of recharges) if (r.gatewayPaymentId) creditsPerPayment.set(r.gatewayPaymentId, (creditsPerPayment.get(r.gatewayPaymentId) ?? 0) + 1);
   return recharges.map((r) => {
     const findings: Finding[] = [];
     if (!r.gatewayPaymentId) return { ...r, capturedRupees: null, justifiedRupees: null, excessRupees: null, findings: ["no_payment_id"] };
+    if ((creditsPerPayment.get(r.gatewayPaymentId) ?? 0) > 1) findings.push("duplicate_payment_credit");
     const p = payments.get(r.gatewayPaymentId);
-    if (!p) return { ...r, capturedRupees: null, justifiedRupees: null, excessRupees: null, findings: ["payment_not_in_export"] };
+    if (!p) return { ...r, capturedRupees: null, justifiedRupees: null, excessRupees: null, findings: [...findings, "payment_not_in_export"] };
     if (p.currency !== "INR") findings.push("not_inr");
     if (p.status !== "captured" && p.status !== "refunded") findings.push("not_captured");
     if (p.refundedPaise > 0 || p.status === "refunded") findings.push("refunded");
@@ -47,6 +61,8 @@ export function compareRecharges(recharges: CreditedRecharge[], payments: Map<st
     const justified = Math.round((captured + packBonusFor(captured) + r.couponBonusStaged) * 100) / 100;
     const excess = Math.round((r.credited - justified) * 100) / 100;
     if (excess > 0) findings.push("over_credited");
+    if (r.credited < captured) findings.push("under_credited");
+    if (looksLikeStringAmount(r.credited, captured, r.couponBonusStaged)) findings.push("string_amount_pattern");
     return { ...r, capturedRupees: captured, justifiedRupees: justified, excessRupees: excess, findings };
   });
 }

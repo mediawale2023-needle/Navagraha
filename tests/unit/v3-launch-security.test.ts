@@ -48,6 +48,7 @@ beforeAll(async () => {
 });
 beforeEach(() => {
   vi.stubEnv('OPENAI_API_KEY', 'test-key');
+  vi.stubEnv('FEATURE_PRO_AI', 'true');
   vi.clearAllMocks();
   vi.stubEnv('GOOGLE_MAPS_API_KEY', '');
   const kundlis: Record<string, any> = { exact, approx, legacy: { ...exact, id: 'legacy', latitude: null, longitude: null, chartData: { planetaryPositions: [], houses: [] } } };
@@ -214,6 +215,18 @@ describe('Pro workspace eligibility and AI credits (Release A)', () => {
     expect(res.body.code).toBe('ai_daily_limit');
     expect(mocks.storage.consumeProAiCredit).not.toHaveBeenCalled();
     expect(mocks.answerSessionQuery).not.toHaveBeenCalled();
+  });
+
+  it('with FEATURE_PRO_AI off (the default while the marketplace is paused) Pro AI spends nothing; the workspace stays open', async () => {
+    vi.stubEnv('FEATURE_PRO_AI', '');
+    const res = await ask('astroA');
+    expect(res.status).toBe(503);
+    expect(res.body.code).toBe('pro_ai_disabled');
+    const gen = await request(app).post('/api/astrologer/pro/readings/rB/generate').set('x-astro', 'astroA').send({ tradition: 'parashar' });
+    expect(gen.status).toBe(503);
+    expect(mocks.storage.consumeProAiCredit).not.toHaveBeenCalled();
+    expect(mocks.answerSessionQuery).not.toHaveBeenCalled();
+    expect(mocks.streamTraditionReading).not.toHaveBeenCalled();
   });
 
   it('an over-long session question is refused before any credit is taken', async () => {

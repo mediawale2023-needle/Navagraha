@@ -21,6 +21,18 @@ describe.skipIf(!url)('wallet money paths under concurrency (Postgres)', () => {
   // capped at the row's amount. Payment ids are unique per run so the suite can be re-run.
   const captured = (orderId: string, rupees: number, prefix = 'pay') =>
     ({ id: `${prefix}_${crypto.randomUUID()}`, orderId, amountPaise: rupees * 100, currency: 'INR', status: 'captured' });
+  // Rows written before the Release A guard existed (it only constrains new writes).
+  const insertPreGuardRow = async (text: string, values: unknown[]) => {
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      await client.query('SET LOCAL session_replication_role = replica');
+      await client.query(text, values);
+      await client.query('COMMIT');
+    } finally {
+      client.release();
+    }
+  };
   const balanceOf = async (id: string) =>
     (await pool.query('SELECT balance FROM wallets WHERE user_id = $1', [id])).rows[0].balance as string;
 
@@ -65,7 +77,7 @@ describe.skipIf(!url)('wallet money paths under concurrency (Postgres)', () => {
   it('a pending recharge settled concurrently by verify and webhook is credited exactly once', async () => {
     const id = await newUser('0.00');
     const orderId = `order_${crypto.randomUUID()}`;
-    await pool.query(
+    await insertPreGuardRow(
       "INSERT INTO transactions (user_id, amount, type, description, status, payment_method, gateway_order_id) VALUES ($1, '575.00', 'recharge', 'Wallet recharge', 'pending', 'razorpay', $2)",
       [id, orderId],
     );
@@ -79,7 +91,7 @@ describe.skipIf(!url)('wallet money paths under concurrency (Postgres)', () => {
   it("settlement restricted to a user does not credit another user's order", async () => {
     const owner = await newUser('0.00');
     const orderId = `order_${crypto.randomUUID()}`;
-    await pool.query(
+    await insertPreGuardRow(
       "INSERT INTO transactions (user_id, amount, type, status, payment_method, gateway_order_id) VALUES ($1, '100.00', 'recharge', 'pending', 'razorpay', $2)",
       [owner, orderId],
     );

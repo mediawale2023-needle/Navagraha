@@ -1657,6 +1657,7 @@ export class DatabaseStorage implements IStorage {
       const [settled] = await tx.update(transactions)
         .set({
           status: "completed",
+          settlementVerifiedAt: new Date(),
           amount: credit.toFixed(2),
           gatewayPaymentId: payment.id,
           ...(opts.signature ? { gatewaySignature: opts.signature } : {}),

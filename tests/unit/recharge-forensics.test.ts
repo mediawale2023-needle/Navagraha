@@ -14,7 +14,7 @@ describe('recharge forensics', () => {
       row({ transactionId: 'x', credited: 500, gatewayPaymentId: 'pay_x' }),
       row({ transactionId: 'p', credited: 575 }),
     ], payments);
-    expect(exploit).toMatchObject({ capturedRupees: 5, excessRupees: 495, findings: ['over_credited'] });
+    expect(exploit).toMatchObject({ capturedRupees: 5, excessRupees: 495, findings: ['over_credited', 'string_amount_pattern'] });
     expect(pack.findings).toEqual([]);
   });
 
@@ -22,6 +22,14 @@ describe('recharge forensics', () => {
     const payments = new Map([['pay_1', pay({ amountPaise: 20000 })]]);
     expect(compareRecharges([row({ credited: 250, couponBonusStaged: 50 })], payments)[0].findings).toEqual([]);
     expect(compareRecharges([row({ credited: 300, couponBonusStaged: 50 })], payments)[0]).toMatchObject({ excessRupees: 50, findings: ['over_credited'] });
+  });
+
+  it('the coupon variant of the string pattern, duplicate credits and under-credits are flagged', () => {
+    const payments = new Map([['pay_1', pay({ amountPaise: 500 })], ['pay_2', pay({ id: 'pay_2', amountPaise: 30000 })]]);
+    expect(compareRecharges([row({ credited: 5050, couponBonusStaged: 50 })], payments)[0].findings).toEqual(['over_credited', 'string_amount_pattern']);
+    const dup = compareRecharges([row({ transactionId: 'a', credited: 5 }), row({ transactionId: 'b', credited: 5 })], payments);
+    expect(dup.map((d) => d.findings)).toEqual([['duplicate_payment_credit'], ['duplicate_payment_credit']]);
+    expect(compareRecharges([row({ gatewayPaymentId: 'pay_2', credited: 200 })], payments)[0].findings).toEqual(['under_credited']);
   });
 
   it('unmatched, foreign-currency, uncaptured and refunded payments are flagged', () => {
@@ -37,11 +45,11 @@ describe('recharge forensics', () => {
     expect(paymentsFromExport(parseCsv(csv), 'paise').get('pay_2')).toMatchObject({ amountPaise: 5, refundedPaise: 0 });
   });
 
-  it('the SQL is a read-only, rolled-back transaction that writes nothing', () => {
-    const sql = readFileSync('scripts/forensics/recharge-forensics.sql', 'utf8').split('\n').filter((l) => !l.trim().startsWith('--')).join('\n');
+  it.each(['recharge-forensics.sql', 'wallet-consistency-checks.sql'])('%s is a read-only, rolled-back transaction that writes nothing', (file) => {
+    const sql = readFileSync(`scripts/forensics/${file}`, 'utf8').split('\n').filter((l) => !l.trim().startsWith('--')).join('\n');
     expect(sql).toMatch(/BEGIN TRANSACTION[^;]*READ ONLY;/);
     expect(sql.trim().endsWith('ROLLBACK;')).toBe(true);
-    expect(sql).not.toMatch(/\b(INSERT|UPDATE|DELETE|ALTER|DROP|CREATE|TRUNCATE|GRANT)\b/i);
+    expect(sql).not.toMatch(/\b(INSERT|UPDATE|DELETE|ALTER|DROP|CREATE|TRUNCATE|GRANT|COPY|CALL|DO)\b/i);
     const script = readFileSync('scripts/forensics/recharge-forensics.ts', 'utf8');
     expect(script).toMatch(/SET SESSION CHARACTERISTICS AS TRANSACTION READ ONLY/);
     expect(script).not.toMatch(/\b(INSERT|UPDATE|DELETE)\b/);

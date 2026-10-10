@@ -545,6 +545,7 @@ ALTER TABLE transactions ADD COLUMN IF NOT EXISTS pack_bonus decimal(10, 2);
 ALTER TABLE transactions ADD COLUMN IF NOT EXISTS coupon_bonus decimal(10, 2);
 ALTER TABLE transactions ADD COLUMN IF NOT EXISTS review_reason text;
 ALTER TABLE coupon_redemptions ADD COLUMN IF NOT EXISTS status varchar;
+ALTER TABLE transactions ADD COLUMN IF NOT EXISTS settlement_verified_at timestamp;
 
 CREATE TABLE IF NOT EXISTS ask_usage (
   id varchar PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -891,9 +892,43 @@ EXCEPTION WHEN unique_violation THEN
 END $$;
 `;
 
+// Release A deployment guard, enforced by the database so it holds for any code that writes
+// recharges — including an older build still running during a deploy, or after a rollback:
+//  - a Razorpay recharge order must record the paise it was created for (pre-Release A order
+//    creation, which mis-recorded string amounts, fails before the payer can pay);
+//  - a Razorpay recharge becomes completed only through verified settlement, which sets
+//    settlement_verified_at (older settlement code fails and rolls back its credit; Razorpay
+//    retries the webhook, and the new code or the reconciler settles it);
+//  - direct Snapmint/LazyPay recharges, which were credited from the callback, are refused.
+// Rows that existed before the guard are untouched. Removing the guard is a deliberate act
+// (docs/RELEASE_A.md), never part of a code rollback.
+export const RECHARGE_GUARD_SQL = `
+CREATE OR REPLACE FUNCTION release_a_recharge_guard() RETURNS trigger AS $$
+BEGIN
+  IF NEW.type = 'recharge' AND NEW.status = 'completed' AND NEW.payment_method IN ('snapmint', 'lazypay')
+     AND (TG_OP = 'INSERT' OR OLD.status IS DISTINCT FROM 'completed') THEN
+    RAISE EXCEPTION 'release_a_recharge_guard: direct BNPL recharges are disabled';
+  END IF;
+  IF NEW.type = 'recharge' AND NEW.payment_method = 'razorpay' THEN
+    IF TG_OP = 'INSERT' AND NEW.status = 'pending' AND NEW.gateway_amount_paise IS NULL THEN
+      RAISE EXCEPTION 'release_a_recharge_guard: a recharge order must record gateway_amount_paise';
+    END IF;
+    IF NEW.status = 'completed' AND NEW.settlement_verified_at IS NULL
+       AND (TG_OP = 'INSERT' OR OLD.status IS DISTINCT FROM 'completed') THEN
+      RAISE EXCEPTION 'release_a_recharge_guard: a recharge is completed only by verified settlement';
+    END IF;
+  END IF;
+  RETURN NEW;
+END $$ LANGUAGE plpgsql;
+DROP TRIGGER IF EXISTS release_a_recharge_guard ON transactions;
+CREATE TRIGGER release_a_recharge_guard BEFORE INSERT OR UPDATE ON transactions
+  FOR EACH ROW EXECUTE FUNCTION release_a_recharge_guard();
+`;
+
 export async function runMigrations(): Promise<void> {
   await pool.query(SCHEMA_SQL);
   await pool.query(PAYMENT_INDEXES_SQL);
+  await pool.query(RECHARGE_GUARD_SQL);
   await pool.query(SEED_HOMEPAGE_SQL);
   for (const fix of HOMEPAGE_COPY_FIXES) await pool.query(fix.text, fix.values);
   await pool.query(SEED_COUPONS_SQL);

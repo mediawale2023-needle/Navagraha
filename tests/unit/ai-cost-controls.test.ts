@@ -191,12 +191,14 @@ describe('call-level budget (every endpoint)', () => {
 describe('who is charged for a call', () => {
   it.each([
     [{ path: '/api/ai/chat', user: { id: 'u1' } }, { subject: 'user:u1', budget: 'user' }],
-    [{ path: '/api/reports/order', user: { id: 'u1' } }, { subject: 'user:u1', budget: null }],
+    [{ path: '/api/reports/order', user: { id: 'u1', email: 'someone@example.com' } }, { subject: 'user:u1', budget: null }],
+    [{ path: '/api/reports/order', user: { id: 'a1', email: 'admin-budget@example.com' } }, { subject: 'admin:a1', budget: 'admin' }],
     [{ path: '/api/admin/jyotish/session-queries', user: { id: 'a1' } }, { subject: 'admin:a1', budget: 'admin' }],
     [{ path: '/api/astrologer/pro/session-queries', user: { id: 'u1' }, session: { astrologerId: 'x1' } }, { subject: 'astrologer:x1', budget: 'astrologer' }],
     [{ path: '/api/ai/chat', user: { id: 'u1' }, session: { astrologerId: 'x1' } }, { subject: 'user:u1', budget: 'user' }],
     [{ path: '/api/anything' }, { subject: 'anonymous', budget: 'user' }],
   ])('%o → %o', (req, expected) => {
+    vi.stubEnv('ADMIN_EMAILS', 'admin-budget@example.com');
     expect(aiContextFor(req as any)).toMatchObject(expected);
   });
 });

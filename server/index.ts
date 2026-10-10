@@ -84,6 +84,13 @@ app.get('/metrics', async (req, res) => {
   res.end(await client.register.metrics());
 });
 
+// Payments touch the Release A schema and its guard, which exist only once migrations have run:
+// until then this instance refuses them (Razorpay retries webhooks; the browser can retry).
+app.use('/api/payment', (_req, res, next) => {
+  if (startupReady) return next();
+  res.status(503).json({ code: 'starting', message: 'Payments are starting up. Please try again in a moment.' });
+});
+
 app.get('/api/health', (_req, res) => {
   if (startupError) {
     return res.status(503).json({

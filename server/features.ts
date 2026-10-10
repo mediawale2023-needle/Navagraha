@@ -24,4 +24,15 @@ export const features = {
    * paid questions and email verification, so no existing user loses access unexpectedly.
    */
   askMeteringEnforced: () => on('FEATURE_ASK_METERING_ENFORCE'),
+  /**
+   * AI in the astrologer Pro workspace (readings, session queries; gpt-4o). Off while the
+   * marketplace is paused: nobody is using it, so it is closed rather than left as unwatched
+   * spend. The CRM and chart tools stay available; the code is kept for when astrologers return.
+   */
+  proAi: () => on('FEATURE_PRO_AI'),
+  /**
+   * Refuse new wallet recharges (deploy transition, incident). Settlement of payments already
+   * made — verify, webhook, reconciler — continues, so nobody who has paid goes uncredited.
+   */
+  rechargesPaused: () => on('RECHARGES_PAUSED'),
 };
