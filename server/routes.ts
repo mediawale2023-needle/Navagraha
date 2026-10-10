@@ -74,6 +74,8 @@ import { notifyUser, notifyAstrologer } from "./websocketService";
 import { audit } from "./audit";
 import { aiBudget, aiRequestContext } from "./ai/metering";
 import { ASK_FREE_FOLLOW_UPS, askChartKey, askEnforced, askFreeQuestionsFor, askIdempotencyKey } from "./askMetering";
+import { ASK_PACKS, ASK_PACK_FOLLOW_UPS, askPack, askPackRequestKey } from "./askPacks";
+import { pricedReportType, reportPrice } from "./reportPricing";
 import { sendPushToUser, sendPushToAstrologer } from "./pushService";
 import {
   interpretKundli,
@@ -91,6 +93,7 @@ import { computeJyotishChart } from "./astroEngine/jyotishEngine.js";
 import { streamTraditionReading, answerSessionQuery, type Tradition } from "./jyotishAiService.js";
 import { insertJyotishClientProfileSchema } from "@shared/schema";
 import { sendWelcomeEmail, sendBookingConfirmation, sendConsultationSummary } from "./emailService";
+import { sendVerification, isWellFormedToken, hashVerificationToken, verificationAvailable } from "./emailVerification";
 import { settleRazorpayPayment, reconcilePendingRecharges } from "./rechargeSettlement";
 import { selfUser, selfAstrologer, adminAstrologer, adminAstrologerUpdate } from "./safeRows";
 import crypto from "crypto";
@@ -113,6 +116,18 @@ const adminLimiter = rateLimit({
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 20,
+});
+
+// Verification links: resend is per signed-in user (the account limits are kept in the database);
+// opening links is per IP.
+const verifyResendLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 5,
+  keyGenerator: (req: any) => `user:${req.user?.id ?? req.session?.userId ?? 'anonymous'}`,
+});
+const verifyLinkLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 30,
 });
 
 const paymentLimiter = rateLimit({
@@ -194,11 +209,18 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
       // Auto-create wallet
       await storage.createWallet(user.id).catch(() => {});
 
-      // Send welcome email (fire-and-forget)
-      sendWelcomeEmail(email, firstName || "").catch(() => {});
+      // A verification link when verification is on (it doubles as the welcome); otherwise the welcome
+      // email. Either is sent in the background: a slow mail server never holds up sign-up.
+      const verificationEmailSent = verificationAvailable();
+      if (verificationEmailSent) {
+        sendVerification(user)
+          .then((result) => { if ("sent" in result) audit("auth.email_verification_sent", { userId: user.id, at: "register" }); })
+          .catch(() => {});
+      } else {
+        sendWelcomeEmail(email, firstName || "").catch(() => {});
+      }
 
-      const { passwordHash: _ph, ...safe } = user as any;
-      res.status(201).json(safe);
+      res.status(201).json({ ...selfUser(user), verificationEmailSent });
     } catch (error) {
       console.error("Register error:", error);
       res.status(500).json({ message: "Registration failed" });
@@ -225,6 +247,50 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
       console.error("Login error:", error);
       res.status(500).json({ message: "Login failed" });
     }
+  });
+
+  // ─── Email verification ───────────────────────────────────
+  // Resend only to the signed-in account's own address (no lookup by address, so nothing to
+  // enumerate). Opening a link needs no session, so it works on another device.
+  app.post('/api/auth/verify-email/resend', isAuthenticated, verifyResendLimiter, async (req: any, res) => {
+    try {
+      if (!features.emailVerification()) return res.status(404).json({ code: 'email_verification_disabled', message: "Email verification is not available." });
+      const user = await storage.getUser((req.user as any).id);
+      if (!user) return res.status(401).json({ message: "Unauthorized" });
+      if (user.emailVerifiedAt) return res.json({ alreadyVerified: true });
+      if (!user.email) return res.status(400).json({ message: "This account has no email address." });
+      if (!verificationAvailable()) return res.status(503).json({ code: 'email_unavailable', message: "We can't send email right now. Please try again later." });
+      const result = await sendVerification(user);
+      if ("throttled" in result) {
+        audit("auth.email_verification_throttled", { userId: user.id });
+        res.setHeader('Retry-After', String(result.retryAfterS));
+        return res.status(429).json({ code: 'verification_throttled', retryAfter: result.retryAfterS, message: "Please wait before asking for another link." });
+      }
+      if ("unavailable" in result) return res.status(503).json({ code: 'email_unavailable', message: "We can't send email right now. Please try again later." });
+      audit("auth.email_verification_sent", { userId: user.id, at: "resend" });
+      res.status(202).json({ sent: true });
+    } catch (error) {
+      console.error("Verification resend error:", (error as Error)?.message);
+      res.status(500).json({ message: "Could not send the verification email" });
+    }
+  });
+
+  // Always a redirect to the app's status page; the token never stays in the address bar.
+  app.get('/api/auth/verify-email', verifyLinkLimiter, async (req: any, res) => {
+    res.setHeader('Cache-Control', 'no-store');
+    res.setHeader('Referrer-Policy', 'no-referrer');
+    let status = 'invalid';
+    try {
+      const token = req.query.token;
+      if (isWellFormedToken(token)) {
+        status = await storage.consumeEmailVerificationToken(hashVerificationToken(token));
+        if (status === 'verified') audit("auth.email_verified", {});
+      }
+    } catch (error) {
+      console.error("Verification link error:", (error as Error)?.message);
+      status = 'error';
+    }
+    res.redirect(303, `/verify-email?status=${status}`);
   });
 
   app.post('/api/auth/logout', (req: any, res) => {
@@ -1745,7 +1811,7 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
   // ─── Paid Reports ──────────────────────────────────────────
   app.get('/api/reports/types', async (_req, res) => {
     try {
-      res.json(await storage.getReportTypes());
+      res.json((await storage.getReportTypes()).map(pricedReportType));
     } catch { res.status(500).json({ message: 'Failed to fetch report types' }); }
   });
 
@@ -1757,6 +1823,11 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
       if (selection.kind === 'invalid') return res.status(400).json({ message: selection.message });
       const reportType = await storage.getReportTypeById(reportTypeId);
       if (!reportType || !reportType.isActive || !isOfferedReportCategory(reportType.category)) return res.status(404).json({ message: 'Report not available' });
+      // A client showing an older price is asked to confirm the current one before anything is charged.
+      const expectedPrice = req.body?.expectedPrice;
+      if (expectedPrice !== undefined && Number(expectedPrice) !== reportPrice(reportType)) {
+        return res.status(409).json({ code: 'price_changed', price: reportPrice(reportType), message: `The price of this report is now ₹${reportPrice(reportType)}. You have not been charged.` });
+      }
       // Paid reports are AI-written and quality-checked; nothing templated is ever sold in their place.
       if (!reportsAvailable()) return res.status(503).json({ message: 'Reports are temporarily unavailable. You have not been charged.', code: 'reports_unavailable' });
 
@@ -1817,7 +1888,7 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
         reportTypeId: reportType.id,
         kundliId: kundliRef,
         subjectName: (kundli as any).name || undefined,
-        price: parseFloat(reportType.price),
+        price: reportPrice(reportType),
         description: `Report: ${reportType.name}`,
       });
       if (!placed) return res.status(402).json({ message: 'Insufficient wallet balance. Please recharge to order this report.' });
@@ -2141,6 +2212,61 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
     }
   });
 
+  // ─── Ask question packs (wallet) ──────────────────────────
+  app.get('/api/ask/packs', isAuthenticated, async (req: any, res) => {
+    try {
+      const user = req.user as any;
+      const [allowance, history, wallet] = await Promise.all([askAllowance(user), storage.getAskEntitlements(user.id), storage.getWallet(user.id)]);
+      res.json({
+        enabled: features.askPacks(),
+        packs: features.askPacks() ? ASK_PACKS.map((p) => ({ ...p, followUpsEach: ASK_PACK_FOLLOW_UPS })) : [],
+        balance: wallet?.balance ?? "0.00",
+        allowance,
+        history,
+      });
+    } catch {
+      res.status(500).json({ message: "Failed to load question packs" });
+    }
+  });
+
+  // Price and quantity come only from the server's catalogue; one request id buys once.
+  app.post('/api/ask/packs/purchase', isAuthenticated, paymentLimiter, async (req: any, res) => {
+    try {
+      if (!features.askPacks()) return res.status(404).json({ code: 'ask_packs_disabled', message: "Question packs are not available." });
+      const user = req.user as any;
+      const pack = askPack(req.body?.packId);
+      if (!pack) return res.status(400).json({ message: "Choose a question pack", field: 'packId' });
+      const requestId = askPackRequestKey(req.body?.requestId);
+      if (!requestId) return res.status(400).json({ message: "Invalid request" });
+      const result = await storage.purchaseAskPack(user.id, { ...pack, followUpsEach: ASK_PACK_FOLLOW_UPS }, requestId);
+      if (result.kind === 'free_access') {
+        audit("ask.pack_refused", { userId: user.id, packId: pack.id, reason: 'free_access' });
+        return res.status(409).json({ code: 'free_access_unlimited', message: "Your account already asks without limit." });
+      }
+      if (result.kind === 'insufficient') {
+        audit("ask.pack_refused", { userId: user.id, packId: pack.id, reason: 'insufficient_balance' });
+        return res.status(402).json({ code: 'insufficient_balance', required: pack.price, message: "Your wallet balance doesn't cover this pack." });
+      }
+      if (result.kind === 'request_conflict') return res.status(409).json({ code: 'request_conflict', message: "This purchase was already made with a different pack." });
+      if (result.kind === 'purchased') {
+        audit("wallet.debit", { userId: user.id, reason: 'ask_pack', amount: pack.price, transactionId: result.entitlement.transactionId, entitlementId: result.entitlement.id });
+        audit("ask.pack_purchased", { userId: user.id, packId: pack.id, entitlementId: result.entitlement.id, quantity: pack.questions });
+      }
+      res.status(result.kind === 'purchased' ? 201 : 200).json({
+        replayed: result.kind === 'replay',
+        entitlementId: result.entitlement.id,
+        questions: result.entitlement.quantity,
+        followUpsEach: result.entitlement.followUpsEach,
+        newBalance: result.balance,
+        // The purchase is committed by now; a failed count must not turn it into an error reply.
+        allowance: await askAllowance(user).catch(() => null),
+      });
+    } catch (err) {
+      console.error("Ask pack purchase error:", (err as Error)?.message);
+      res.status(500).json({ message: "Purchase failed. You have not been charged." });
+    }
+  });
+
   // Chat with AI Astrologer (Super-Council Orchestrator)
   app.post('/api/ai/chat', isAuthenticated, aiLimiter, aiBudget('user'), async (req: any, res) => {
     try {
@@ -2224,7 +2350,7 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
         if (!user.emailVerifiedAt) {
           return res.status(402).json({ code: 'email_verification_required', message: "Verify your email address to use your free questions.", allowance: await askAllowance(user, activeSessionId, chartKey) });
         }
-        return res.status(402).json({ code: 'ask_allowance_exhausted', message: "You have used your free questions.", allowance: await askAllowance(user, activeSessionId, chartKey) });
+        return res.status(402).json({ code: 'ask_allowance_exhausted', message: "You have used your free questions.", packsAvailable: features.askPacks(), allowance: await askAllowance(user, activeSessionId, chartKey) });
       }
       if (reservation.kind === 'replay') {
         const prior = reservation.usage.replyMessageId ? await storage.getAiChatMessage(user.id, reservation.usage.replyMessageId) : undefined;

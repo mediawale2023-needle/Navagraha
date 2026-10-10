@@ -92,7 +92,8 @@ export default function Reports() {
 
   const orderReport = useMutation({
     mutationFn: async () => {
-      const body: any = { reportTypeId: selected!.id };
+      // The price shown is confirmed by the server before anything is charged.
+      const body: any = { reportTypeId: selected!.id, expectedPrice: parseFloat(selected!.price) };
       if (orderMode === 'details') {
         // Send raw birth details; the server computes the chart for this report
         // only and does NOT save it to the user's charts.
@@ -126,6 +127,12 @@ export default function Reports() {
       if (isApiError(err) && err.status === 402) {
         setOrderProblem({ kind: 'balance' });
         queryClient.invalidateQueries({ queryKey: ['/api/wallet'] });
+        return;
+      }
+      if (isApiError(err) && err.status === 409 && (err.body as { code?: string })?.code === 'price_changed') {
+        queryClient.invalidateQueries({ queryKey: ['/api/reports/types'] });
+        toast({ title: 'Price updated', description: err.message });
+        setSelected(null);
         return;
       }
       if (isApiError(err) && err.status === 409) {

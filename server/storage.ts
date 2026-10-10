@@ -34,9 +34,11 @@ import {
   jyotishSessionQueries,
   askUsage,
   entitlements,
+  emailVerificationTokens,
   aiUsageDaily,
   aiBudgetDaily,
   type AskUsage,
+  type Entitlement,
   type JyotishClientProfile,
   type InsertJyotishClientProfile,
   type JyotishReading,
@@ -127,6 +129,16 @@ export type AskReservation =
   | { kind: "replay"; usage: AskUsage }
   | { kind: "in_flight" }
   | { kind: "exhausted" };
+
+export type AskPackPurchase =
+  | { kind: "purchased" | "replay"; entitlement: Entitlement; balance: string }
+  | { kind: "insufficient" }
+  | { kind: "free_access" }
+  | { kind: "request_conflict" };
+export interface AskEntitlementRow { id: string; quantity: number; used: number; followUpsEach: number; source: string; price: string | null; createdAt: Date | null }
+
+export interface EmailVerificationLimits { ttlS: number; minIntervalS: number; perDay: number }
+export type EmailVerificationOutcome = "verified" | "already" | "expired" | "invalid" | "conflict";
 
 export interface AskAllowanceCounts {
   freeQuestionsUsed: number;
@@ -282,6 +294,10 @@ export interface IStorage {
   reserveAiBudget(r: { subject: string; day: string; microUsd: number; costLimitMicroUsd: number; callLimit: number }): Promise<boolean>;
   settleAiBudget(r: { subject: string; day: string; reservedMicroUsd: number; actualMicroUsd: number }): Promise<void>;
   getAskAllowance(userId: string, opts: { freeQuestions: number; sessionId?: string; chartKey?: string }): Promise<AskAllowanceCounts>;
+  issueEmailVerificationToken(userId: string, email: string, tokenHash: string, limits: EmailVerificationLimits): Promise<{ issued: true } | { throttled: true; retryAfterS: number }>;
+  consumeEmailVerificationToken(tokenHash: string): Promise<EmailVerificationOutcome>;
+  purchaseAskPack(userId: string, pack: { id: string; questions: number; price: number; followUpsEach: number }, requestId: string): Promise<AskPackPurchase>;
+  getAskEntitlements(userId: string): Promise<AskEntitlementRow[]>;
   getAiChatSessions(userId: string): Promise<{ sessionId: string; createdAt: Date | null; preview: string }[]>;
 }
 
@@ -1125,6 +1141,103 @@ export class DatabaseStorage implements IStorage {
       }
     }
     return { freeQuestionsUsed: freeUsed, freeQuestionsRemaining: Math.max(0, opts.freeQuestions - freeUsed), paidQuestionsRemaining: paidRemaining, followUpsRemaining };
+  }
+
+  // ─── Ask question packs ────────────────────────────────────
+  // The debit, its wallet transaction and the entitlement are written in one transaction, so a
+  // pack is never paid for without being granted, or granted without being paid for. One user's
+  // purchases run one at a time, and a request id buys once (entitlements.source_ref is unique).
+
+  async purchaseAskPack(userId: string, pack: { id: string; questions: number; price: number; followUpsEach: number }, requestId: string): Promise<AskPackPurchase> {
+    // Free-access (admin) accounts already ask without limit; a ₹0 pack would outlive admin access.
+    if (await this.hasFreeAccess(userId)) return { kind: "free_access" };
+    const sourceRef = `askpack:${userId}:${requestId}`;
+    return db.transaction(async (tx) => {
+      await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${"ask-pack:" + userId}))`);
+      const [existing] = await tx.select().from(entitlements).where(eq(entitlements.sourceRef, sourceRef));
+      if (existing) {
+        if (existing.quantity !== pack.questions) return { kind: "request_conflict" as const };
+        const [w] = await tx.select({ balance: wallets.balance }).from(wallets).where(eq(wallets.userId, userId));
+        return { kind: "replay" as const, entitlement: existing, balance: String(w?.balance ?? "0") };
+      }
+      const balance = await this.tryDebitBalance(userId, pack.price, tx);
+      if (balance === null) return { kind: "insufficient" as const };
+      const [txn] = await tx.insert(transactions).values({
+        userId, amount: (-pack.price).toFixed(2), type: "debit", status: "completed", paymentMethod: "wallet",
+        description: `Ask your Kundli: ${pack.questions} ${pack.questions === 1 ? "question" : "questions"}`,
+      }).returning({ id: transactions.id });
+      const [entitlement] = await tx.insert(entitlements).values({
+        userId, kind: "ask_questions", quantity: pack.questions, used: 0, followUpsEach: pack.followUpsEach,
+        source: "purchase", sourceRef, transactionId: txn.id,
+      }).returning();
+      return { kind: "purchased" as const, entitlement, balance };
+    });
+  }
+
+  /** The user's Ask entitlements, newest first, with what each purchase cost. */
+  async getAskEntitlements(userId: string): Promise<AskEntitlementRow[]> {
+    const rows = await db.select({
+      id: entitlements.id, quantity: entitlements.quantity, used: entitlements.used, followUpsEach: entitlements.followUpsEach,
+      source: entitlements.source, createdAt: entitlements.createdAt, amount: transactions.amount,
+    }).from(entitlements)
+      .leftJoin(transactions, eq(transactions.id, entitlements.transactionId))
+      .where(and(eq(entitlements.userId, userId), eq(entitlements.kind, "ask_questions")))
+      .orderBy(desc(entitlements.createdAt));
+    return rows.map(({ amount, ...r }) => ({ ...r, price: amount === null || amount === undefined ? null : Math.abs(Number(amount)).toFixed(2) }));
+  }
+
+  // ─── Email verification ────────────────────────────────────
+  // One account's links are issued one at a time (per-user lock), so the resend limits hold
+  // across instances. A new link ends the previous unused one.
+
+  async issueEmailVerificationToken(userId: string, email: string, tokenHash: string, limits: EmailVerificationLimits): Promise<{ issued: true } | { throttled: true; retryAfterS: number }> {
+    return db.transaction(async (tx) => {
+      await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${"email-verify:" + userId}))`);
+      const t = emailVerificationTokens;
+      const [w] = await tx.select({
+        sinceLast: sql<number | null>`extract(epoch from now() - max(${t.createdAt}))::float`,
+        today: sql<number>`count(*) filter (where ${t.createdAt} > now() - interval '1 day')::int`,
+        dayFreesIn: sql<number | null>`extract(epoch from min(${t.createdAt}) filter (where ${t.createdAt} > now() - interval '1 day') + interval '1 day' - now())::float`,
+      }).from(t).where(eq(t.userId, userId));
+      if (w.today >= limits.perDay) return { throttled: true as const, retryAfterS: Math.max(1, Math.ceil(w.dayFreesIn ?? 86400)) };
+      if (w.sinceLast !== null && w.sinceLast < limits.minIntervalS) {
+        return { throttled: true as const, retryAfterS: Math.max(1, Math.ceil(limits.minIntervalS - w.sinceLast)) };
+      }
+      await tx.update(t).set({ expiresAt: sql`least(${t.expiresAt}, now())` })
+        .where(and(eq(t.userId, userId), sql`${t.usedAt} IS NULL`));
+      await tx.insert(t).values({ userId, email, tokenHash, expiresAt: sql`now() + make_interval(secs => ${limits.ttlS})` });
+      return { issued: true as const };
+    });
+  }
+
+  /**
+   * Spends a link once and verifies the address it was issued for. A link for an address the
+   * account no longer has, or one another verified account already holds (case variants from
+   * before emails were normalised), verifies nothing.
+   */
+  async consumeEmailVerificationToken(tokenHash: string): Promise<EmailVerificationOutcome> {
+    return db.transaction(async (tx) => {
+      const t = emailVerificationTokens;
+      const [claimed] = await tx.update(t).set({ usedAt: sql`now()` })
+        .where(and(eq(t.tokenHash, tokenHash), sql`${t.usedAt} IS NULL`, sql`${t.expiresAt} > now()`))
+        .returning();
+      if (!claimed) {
+        const [row] = await tx.select().from(t).where(eq(t.tokenHash, tokenHash));
+        if (!row) return "invalid";
+        if (!row.usedAt) return "expired";
+        const [u] = await tx.select({ verifiedAt: users.emailVerifiedAt }).from(users).where(eq(users.id, row.userId));
+        return u?.verifiedAt ? "already" : "invalid";
+      }
+      const [user] = await tx.select().from(users).where(eq(users.id, claimed.userId)).for("update");
+      if (!user?.email || normalizeEmail(user.email) !== claimed.email) return "invalid";
+      if (user.emailVerifiedAt) return "already";
+      const [taken] = await tx.select({ id: users.id }).from(users)
+        .where(and(sql`lower(${users.email}) = ${claimed.email}`, sql`${users.id} <> ${user.id}`, sql`${users.emailVerifiedAt} IS NOT NULL`))
+        .limit(1);
+      if (taken) return "conflict";
+      await tx.update(users).set({ emailVerifiedAt: new Date() }).where(eq(users.id, user.id));
+      return "verified";
+    });
   }
 
   // ─── AI usage (shared across instances) ────────────────────

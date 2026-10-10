@@ -614,6 +614,20 @@ DO $$ BEGIN
     ALTER TABLE prediction_feedbacks ALTER COLUMN predicted_event DROP NOT NULL;
   END IF;
 END $$;
+
+-- Release B: email verification and Ask question packs. Additive only; see docs/RELEASE_B.md.
+CREATE TABLE IF NOT EXISTS email_verification_tokens (
+  id varchar PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id varchar NOT NULL REFERENCES users(id),
+  email varchar NOT NULL,
+  token_hash varchar NOT NULL,
+  expires_at timestamp NOT NULL,
+  used_at timestamp,
+  created_at timestamp NOT NULL DEFAULT now()
+);
+CREATE UNIQUE INDEX IF NOT EXISTS email_verification_tokens_hash_uq ON email_verification_tokens (token_hash);
+CREATE INDEX IF NOT EXISTS email_verification_tokens_user_idx ON email_verification_tokens (user_id, created_at);
+ALTER TABLE entitlements ADD COLUMN IF NOT EXISTS transaction_id varchar;
 `;
 
 const SEED_STORE_SQL = `

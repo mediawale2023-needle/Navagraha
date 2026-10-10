@@ -861,7 +861,7 @@ export const askUsage = pgTable("ask_usage", {
 
 export type AskUsage = typeof askUsage.$inferSelect;
 
-// Purchased or granted allowances (Release B products draw on these; nothing sells them yet).
+// Purchased or granted allowances (Ask question packs draw on these; see server/askPacks.ts).
 export const entitlements = pgTable("entitlements", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   userId: varchar("user_id").references(() => users.id).notNull(),
@@ -871,11 +871,26 @@ export const entitlements = pgTable("entitlements", {
   followUpsEach: integer("follow_ups_each").notNull().default(0),
   source: varchar("source").notNull(), // purchase | grant | subscription
   sourceRef: varchar("source_ref"), // the wallet transaction or order that created it (unique)
+  transactionId: varchar("transaction_id"), // the wallet debit that bought it (purchases only)
   expiresAt: timestamp("expires_at"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
 export type Entitlement = typeof entitlements.$inferSelect;
+
+// Email verification links for email/password accounts. Only the SHA-256 of the token is stored;
+// a token is single use and expires (server/emailVerification.ts).
+export const emailVerificationTokens = pgTable("email_verification_tokens", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").references(() => users.id).notNull(),
+  email: varchar("email").notNull(), // the address the link was issued for
+  tokenHash: varchar("token_hash").notNull(),
+  expiresAt: timestamp("expires_at").notNull(),
+  usedAt: timestamp("used_at"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export type EmailVerificationToken = typeof emailVerificationTokens.$inferSelect;
 
 // Model usage per subject (user:<id> | astrologer:<id> | system), day and feature. Shared by
 // every server instance, so daily AI budgets hold across restarts and replicas.

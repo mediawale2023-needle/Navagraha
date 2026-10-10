@@ -15,6 +15,7 @@ import {
   Shield
 } from 'lucide-react';
 import type { Transaction, Wallet as WalletType } from '@shared/schema';
+import { AskQuestionsCard } from '@/components/ask/AskQuestionsCard';
 import { PageHeader } from '@/components/shell/PageHeader';
 
 interface RechargePackType {
@@ -262,6 +263,8 @@ export default function Wallet() {
           )}
         </div>
 
+        <AskQuestionsCard />
+
         {/* Recharge Section */}
         <Card className="yantra-card mb-6">
           <CardHeader className="pb-3">
@@ -445,7 +448,7 @@ export default function Wallet() {
                       <div className="text-right">
                         <div className={`font-semibold ${isPending ? 'text-amber-text' : isCredit ? 'text-emerald-600' : 'text-amber-text'
                           }`}>
-                          {isCredit ? '+' : '-'}₹{transaction.amount}
+                          {isCredit ? '+' : '-'}₹{Math.abs(Number(transaction.amount)).toFixed(2)}
                         </div>
                         <Badge
                           className={`text-xs ${transaction.status === 'completed' ? 'bg-emerald-500/10 text-emerald-600 border-0' : transaction.status === 'pending' ? 'bg-amber/10 text-amber-text border-0' : 'bg-destructive/10 text-destructive border-0'}`}
