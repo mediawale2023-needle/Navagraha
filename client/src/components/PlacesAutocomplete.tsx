@@ -49,13 +49,14 @@ function loadPlaces(apiKey: string): Promise<PlacesLibrary | null> {
   return placesPromise;
 }
 
-type Status = 'idle' | 'loading' | 'ready' | 'empty' | 'error' | 'unavailable';
+type Status = 'idle' | 'loading' | 'ready' | 'empty' | 'error' | 'unavailable' | 'unconfigured';
 
 const MESSAGES: Partial<Record<Status, string>> = {
   loading: 'Searching places…',
   empty: 'No matching places. Check the spelling.',
   error: 'Place search is not responding. Please try again.',
   unavailable: 'Place suggestions could not load. Check your connection and reload the page.',
+  unconfigured: 'Place search is not available on this site right now, so a birth place cannot be confirmed.',
 };
 
 export function PlacesAutocomplete({
@@ -151,7 +152,10 @@ export function PlacesAutocomplete({
     }
   };
 
-  const shownStatus: Status = mapsFailed && value.trim().length >= MIN_QUERY_LENGTH ? 'unavailable' : status;
+  // Without a Maps key the library never loads; say so instead of staying silent.
+  const unconfigured = !!config && !apiKey;
+  const typed = value.trim().length >= MIN_QUERY_LENGTH;
+  const shownStatus: Status = unconfigured && typed ? 'unconfigured' : mapsFailed && typed ? 'unavailable' : status;
   const message = resolving ? 'Getting location…' : MESSAGES[shownStatus];
   const showList = open && shownStatus === 'ready' && suggestions.length > 0 && !resolving;
   const showPanel = open && (showList || !!message);
