@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'wouter';
 import { Button } from '@/components/ui/button';
@@ -48,6 +48,9 @@ export default function Reports() {
   const [selected, setSelected] = useState<ReportType | null>(null);
   const [kundliId, setKundliId] = useState<string>('');
   const [orderMode, setOrderMode] = useState<'saved' | 'details'>('saved');
+  // Set once the user picks a mode, so a chart list arriving late never overrides their choice.
+  const modeChosen = useRef(false);
+  const chooseMode = (mode: 'saved' | 'details') => { modeChosen.current = true; setOrderMode(mode); };
   const emptyBirth = { name: '', gender: 'male', dateOfBirth: '', timeOfBirth: '', placeOfBirth: '' };
   const [birth, setBirth] = useState(emptyBirth);
   const [birthCoords, setBirthCoords] = useState<{ lat: number; lng: number } | null>(null);
@@ -61,6 +64,7 @@ export default function Reports() {
   const openOrder = (t: ReportType) => {
     setSelected(t);
     setOrderProblem(null);
+    modeChosen.current = false;
     const firstOrderable = kundlis?.find(chartOrderable);
     setOrderMode(kundlis && kundlis.length > 0 ? 'saved' : 'details');
     setKundliId(firstOrderable?.id ?? '');
@@ -86,6 +90,16 @@ export default function Reports() {
   // Reports are AI-written; without the AI service none can be prepared, so none are sold.
   const reportsAvailable = config?.reportsAvailable !== false;
   const { data: kundlis } = useQuery<Kundli[]>({ queryKey: ['/api/kundli'] });
+  // The dialog can open before the chart list arrives (a slow first load): once it does, offer the
+  // saved charts unless the user already chose a mode or started typing birth details.
+  useEffect(() => {
+    if (!selected || !kundlis?.length) return;
+    const first = kundlis.find(chartOrderable);
+    if (first) setKundliId((id) => id || first.id);
+    const typed = birth.name || birth.dateOfBirth || birth.timeOfBirth || birth.placeOfBirth;
+    if (!modeChosen.current && !typed) setOrderMode('saved');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selected, kundlis]);
   const { data: myReports } = useQuery<ReportOrder[]>({
     queryKey: ['/api/reports/orders'],
     enabled: tab === 'mine',
@@ -251,7 +265,7 @@ export default function Reports() {
               type="button"
               variant={orderMode === 'saved' ? 'default' : 'outline'}
               className={`rounded-[9px] ${orderMode === 'saved' ? 'bg-ink text-primary hover:bg-ink/90' : ''}`}
-              onClick={() => setOrderMode('saved')}
+              onClick={() => chooseMode('saved')}
               data-testid="mode-saved"
             >
               Saved chart
@@ -260,7 +274,7 @@ export default function Reports() {
               type="button"
               variant={orderMode === 'details' ? 'default' : 'outline'}
               className={`rounded-[9px] ${orderMode === 'details' ? 'bg-ink text-primary hover:bg-ink/90' : ''}`}
-              onClick={() => setOrderMode('details')}
+              onClick={() => chooseMode('details')}
               data-testid="mode-details"
             >
               Enter birth details
@@ -302,7 +316,7 @@ export default function Reports() {
                 <p className="m-0">You have no saved charts yet. Create one once and use it for every report, or enter birth details for this report only.</p>
                 <div className="flex flex-wrap gap-2">
                   <Link href="/kundli/new"><Button size="sm" variant="outline">Create a chart</Button></Link>
-                  <Button size="sm" variant="ghost" onClick={() => setOrderMode('details')}>Enter birth details</Button>
+                  <Button size="sm" variant="ghost" onClick={() => chooseMode('details')}>Enter birth details</Button>
                 </div>
               </div>
             )

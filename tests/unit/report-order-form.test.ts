@@ -26,6 +26,12 @@ describe('saved charts in the report dialog', () => {
     expect(reports).toContain('data-testid="no-saved-charts"');
     expect(reports).toContain('href="/kundli/new"');
   });
+  it('a chart list that arrives after the dialog opened is still offered and preselected', () => {
+    expect(reports).toMatch(/useEffect\(\(\) => \{\n    if \(!selected \|\| !kundlis\?\.length\) return;/);
+    expect(reports).toMatch(/setKundliId\(\(id\) => id \|\| first\.id\)/);
+    expect(reports).toMatch(/if \(!modeChosen\.current && !typed\) setOrderMode\('saved'\)/);
+    expect(reports).not.toMatch(/onClick=\{\(\) => setOrderMode\(/);
+  });
   it('preselects the first chart that can be ordered, never a limited one', () => {
     expect(reports).toMatch(/kundlis\?\.find\(chartOrderable\)/);
     expect(reports).toMatch(/disabled=\{!orderable\}/);
