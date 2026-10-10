@@ -11,6 +11,7 @@ export type AuditEvent =
   | "payment.mismatch"
   | "payment.not_captured"
   | "payment.refund_observed"
+  | "payment.method_disabled"
   | "wallet.credit"
   | "wallet.debit"
   | "wallet.refund"

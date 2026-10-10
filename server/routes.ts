@@ -1250,7 +1250,7 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
   // credit could not be verified to Release A's standard. Snapmint and LazyPay remain
   // available inside Razorpay Checkout, which settles through the verified path above.
   const directBnplDisabled = (req: any, res: any) => {
-    audit("payment.mismatch", { reason: 'direct BNPL route disabled', path: req.path });
+    audit("payment.method_disabled", { path: req.path });
     res.status(503).json({ code: 'payment_method_unavailable', message: "This payment method is not available. Please pay with Razorpay (UPI, cards, EMI and pay-later options are available there)." });
   };
   app.post('/api/payment/snapmint/order', isAuthenticated, paymentLimiter, directBnplDisabled);
