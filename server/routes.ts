@@ -92,6 +92,7 @@ import { streamTraditionReading, answerSessionQuery, type Tradition } from "./jy
 import { insertJyotishClientProfileSchema } from "@shared/schema";
 import { sendWelcomeEmail, sendBookingConfirmation, sendConsultationSummary } from "./emailService";
 import { settleRazorpayPayment, reconcilePendingRecharges } from "./rechargeSettlement";
+import { selfUser, selfAstrologer, adminAstrologer, adminAstrologerUpdate } from "./safeRows";
 import crypto from "crypto";
 
 // ─────────────────────────────────────────────────────────────
@@ -238,9 +239,7 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
     try {
       const userId = (req.user as any).id;
       const user = await storage.getUser(userId);
-      if (!user) return res.json(null);
-      const { passwordHash: _ph, ...safe } = user;
-      res.json(safe);
+      res.json(user ? selfUser(user) : null);
     } catch (error) {
       console.error("Error fetching user:", error);
       res.status(500).json({ message: "Failed to fetch user" });
@@ -252,8 +251,7 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
       const userId = (req.user as any).id;
       const { firstName, lastName, phoneNumber } = req.body;
       const user = await storage.updateUser(userId, { firstName, lastName, phoneNumber });
-      const { passwordHash: _ph, ...safe } = user as any;
-      res.json(safe);
+      res.json(selfUser(user));
     } catch (error) {
       console.error("Error updating user:", error);
       res.status(500).json({ message: "Failed to update user" });
@@ -853,7 +851,7 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
         .reduce((sum, c) => sum + parseFloat(c.totalAmount || '0') * (1 - PLATFORM_FEE_PERCENTAGE / 100), 0);
 
       res.json({
-        astrologer,
+        astrologer: selfAstrologer(astrologer),
         stats: {
           totalEarnings: earnings.total,
           pendingPayout: earnings.pending,
@@ -2536,14 +2534,17 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
   app.get('/api/admin/astrologers', isAdmin, adminLimiter, async (_req, res) => {
     try {
       const list = await storage.getAllAstrologers();
-      res.json(list);
+      res.json(list.map(adminAstrologer));
     } catch { res.status(500).json({ message: 'Failed to fetch astrologers' }); }
   });
 
   app.put('/api/admin/astrologers/:id', isAdmin, adminLimiter, async (req, res) => {
     try {
-      const updated = await storage.updateAstrologer(req.params.id, req.body);
-      res.json(updated);
+      const changes = adminAstrologerUpdate(req.body);
+      if (Object.keys(changes).length === 0) return res.status(400).json({ message: 'Nothing to update' });
+      const updated = await storage.updateAstrologer(req.params.id, changes);
+      if (!updated) return res.status(404).json({ message: 'Astrologer not found' });
+      res.json(adminAstrologer(updated));
     } catch { res.status(500).json({ message: 'Failed to update astrologer' }); }
   });
 
@@ -2579,7 +2580,7 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
   // ─── Admin: astrologer KYC review ──────────────────────────
   app.get('/api/admin/kyc', isAdmin, adminLimiter, async (_req, res) => {
     try {
-      res.json(await storage.getAstrologersByKycStatus('pending'));
+      res.json((await storage.getAstrologersByKycStatus('pending')).map(adminAstrologer));
     } catch { res.status(500).json({ message: 'Failed to fetch KYC submissions' }); }
   });
 
@@ -2592,8 +2593,7 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
         title: action === 'approve' ? 'KYC Approved ✅' : 'KYC Rejected',
         body: action === 'approve' ? 'Your profile is now verified.' : (notes || 'Please resubmit your KYC details.'),
       });
-      const { passwordHash: _p, bankAccountNumber: _b, ...safe } = updated;
-      res.json(safe);
+      res.json(adminAstrologer(updated));
     } catch { res.status(500).json({ message: 'Failed to review KYC' }); }
   });
 

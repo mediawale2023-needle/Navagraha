@@ -10,6 +10,8 @@ const mocks = vi.hoisted(() => ({
     getUser: vi.fn(), updateUser: vi.fn(), getUserByEmail: vi.fn(), createUserWithPassword: vi.fn(), createWallet: vi.fn(),
     getWallet: vi.fn(), updateWalletBalance: vi.fn(), createTransaction: vi.fn(),
     getAllAstrologers: vi.fn(), getAstrologerById: vi.fn(), getFollowerUserIds: vi.fn(),
+    getAstrologerConsultations: vi.fn(), getAstrologerTotalEarnings: vi.fn(), getAstrologerPayouts: vi.fn(),
+    updateAstrologer: vi.fn(), getAstrologersByKycStatus: vi.fn(), reviewAstrologerKyc: vi.fn(), createNotification: vi.fn(),
   },
 }));
 vi.mock('../../server/storage', () => ({ storage: mocks.storage }));
@@ -30,7 +32,7 @@ beforeAll(async () => {
     const id = req.headers['x-user'];
     req.isAuthenticated = (() => Boolean(id)) as typeof req.isAuthenticated;
     if (id) req.user = { id: String(id), email: req.headers['x-email'] ? String(req.headers['x-email']) : undefined };
-    req.session = {} as any;
+    req.session = (req.headers['x-astrologer'] ? { astrologerId: String(req.headers['x-astrologer']) } : {}) as any;
     next();
   });
   await registerRoutes(app);
@@ -154,5 +156,72 @@ describe('5. the signed-in user never receives their password hash', () => {
     expect(res.status).toBe(200);
     expect(res.body).toMatchObject({ firstName: 'New' });
     expect(res.body).not.toHaveProperty('passwordHash');
+  });
+});
+
+describe('6. admins never receive astrologer password hashes or full bank account numbers', () => {
+  const row = {
+    id: 'a1', name: 'Astro', email: 'astro@audit.test', passwordHash: '$2b$10$secret', isVerified: false,
+    panNumber: 'ABCDE1234F', aadhaarLast4: '1234', bankIfsc: 'HDFC0001234', bankAccountNumber: '123456789012', bankAccountName: 'Astro',
+  };
+  const admin = (r: request.Test) => r.set('x-user', 'admin').set('x-email', 'admin@audit.test');
+  const expectSafe = (body: any) => {
+    expect(body).not.toHaveProperty('passwordHash');
+    expect(body).not.toHaveProperty('bankAccountNumber');
+    expect(JSON.stringify(body)).not.toContain('123456789012');
+    expect(body).toMatchObject({ id: 'a1', panNumber: 'ABCDE1234F', bankIfsc: 'HDFC0001234', bankAccountLast4: '9012' });
+  };
+
+  it('GET /api/admin/astrologers', async () => {
+    mocks.storage.getAllAstrologers.mockResolvedValue([row]);
+    const res = await admin(request(app).get('/api/admin/astrologers'));
+    expect(res.status).toBe(200);
+    expectSafe(res.body[0]);
+  });
+
+  it('PUT /api/admin/astrologers/:id changes only editable fields and returns a safe row', async () => {
+    mocks.storage.updateAstrologer.mockResolvedValue({ ...row, isVerified: true });
+    const res = await admin(request(app).put('/api/admin/astrologers/a1')).send({
+      isVerified: true, passwordHash: 'x', email: 'attacker@evil.test', bankAccountNumber: '999', totalEarnings: '1000000', proAiCreditsUsed: 0,
+    });
+    expect(res.status).toBe(200);
+    expect(mocks.storage.updateAstrologer).toHaveBeenCalledWith('a1', { isVerified: true });
+    expectSafe(res.body);
+  });
+
+  it('PUT /api/admin/astrologers/:id with no editable field changes nothing', async () => {
+    const res = await admin(request(app).put('/api/admin/astrologers/a1')).send({ passwordHash: 'x' });
+    expect(res.status).toBe(400);
+    expect(mocks.storage.updateAstrologer).not.toHaveBeenCalled();
+  });
+
+  it('GET /api/admin/kyc and POST /api/admin/kyc/:id', async () => {
+    mocks.storage.getAstrologersByKycStatus.mockResolvedValue([row]);
+    const list = await admin(request(app).get('/api/admin/kyc'));
+    expect(list.status).toBe(200);
+    expectSafe(list.body[0]);
+    mocks.storage.reviewAstrologerKyc.mockResolvedValue({ ...row, isVerified: true });
+    const reviewed = await admin(request(app).post('/api/admin/kyc/a1')).send({ action: 'approve' });
+    expect(reviewed.status).toBe(200);
+    expectSafe(reviewed.body);
+  });
+
+  it('non-admins are refused', async () => {
+    const res = await request(app).get('/api/admin/astrologers').set('x-user', 'u1').set('x-email', 'someone@audit.test');
+    expect(res.status).toBe(403);
+  });
+});
+
+describe('7. an astrologer dashboard never carries the password hash', () => {
+  it('GET /api/astrologer/dashboard', async () => {
+    mocks.storage.getAstrologerById.mockResolvedValue({ id: 'a1', name: 'Astro', passwordHash: '$2b$10$secret', bankAccountNumber: '123456789012' });
+    mocks.storage.getAstrologerConsultations.mockResolvedValue([]);
+    mocks.storage.getAstrologerTotalEarnings.mockResolvedValue({ total: 0, pending: 0 });
+    mocks.storage.getAstrologerPayouts.mockResolvedValue([]);
+    const res = await request(app).get('/api/astrologer/dashboard').set('x-astrologer', 'a1');
+    expect(res.status).toBe(200);
+    expect(res.body.astrologer).not.toHaveProperty('passwordHash');
+    // Their own payout details stay: the profile form is prefilled from them.
+    expect(res.body.astrologer.bankAccountNumber).toBe('123456789012');
   });
 });
