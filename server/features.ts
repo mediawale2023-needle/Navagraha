@@ -35,4 +35,13 @@ export const features = {
    * made — verify, webhook, reconciler — continues, so nobody who has paid goes uncredited.
    */
   rechargesPaused: () => on('RECHARGES_PAUSED'),
+  /**
+   * Email verification for email/password accounts (verified accounts get the free Ask
+   * questions). Off: no links are sent and the resend route answers 404. Needs SMTP and APP_URL.
+   */
+  emailVerification: () => on('FEATURE_EMAIL_VERIFICATION'),
+  /** Buying Ask question packs from the wallet. Off: the packs are not offered and purchase answers 404. */
+  askPacks: () => on('FEATURE_ASK_PACKS'),
+  /** Release B report prices (server/reportPricing.ts). Off: the catalogue's stored prices apply. */
+  releaseBPricing: () => on('FEATURE_RELEASE_B_PRICING'),
 };

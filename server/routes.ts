@@ -91,6 +91,7 @@ import { computeJyotishChart } from "./astroEngine/jyotishEngine.js";
 import { streamTraditionReading, answerSessionQuery, type Tradition } from "./jyotishAiService.js";
 import { insertJyotishClientProfileSchema } from "@shared/schema";
 import { sendWelcomeEmail, sendBookingConfirmation, sendConsultationSummary } from "./emailService";
+import { sendVerification, isWellFormedToken, hashVerificationToken, verificationAvailable } from "./emailVerification";
 import { settleRazorpayPayment, reconcilePendingRecharges } from "./rechargeSettlement";
 import { selfUser, selfAstrologer, adminAstrologer, adminAstrologerUpdate } from "./safeRows";
 import crypto from "crypto";
@@ -113,6 +114,18 @@ const adminLimiter = rateLimit({
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 20,
+});
+
+// Verification links: resend is per signed-in user (the account limits are kept in the database);
+// opening links is per IP.
+const verifyResendLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 5,
+  keyGenerator: (req: any) => `user:${req.user?.id ?? req.session?.userId ?? 'anonymous'}`,
+});
+const verifyLinkLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 30,
 });
 
 const paymentLimiter = rateLimit({
@@ -194,11 +207,17 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
       // Auto-create wallet
       await storage.createWallet(user.id).catch(() => {});
 
-      // Send welcome email (fire-and-forget)
-      sendWelcomeEmail(email, firstName || "").catch(() => {});
+      // A verification link when verification is on (it doubles as the welcome); otherwise the welcome email.
+      let verificationEmailSent = false;
+      if (verificationAvailable()) {
+        const result = await sendVerification(user).catch(() => ({ unavailable: true as const }));
+        verificationEmailSent = "sent" in result;
+        if (verificationEmailSent) audit("auth.email_verification_sent", { userId: user.id, at: "register" });
+      } else {
+        sendWelcomeEmail(email, firstName || "").catch(() => {});
+      }
 
-      const { passwordHash: _ph, ...safe } = user as any;
-      res.status(201).json(safe);
+      res.status(201).json({ ...selfUser(user), verificationEmailSent });
     } catch (error) {
       console.error("Register error:", error);
       res.status(500).json({ message: "Registration failed" });
@@ -225,6 +244,50 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
       console.error("Login error:", error);
       res.status(500).json({ message: "Login failed" });
     }
+  });
+
+  // ─── Email verification ───────────────────────────────────
+  // Resend only to the signed-in account's own address (no lookup by address, so nothing to
+  // enumerate). Opening a link needs no session, so it works on another device.
+  app.post('/api/auth/verify-email/resend', isAuthenticated, verifyResendLimiter, async (req: any, res) => {
+    try {
+      if (!features.emailVerification()) return res.status(404).json({ code: 'email_verification_disabled', message: "Email verification is not available." });
+      const user = await storage.getUser((req.user as any).id);
+      if (!user) return res.status(401).json({ message: "Unauthorized" });
+      if (user.emailVerifiedAt) return res.json({ alreadyVerified: true });
+      if (!user.email) return res.status(400).json({ message: "This account has no email address." });
+      if (!verificationAvailable()) return res.status(503).json({ code: 'email_unavailable', message: "We can't send email right now. Please try again later." });
+      const result = await sendVerification(user);
+      if ("throttled" in result) {
+        audit("auth.email_verification_throttled", { userId: user.id });
+        res.setHeader('Retry-After', String(result.retryAfterS));
+        return res.status(429).json({ code: 'verification_throttled', retryAfter: result.retryAfterS, message: "Please wait before asking for another link." });
+      }
+      if ("unavailable" in result) return res.status(503).json({ code: 'email_unavailable', message: "We can't send email right now. Please try again later." });
+      audit("auth.email_verification_sent", { userId: user.id, at: "resend" });
+      res.status(202).json({ sent: true });
+    } catch (error) {
+      console.error("Verification resend error:", (error as Error)?.message);
+      res.status(500).json({ message: "Could not send the verification email" });
+    }
+  });
+
+  // Always a redirect to the app's status page; the token never stays in the address bar.
+  app.get('/api/auth/verify-email', verifyLinkLimiter, async (req: any, res) => {
+    res.setHeader('Cache-Control', 'no-store');
+    res.setHeader('Referrer-Policy', 'no-referrer');
+    let status = 'invalid';
+    try {
+      const token = req.query.token;
+      if (isWellFormedToken(token)) {
+        status = await storage.consumeEmailVerificationToken(hashVerificationToken(token));
+        if (status === 'verified') audit("auth.email_verified", {});
+      }
+    } catch (error) {
+      console.error("Verification link error:", (error as Error)?.message);
+      status = 'error';
+    }
+    res.redirect(303, `/verify-email?status=${status}`);
   });
 
   app.post('/api/auth/logout', (req: any, res) => {

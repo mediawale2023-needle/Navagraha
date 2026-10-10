@@ -6,6 +6,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import { useAuth } from "@/hooks/useAuth";
 import Landing from "@/pages/Landing";
+import VerifyEmail from "@/pages/VerifyEmail";
 import Home from "@/pages/Home";
 import KundliNew from "@/pages/KundliNew";
 import KundliView from "@/pages/KundliView";
@@ -107,6 +108,7 @@ function Router() {
       <Route path="/live" component={market(Live)} />
       <Route path="/live/:id" component={market(LiveStream)} />
       <Route path="/panchang" component={Panchang} />
+      <Route path="/verify-email" component={VerifyEmail} />
       <Route path="/remedies" component={Remedies} />
 
       {isLoading || !isAuthenticated ? (

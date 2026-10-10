@@ -34,6 +34,7 @@ import {
   jyotishSessionQueries,
   askUsage,
   entitlements,
+  emailVerificationTokens,
   aiUsageDaily,
   aiBudgetDaily,
   type AskUsage,
@@ -127,6 +128,9 @@ export type AskReservation =
   | { kind: "replay"; usage: AskUsage }
   | { kind: "in_flight" }
   | { kind: "exhausted" };
+
+export interface EmailVerificationLimits { ttlS: number; minIntervalS: number; perDay: number }
+export type EmailVerificationOutcome = "verified" | "already" | "expired" | "invalid" | "conflict";
 
 export interface AskAllowanceCounts {
   freeQuestionsUsed: number;
@@ -282,6 +286,8 @@ export interface IStorage {
   reserveAiBudget(r: { subject: string; day: string; microUsd: number; costLimitMicroUsd: number; callLimit: number }): Promise<boolean>;
   settleAiBudget(r: { subject: string; day: string; reservedMicroUsd: number; actualMicroUsd: number }): Promise<void>;
   getAskAllowance(userId: string, opts: { freeQuestions: number; sessionId?: string; chartKey?: string }): Promise<AskAllowanceCounts>;
+  issueEmailVerificationToken(userId: string, email: string, tokenHash: string, limits: EmailVerificationLimits): Promise<{ issued: true } | { throttled: true; retryAfterS: number }>;
+  consumeEmailVerificationToken(tokenHash: string): Promise<EmailVerificationOutcome>;
   getAiChatSessions(userId: string): Promise<{ sessionId: string; createdAt: Date | null; preview: string }[]>;
 }
 
@@ -1125,6 +1131,60 @@ export class DatabaseStorage implements IStorage {
       }
     }
     return { freeQuestionsUsed: freeUsed, freeQuestionsRemaining: Math.max(0, opts.freeQuestions - freeUsed), paidQuestionsRemaining: paidRemaining, followUpsRemaining };
+  }
+
+  // ─── Email verification ────────────────────────────────────
+  // One account's links are issued one at a time (per-user lock), so the resend limits hold
+  // across instances. A new link ends the previous unused one.
+
+  async issueEmailVerificationToken(userId: string, email: string, tokenHash: string, limits: EmailVerificationLimits): Promise<{ issued: true } | { throttled: true; retryAfterS: number }> {
+    return db.transaction(async (tx) => {
+      await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${"email-verify:" + userId}))`);
+      const t = emailVerificationTokens;
+      const [w] = await tx.select({
+        sinceLast: sql<number | null>`extract(epoch from now() - max(${t.createdAt}))::float`,
+        today: sql<number>`count(*) filter (where ${t.createdAt} > now() - interval '1 day')::int`,
+        dayFreesIn: sql<number | null>`extract(epoch from min(${t.createdAt}) filter (where ${t.createdAt} > now() - interval '1 day') + interval '1 day' - now())::float`,
+      }).from(t).where(eq(t.userId, userId));
+      if (w.today >= limits.perDay) return { throttled: true as const, retryAfterS: Math.max(1, Math.ceil(w.dayFreesIn ?? 86400)) };
+      if (w.sinceLast !== null && w.sinceLast < limits.minIntervalS) {
+        return { throttled: true as const, retryAfterS: Math.max(1, Math.ceil(limits.minIntervalS - w.sinceLast)) };
+      }
+      await tx.update(t).set({ expiresAt: sql`least(${t.expiresAt}, now())` })
+        .where(and(eq(t.userId, userId), sql`${t.usedAt} IS NULL`));
+      await tx.insert(t).values({ userId, email, tokenHash, expiresAt: sql`now() + make_interval(secs => ${limits.ttlS})` });
+      return { issued: true as const };
+    });
+  }
+
+  /**
+   * Spends a link once and verifies the address it was issued for. A link for an address the
+   * account no longer has, or one another verified account already holds (case variants from
+   * before emails were normalised), verifies nothing.
+   */
+  async consumeEmailVerificationToken(tokenHash: string): Promise<EmailVerificationOutcome> {
+    return db.transaction(async (tx) => {
+      const t = emailVerificationTokens;
+      const [claimed] = await tx.update(t).set({ usedAt: sql`now()` })
+        .where(and(eq(t.tokenHash, tokenHash), sql`${t.usedAt} IS NULL`, sql`${t.expiresAt} > now()`))
+        .returning();
+      if (!claimed) {
+        const [row] = await tx.select().from(t).where(eq(t.tokenHash, tokenHash));
+        if (!row) return "invalid";
+        if (!row.usedAt) return "expired";
+        const [u] = await tx.select({ verifiedAt: users.emailVerifiedAt }).from(users).where(eq(users.id, row.userId));
+        return u?.verifiedAt ? "already" : "invalid";
+      }
+      const [user] = await tx.select().from(users).where(eq(users.id, claimed.userId)).for("update");
+      if (!user?.email || normalizeEmail(user.email) !== claimed.email) return "invalid";
+      if (user.emailVerifiedAt) return "already";
+      const [taken] = await tx.select({ id: users.id }).from(users)
+        .where(and(sql`lower(${users.email}) = ${claimed.email}`, sql`${users.id} <> ${user.id}`, sql`${users.emailVerifiedAt} IS NOT NULL`))
+        .limit(1);
+      if (taken) return "conflict";
+      await tx.update(users).set({ emailVerifiedAt: new Date() }).where(eq(users.id, user.id));
+      return "verified";
+    });
   }
 
   // ─── AI usage (shared across instances) ────────────────────
