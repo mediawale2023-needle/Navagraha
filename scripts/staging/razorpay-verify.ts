@@ -22,6 +22,13 @@
  *               concurrency, partial refund, second payment, failed/uncaptured, forgeries,
  *               invalid amounts, disabled BNPL, paused recharges when RECHARGES_PAUSED is set)
  *   reconcile   admin reconcile (dry run unless --apply) and the review list
+ *   keycheck    Razorpay accepts staging's key pair (one ₹10 TEST order, never paid)
+ *   ledger      the buyer's wallet against its completed transactions (credits − debits)
+ *   packs       Release B question packs bought from the buyer's wallet (needs ≥ ₹327 and
+ *               FEATURE_ASK_PACKS on staging): exact debits, entitlements, replay, overdraw
+ *   reports     Release B report prices, stale-price refusal, failed-report refund, admin ₹0
+ *
+ * `packs` and `reports` spend the buyer's staging TEST wallet; nothing touches production.
  *
  * Secrets are never printed: output shows key prefixes, ids and amounts only.
  */
@@ -284,9 +291,122 @@ async function reconcile() {
   for (const t of Array.isArray(review.body) ? review.body : []) console.log(`  ${t.gatewayOrderId}  ${t.gatewayPaymentId}  ${t.reviewReason}`);
 }
 
-const commands: Record<string, () => Promise<unknown>> = { preflight, simulate, buyer, snapshot, reconcile };
+async function keycheck() {
+  if (!(await preflight())) process.exit(1);
+  const u = await newUser("keycheck");
+  const r = await createOrder(u.client, 10);
+  record("K1", "Razorpay accepted staging's key id + secret (a TEST order was created)",
+    r.status === 200 && /^order_/.test(String(r.body?.orderId)) && Number(r.body?.amount) === 1000, `status ${r.status}, order ${String(r.body?.orderId ?? "-").slice(0, 10)}…, ${r.body?.amount} paise`, "check");
+}
+
+async function allTransactions(c: Client): Promise<Json[]> {
+  const r = await c.req("GET", "/api/transactions");
+  return Array.isArray(r.body) ? r.body : [];
+}
+
+/** Completed credits minus debits, the way the wallet should add up (whatever sign debits are stored with). */
+function ledgerBalance(rows: Json[]): number {
+  let sum = 0;
+  for (const t of rows) {
+    if (t.status !== "completed") continue;
+    const a = Math.abs(Number(t.amount) || 0);
+    if (t.type === "recharge" || t.type === "refund" || t.type === "credit") sum += a;
+    else if (t.type === "debit" || t.type === "deduction") sum -= a;
+  }
+  return Math.round(sum * 100) / 100;
+}
+
+async function ledger() {
+  const c = await login(need("STAGING_BUYER_EMAIL"), need("STAGING_BUYER_PASSWORD"));
+  const rows = await allTransactions(c);
+  const w = await wallet(c);
+  const l = ledgerBalance(rows);
+  for (const t of rows) console.log([t.createdAt, t.type, t.status, `₹${t.amount}`, t.description ?? "", t.gatewayPaymentId ?? ""].join("  "));
+  record("L1", "buyer wallet equals completed credits − debits", Math.abs(w - l) < 0.005, `wallet ₹${w.toFixed(2)}, ledger ₹${l.toFixed(2)}, ${rows.length} transactions`, "check");
+  record("L2", "no negative balance", w >= 0, `₹${w.toFixed(2)}`, "check");
+}
+
+async function packs() {
+  const c = await login(need("STAGING_BUYER_EMAIL"), need("STAGING_BUYER_PASSWORD"));
+  const list = await c.req("GET", "/api/ask/packs");
+  const offered = (list.body?.packs ?? []).map((p: Json) => `${p.id}:${p.questions}:${p.price}:${p.followUpsEach}`).join(",");
+  record("B1", "catalogue: ₹29/1, ₹99/5, ₹199/12, two follow-ups each", list.body?.enabled === true && offered === "ask_1:1:29:2,ask_5:5:99:2,ask_12:12:199:2", offered || `status ${list.status}`, "check");
+  if (list.body?.enabled !== true) return;
+  const start = await wallet(c);
+  if (start < 327) { console.error(`Buyer wallet is ₹${start}; top it up to at least ₹327 with a real test checkout first.`); process.exit(1); }
+  const paid0 = Number(list.body?.allowance?.paidQuestionsRemaining ?? 0);
+  const rid = () => `req_${crypto.randomBytes(8).toString("hex")}`;
+  const buy = (packId: string, requestId: string, extra: Json = {}) => c.req("POST", "/api/ask/packs/purchase", { packId, requestId, ...extra });
+
+  const r1 = rid();
+  const a = await buy("ask_1", r1, { price: 1, questions: 500 });
+  record("B2", "₹29 pack: debits exactly ₹29 (client price ignored)", a.status === 201 && (await wallet(c)) === start - 29 && a.body?.questions === 1 && a.body?.followUpsEach === 2, `status ${a.status}, wallet ₹${start} → ₹${await wallet(c)}`, "check");
+  const replay = await Promise.all(Array.from({ length: 5 }, () => buy("ask_1", r1)));
+  record("B3", "the same request sent 5 more times (concurrently) charges nothing more", replay.every((r) => r.status === 200 && r.body?.replayed === true) && (await wallet(c)) === start - 29, `statuses ${[...new Set(replay.map((r) => r.status))].join(",")}, wallet ₹${await wallet(c)}`, "check");
+  const conflict = await buy("ask_12", r1);
+  record("B4", "a request id reused for another pack is refused, not charged", conflict.status === 409 && (await wallet(c)) === start - 29, `status ${conflict.status}`, "check");
+  const b = await buy("ask_5", rid());
+  const d = await buy("ask_12", rid());
+  const afterThree = await wallet(c);
+  record("B5", "₹99 and ₹199 packs debit exactly", b.status === 201 && d.status === 201 && afterThree === start - 327, `wallet ₹${start} → ₹${afterThree}`, "check");
+  const after = await c.req("GET", "/api/ask/packs");
+  const paid = Number(after.body?.allowance?.paidQuestionsRemaining ?? 0);
+  record("B6", "18 questions allocated (1 + 5 + 12), each with 2 follow-ups", paid - paid0 === 18 && (after.body?.history ?? []).slice(0, 3).every((h: Json) => h.followUpsEach === 2), `bought questions ${paid0} → ${paid}`, "check");
+  const prices = (after.body?.history ?? []).slice(0, 3).map((h: Json) => h.price).sort().join(",");
+  record("B7", "pack history shows what each pack cost", prices === "199.00,29.00,99.00", prices, "check");
+
+  // Overdraw: as many concurrent ₹199 purchases as would need twice the balance; never below zero.
+  const bal = await wallet(c);
+  const n = Math.floor(bal / 199) + 3;
+  const burst = await Promise.all(Array.from({ length: n }, () => buy("ask_12", rid())));
+  const ok = burst.filter((r) => r.status === 201).length;
+  const end = await wallet(c);
+  record("B8", `${n} concurrent ₹199 purchases on ₹${bal}: only what the balance covers, never negative`, ok === Math.floor(bal / 199) && end >= 0 && Math.abs(end - (bal - ok * 199)) < 0.005 && burst.filter((r) => r.status === 402).length === n - ok, `${ok} bought, ${burst.filter((r) => r.status === 402).length} refused 402, wallet ₹${end}`, "check");
+  const debits = (await allTransactions(c)).filter((t) => t.type === "debit" && String(t.description ?? "").startsWith("Ask your Kundli"));
+  record("B9", "one wallet debit per pack bought", debits.length === 3 + ok, `${debits.length} pack debits for ${3 + ok} packs`, "check");
+
+  const admin = await login(need("STAGING_ADMIN_EMAIL"), need("STAGING_ADMIN_PASSWORD"));
+  const adminBuy = await admin.req("POST", "/api/ask/packs/purchase", { packId: "ask_1", requestId: rid() });
+  record("B10", "admin (free access) is refused a pack, nothing charged", adminBuy.status === 409 && adminBuy.body?.code === "free_access_unlimited", `status ${adminBuy.status}`, "check");
+}
+
+async function reports() {
+  const c = await login(need("STAGING_BUYER_EMAIL"), need("STAGING_BUYER_PASSWORD"));
+  const types = await c.req("GET", "/api/reports/types");
+  const price = Object.fromEntries((Array.isArray(types.body) ? types.body : []).map((t: Json) => [t.slug, t.price]));
+  record("R1", "Release B prices listed (Career/Marriage/Finance ₹299, Year Ahead ₹499, Life ₹999)",
+    price["career-report"] === "299.00" && price["marriage-report"] === "299.00" && price["finance-report"] === "299.00" && price["year-ahead-report"] === "499.00" && price["complete-life-report"] === "999.00",
+    JSON.stringify(price), "check");
+  const career = (types.body as Json[]).find((t) => t.slug === "career-report");
+  const chart = await c.req("POST", "/api/kundli", { name: "Staging Buyer", gender: "female", dateOfBirth: "1990-05-15", timeOfBirth: "14:30", placeOfBirth: "New Delhi, India", latitude: 28.6139, longitude: 77.209 });
+  const kundliId = chart.body?.id;
+  const before = await wallet(c);
+  const stale = await c.req("POST", "/api/reports/order", { reportTypeId: career.id, kundliId, expectedPrice: 349 });
+  record("R2", "an order showing a stale price is refused before any charge", stale.status === 409 && stale.body?.code === "price_changed" && (await wallet(c)) === before, `status ${stale.status}, wallet ₹${await wallet(c)}`, "check");
+  const order = await c.req("POST", "/api/reports/order", { reportTypeId: career.id, kundliId, expectedPrice: 299 });
+  const charged = await wallet(c);
+  record("R3", "Career report charges ₹299", order.status === 201 && Math.abs(before - charged - 299) < 0.005, `status ${order.status} ${order.body?.code ?? ""}, wallet ₹${before} → ₹${charged}`, "check");
+  if (order.status === 201) {
+    // Staging has no working OpenAI key, so generation fails and the order must be refunded once.
+    let refunded = false;
+    for (let i = 0; i < 20 && !refunded; i++) {
+      await new Promise((r) => setTimeout(r, 3000));
+      const o = await c.req("GET", `/api/reports/orders/${order.body.orderId}`);
+      refunded = Boolean(o.body?.refundedAt);
+    }
+    const after = await wallet(c);
+    const refunds = (await allTransactions(c)).filter((t) => t.type === "refund");
+    record("R4", "a failed report is refunded once, in full", refunded && Math.abs(after - before) < 0.005, `refunded ${refunded}, wallet ₹${after}, refund rows ${refunds.length}`, "check");
+  }
+  const admin = await login(need("STAGING_ADMIN_EMAIL"), need("STAGING_ADMIN_PASSWORD"));
+  const aChart = await admin.req("POST", "/api/kundli", { name: "Staging Admin", gender: "male", dateOfBirth: "1988-11-02", timeOfBirth: "06:10", placeOfBirth: "Mumbai, India", latitude: 19.076, longitude: 72.8777 });
+  const aOrder = await admin.req("POST", "/api/reports/order", { reportTypeId: career.id, kundliId: aChart.body?.id, expectedPrice: 299 });
+  record("R5", "admin report order is free (₹0 charged)", aOrder.status === 201 && Number(aOrder.body?.newBalance) >= 0 && (await admin.req("GET", `/api/reports/orders/${aOrder.body?.orderId}`)).body?.chargedAmount === "0.00", `status ${aOrder.status} ${aOrder.body?.code ?? ""}`, "check");
+}
+
+const commands: Record<string, () => Promise<unknown>> = { preflight, simulate, buyer, snapshot, reconcile, keycheck, ledger, packs, reports };
 if (!commands[command]) {
-  console.error("Usage: npx tsx scripts/staging/razorpay-verify.ts <preflight|buyer|snapshot|simulate|reconcile> [--env file] [--apply] [--expect-paused]");
+  console.error("Usage: npx tsx scripts/staging/razorpay-verify.ts <preflight|keycheck|buyer|snapshot|ledger|simulate|reconcile|packs|reports> [--env file] [--apply] [--expect-paused]");
   process.exit(2);
 }
 commands[command]()
