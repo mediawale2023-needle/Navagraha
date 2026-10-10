@@ -1,5 +1,6 @@
 import { VerifyEmailNotice } from '@/components/account/VerifyEmailNotice';
 import { AskPacks } from './AskPacks';
+import { useAppFeatures } from '@/lib/appConfig';
 
 export interface AskAllowanceState {
   enforced: boolean;
@@ -43,11 +44,14 @@ export function FollowUpHint({ allowance }: { allowance: AskAllowanceState | nul
 
 /** Why a question was not answered (402), with the way forward; nothing was used. */
 export function AskLimitPanel({ problem, packsEnabled, onPurchased }: { problem: string; packsEnabled: boolean; onPurchased: () => void }) {
+  const { emailVerification } = useAppFeatures();
   if (problem === 'email_verification_required') {
     return (
       <div className="flex flex-col gap-3 rounded-answer border border-line bg-surface p-[22px]" role="alert" data-testid="ask-limit-verify">
         <p className="m-0 text-base">Free questions are for accounts with a confirmed email. Your question has not been used.</p>
-        <VerifyEmailNotice reason="Confirm your email to get 3 free questions, each with a follow-up." />
+        {emailVerification
+          ? <VerifyEmailNotice reason="Confirm your email to get 3 free questions, each with a follow-up." />
+          : <p className="m-0 text-sm text-ink-muted">Email confirmation isn't available yet. Signing in with Google confirms your email straight away.</p>}
         {packsEnabled && <AskPacks onPurchased={onPurchased} />}
       </div>
     );

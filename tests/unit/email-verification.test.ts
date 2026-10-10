@@ -22,6 +22,8 @@ vi.mock('../../server/emailService', () => ({
 vi.mock('../../server/pushService', () => ({ sendPushToUser: vi.fn(), sendPushToAstrologer: vi.fn() }));
 import { registerRoutes } from '../../server/routes';
 import { hashVerificationToken, isWellFormedToken, newVerificationToken, EMAIL_VERIFICATION_LIMITS } from '../../server/emailVerification';
+import { googleVerifiesAccountEmail } from '../../server/adminAccess';
+import { readFileSync } from 'node:fs';
 
 let app: Express;
 beforeAll(async () => {
@@ -73,6 +75,7 @@ describe('POST /api/auth/register', () => {
     const res = await register();
     expect(res.status).toBe(201);
     expect(res.body).toMatchObject({ verificationEmailSent: true });
+    await vi.waitFor(() => expect(mocks.email.sendVerificationEmail).toHaveBeenCalled());
     expect(res.body).not.toHaveProperty('passwordHash');
     const [userId, email, hash] = mocks.storage.issueEmailVerificationToken.mock.calls[0];
     expect([userId, email]).toEqual(['new', 'new@example.com']);
@@ -88,6 +91,12 @@ describe('POST /api/auth/register', () => {
     expect(res.body.verificationEmailSent).toBe(false);
     expect(mocks.storage.issueEmailVerificationToken).not.toHaveBeenCalled();
     expect(mocks.email.sendWelcomeEmail).toHaveBeenCalled();
+  });
+
+  it('a mail server that never answers does not hold up registration', async () => {
+    mocks.email.sendVerificationEmail.mockReturnValue(new Promise(() => {}));
+    const res = await register();
+    expect(res.status).toBe(201);
   });
 
   it('without SMTP, registration still succeeds and nothing is issued', async () => {
@@ -174,5 +183,25 @@ describe('GET /api/auth/verify-email', () => {
     expect(res.headers.location).toBe('/verify-email?status=error');
     for (const spy of spies) for (const call of spy.mock.calls) expect(JSON.stringify(call)).not.toContain(token);
     spies.forEach((s) => s.mockRestore());
+  });
+});
+
+describe('Google sign-in', () => {
+  it("verifies the account's email when Google signs in that mailbox, in any case", () => {
+    expect(googleVerifiesAccountEmail('me@example.com', 'me@example.com')).toBe(true);
+    expect(googleVerifiesAccountEmail('Me@Example.com', 'me@example.com')).toBe(true);
+    expect(googleVerifiesAccountEmail('legacy@example.com', 'Legacy@Example.COM')).toBe(true);
+  });
+
+  it('verifies nothing for another address or a missing one', () => {
+    expect(googleVerifiesAccountEmail('other@example.com', 'me@example.com')).toBe(false);
+    expect(googleVerifiesAccountEmail(undefined, 'me@example.com')).toBe(false);
+    expect(googleVerifiesAccountEmail('me@example.com', null)).toBe(false);
+  });
+
+  it('the Google strategy sets emailVerifiedAt through this check, keeping an earlier date', () => {
+    const auth = readFileSync('server/auth.ts', 'utf8');
+    expect(auth).toMatch(/googleVerifiesAccountEmail\(googleEmail, signIn\.email\)/);
+    expect(auth).toMatch(/emailVerifiedAt: existing\?\.emailVerifiedAt \?\? new Date\(\)/);
   });
 });

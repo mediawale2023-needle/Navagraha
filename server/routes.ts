@@ -209,12 +209,13 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
       // Auto-create wallet
       await storage.createWallet(user.id).catch(() => {});
 
-      // A verification link when verification is on (it doubles as the welcome); otherwise the welcome email.
-      let verificationEmailSent = false;
-      if (verificationAvailable()) {
-        const result = await sendVerification(user).catch(() => ({ unavailable: true as const }));
-        verificationEmailSent = "sent" in result;
-        if (verificationEmailSent) audit("auth.email_verification_sent", { userId: user.id, at: "register" });
+      // A verification link when verification is on (it doubles as the welcome); otherwise the welcome
+      // email. Either is sent in the background: a slow mail server never holds up sign-up.
+      const verificationEmailSent = verificationAvailable();
+      if (verificationEmailSent) {
+        sendVerification(user)
+          .then((result) => { if ("sent" in result) audit("auth.email_verification_sent", { userId: user.id, at: "register" }); })
+          .catch(() => {});
       } else {
         sendWelcomeEmail(email, firstName || "").catch(() => {});
       }
