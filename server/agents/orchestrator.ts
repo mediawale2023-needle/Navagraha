@@ -1,10 +1,8 @@
-import OpenAI from 'openai';
+import { createOpenAI } from '../ai/metering';
 import { AGENT_PROMPTS } from './prompts';
 
 // Ensure OPENAI_API_KEY is available in the environment
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY || 'dummy_key_for_build',
-});
+const openai = createOpenAI(process.env.OPENAI_API_KEY || 'dummy_key_for_build');
 
 export interface UserContext {
   birthDetails: {
@@ -169,6 +167,7 @@ async function callAgent(role: string, systemPrompt: string, userMessage: string
         { role: "user", content: userMessage }
       ],
       temperature: 0.2,
+      max_tokens: 1200,
     });
     return response.choices[0]?.message?.content || "Error: Unexpected empty response from OpenAI.";
   } catch (error) {

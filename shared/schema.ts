@@ -11,6 +11,8 @@ import {
   boolean,
   decimal,
   serial,
+  primaryKey,
+  bigint,
 } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
@@ -42,6 +44,9 @@ export const users = pgTable("users", {
   referralCode: varchar("referral_code").unique(),
   referredBy: varchar("referred_by"), // referralCode of the inviter
   freeChatUsed: boolean("free_chat_used").default(false),
+  // Set when the email address has been verified (Google sign-in reports it verified). The free
+  // Ask allowance is granted only to verified accounts.
+  emailVerifiedAt: timestamp("email_verified_at"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -158,6 +163,17 @@ export const transactions = pgTable("transactions", {
   consultationId: varchar("consultation_id"),
   // Applied coupon (if any) on a recharge
   couponCode: varchar("coupon_code"),
+  // Recharge breakdown, fixed by the server when the order is created. Settlement credits only
+  // when the gateway reports exactly gatewayAmountPaise in gatewayCurrency; `amount` is what was
+  // credited (payment + packBonus + couponBonus, the coupon only if still eligible at settlement).
+  gatewayAmountPaise: integer("gateway_amount_paise"),
+  gatewayCurrency: varchar("gateway_currency"),
+  packBonus: decimal("pack_bonus", { precision: 10, scale: 2 }),
+  couponBonus: decimal("coupon_bonus", { precision: 10, scale: 2 }),
+  reviewReason: text("review_reason"), // set with status 'review' when a payment did not match its order
+  // Set only by verified settlement; the release_a_recharge_guard trigger refuses to complete a
+  // Razorpay recharge without it, so code that predates the checks cannot credit one.
+  settlementVerifiedAt: timestamp("settlement_verified_at"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -459,6 +475,9 @@ export const couponRedemptions = pgTable("coupon_redemptions", {
   userId: varchar("user_id").references(() => users.id).notNull(),
   transactionId: varchar("transaction_id"),
   discountAmount: decimal("discount_amount", { precision: 10, scale: 2 }).notNull(),
+  // staged (order created) | applied (credited at settlement) | void (no longer eligible at settlement).
+  // Null on rows from before settlement-time checks; those count when their transaction completed.
+  status: varchar("status"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -818,3 +837,63 @@ export const insertJyotishSessionQuerySchema = createInsertSchema(jyotishSession
 
 export type InsertJyotishSessionQuery = z.infer<typeof insertJyotishSessionQuerySchema>;
 export type JyotishSessionQuery = typeof jyotishSessionQueries.$inferSelect;
+
+// ─── Ask Your Kundli metering ───────────────────────────────
+// One row per answered (or in-flight) Ask message. An independent question opens a
+// thread on one chart; follow-ups in that thread draw on the question's follow-up allowance.
+// Released rows (generation failed) never count.
+export const askUsage = pgTable("ask_usage", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").references(() => users.id).notNull(),
+  chartKey: varchar("chart_key").notNull(), // kundli:<id> | birth:<hash> | none
+  sessionId: varchar("session_id").notNull(),
+  kind: varchar("kind").notNull(), // question | follow_up
+  parentId: varchar("parent_id"), // the question a follow-up belongs to
+  entitlement: varchar("entitlement").notNull(), // free | paid | unmetered | admin (follow-ups inherit)
+  entitlementId: varchar("entitlement_id"), // the entitlement a paid question drew on
+  followUpsAllowed: integer("follow_ups_allowed").notNull().default(0),
+  status: varchar("status").notNull().default("reserved"), // reserved | consumed | released
+  idempotencyKey: varchar("idempotency_key").notNull(),
+  replyMessageId: varchar("reply_message_id"),
+  createdAt: timestamp("created_at").defaultNow(),
+  settledAt: timestamp("settled_at"),
+});
+
+export type AskUsage = typeof askUsage.$inferSelect;
+
+// Purchased or granted allowances (Release B products draw on these; nothing sells them yet).
+export const entitlements = pgTable("entitlements", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").references(() => users.id).notNull(),
+  kind: varchar("kind").notNull(), // ask_questions
+  quantity: integer("quantity").notNull(),
+  used: integer("used").notNull().default(0),
+  followUpsEach: integer("follow_ups_each").notNull().default(0),
+  source: varchar("source").notNull(), // purchase | grant | subscription
+  sourceRef: varchar("source_ref"), // the wallet transaction or order that created it (unique)
+  expiresAt: timestamp("expires_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export type Entitlement = typeof entitlements.$inferSelect;
+
+// Model usage per subject (user:<id> | astrologer:<id> | system), day and feature. Shared by
+// every server instance, so daily AI budgets hold across restarts and replicas.
+export const aiUsageDaily = pgTable("ai_usage_daily", {
+  subject: varchar("subject").notNull(),
+  day: varchar("day").notNull(), // YYYY-MM-DD (UTC)
+  feature: varchar("feature").notNull(),
+  calls: integer("calls").notNull().default(0),
+  inputTokens: bigint("input_tokens", { mode: "number" }).notNull().default(0),
+  outputTokens: bigint("output_tokens", { mode: "number" }).notNull().default(0),
+  costMicroUsd: bigint("cost_micro_usd", { mode: "number" }).notNull().default(0),
+}, (t) => [primaryKey({ columns: [t.subject, t.day, t.feature] })]);
+
+// The daily AI budget per subject, enforced per call: each model call reserves its worst-case
+// cost here in one conditional upsert and is then corrected to its real cost.
+export const aiBudgetDaily = pgTable("ai_budget_daily", {
+  subject: varchar("subject").notNull(),
+  day: varchar("day").notNull(),
+  costMicroUsd: bigint("cost_micro_usd", { mode: "number" }).notNull().default(0),
+  calls: integer("calls").notNull().default(0),
+}, (t) => [primaryKey({ columns: [t.subject, t.day] })]);

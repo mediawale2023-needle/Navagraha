@@ -536,6 +536,72 @@ CREATE TABLE IF NOT EXISTS jyotish_session_queries (
   created_at timestamp DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS idx_jyotish_queries_profile ON jyotish_session_queries (profile_id, created_at);
+
+-- Release A: recharge breakdown verified at settlement, coupon redemption state, Ask metering,
+-- entitlements and shared AI usage. Additive only; see docs/RELEASE_A.md for rollback.
+ALTER TABLE transactions ADD COLUMN IF NOT EXISTS gateway_amount_paise integer;
+ALTER TABLE transactions ADD COLUMN IF NOT EXISTS gateway_currency varchar;
+ALTER TABLE transactions ADD COLUMN IF NOT EXISTS pack_bonus decimal(10, 2);
+ALTER TABLE transactions ADD COLUMN IF NOT EXISTS coupon_bonus decimal(10, 2);
+ALTER TABLE transactions ADD COLUMN IF NOT EXISTS review_reason text;
+ALTER TABLE coupon_redemptions ADD COLUMN IF NOT EXISTS status varchar;
+ALTER TABLE transactions ADD COLUMN IF NOT EXISTS settlement_verified_at timestamp;
+
+CREATE TABLE IF NOT EXISTS ask_usage (
+  id varchar PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id varchar NOT NULL REFERENCES users(id),
+  chart_key varchar NOT NULL,
+  session_id varchar NOT NULL,
+  kind varchar NOT NULL,
+  parent_id varchar,
+  entitlement varchar NOT NULL,
+  entitlement_id varchar,
+  follow_ups_allowed integer NOT NULL DEFAULT 0,
+  status varchar NOT NULL DEFAULT 'reserved',
+  idempotency_key varchar NOT NULL,
+  reply_message_id varchar,
+  created_at timestamp DEFAULT now(),
+  settled_at timestamp
+);
+CREATE UNIQUE INDEX IF NOT EXISTS ask_usage_idempotency_uq ON ask_usage (user_id, idempotency_key);
+CREATE INDEX IF NOT EXISTS ask_usage_thread_idx ON ask_usage (user_id, session_id, chart_key);
+
+CREATE TABLE IF NOT EXISTS entitlements (
+  id varchar PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id varchar NOT NULL REFERENCES users(id),
+  kind varchar NOT NULL,
+  quantity integer NOT NULL CHECK (quantity >= 0),
+  used integer NOT NULL DEFAULT 0,
+  follow_ups_each integer NOT NULL DEFAULT 0,
+  source varchar NOT NULL,
+  source_ref varchar,
+  expires_at timestamp,
+  created_at timestamp DEFAULT now(),
+  CONSTRAINT entitlements_used_within_quantity CHECK (used >= 0 AND used <= quantity)
+);
+CREATE INDEX IF NOT EXISTS entitlements_user_kind_idx ON entitlements (user_id, kind);
+CREATE UNIQUE INDEX IF NOT EXISTS entitlements_source_ref_uq ON entitlements (source_ref) WHERE source_ref IS NOT NULL;
+
+CREATE TABLE IF NOT EXISTS ai_usage_daily (
+  subject varchar NOT NULL,
+  day varchar NOT NULL,
+  feature varchar NOT NULL,
+  calls integer NOT NULL DEFAULT 0,
+  input_tokens bigint NOT NULL DEFAULT 0,
+  output_tokens bigint NOT NULL DEFAULT 0,
+  cost_micro_usd bigint NOT NULL DEFAULT 0,
+  PRIMARY KEY (subject, day, feature)
+);
+
+CREATE TABLE IF NOT EXISTS ai_budget_daily (
+  subject varchar NOT NULL,
+  day varchar NOT NULL,
+  cost_micro_usd bigint NOT NULL DEFAULT 0,
+  calls integer NOT NULL DEFAULT 0,
+  PRIMARY KEY (subject, day)
+);
+
+ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verified_at timestamp;
 `;
 
 const SEED_STORE_SQL = `
@@ -802,6 +868,12 @@ EXCEPTION WHEN unique_violation THEN
   RAISE WARNING 'transactions_gateway_payment_id_uq skipped: duplicate gateway_payment_id rows exist (SELECT gateway_payment_id, count(*) FROM transactions WHERE gateway_payment_id IS NOT NULL GROUP BY 1 HAVING count(*) > 1)';
 END $$;
 DO $$ BEGIN
+  CREATE UNIQUE INDEX IF NOT EXISTS coupon_redemptions_transaction_uq
+    ON coupon_redemptions (transaction_id) WHERE transaction_id IS NOT NULL;
+EXCEPTION WHEN unique_violation THEN
+  RAISE WARNING 'coupon_redemptions_transaction_uq skipped: a transaction has more than one coupon redemption (SELECT transaction_id, count(*) FROM coupon_redemptions WHERE transaction_id IS NOT NULL GROUP BY 1 HAVING count(*) > 1)';
+END $$;
+DO $$ BEGIN
   CREATE UNIQUE INDEX IF NOT EXISTS transactions_completed_recharge_order_uq
     ON transactions (gateway_order_id) WHERE type = 'recharge' AND status = 'completed' AND gateway_order_id IS NOT NULL;
 EXCEPTION WHEN unique_violation THEN
@@ -820,9 +892,43 @@ EXCEPTION WHEN unique_violation THEN
 END $$;
 `;
 
+// Release A deployment guard, enforced by the database so it holds for any code that writes
+// recharges — including an older build still running during a deploy, or after a rollback:
+//  - a Razorpay recharge order must record the paise it was created for (pre-Release A order
+//    creation, which mis-recorded string amounts, fails before the payer can pay);
+//  - a Razorpay recharge becomes completed only through verified settlement, which sets
+//    settlement_verified_at (older settlement code fails and rolls back its credit; Razorpay
+//    retries the webhook, and the new code or the reconciler settles it);
+//  - direct Snapmint/LazyPay recharges, which were credited from the callback, are refused.
+// Rows that existed before the guard are untouched. Removing the guard is a deliberate act
+// (docs/RELEASE_A.md), never part of a code rollback.
+export const RECHARGE_GUARD_SQL = `
+CREATE OR REPLACE FUNCTION release_a_recharge_guard() RETURNS trigger AS $$
+BEGIN
+  IF NEW.type = 'recharge' AND NEW.status = 'completed' AND NEW.payment_method IN ('snapmint', 'lazypay')
+     AND (TG_OP = 'INSERT' OR OLD.status IS DISTINCT FROM 'completed') THEN
+    RAISE EXCEPTION 'release_a_recharge_guard: direct BNPL recharges are disabled';
+  END IF;
+  IF NEW.type = 'recharge' AND NEW.payment_method = 'razorpay' THEN
+    IF TG_OP = 'INSERT' AND NEW.status = 'pending' AND NEW.gateway_amount_paise IS NULL THEN
+      RAISE EXCEPTION 'release_a_recharge_guard: a recharge order must record gateway_amount_paise';
+    END IF;
+    IF NEW.status = 'completed' AND NEW.settlement_verified_at IS NULL
+       AND (TG_OP = 'INSERT' OR OLD.status IS DISTINCT FROM 'completed') THEN
+      RAISE EXCEPTION 'release_a_recharge_guard: a recharge is completed only by verified settlement';
+    END IF;
+  END IF;
+  RETURN NEW;
+END $$ LANGUAGE plpgsql;
+DROP TRIGGER IF EXISTS release_a_recharge_guard ON transactions;
+CREATE TRIGGER release_a_recharge_guard BEFORE INSERT OR UPDATE ON transactions
+  FOR EACH ROW EXECUTE FUNCTION release_a_recharge_guard();
+`;
+
 export async function runMigrations(): Promise<void> {
   await pool.query(SCHEMA_SQL);
   await pool.query(PAYMENT_INDEXES_SQL);
+  await pool.query(RECHARGE_GUARD_SQL);
   await pool.query(SEED_HOMEPAGE_SQL);
   for (const fix of HOMEPAGE_COPY_FIXES) await pool.query(fix.text, fix.values);
   await pool.query(SEED_COUPONS_SQL);

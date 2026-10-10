@@ -57,12 +57,11 @@ import { selectChart } from "./birthDetails";
 import { computePanchang } from "./astroEngine/panchang";
 import {
   createRazorpayOrder,
+  fetchPayment,
+  toGatewayPayment,
+  parseRechargeAmount,
   verifyRazorpaySignature,
   verifyRazorpayWebhookSignature,
-  createSnapmintOrder,
-  verifySnapmintCallback,
-  createLazyPayOrder,
-  verifyPayUResponseHash,
   RECHARGE_PACKS,
   PLATFORM_FEE_PERCENTAGE,
   evaluateCoupon,
@@ -72,6 +71,9 @@ import {
 } from "./paymentService";
 import { generateAgoraToken, getChannelName } from "./agoraService";
 import { notifyUser, notifyAstrologer } from "./websocketService";
+import { audit } from "./audit";
+import { aiBudget, aiRequestContext } from "./ai/metering";
+import { ASK_FREE_FOLLOW_UPS, askChartKey, askEnforced, askFreeQuestionsFor, askIdempotencyKey } from "./askMetering";
 import { sendPushToUser, sendPushToAstrologer } from "./pushService";
 import {
   interpretKundli,
@@ -125,6 +127,14 @@ const aiLimiter = rateLimit({
   message: { message: 'Too many AI requests. Please wait a few minutes and try again.' },
 });
 
+// Pro workspace model calls, per astrologer (aiLimiter keys on users, so astrologers would share one bucket).
+const proAiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 30,
+  keyGenerator: (req: any) => `astrologer:${req.session?.astrologerId ?? 'anonymous'}`,
+  message: { message: 'Too many AI requests. Please wait a few minutes and try again.' },
+});
+
 // Unauthenticated guest-preview insights: pure computation, but still throttled per IP.
 const insightsLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
@@ -150,6 +160,9 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
 
   // While the marketplace is off, nothing can start, book or charge for it (server/marketplace.ts).
   app.use(marketplaceGate);
+
+  // Attributes every model call to the signed-in user or astrologer (cost logging, budgets).
+  app.use(aiRequestContext);
 
   // ─── User Email Auth ──────────────────────────────────────
 
@@ -417,7 +430,7 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
 
   // ─── Horoscope ────────────────────────────────────────────
   // Personalised daily horoscope from the user's chart, cached once per day.
-  app.get('/api/horoscope/personal', isAuthenticated, aiLimiter, async (req: any, res) => {
+  app.get('/api/horoscope/personal', isAuthenticated, aiLimiter, aiBudget('user'), async (req: any, res) => {
     try {
       const userId = (req.user as any).id;
       const language = (req.query.language as string) || 'English';
@@ -997,11 +1010,13 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
   app.post('/api/coupons/validate', isAuthenticated, async (req: any, res) => {
     try {
       const userId = (req.user as any).id;
-      const { code, amount } = req.body;
-      const rechargeAmount = parseFloat(amount);
-      if (!code || !rechargeAmount || rechargeAmount <= 0) {
+      const { code } = req.body ?? {};
+      const amount = parseRechargeAmount(req.body?.amount);
+      if (typeof code !== 'string' || !code.trim() || code.length > 40) {
         return res.status(400).json({ valid: false, message: 'Enter a recharge amount and coupon code.' });
       }
+      if (!amount.ok) return res.status(400).json({ valid: false, message: amount.message });
+      const rechargeAmount = amount.rupees;
       const coupon = await storage.getCouponByCode(String(code).trim());
       if (!coupon) return res.status(404).json({ valid: false, message: 'Invalid coupon code.' });
 
@@ -1071,83 +1086,87 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
 
   // ─── Razorpay Payment ────────────────────────────────────
 
+  // Started-but-unpaid recharges one user may hold in 30 minutes.
+  const MAX_OPEN_RECHARGES = 5;
+
   app.post('/api/payment/razorpay/order', isAuthenticated, paymentLimiter, async (req: any, res) => {
+    if (features.rechargesPaused()) {
+      return res.status(503).json({ code: 'recharges_paused', message: 'Recharges are paused for a few minutes for maintenance. Please try again shortly.' });
+    }
     try {
       const userId = (req.user as any).id;
-      const { amount, packId, couponCode } = req.body;
-
-      if (!amount || amount < 1) return res.status(400).json({ message: "Invalid amount" });
-
-      // Find bonus if pack
-      const pack = RECHARGE_PACKS.find(p => p.id === packId);
-      if (packId && !pack) {
-        return res.status(400).json({ message: "Invalid recharge pack" });
+      const { packId, couponCode } = req.body ?? {};
+      const amount = parseRechargeAmount(req.body?.amount);
+      if (!amount.ok) return res.status(400).json({ message: amount.message, field: 'amount' });
+      if (packId !== undefined && packId !== null && typeof packId !== 'string') return res.status(400).json({ message: "Invalid recharge pack" });
+      if (couponCode !== undefined && couponCode !== null && (typeof couponCode !== 'string' || couponCode.length > 40)) {
+        return res.status(400).json({ message: "Invalid coupon code", field: 'couponCode' });
       }
-      if (pack && pack.amount !== amount) {
+
+      const pack = packId ? RECHARGE_PACKS.find(p => p.id === packId) : undefined;
+      if (packId && !pack) return res.status(400).json({ message: "Invalid recharge pack" });
+      if (pack && pack.amount !== amount.rupees) {
         return res.status(400).json({ message: "Recharge amount does not match selected pack" });
       }
       const bonus = pack?.bonus || 0;
 
-      // Apply coupon (if any) as additional wallet credit
-      let couponBonus = 0;
-      let appliedCouponCode: string | undefined;
-      let appliedCouponId: string | undefined;
+      if (await storage.countOpenRecharges(userId, new Date(Date.now() - 30 * 60 * 1000)) >= MAX_OPEN_RECHARGES) {
+        return res.status(429).json({ message: "You have several payments in progress. Finish or close them before starting another." });
+      }
+
+      // The coupon is checked here to quote it, and again at settlement, where it is applied
+      // only if still eligible (storage.settleRechargeOrder).
+      let coupon: { id: string; code: string; bonus: number } | undefined;
       if (couponCode) {
-        const coupon = await storage.getCouponByCode(String(couponCode).trim());
-        if (!coupon) return res.status(400).json({ message: "Invalid coupon code" });
+        const found = await storage.getCouponByCode(couponCode.trim());
+        if (!found) return res.status(400).json({ message: "Invalid coupon code", field: 'couponCode' });
         const isFirstRecharge = !(await storage.hasCompletedRecharge(userId));
-        const userRedemptionCount = await storage.getUserCouponRedemptionCount(userId, coupon.id);
-        const evalResult = evaluateCoupon(coupon, amount, { isFirstRecharge, userRedemptionCount });
-        if (!evalResult.ok) return res.status(400).json({ message: evalResult.message });
-        couponBonus = evalResult.bonus;
-        appliedCouponCode = coupon.code;
-        appliedCouponId = coupon.id;
+        const userRedemptionCount = await storage.getUserCouponRedemptionCount(userId, found.id);
+        const evalResult = evaluateCoupon(found, amount.rupees, { isFirstRecharge, userRedemptionCount });
+        if (!evalResult.ok) return res.status(400).json({ message: evalResult.message, field: 'couponCode' });
+        coupon = { id: found.id, code: found.code, bonus: evalResult.bonus };
       }
 
       const order = await createRazorpayOrder({
-        amount,
-        receipt: `wallet_${userId}_${Date.now()}`,
+        amountPaise: amount.paise,
+        receipt: `wallet_${Date.now()}`,
         notes: { userId, bonus: bonus.toString() },
       });
+      if (Number(order.amount) !== amount.paise || order.currency !== 'INR') {
+        console.error('[payment] Razorpay order does not match the request', { orderId: order.id });
+        return res.status(502).json({ message: "Failed to create payment order" });
+      }
 
-      const totalCredit = amount + bonus + couponBonus;
+      const totalCredit = amount.rupees + bonus + (coupon?.bonus ?? 0);
       const bonusLabel = [
         bonus > 0 ? `+₹${bonus} bonus` : '',
-        couponBonus > 0 ? `+₹${couponBonus} (${appliedCouponCode})` : '',
+        coupon ? `+₹${coupon.bonus} (${coupon.code})` : '',
       ].filter(Boolean).join(' ');
 
-      // Create pending transaction
-      const pendingTxn = await storage.createTransaction({
+      const pendingTxn = await storage.createPendingRecharge({
         userId,
-        amount: totalCredit.toString(),
-        type: 'recharge',
+        orderId: order.id,
+        amountPaise: amount.paise,
+        packBonus: bonus,
+        coupon,
+        quotedCredit: totalCredit,
         description: `Wallet recharge${bonusLabel ? ` (${bonusLabel})` : ''}`,
-        status: 'pending',
-        paymentMethod: 'razorpay',
-        gatewayOrderId: order.id,
-        couponCode: appliedCouponCode,
       });
-
-      // Stage the redemption (counts only once the transaction completes)
-      if (appliedCouponId && couponBonus > 0) {
-        await storage.recordCouponRedemption({
-          couponId: appliedCouponId,
-          userId,
-          transactionId: pendingTxn.id,
-          discountAmount: couponBonus.toString(),
-        });
-      }
+      audit("payment.order_created", {
+        userId, transactionId: pendingTxn.id, orderId: order.id, amountPaise: amount.paise, currency: 'INR',
+        packId: pack?.id, packBonus: bonus, couponCode: coupon?.code, couponBonus: coupon?.bonus ?? 0,
+      });
 
       res.json({
         orderId: order.id,
         amount: order.amount,
         currency: order.currency,
         keyId: process.env.RAZORPAY_KEY_ID,
-        couponBonus,
+        couponBonus: coupon?.bonus ?? 0,
         totalCredit,
       });
     } catch (error: any) {
-      console.error("Razorpay order error:", error);
+      console.error("Razorpay order error:", error?.message ?? error);
       if (error.message?.includes("must be set")) {
         return res.status(503).json({ message: "Payment gateway not configured. Contact support." });
       }
@@ -1155,16 +1174,28 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
     }
   });
 
+  // The browser reports a payment; it is credited only as Razorpay itself reports it
+  // (fetched by id): the signed order, captured, in INR, for exactly the order's amount.
   app.post('/api/payment/razorpay/verify', isAuthenticated, paymentLimiter, async (req: any, res) => {
     try {
       const userId = (req.user as any).id;
-      const { orderId, paymentId, signature } = req.body;
+      const { orderId, paymentId, signature } = req.body ?? {};
+      if (typeof orderId !== 'string' || typeof paymentId !== 'string' || typeof signature !== 'string') {
+        return res.status(400).json({ message: "Payment verification failed" });
+      }
+      if (!verifyRazorpaySignature(orderId, paymentId, signature)) return res.status(400).json({ message: "Payment verification failed" });
 
-      const valid = verifyRazorpaySignature(orderId, paymentId, signature);
-      if (!valid) return res.status(400).json({ message: "Payment verification failed" });
+      const payment = await fetchPayment(paymentId);
+      if (!payment || payment.orderId !== orderId) return res.status(400).json({ message: "Payment verification failed" });
 
-      const settled = await settleRazorpayPayment(orderId, paymentId, signature, userId);
-      if (settled) return res.json({ success: true, newBalance: settled.balance });
+      const outcome = await settleRazorpayPayment(payment, { signature, userId });
+      if (outcome.kind === 'settled') return res.json({ success: true, newBalance: outcome.balance });
+      if (outcome.kind === 'not_captured') {
+        return res.status(202).json({ success: false, pending: true, message: "Your payment is being confirmed. Your wallet will update shortly." });
+      }
+      if (outcome.kind === 'mismatch') {
+        return res.status(409).json({ code: 'payment_review', message: "This payment did not match its order and is held for review. Please contact support with your payment ID." });
+      }
 
       // Already credited by the webhook or the reconciler: answer success, credit nothing.
       const recharge = await storage.getRechargeByOrderId(orderId);
@@ -1173,139 +1204,62 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
         return res.json({ success: true, newBalance: parseFloat(wallet?.balance || "0"), alreadyCredited: true });
       }
       return res.status(404).json({ message: "Pending transaction not found" });
-    } catch (error) {
-      console.error("Razorpay verify error:", error);
+    } catch (error: any) {
+      console.error("Razorpay verify error:", error?.message ?? error);
       res.status(500).json({ message: "Payment verification failed" });
     }
   });
 
-  // Razorpay webhook (for server-side confirmation)
+  // Razorpay webhook (server-side confirmation). The signature covers the exact raw body,
+  // so the payment entity in it is Razorpay's own report of the payment.
   app.post('/api/payment/razorpay/webhook', async (req: any, res) => {
     try {
-      const signature = req.headers['x-razorpay-signature'] as string;
-      const rawBody = req.rawBody?.toString() || JSON.stringify(req.body);
-
-      if (!verifyRazorpayWebhookSignature(rawBody, signature)) {
+      const signature = req.headers['x-razorpay-signature'];
+      if (!Buffer.isBuffer(req.rawBody) || typeof signature !== 'string') {
+        return res.status(400).json({ message: "Invalid webhook signature" });
+      }
+      if (!verifyRazorpayWebhookSignature(req.rawBody.toString('utf8'), signature)) {
         return res.status(400).json({ message: "Invalid webhook signature" });
       }
 
       // The webhook credits on its own, so a payer who closes the tab before the
-      // browser's verify call still gets the money; settlement is idempotent.
+      // browser's verify call still gets the money; settlement is idempotent, and a
+      // replayed or out-of-order event finds nothing left to settle.
       const event = req.body;
-      if (event.event === 'payment.captured') {
-        const payment = event.payload?.payment?.entity;
-        if (payment?.order_id && payment?.id) {
-          const settled = await settleRazorpayPayment(String(payment.order_id), String(payment.id));
-          if (settled) {
-            notifyUser(settled.transaction.userId, { type: 'payment_confirmed', paymentId: payment.id, newBalance: settled.balance });
+      if (event?.event === 'payment.captured') {
+        const payment = toGatewayPayment(event.payload?.payment?.entity);
+        if (payment) {
+          const outcome = await settleRazorpayPayment(payment);
+          if (outcome.kind === 'settled') {
+            notifyUser(outcome.transaction.userId, { type: 'payment_confirmed', paymentId: payment.id, newBalance: outcome.balance });
           }
         }
+      } else if (typeof event?.event === 'string' && event.event.startsWith('refund.')) {
+        // Refunds are never issued by the app (failed reports refund to the wallet); one made
+        // from the Razorpay dashboard is recorded for an admin to reconcile the wallet.
+        const refund = event.payload?.refund?.entity;
+        audit("payment.refund_observed", { event: event.event, paymentId: refund?.payment_id, refundId: refund?.id, amountPaise: Number(refund?.amount) || null });
       }
       res.json({ status: 'ok' });
-    } catch { res.status(500).json({ message: "Webhook error" }); }
-  });
-
-  // ─── Snapmint Payment ─────────────────────────────────────
-
-  app.post('/api/payment/snapmint/order', isAuthenticated, paymentLimiter, async (req: any, res) => {
-    try {
-      const userId = (req.user as any).id;
-      const { amount } = req.body;
-      const user = await storage.getUser(userId);
-
-      const orderId = `snap_${userId}_${Date.now()}`;
-      const order = await createSnapmintOrder({
-        amount,
-        orderId,
-        customerName: `${user?.firstName || ''} ${user?.lastName || ''}`.trim() || 'User',
-        customerEmail: user?.email || '',
-        customerPhone: user?.phoneNumber || '',
-        returnUrl: `${process.env.APP_URL || 'http://localhost:5000'}/wallet?snapmint=callback`,
-      });
-
-      res.json(order);
-    } catch (error: any) {
-      if (error.message?.includes("not configured")) {
-        return res.status(503).json({ message: "Snapmint not configured. Use Razorpay or enable Snapmint in Razorpay Dashboard." });
-      }
-      res.status(500).json({ message: "Failed to create Snapmint order" });
+    } catch (err: any) {
+      console.error('Razorpay webhook error:', err?.message ?? err);
+      res.status(500).json({ message: "Webhook error" });
     }
   });
 
-  app.post('/api/payment/snapmint/callback', async (req: any, res) => {
-    try {
-      const { checksum, order_id, status, amount, user_id } = req.body;
-      const params = { ...req.body };
-      delete params.checksum;
-
-      if (!verifySnapmintCallback(params, checksum)) {
-        return res.status(400).json({ message: "Invalid callback signature" });
-      }
-
-      const credit = parseFloat(amount);
-      if (status === 'success' && user_id && order_id && credit > 0) {
-        const settled = await storage.settleExternalRecharge({
-          userId: String(user_id), orderId: String(order_id), amount: credit,
-          description: 'Snapmint EMI recharge', paymentMethod: 'snapmint',
-        });
-        if (settled) notifyUser(String(user_id), { type: 'payment_confirmed', newBalance: parseFloat(settled.balance) });
-      }
-      res.json({ status: 'ok' });
-    } catch { res.status(500).json({ message: "Callback error" }); }
-  });
-
-  // ─── LazyPay / PayU ───────────────────────────────────────
-
-  app.post('/api/payment/lazypay/order', isAuthenticated, paymentLimiter, async (req: any, res) => {
-    try {
-      const userId = (req.user as any).id;
-      const { amount } = req.body;
-      const user = await storage.getUser(userId);
-
-      const txnId = `lp_${userId}_${Date.now()}`;
-      const params = createLazyPayOrder({
-        amount,
-        txnId,
-        productInfo: 'Navagraha Wallet Recharge',
-        firstName: user?.firstName || 'User',
-        email: user?.email || '',
-        phone: user?.phoneNumber || '',
-        returnUrl: `${process.env.APP_URL || 'http://localhost:5000'}/wallet?lazypay=callback`,
-      });
-
-      res.json(params);
-    } catch (error: any) {
-      if (error.message?.includes("not configured")) {
-        return res.status(503).json({
-          message: "LazyPay/PayU not configured yet. Apply for a PayU merchant account at https://onboarding.payu.in. LazyPay is also available within Razorpay Checkout once enabled in your Razorpay Dashboard."
-        });
-      }
-      res.status(500).json({ message: "Failed to create LazyPay order" });
-    }
-  });
-
-  app.post('/api/payment/lazypay/callback', async (req: any, res) => {
-    try {
-      if (!verifyPayUResponseHash(req.body)) {
-        return res.status(400).json({ message: "Invalid callback signature" });
-      }
-      const { status, txnid, amount } = req.body;
-      if (status === 'success') {
-        // Extract userId from txnId (format: lp_{userId}_{timestamp})
-        const userId = String(txnid || '').split('_')[1];
-        const credit = parseFloat(amount);
-        if (userId && credit > 0) {
-          const settled = await storage.settleExternalRecharge({
-            userId, orderId: String(txnid), amount: credit,
-            description: 'LazyPay BNPL recharge', paymentMethod: 'lazypay',
-          });
-          if (settled) notifyUser(userId, { type: 'payment_confirmed', newBalance: parseFloat(settled.balance) });
-        }
-      }
-      // PayU requires redirect
-      res.redirect(`${process.env.APP_URL || 'http://localhost:5000'}/wallet`);
-    } catch { res.status(500).json({ message: "Callback error" }); }
-  });
+  // ─── Snapmint / LazyPay direct ────────────────────────────
+  // Disabled: these flows have no server-created pending order, take the amount and the
+  // user from the gateway callback, and cannot confirm the payment with the gateway, so a
+  // credit could not be verified to Release A's standard. Snapmint and LazyPay remain
+  // available inside Razorpay Checkout, which settles through the verified path above.
+  const directBnplDisabled = (req: any, res: any) => {
+    audit("payment.method_disabled", { path: req.path });
+    res.status(503).json({ code: 'payment_method_unavailable', message: "This payment method is not available. Please pay with Razorpay (UPI, cards, EMI and pay-later options are available there)." });
+  };
+  app.post('/api/payment/snapmint/order', isAuthenticated, paymentLimiter, directBnplDisabled);
+  app.post('/api/payment/snapmint/callback', directBnplDisabled);
+  app.post('/api/payment/lazypay/order', isAuthenticated, paymentLimiter, directBnplDisabled);
+  app.post('/api/payment/lazypay/callback', directBnplDisabled);
 
   // ─── Transactions ─────────────────────────────────────────
   app.get('/api/transactions', isAuthenticated, async (req: any, res) => {
@@ -1323,7 +1277,7 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
     } catch { res.status(500).json({ message: "Failed to fetch messages" }); }
   });
 
-  app.post('/api/chat/:astrologerId', isAuthenticated, (req: any, res, next) => (req.params.astrologerId === 'ai-astrologer' ? aiLimiter(req, res, next) : next()), async (req: any, res) => {
+  app.post('/api/chat/:astrologerId', isAuthenticated, async (req: any, res) => {
     try {
       const user = req.user as any;
       const userId = user.id;
@@ -1332,25 +1286,13 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
       if (!message || !sender) return res.status(400).json({ message: "Message and sender required" });
       if (typeof message !== 'string' || message.length > 2000) return res.status(400).json({ message: "Message is too long (2000 characters max)" });
 
-      const chatMessage = await storage.createChatMessage({ userId, astrologerId, message, sender });
-      
-      // AI Astrologer Integration
-      if (astrologerId === 'ai-astrologer' && sender === 'user') {
-        // Same evidence-grounded path as /api/ai/chat; never a chart-less council.
-        const latest = await currentChart((await storage.getUserKundlis(userId))?.[0] ?? null);
-        const canonical = (latest?.chartData as any)?.canonical;
-        const aiResponseText = isCurrentCanonicalChart(canonical)
-          ? (await answerSimple(buildEvidencePacket(canonical, routeQuestion(message)), message)).text
-          : latest ? limitedChartReply(chartVersionStatus(latest).notes[0]) : (await answerWithoutChart(message)).text;
-        const aiMessage = await storage.createChatMessage({
-          userId,
-          astrologerId,
-          message: aiResponseText,
-          sender: 'astrologer'
-        });
-        
-        return res.json({ userMessage: chatMessage, aiMessage: aiMessage });
+      // The old AI-astrologer chat duplicated Ask Your Kundli without its metering; no client
+      // uses it. Ask questions go through /api/ai/chat only.
+      if (astrologerId === 'ai-astrologer') {
+        return res.status(410).json({ code: 'use_ask_kundli', message: "Ask your Kundli at /api/ai/chat." });
       }
+
+      const chatMessage = await storage.createChatMessage({ userId, astrologerId, message, sender });
 
       // Push the message to the recipient (best-effort)
       if (sender === 'user') {
@@ -1806,7 +1748,7 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
     } catch { res.status(500).json({ message: 'Failed to fetch report types' }); }
   });
 
-  app.post('/api/reports/order', isAuthenticated, async (req: any, res) => {
+  app.post('/api/reports/order', isAuthenticated, aiLimiter, aiBudget('admin'), async (req: any, res) => {
     try {
       const userId = (req.user as any).id;
       const { reportTypeId } = req.body;
@@ -1878,7 +1820,14 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
         description: `Report: ${reportType.name}`,
       });
       if (!placed) return res.status(402).json({ message: 'Insufficient wallet balance. Please recharge to order this report.' });
+      if ('refused' in placed) {
+        if (placed.refused === 'duplicate') {
+          return res.status(409).json({ code: 'report_in_progress', orderId: placed.order?.id, message: 'This report is already being prepared. You have not been charged again.' });
+        }
+        return res.status(429).json({ code: 'free_report_daily_limit', message: 'Free-access accounts can generate a limited number of reports per day.' });
+      }
       const { order } = placed;
+      audit("wallet.debit", { userId, reason: 'report', orderId: order.id, amount: Number(order.chargedAmount ?? 0), reportTypeId: reportType.id });
 
       // Generated asynchronously; the client polls until the order is ready or failed (refunded).
       void fulfilReportOrder(order, reportType.name, () => reportType.category === 'life_complete'
@@ -2173,8 +2122,26 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
     }
   });
 
+  const askAllowance = async (user: { id: string; emailVerifiedAt?: Date | string | null }, sessionId?: string, chartKey?: string) => {
+    const freeQuestions = askFreeQuestionsFor(user);
+    const counts = await storage.getAskAllowance(user.id, { freeQuestions, sessionId, chartKey });
+    return { enforced: askEnforced(), emailVerified: Boolean(user.emailVerifiedAt), freeQuestionsTotal: freeQuestions, ...counts };
+  };
+
+  // Ask allowance for the signed-in user (and, with sessionId + kundliId, the thread's follow-ups).
+  app.get('/api/ai/question-count', isAuthenticated, async (req: any, res) => {
+    try {
+      const sessionId = typeof req.query.sessionId === 'string' && req.query.sessionId.length <= 64 ? req.query.sessionId : undefined;
+      const kundliId = typeof req.query.kundliId === 'string' && req.query.kundliId.length <= 64 ? req.query.kundliId : undefined;
+      const allowance = await askAllowance(req.user as any, sessionId, kundliId ? `kundli:${kundliId}` : undefined);
+      res.json({ used: allowance.freeQuestionsUsed, free: allowance.freeQuestionsTotal, remaining: allowance.freeQuestionsRemaining, ...allowance });
+    } catch {
+      res.status(500).json({ message: "Failed to fetch question count" });
+    }
+  });
+
   // Chat with AI Astrologer (Super-Council Orchestrator)
-  app.post('/api/ai/chat', isAuthenticated, aiLimiter, async (req: any, res) => {
+  app.post('/api/ai/chat', isAuthenticated, aiLimiter, aiBudget('user'), async (req: any, res) => {
     try {
       const user = req.user as any;
       const { message, sessionId, language } = req.body;
@@ -2183,6 +2150,7 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
       const selection = selectChart(req.body);
       if (selection.kind === 'invalid') return res.status(400).json({ message: selection.message });
 
+      if (sessionId != null && (typeof sessionId !== 'string' || sessionId.length > 64)) return res.status(400).json({ message: "Invalid session" });
       const activeSessionId = sessionId || crypto.randomUUID();
 
       let birthDate = user.dateOfBirth ? new Date(user.dateOfBirth).toISOString().split('T')[0] : 'Unknown';
@@ -2241,114 +2209,155 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
         };
       }
 
-      // Only persist accepted requests after chart ownership/location validation.
-      await storage.saveAiChatMessage({
-        userId: user.id,
-        sessionId: activeSessionId,
-        role: 'user',
-        content: message
+      // Metering: reserve this message (an independent question, or a follow-up within its
+      // question's allowance) before any model call; settled below.
+      const chartKey = askChartKey(selection as any, kundli?.id ?? null);
+      const reservation = await storage.reserveAskUsage({
+        userId: user.id, chartKey, sessionId: activeSessionId, idempotencyKey: askIdempotencyKey(req.body.requestId),
+        freeQuestions: askFreeQuestionsFor(user), freeFollowUps: ASK_FREE_FOLLOW_UPS, enforce: askEnforced(),
+        unlimited: await storage.hasFreeAccess(user.id),
       });
-
-      // Long-term memory: what we've learned about this user before.
-      const memories = await storage.getUserMemories(user.id, 30)
-        .then((rows) => rows.map((r) => r.content))
-        .catch(() => [] as string[]);
-
-      // Current transits (Gochar) for the bound chart.
-      let transits: string | undefined;
-      if (isCurrentCanonicalChart((kundli?.chartData as any)?.canonical)) {
-        try {
-          transits = transitSummary(transitsForChart((kundli!.chartData as any).canonical, (kundli!.chartData as any)?.ashtakavarga?.sav));
-        } catch (err) {
-          console.error('[chat] transit computation failed:', err);
+      if (reservation.kind === 'in_flight') return res.status(409).json({ code: 'ask_in_flight', message: "This question is already being answered." });
+      if (reservation.kind === 'exhausted') {
+        audit("ask.refused", { userId: user.id, chart: chartKey.split(":")[0] });
+        if (!user.emailVerifiedAt) {
+          return res.status(402).json({ code: 'email_verification_required', message: "Verify your email address to use your free questions.", allowance: await askAllowance(user, activeSessionId, chartKey) });
         }
+        return res.status(402).json({ code: 'ask_allowance_exhausted', message: "You have used your free questions.", allowance: await askAllowance(user, activeSessionId, chartKey) });
       }
-
-      // Closed feedback loop: this user's verified past events + system accuracy.
-      let verifiedEvents: string[] = [];
-      let accuracyNote: string | undefined;
+      if (reservation.kind === 'replay') {
+        const prior = reservation.usage.replyMessageId ? await storage.getAiChatMessage(user.id, reservation.usage.replyMessageId) : undefined;
+        if (!prior) return res.status(409).json({ code: 'ask_in_flight', message: "This question was already answered." });
+        const allowance = await askAllowance(user, reservation.usage.sessionId, reservation.usage.chartKey);
+        return res.json({ sessionId: reservation.usage.sessionId, reply: prior.content, evidence: null, answerSource: 'replay', replayed: true, questionsUsed: allowance.freeQuestionsUsed, allowance });
+      }
+      const usage = reservation.usage;
+      audit("ask.reserved", { userId: user.id, usageId: usage.id, kind: usage.kind, entitlement: usage.entitlement, chart: chartKey.split(":")[0] });
+      let settledUsage = false;
+      const settleUsage = async (outcome: 'consumed' | 'released', replyMessageId?: string) => {
+        if (settledUsage) return;
+        settledUsage = true;
+        const row = await storage.settleAskUsage(usage.id, outcome, replyMessageId);
+        if (row) audit(outcome === 'consumed' ? "ask.consumed" : "ask.released", { userId: user.id, usageId: usage.id, kind: usage.kind, entitlement: usage.entitlement });
+      };
       try {
-        const fb = await storage.getPredictionFeedbacksByUser(user.id);
-        verifiedEvents = fb
-          .filter((f: any) => f.wasAccurate)
-          .map((f: any) => `${f.predictionCategory}${f.actualOccurrenceDate ? ` around ${new Date(f.actualOccurrenceDate).toISOString().slice(0, 7)}` : ''} (confirmed via ${f.dashaSystemUsed})`)
-          .slice(0, 20);
-        const stats = await storage.getPatternStatistics();
-        if (stats?.total > 0) accuracyNote = `Verified prediction accuracy so far: ${stats.accuracy}% over ${stats.total} confirmed predictions — calibrate confidence accordingly.`;
-      } catch (err) {
-        console.error('[chat] feedback load failed:', err);
-      }
+        // Only persist accepted requests after chart ownership/location validation.
+        await storage.saveAiChatMessage({
+          userId: user.id,
+          sessionId: activeSessionId,
+          role: 'user',
+          content: message
+        });
 
-      // Ask Your Kundli: route the question, build the deterministic evidence packet,
-      // then explain it (one model call) or, for deep questions, run the council.
-      // Prior turns come from this user's stored session, never from the client (which could forge assistant turns).
-      const history = sessionId
-        ? (await storage.getAiChatHistory(user.id, activeSessionId).catch(() => []))
-            .filter((h) => h.role === 'user' || h.role === 'assistant')
-            .slice(-7, -1)
-            .map((h) => ({ role: h.role as 'user' | 'assistant', content: String(h.content).slice(0, 4000) }))
-        : [];
-      const route = routeQuestion(message, { depth: req.body.depth === 'deep' ? 'deep' : undefined });
-      const canonical = kundli?.chartData?.canonical;
-      let aiResponseText: string;
-      let evidenceSummary: ReturnType<typeof packetSummary> | null = null;
-      let answerSource: 'llm' | 'deterministic' = 'llm';
-      if (isCurrentCanonicalChart(canonical)) {
-        const packet = buildEvidencePacket(canonical, route, new Date(), transits);
-        evidenceSummary = packetSummary(packet);
-        if (route.depth === 'deep' && features.aiCouncil()) {
-          // Generated and checked in English; translated only after the guard (localise.ts).
-          const reading = await runCouncil({
-            birthDetails: { date: birthDate, time: birthTime, place: birthPlace },
-            chartData, profession: 'User', language: 'English', memories, transits, verifiedEvents, accuracyNote,
-            evidencePacket: packet.text, currentQuery: message,
-          });
-          const guarded = await guardAnswer(packet, reading, async () => (await answerSimple(packet, message, { memories, history })).text);
-          aiResponseText = await localise(guarded.text, language);
-          answerSource = guarded.source;
+        // Long-term memory: what we've learned about this user before.
+        const memories = await storage.getUserMemories(user.id, 30)
+          .then((rows) => rows.map((r) => r.content))
+          .catch(() => [] as string[]);
+
+        // Current transits (Gochar) for the bound chart.
+        let transits: string | undefined;
+        if (isCurrentCanonicalChart((kundli?.chartData as any)?.canonical)) {
+          try {
+            transits = transitSummary(transitsForChart((kundli!.chartData as any).canonical, (kundli!.chartData as any)?.ashtakavarga?.sav));
+          } catch (err) {
+            console.error('[chat] transit computation failed:', err);
+          }
+        }
+
+        // Closed feedback loop: this user's verified past events + system accuracy.
+        let verifiedEvents: string[] = [];
+        let accuracyNote: string | undefined;
+        try {
+          const fb = await storage.getPredictionFeedbacksByUser(user.id);
+          verifiedEvents = fb
+            .filter((f: any) => f.wasAccurate)
+            .map((f: any) => `${f.predictionCategory}${f.actualOccurrenceDate ? ` around ${new Date(f.actualOccurrenceDate).toISOString().slice(0, 7)}` : ''} (confirmed via ${f.dashaSystemUsed})`)
+            .slice(0, 20);
+          const stats = await storage.getPatternStatistics();
+          if (stats?.total > 0) accuracyNote = `Verified prediction accuracy so far: ${stats.accuracy}% over ${stats.total} confirmed predictions — calibrate confidence accordingly.`;
+        } catch (err) {
+          console.error('[chat] feedback load failed:', err);
+        }
+
+        // Ask Your Kundli: route the question, build the deterministic evidence packet,
+        // then explain it (one model call) or, for deep questions, run the council.
+        // Prior turns come from this user's stored session, never from the client (which could forge assistant turns).
+        const history = sessionId
+          ? (await storage.getAiChatHistory(user.id, activeSessionId).catch(() => []))
+              .filter((h) => h.role === 'user' || h.role === 'assistant')
+              .slice(-7, -1)
+              .map((h) => ({ role: h.role as 'user' | 'assistant', content: String(h.content).slice(0, 4000) }))
+          : [];
+        const route = routeQuestion(message, { depth: req.body.depth === 'deep' ? 'deep' : undefined });
+        const canonical = kundli?.chartData?.canonical;
+        let aiResponseText: string;
+        let evidenceSummary: ReturnType<typeof packetSummary> | null = null;
+        let answerSource: 'llm' | 'deterministic' = 'llm';
+        if (isCurrentCanonicalChart(canonical)) {
+          const packet = buildEvidencePacket(canonical, route, new Date(), transits);
+          evidenceSummary = packetSummary(packet);
+          if (route.depth === 'deep' && features.aiCouncil()) {
+            // Generated and checked in English; translated only after the guard (localise.ts).
+            const reading = await runCouncil({
+              birthDetails: { date: birthDate, time: birthTime, place: birthPlace },
+              chartData, profession: 'User', language: 'English', memories, transits, verifiedEvents, accuracyNote,
+              evidencePacket: packet.text, currentQuery: message,
+            });
+            const guarded = await guardAnswer(packet, reading, async () => (await answerSimple(packet, message, { memories, history })).text);
+            aiResponseText = await localise(guarded.text, language);
+            answerSource = guarded.source;
+          } else {
+            const answer = await answerSimple(packet, message, { memories, history });
+            aiResponseText = await localise(answer.text, language);
+            answerSource = answer.source;
+          }
+        } else if (kundli) {
+          // A chart was chosen but has no verified V3 calculation: explain rather than guess from legacy data.
+          aiResponseText = limitedChartReply(chartVersionStatus(kundli).notes[0]);
+          answerSource = 'deterministic';
         } else {
-          const answer = await answerSimple(packet, message, { memories, history });
-          aiResponseText = await localise(answer.text, language);
+          const answer = await answerWithoutChart(message, { language, history });
+          aiResponseText = answer.text;
           answerSource = answer.source;
         }
-      } else if (kundli) {
-        // A chart was chosen but has no verified V3 calculation: explain rather than guess from legacy data.
-        aiResponseText = limitedChartReply(chartVersionStatus(kundli).notes[0]);
-        answerSource = 'deterministic';
-      } else {
-        const answer = await answerWithoutChart(message, { language, history });
-        aiResponseText = answer.text;
-        answerSource = answer.source;
-      }
 
-      // Save AI response to DB
-      await storage.saveAiChatMessage({
-        userId: user.id,
-        sessionId: activeSessionId,
-        role: 'assistant',
-        content: aiResponseText
-      });
+        // Save AI response to DB
+        const replyMessage = await storage.saveAiChatMessage({
+          userId: user.id,
+          sessionId: activeSessionId,
+          role: 'assistant',
+          content: aiResponseText
+        });
+        // Only a model answer uses the allowance; a deterministic fallback (model failed or
+        // unavailable, or a chart that cannot be read) restores it.
+        await settleUsage(answerSource === 'llm' ? 'consumed' : 'released', replyMessage?.id);
 
-      // Extract durable facts from this message into long-term memory (async).
-      extractMemories(message)
-        .then(async (mems) => {
-          if (!mems.length) return;
-          const existing = (await storage.getUserMemories(user.id, 200)).map((m) => m.content.toLowerCase());
-          for (const m of mems) {
-            if (!existing.includes(m.content.toLowerCase())) {
-              await storage.addUserMemory({ userId: user.id, kind: m.kind, content: m.content, sourceSessionId: activeSessionId });
+        // Extract durable facts from this message into long-term memory (async).
+        extractMemories(message)
+          .then(async (mems) => {
+            if (!mems.length) return;
+            const existing = (await storage.getUserMemories(user.id, 200)).map((m) => m.content.toLowerCase());
+            for (const m of mems) {
+              if (!existing.includes(m.content.toLowerCase())) {
+                await storage.addUserMemory({ userId: user.id, kind: m.kind, content: m.content, sourceSessionId: activeSessionId });
+              }
             }
-          }
-        })
-        .catch((err) => console.error('[memory] extraction failed:', err));
+          })
+          .catch((err) => console.error('[memory] extraction failed:', err));
 
-      res.json({
-        sessionId: activeSessionId,
-        reply: aiResponseText,
-        evidence: evidenceSummary,
-        answerSource,
-        questionsUsed: 0,
-      });
+        const allowance = await askAllowance(user, activeSessionId, chartKey);
+        res.json({
+          sessionId: activeSessionId,
+          reply: aiResponseText,
+          evidence: evidenceSummary,
+          answerSource,
+          questionsUsed: allowance.freeQuestionsUsed,
+          allowance,
+        });
+      } catch (err) {
+        await settleUsage('released').catch(() => {});
+        throw err;
+      }
     } catch (error: any) {
       if (error instanceof BirthInputError || error instanceof CalculationError) return res.status(400).json({ message: error.message });
       console.error("AI Chat Error:", error);
@@ -2357,7 +2366,7 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
   });
 
   // Interpret a saved Kundli with AI
-  app.post('/api/ai/interpret-kundli', isAuthenticated, aiLimiter, async (req: any, res) => {
+  app.post('/api/ai/interpret-kundli', isAuthenticated, aiLimiter, aiBudget('user'), async (req: any, res) => {
     try {
       const { kundliId } = req.body;
       if (!kundliId) return res.status(400).json({ message: "kundliId is required" });
@@ -2379,7 +2388,7 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
   });
 
   // Pre-consultation brief — talking points tailored to user's chart + astrologer
-  app.get('/api/ai/pre-consult-brief', isAuthenticated, aiLimiter, async (req: any, res) => {
+  app.get('/api/ai/pre-consult-brief', isAuthenticated, aiLimiter, aiBudget('user'), async (req: any, res) => {
     try {
       const userId = (req.user as any).id;
       const { astrologerId } = req.query;
@@ -2408,7 +2417,7 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
   });
 
   // Astrologer matching — rank online astrologers by chart compatibility
-  app.get('/api/ai/match-astrologer', isAuthenticated, aiLimiter, async (req: any, res) => {
+  app.get('/api/ai/match-astrologer', isAuthenticated, aiLimiter, aiBudget('user'), async (req: any, res) => {
     try {
       const userId = (req.user as any).id;
       const userKundlis = await storage.getUserKundlis(userId);
@@ -2441,6 +2450,14 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
     try {
       res.json({ marketplaceEnabled: features.marketplace(), ...(await storage.getOpenPaidMarketplaceItems()) });
     } catch { res.status(500).json({ message: 'Failed to load open marketplace items' }); }
+  });
+
+  // Recharges whose gateway payment did not match the order (amount, currency, order, refund,
+  // or a second payment): never credited automatically; listed for an admin to resolve.
+  app.get('/api/admin/payments/review', isAdmin, adminLimiter, async (_req, res) => {
+    try {
+      res.json(await storage.getRechargesForReview());
+    } catch { res.status(500).json({ message: 'Failed to list payments for review' }); }
   });
 
   // Settle pending Razorpay recharges whose confirmation never arrived (also runs on a timer).
@@ -2792,7 +2809,7 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
   // Streams the AI narrative for one tradition, word-by-word, as a plain chunked
   // text/plain response (client reads via fetch()'s ReadableStream — no SSE
   // needed for a same-origin POST). Persists the full text once streaming ends.
-  app.post('/api/admin/jyotish/readings/:id/generate', isAdmin, adminLimiter, async (req, res) => {
+  app.post('/api/admin/jyotish/readings/:id/generate', isAdmin, adminLimiter, aiBudget('admin'), async (req, res) => {
     let tradition: Tradition;
     try {
       tradition = TRADITION_ENUM.parse(req.body?.tradition);
@@ -2831,7 +2848,7 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
   });
 
   // Quick mid-session Q&A ("session query box") — streamed the same way, logged for the record.
-  app.post('/api/admin/jyotish/session-queries', isAdmin, adminLimiter, async (req, res) => {
+  app.post('/api/admin/jyotish/session-queries', isAdmin, adminLimiter, aiBudget('admin'), async (req, res) => {
     const { profileId, readingId, question, language } = req.body || {};
     let tradition: Tradition;
     try {
@@ -2894,6 +2911,22 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
 
   // ─── Astrologer Pro: practice workspace (tenant = astrologer session) ──
   const PRO_AI_MONTHLY_LIMIT = 80;
+
+  // The workspace (and its paid-model calls) is for verified astrologers only: registering an
+  // astrologer account signs it in, but does not verify it.
+  app.use('/api/astrologer/pro', isAstrologerAuthenticated, async (req: any, res, next) => {
+    try {
+      const astro = await storage.getAstrologerById(req.session.astrologerId);
+      if (!astro?.isVerified) return res.status(403).json({ code: 'pro_requires_verification', message: 'The Pro workspace is available once your astrologer account is verified.' });
+      next();
+    } catch {
+      res.status(500).json({ message: 'Failed to check your account' });
+    }
+  });
+  const proAiEnabled = (_req: any, res: any, next: any) => (features.proAi()
+    ? next()
+    : res.status(503).json({ code: 'pro_ai_disabled', message: 'AI readings in the Pro workspace are switched off for now. Your clients and charts are unaffected.' }));
+  const proAiGuards = [proAiEnabled, proAiLimiter, aiBudget('astrologer')];
 
   async function requireProProfile(req: any, profileId: string) {
     const profile = await storage.getJyotishProfileById(profileId);
@@ -2992,13 +3025,14 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
     } catch { res.status(500).json({ message: 'Failed to fetch reading' }); }
   });
 
-  app.post('/api/astrologer/pro/readings/:id/generate', isAstrologerAuthenticated, async (req: any, res) => {
+  app.post('/api/astrologer/pro/readings/:id/generate', isAstrologerAuthenticated, ...proAiGuards, async (req: any, res) => {
     let tradition: Tradition;
     try {
       tradition = TRADITION_ENUM.parse(req.body?.tradition);
     } catch {
       return res.status(400).json({ message: 'tradition must be one of parashar | kn_rao | kamakhya' });
     }
+    let creditTaken = false;
     try {
       const reading = await storage.getJyotishReadingById(req.params.id);
       if (!reading) return res.status(404).json({ message: 'Reading not found' });
@@ -3014,6 +3048,7 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
           limit: credit.limit,
         });
       }
+      creditTaken = true;
 
       res.setHeader('Content-Type', 'text/plain; charset=utf-8');
       res.setHeader('Cache-Control', 'no-cache');
@@ -3026,9 +3061,11 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
         (delta) => res.write(delta),
         reading.language || 'English',
       );
+      creditTaken = false; // delivered: the credit is spent even if saving it fails
       await storage.updateJyotishReading(reading.id, { [READING_COLUMN[tradition]]: full, status: 'ready' } as any);
       res.end();
     } catch (err: any) {
+      if (creditTaken) await storage.refundProAiCredit(req.session.astrologerId).catch(() => {});
       if (!res.headersSent && (err instanceof BirthInputError || err instanceof CalculationError)) return res.status(400).json({ message: err.message });
       console.error('Pro generate reading error:', err);
       if (!res.headersSent && (err instanceof BirthInputError || err instanceof CalculationError)) return res.status(400).json({ message: err.message });
@@ -3040,7 +3077,7 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
     }
   });
 
-  app.post('/api/astrologer/pro/session-queries', isAstrologerAuthenticated, async (req: any, res) => {
+  app.post('/api/astrologer/pro/session-queries', isAstrologerAuthenticated, ...proAiGuards, async (req: any, res) => {
     const { profileId, readingId, question, language } = req.body || {};
     let tradition: Tradition;
     try {
@@ -3051,6 +3088,8 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
     if (!profileId || typeof question !== 'string' || !question.trim()) {
       return res.status(400).json({ message: 'profileId and question are required' });
     }
+    if (question.length > 2000) return res.status(400).json({ message: 'The question is too long (2000 characters max)' });
+    let creditTaken = false;
     try {
       const profile = await requireProProfile(req, profileId);
       if (!profile) return res.status(404).json({ message: 'Profile not found' });
@@ -3078,6 +3117,7 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
           limit: credit.limit,
         });
       }
+      creditTaken = true;
 
       res.setHeader('Content-Type', 'text/plain; charset=utf-8');
       res.setHeader('Cache-Control', 'no-cache');
@@ -3091,9 +3131,11 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
         (delta) => res.write(delta),
         language,
       );
+      creditTaken = false; // delivered: the credit is spent even if saving it fails
       await storage.createJyotishSessionQuery({ profileId, readingId: usedReadingId, tradition, question, answer });
       res.end();
     } catch (err: any) {
+      if (creditTaken) await storage.refundProAiCredit(req.session.astrologerId).catch(() => {});
       console.error('Pro session query error:', err);
       if (!res.headersSent && (err instanceof BirthInputError || err instanceof CalculationError)) return res.status(400).json({ message: err.message });
       if (!res.headersSent) {

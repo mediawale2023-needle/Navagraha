@@ -6,6 +6,7 @@ import { setupVite, serveStatic, log } from "./vite";
 import { runMigrations } from "./migrate";
 import { startRechargeReconciler } from "./rechargeSettlement";
 import { reportsAvailable, startReportOrderSweeper } from "./reportOrders";
+import { startAskReservationSweeper } from "./askMetering";
 import { FREE_CHAT_MINUTES } from "./paymentService";
 import { features } from "./features";
 import { waitForDatabase } from "./db";
@@ -81,6 +82,13 @@ app.get('/metrics', async (req, res) => {
   if (!metricsAllowed(req.headers.authorization)) return res.status(404).json({ message: 'Not found' });
   res.set('Content-Type', client.register.contentType);
   res.end(await client.register.metrics());
+});
+
+// Payments touch the Release A schema and its guard, which exist only once migrations have run:
+// until then this instance refuses them (Razorpay retries webhooks; the browser can retry).
+app.use('/api/payment', (_req, res, next) => {
+  if (startupReady) return next();
+  res.status(503).json({ code: 'starting', message: 'Payments are starting up. Please try again in a moment.' });
 });
 
 app.get('/api/health', (_req, res) => {
@@ -185,6 +193,7 @@ waitForDatabase()
       log("startup ready");
       startRechargeReconciler();
       startReportOrderSweeper();
+      startAskReservationSweeper();
     } catch (err) {
       startupError = err instanceof Error ? err.message : "migration failed";
       console.error("[startup/migrate] Migration failed:", err);

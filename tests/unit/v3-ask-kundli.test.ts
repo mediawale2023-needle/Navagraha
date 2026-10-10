@@ -8,7 +8,8 @@ const mocks = vi.hoisted(() => ({
   storage: {
     getKundliById: vi.fn(), getUser: vi.fn(), getUserKundlis: vi.fn(), persistLegacyUpgrade: vi.fn(),
     saveAiChatMessage: vi.fn(), getUserMemories: vi.fn(), addUserMemory: vi.fn(), getPredictionFeedbacksByUser: vi.fn(), getPatternStatistics: vi.fn(),
-    getAiChatHistory: vi.fn(),
+    getAiChatHistory: vi.fn(), hasFreeAccess: vi.fn(), reserveAskUsage: vi.fn(), settleAskUsage: vi.fn(), getAskAllowance: vi.fn(),
+    getAiChatMessage: vi.fn(),
   },
   runCouncil: vi.fn(), extractMemories: vi.fn(),
 }));
@@ -43,13 +44,14 @@ beforeAll(async () => {
   app = express(); app.use(express.json());
   app.use((req, _res, next) => {
     req.isAuthenticated = (() => Boolean(req.headers['x-user'])) as typeof req.isAuthenticated;
-    if (req.headers['x-user']) req.user = { id: String(req.headers['x-user']) };
+    if (req.headers['x-user']) req.user = { id: String(req.headers['x-user']), emailVerifiedAt: req.headers['x-unverified'] ? null : new Date('2026-01-01') };
     req.session = {} as typeof req.session;
     next();
   });
   await registerRoutes(app);
 });
 beforeEach(() => {
+  vi.clearAllMocks();
   mocks.create.mockReset();
   mocks.runCouncil.mockReset();
   mocks.storage.getUserKundlis.mockResolvedValue([]);
@@ -58,6 +60,11 @@ beforeEach(() => {
   mocks.storage.getPatternStatistics.mockResolvedValue(null);
   mocks.extractMemories.mockResolvedValue([]);
   mocks.storage.getAiChatHistory.mockResolvedValue([]);
+  mocks.storage.hasFreeAccess.mockResolvedValue(false);
+  mocks.storage.saveAiChatMessage.mockImplementation(async (m: any) => ({ id: `msg_${m.role}`, ...m }));
+  mocks.storage.reserveAskUsage.mockResolvedValue({ kind: 'reserved', usage: { id: 'u1', kind: 'question', entitlement: 'free', followUpsAllowed: 1 } });
+  mocks.storage.settleAskUsage.mockResolvedValue({ id: 'u1' });
+  mocks.storage.getAskAllowance.mockResolvedValue({ freeQuestionsUsed: 1, freeQuestionsRemaining: 2, paidQuestionsRemaining: 0, followUpsRemaining: 1 });
 });
 afterEach(() => vi.unstubAllEnvs());
 
@@ -194,5 +201,106 @@ describe('POST /api/ai/chat routing', () => {
     expect(res.body.reply).toBe(NO_CHART_REPLY);
     expect(res.body.evidence).toBeNull();
     expect(mocks.runCouncil).not.toHaveBeenCalled();
+  });
+});
+
+describe('Ask metering on POST /api/ai/chat (Release A)', () => {
+  const ask = (body: object = {}) => request(app).post('/api/ai/chat').set('x-user', 'owner').send({ message: 'How is my career?', kundliId: 'chart', ...body });
+
+  it('reserves against the user and chart before any model call, then consumes on a model answer', async () => {
+    vi.stubEnv('OPENAI_API_KEY', 'test');
+    mocks.create.mockResolvedValue(reply('VERDICT: grounded.'));
+    const res = await ask({ requestId: 'req_12345678' });
+    expect(res.status).toBe(200);
+    expect(mocks.storage.reserveAskUsage).toHaveBeenCalledWith(expect.objectContaining({
+      userId: 'owner', chartKey: 'kundli:chart', idempotencyKey: 'req_12345678', freeQuestions: 3, freeFollowUps: 1, enforce: false, unlimited: false,
+    }));
+    expect(mocks.storage.reserveAskUsage.mock.invocationCallOrder[0]).toBeLessThan(mocks.create.mock.invocationCallOrder[0]);
+    expect(mocks.storage.settleAskUsage).toHaveBeenCalledWith('u1', 'consumed', 'msg_assistant');
+    expect(res.body).toMatchObject({ questionsUsed: 1, allowance: { enforced: false, freeQuestionsTotal: 3, freeQuestionsRemaining: 2 } });
+  });
+
+  it('restores the reservation when the model fails and the deterministic fallback answers', async () => {
+    vi.stubEnv('OPENAI_API_KEY', 'test');
+    mocks.create.mockRejectedValue(new Error('upstream 500'));
+    const res = await ask();
+    expect(res.status).toBe(200);
+    expect(res.body.answerSource).toBe('deterministic');
+    expect(mocks.storage.settleAskUsage).toHaveBeenCalledWith('u1', 'released', 'msg_assistant');
+  });
+
+  it('restores the reservation when the request fails part-way', async () => {
+    vi.stubEnv('OPENAI_API_KEY', 'test');
+    mocks.create.mockResolvedValue(reply('VERDICT: grounded.'));
+    mocks.storage.saveAiChatMessage.mockRejectedValueOnce(new Error('db down'));
+    const res = await ask();
+    expect(res.status).toBe(500);
+    expect(mocks.storage.settleAskUsage).toHaveBeenCalledWith('u1', 'released', undefined);
+    expect(mocks.create).not.toHaveBeenCalled();
+  });
+
+  it('a retried request id replays the stored answer without another model call', async () => {
+    mocks.storage.reserveAskUsage.mockResolvedValue({ kind: 'replay', usage: { id: 'u1', sessionId: 's1', chartKey: 'kundli:chart', replyMessageId: 'm9' } });
+    mocks.storage.getAiChatMessage.mockResolvedValue({ id: 'm9', content: 'Earlier answer.' });
+    const res = await ask({ requestId: 'req_12345678' });
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ reply: 'Earlier answer.', replayed: true, sessionId: 's1' });
+    expect(mocks.create).not.toHaveBeenCalled();
+    expect(mocks.storage.saveAiChatMessage).not.toHaveBeenCalled();
+  });
+
+  it('a concurrent duplicate of a request in flight is refused, not answered twice', async () => {
+    mocks.storage.reserveAskUsage.mockResolvedValue({ kind: 'in_flight' });
+    const res = await ask({ requestId: 'req_12345678' });
+    expect(res.status).toBe(409);
+    expect(mocks.create).not.toHaveBeenCalled();
+  });
+
+  it('with enforcement on and no allowance left, answers 402 before any model call', async () => {
+    vi.stubEnv('FEATURE_ASK_METERING_ENFORCE', 'true');
+    mocks.storage.reserveAskUsage.mockResolvedValue({ kind: 'exhausted' });
+    const res = await ask();
+    expect(res.status).toBe(402);
+    expect(res.body.code).toBe('ask_allowance_exhausted');
+    expect(mocks.storage.reserveAskUsage).toHaveBeenCalledWith(expect.objectContaining({ enforce: true }));
+    expect(mocks.create).not.toHaveBeenCalled();
+    expect(mocks.storage.saveAiChatMessage).not.toHaveBeenCalled();
+  });
+
+  it('an account without a verified email gets no free questions (metered as unmetered while not enforced)', async () => {
+    vi.stubEnv('OPENAI_API_KEY', 'test');
+    mocks.create.mockResolvedValue(reply('VERDICT: grounded.'));
+    const res = await request(app).post('/api/ai/chat').set('x-user', 'owner').set('x-unverified', '1').send({ message: 'How is my career?', kundliId: 'chart' });
+    expect(res.status).toBe(200);
+    expect(mocks.storage.reserveAskUsage).toHaveBeenCalledWith(expect.objectContaining({ freeQuestions: 0 }));
+    expect(res.body.allowance).toMatchObject({ emailVerified: false, freeQuestionsTotal: 0 });
+  });
+
+  it('with enforcement on, an unverified account is told to verify its email, before any model call', async () => {
+    vi.stubEnv('FEATURE_ASK_METERING_ENFORCE', 'true');
+    mocks.storage.reserveAskUsage.mockResolvedValue({ kind: 'exhausted' });
+    const res = await request(app).post('/api/ai/chat').set('x-user', 'owner').set('x-unverified', '1').send({ message: 'How is my career?', kundliId: 'chart' });
+    expect(res.status).toBe(402);
+    expect(res.body.code).toBe('email_verification_required');
+    expect(mocks.create).not.toHaveBeenCalled();
+  });
+
+  it("another user's chart is refused before anything is reserved", async () => {
+    const res = await request(app).post('/api/ai/chat').set('x-user', 'intruder').send({ message: 'How is my career?', kundliId: 'chart' });
+    expect(res.status).toBe(404);
+    expect(mocks.storage.reserveAskUsage).not.toHaveBeenCalled();
+  });
+
+  it('GET /api/ai/question-count reports the server-side allowance', async () => {
+    const res = await request(app).get('/api/ai/question-count?sessionId=s1&kundliId=chart').set('x-user', 'owner');
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ used: 1, free: 3, remaining: 2, enforced: false, followUpsRemaining: 1 });
+    expect(mocks.storage.getAskAllowance).toHaveBeenCalledWith('owner', { freeQuestions: 3, sessionId: 's1', chartKey: 'kundli:chart' });
+  });
+
+  it('the legacy AI-astrologer chat no longer answers outside metering', async () => {
+    const res = await request(app).post('/api/chat/ai-astrologer').set('x-user', 'owner').send({ message: 'hi', sender: 'user' });
+    expect(res.status).toBe(410);
+    expect(mocks.create).not.toHaveBeenCalled();
   });
 });

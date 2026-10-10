@@ -136,6 +136,9 @@ export default function Wallet() {
                 title: 'Payment Successful',
                 description: `Your wallet balance is now ₹${Number(verifyResult.newBalance).toFixed(2)}.`,
               });
+            } else if (verifyResult.pending) {
+              queryClient.invalidateQueries({ queryKey: ['/api/transactions'] });
+              toast({ title: 'Payment received', description: verifyResult.message });
             }
           } catch {
             toast({ title: 'Verification Failed', description: 'Payment received but verification failed. Contact support.', variant: 'destructive' });

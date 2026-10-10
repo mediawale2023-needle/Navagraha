@@ -8,7 +8,7 @@ const mocks = vi.hoisted(() => ({
     getKundliById: vi.fn(), getUser: vi.fn(), getUserKundlis: vi.fn(), createKundli: vi.fn(),
     getReportTypeById: vi.fn(), debitWallet: vi.fn(), createReportOrder: vi.fn(), placeReportOrder: vi.fn(), setReportOrderContent: vi.fn(), failAndRefundReportOrder: vi.fn(),
     setReportOrderContent: vi.fn(), createNotification: vi.fn(),
-    saveAiChatMessage: vi.fn(), getUserMemories: vi.fn(), getPredictionFeedbacksByUser: vi.fn(), getPatternStatistics: vi.fn(),
+    saveAiChatMessage: vi.fn(), reserveAskUsage: vi.fn(), settleAskUsage: vi.fn(), getAskAllowance: vi.fn(), getAiChatMessage: vi.fn(), hasFreeAccess: vi.fn(), getUserMemories: vi.fn(), getPredictionFeedbacksByUser: vi.fn(), getPatternStatistics: vi.fn(),
   },
   runCouncil: vi.fn(), interpretKundli: vi.fn(), generateReport: vi.fn(), extractMemories: vi.fn(),
   callSynastryEngine: vi.fn(),
@@ -48,6 +48,10 @@ beforeAll(async () => {
   await registerRoutes(app);
 });
 beforeEach(() => {
+  mocks.storage.hasFreeAccess.mockResolvedValue(false);
+  mocks.storage.reserveAskUsage.mockResolvedValue({ kind: 'reserved', usage: { id: 'u1', kind: 'question', entitlement: 'free', followUpsAllowed: 1 } });
+  mocks.storage.settleAskUsage.mockResolvedValue({ id: 'u1' });
+  mocks.storage.getAskAllowance.mockResolvedValue({ freeQuestionsUsed: 1, freeQuestionsRemaining: 2, paidQuestionsRemaining: 0, followUpsRemaining: 1 });
   vi.clearAllMocks();
   vi.stubEnv('GOOGLE_MAPS_API_KEY', '');
   mocks.storage.getKundliById.mockImplementation(async id => id === 'chart' ? saved : undefined);

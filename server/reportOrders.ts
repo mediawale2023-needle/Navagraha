@@ -5,6 +5,7 @@
  */
 import { storage } from "./storage";
 import { sendPushToUser } from "./pushService";
+import { audit } from "./audit";
 import type { ReportOrder } from "@shared/schema";
 
 /** Report categories that can be generated; a catalogue entry with any other category is not sold. */
@@ -23,6 +24,7 @@ export const STALE_REPORT_ORDER_MS = 30 * 60_000;
 async function refundAndTell(order: Pick<ReportOrder, "id" | "userId">, reportName: string, reason: string) {
   const result = await storage.failAndRefundReportOrder(order.id, reason);
   if (!result) return null;
+  audit("wallet.refund", { userId: order.userId, reason: "report_failed", orderId: order.id, amount: result.refunded });
   const amount = result.refunded > 0 ? `₹${result.refunded.toFixed(0)} has been returned to your wallet.` : "You were not charged.";
   await storage.createNotification({
     userId: order.userId, type: "system", title: "Report could not be prepared",

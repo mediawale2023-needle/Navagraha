@@ -32,6 +32,11 @@ import {
   jyotishClientProfiles,
   jyotishReadings,
   jyotishSessionQueries,
+  askUsage,
+  entitlements,
+  aiUsageDaily,
+  aiBudgetDaily,
+  type AskUsage,
   type JyotishClientProfile,
   type InsertJyotishClientProfile,
   type JyotishReading,
@@ -88,6 +93,67 @@ import { eq, desc, and, sql, asc, inArray, type SQL } from "drizzle-orm";
 import crypto from "crypto";
 import bcrypt from "bcryptjs";
 import { isAdminAccount, normalizeEmail } from "./adminAccess";
+import { evaluateCoupon, packBonusFor, type GatewayPayment } from "./paymentService";
+
+export interface PendingRechargeInput {
+  userId: string;
+  orderId: string;
+  amountPaise: number;
+  packBonus: number;
+  coupon?: { id: string; code: string; bonus: number };
+  quotedCredit: number;
+  description: string;
+}
+
+// A reservation not settled within this long is treated as released (its request died).
+export const ASK_RESERVATION_TTL_MS = 10 * 60 * 1000;
+const ASK_RESERVATION_TTL_SQL = "10 minutes";
+
+export interface AskReserveInput {
+  userId: string;
+  chartKey: string;
+  sessionId: string;
+  idempotencyKey: string;
+  freeQuestions: number;
+  freeFollowUps: number;
+  /** Refuse when no allowance is left (otherwise the question is recorded as unmetered). */
+  enforce: boolean;
+  /** Admin accounts: recorded, never drawn from an allowance. */
+  unlimited: boolean;
+}
+
+export type AskReservation =
+  | { kind: "reserved"; usage: AskUsage }
+  | { kind: "replay"; usage: AskUsage }
+  | { kind: "in_flight" }
+  | { kind: "exhausted" };
+
+export interface AskAllowanceCounts {
+  freeQuestionsUsed: number;
+  freeQuestionsRemaining: number;
+  paidQuestionsRemaining: number;
+  followUpsRemaining: number | null;
+}
+
+// Reports an admin (free access) account may generate per rolling day: each costs real model spend.
+export const FREE_ACCESS_REPORTS_PER_DAY = 5;
+
+export type RechargeSettlement =
+  | { kind: "settled"; transaction: Transaction; balance: string; paidRupees: number; coupon: "applied" | "void" | "none"; couponVoidReason?: string }
+  | { kind: "mismatch"; transaction: Transaction; reason: string }
+  | { kind: "none" };
+
+/** Why a gateway payment cannot settle this recharge, or null when it matches. */
+export function paymentMismatch(row: Pick<Transaction, "gatewayOrderId" | "gatewayAmountPaise" | "gatewayCurrency">, payment: GatewayPayment): string | null {
+  if (payment.orderId !== row.gatewayOrderId) return `payment belongs to order ${payment.orderId}`;
+  if (payment.currency !== (row.gatewayCurrency ?? "INR")) return `currency ${payment.currency || "missing"}, expected ${row.gatewayCurrency ?? "INR"}`;
+  if (!(payment.amountPaise > 0)) return `amount ${payment.amountPaise} paise`;
+  if ((payment.amountRefundedPaise ?? 0) > 0) return `payment refunded ${payment.amountRefundedPaise} paise`;
+  if (row.gatewayAmountPaise != null && payment.amountPaise !== row.gatewayAmountPaise) {
+    return `amount ${payment.amountPaise} paise, expected ${row.gatewayAmountPaise}`;
+  }
+  return null;
+}
 
 export interface IStorage {
   // User operations
@@ -120,14 +186,14 @@ export interface IStorage {
   // Wallet operations
   getWallet(userId: string): Promise<Wallet | undefined>;
   createWallet(userId: string): Promise<Wallet>;
-  updateWalletBalance(userId: string, amount: string): Promise<Wallet>;
   tryDebitBalance(userId: string, cost: number): Promise<string | null>;
   creditWallet(userId: string, amount: number): Promise<string>;
-  settleRechargeOrder(orderId: string, paymentId: string, signature?: string, userId?: string): Promise<{ transaction: Transaction; balance: string } | null>;
-  settleExternalRecharge(data: { userId: string; orderId: string; amount: number; description: string; paymentMethod: string; paymentId?: string }): Promise<{ transaction: Transaction; balance: string } | null>;
+  createPendingRecharge(data: PendingRechargeInput): Promise<Transaction>;
+  countOpenRecharges(userId: string, since: Date): Promise<number>;
+  settleRechargeOrder(payment: GatewayPayment, opts?: { signature?: string; userId?: string }): Promise<RechargeSettlement>;
   getRechargeByOrderId(orderId: string): Promise<Transaction | undefined>;
   getStalePendingRecharges(createdBefore: Date, createdAfter?: Date): Promise<Transaction[]>;
-  rewardReferral(referral: { id: string; referrerId: string; refereeId: string }, referrerReward: number, refereeReward: number): Promise<string | null>;
+  rewardReferral(referral: { id: string; referrerId: string; refereeId: string }, referrerReward: number, refereeReward: number, referrerMonthlyCap?: number): Promise<{ refereeBalance: string; referrerPaid: boolean } | null>;
   failPendingRecharge(id: string): Promise<boolean>;
   hasFreeAccess(userId: string): Promise<boolean>;
 
@@ -207,6 +273,15 @@ export interface IStorage {
   // AI Chat operations
   saveAiChatMessage(data: InsertAiChatMessage): Promise<AiChatMessage>;
   getAiChatHistory(userId: string, sessionId: string): Promise<AiChatMessage[]>;
+  getAiChatMessage(userId: string, id: string): Promise<AiChatMessage | undefined>;
+  reserveAskUsage(input: AskReserveInput): Promise<AskReservation>;
+  settleAskUsage(id: string, outcome: "consumed" | "released", replyMessageId?: string): Promise<AskUsage | null>;
+  releaseStaleAskReservations(): Promise<number>;
+  recordAiUsage(u: { subject: string; day: string; feature: string; inputTokens: number; outputTokens: number; costMicroUsd: number }): Promise<void>;
+  getAiUsageToday(subject: string, day: string): Promise<{ calls: number; costMicroUsd: number }>;
+  reserveAiBudget(r: { subject: string; day: string; microUsd: number; costLimitMicroUsd: number; callLimit: number }): Promise<boolean>;
+  settleAiBudget(r: { subject: string; day: string; reservedMicroUsd: number; actualMicroUsd: number }): Promise<void>;
+  getAskAllowance(userId: string, opts: { freeQuestions: number; sessionId?: string; chartKey?: string }): Promise<AskAllowanceCounts>;
   getAiChatSessions(userId: string): Promise<{ sessionId: string; createdAt: Date | null; preview: string }[]>;
 }
 
@@ -336,15 +411,6 @@ export class DatabaseStorage implements IStorage {
     return wallet;
   }
 
-  async updateWalletBalance(userId: string, amount: string): Promise<Wallet> {
-    const [wallet] = await db
-      .update(wallets)
-      .set({ balance: amount, updatedAt: new Date() })
-      .where(eq(wallets.userId, userId))
-      .returning();
-    return wallet;
-  }
-
   // ─── Transaction operations ────────────────────────────────
 
   async createTransaction(data: InsertTransaction): Promise<Transaction> {
@@ -363,6 +429,7 @@ export class DatabaseStorage implements IStorage {
       .orderBy(desc(transactions.createdAt));
   }
 
+  /** A completed gateway recharge (referral bonuses are recorded as recharges without an order). */
   async hasCompletedRecharge(userId: string): Promise<boolean> {
     const rows = await db
       .select({ id: transactions.id })
@@ -372,6 +439,7 @@ export class DatabaseStorage implements IStorage {
           eq(transactions.userId, userId),
           eq(transactions.type, "recharge"),
           eq(transactions.status, "completed"),
+          sql`${transactions.gatewayOrderId} IS NOT NULL`,
         ),
       )
       .limit(1);
@@ -921,6 +989,190 @@ export class DatabaseStorage implements IStorage {
     return msg;
   }
 
+  async getAiChatMessage(userId: string, id: string): Promise<AiChatMessage | undefined> {
+    const [row] = await db.select().from(aiChatMessages).where(and(eq(aiChatMessages.id, id), eq(aiChatMessages.userId, userId)));
+    return row;
+  }
+
+  // ─── Ask Your Kundli metering ──────────────────────────────
+  // Reservations are taken before the answer is generated and settled after it: consumed when
+  // a model answer was delivered, released (never counted) when generation failed. All
+  // decisions for one user run under a per-user lock, so concurrent messages cannot both take
+  // the last free question or the last follow-up.
+
+  async reserveAskUsage(input: AskReserveInput): Promise<AskReservation> {
+    return db.transaction(async (tx) => {
+      await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${"ask:" + input.userId}))`);
+      const [existing] = await tx
+        .select({ usage: askUsage, stale: sql<boolean>`${askUsage.createdAt} <= now() - ${ASK_RESERVATION_TTL_SQL}::interval` })
+        .from(askUsage)
+        .where(and(eq(askUsage.userId, input.userId), eq(askUsage.idempotencyKey, input.idempotencyKey)));
+      if (existing?.usage.status === "consumed") return { kind: "replay", usage: existing.usage };
+      if (existing?.usage.status === "reserved" && !existing.stale) return { kind: "in_flight" };
+      if (existing) {
+        // A retry after a failed or abandoned attempt: that attempt is released (a paid question
+        // goes back to its entitlement) and kept under another key, and this one starts afresh.
+        const old = existing.usage;
+        await tx.update(askUsage)
+          .set({ status: "released", settledAt: old.settledAt ?? new Date(), idempotencyKey: `${old.idempotencyKey}#${old.id}` })
+          .where(eq(askUsage.id, old.id));
+        if (old.status === "reserved" && old.kind === "question" && old.entitlementId) {
+          await tx.update(entitlements).set({ used: sql`${entitlements.used} - 1` })
+            .where(and(eq(entitlements.id, old.entitlementId), sql`${entitlements.used} > 0`));
+        }
+      }
+
+      const counting = sql`(${askUsage.status} = 'consumed' OR (${askUsage.status} = 'reserved' AND ${askUsage.createdAt} > now() - ${ASK_RESERVATION_TTL_SQL}::interval))`;
+      const [parent] = await tx.select().from(askUsage)
+        .where(and(
+          eq(askUsage.userId, input.userId), eq(askUsage.sessionId, input.sessionId), eq(askUsage.chartKey, input.chartKey),
+          eq(askUsage.kind, "question"), counting,
+        ))
+        .orderBy(desc(askUsage.createdAt))
+        .limit(1);
+      if (parent) {
+        const [{ n }] = await tx.select({ n: sql<number>`count(*)::int` }).from(askUsage)
+          .where(and(eq(askUsage.parentId, parent.id), counting));
+        if (n < parent.followUpsAllowed) {
+          const [usage] = await tx.insert(askUsage).values({
+            userId: input.userId, chartKey: input.chartKey, sessionId: input.sessionId, kind: "follow_up", parentId: parent.id,
+            entitlement: parent.entitlement, followUpsAllowed: 0, idempotencyKey: input.idempotencyKey,
+          }).returning();
+          return { kind: "reserved", usage };
+        }
+      }
+
+      let entitlement: "free" | "paid" | "unmetered" | "admin";
+      let entitlementId: string | null = null;
+      let followUpsAllowed = input.freeFollowUps;
+      if (input.unlimited) {
+        entitlement = "admin";
+      } else {
+        const [{ n: freeUsed }] = await tx.select({ n: sql<number>`count(*)::int` }).from(askUsage)
+          .where(and(eq(askUsage.userId, input.userId), eq(askUsage.kind, "question"), eq(askUsage.entitlement, "free"), counting));
+        if (freeUsed < input.freeQuestions) {
+          entitlement = "free";
+        } else {
+          const [paid] = await tx.execute(sql`
+            UPDATE entitlements SET used = used + 1
+            WHERE id = (
+              SELECT id FROM entitlements
+              WHERE user_id = ${input.userId} AND kind = 'ask_questions' AND used < quantity AND (expires_at IS NULL OR expires_at > now())
+              ORDER BY expires_at ASC NULLS LAST, created_at ASC
+              LIMIT 1
+              FOR UPDATE
+            )
+            RETURNING id, follow_ups_each`).then((r: any) => r.rows ?? r);
+          if (paid) {
+            entitlement = "paid";
+            entitlementId = String(paid.id);
+            followUpsAllowed = Number(paid.follow_ups_each);
+          } else if (input.enforce) {
+            return { kind: "exhausted" };
+          } else {
+            entitlement = "unmetered";
+          }
+        }
+      }
+      const [usage] = await tx.insert(askUsage).values({
+        userId: input.userId, chartKey: input.chartKey, sessionId: input.sessionId, kind: "question",
+        entitlement, entitlementId, followUpsAllowed, idempotencyKey: input.idempotencyKey,
+      }).returning();
+      return { kind: "reserved", usage };
+    });
+  }
+
+  /** Settles a reservation once. Releasing a paid question returns it to its entitlement. */
+  async settleAskUsage(id: string, outcome: "consumed" | "released", replyMessageId?: string): Promise<AskUsage | null> {
+    return db.transaction(async (tx) => {
+      const [row] = await tx.update(askUsage)
+        .set({ status: outcome, settledAt: new Date(), ...(replyMessageId ? { replyMessageId } : {}) })
+        .where(and(eq(askUsage.id, id), eq(askUsage.status, "reserved")))
+        .returning();
+      if (!row) return null;
+      if (outcome === "released" && row.kind === "question" && row.entitlementId) {
+        await tx.update(entitlements).set({ used: sql`${entitlements.used} - 1` })
+          .where(and(eq(entitlements.id, row.entitlementId), sql`${entitlements.used} > 0`));
+      }
+      return row;
+    });
+  }
+
+  /** Releases reservations whose request never settled (process restart mid-answer). */
+  async releaseStaleAskReservations(): Promise<number> {
+    const stale = await db.select({ id: askUsage.id }).from(askUsage)
+      .where(and(eq(askUsage.status, "reserved"), sql`${askUsage.createdAt} <= now() - ${ASK_RESERVATION_TTL_SQL}::interval`))
+      .limit(500);
+    let released = 0;
+    for (const { id } of stale) if (await this.settleAskUsage(id, "released")) released++;
+    return released;
+  }
+
+  async getAskAllowance(userId: string, opts: { freeQuestions: number; sessionId?: string; chartKey?: string }): Promise<AskAllowanceCounts> {
+    const counting = sql`(${askUsage.status} = 'consumed' OR (${askUsage.status} = 'reserved' AND ${askUsage.createdAt} > now() - ${ASK_RESERVATION_TTL_SQL}::interval))`;
+    const [{ n: freeUsed }] = await db.select({ n: sql<number>`count(*)::int` }).from(askUsage)
+      .where(and(eq(askUsage.userId, userId), eq(askUsage.kind, "question"), eq(askUsage.entitlement, "free"), counting));
+    const [{ n: paidRemaining }] = await db.select({ n: sql<number>`coalesce(sum(${entitlements.quantity} - ${entitlements.used}), 0)::int` }).from(entitlements)
+      .where(and(eq(entitlements.userId, userId), eq(entitlements.kind, "ask_questions"), sql`(${entitlements.expiresAt} IS NULL OR ${entitlements.expiresAt} > now())`));
+    let followUpsRemaining: number | null = null;
+    if (opts.sessionId && opts.chartKey) {
+      const [parent] = await db.select().from(askUsage)
+        .where(and(eq(askUsage.userId, userId), eq(askUsage.sessionId, opts.sessionId), eq(askUsage.chartKey, opts.chartKey), eq(askUsage.kind, "question"), counting))
+        .orderBy(desc(askUsage.createdAt)).limit(1);
+      if (parent) {
+        const [{ n }] = await db.select({ n: sql<number>`count(*)::int` }).from(askUsage).where(and(eq(askUsage.parentId, parent.id), counting));
+        followUpsRemaining = Math.max(0, parent.followUpsAllowed - n);
+      }
+    }
+    return { freeQuestionsUsed: freeUsed, freeQuestionsRemaining: Math.max(0, opts.freeQuestions - freeUsed), paidQuestionsRemaining: paidRemaining, followUpsRemaining };
+  }
+
+  // ─── AI usage (shared across instances) ────────────────────
+  async recordAiUsage(u: { subject: string; day: string; feature: string; inputTokens: number; outputTokens: number; costMicroUsd: number }): Promise<void> {
+    await db.insert(aiUsageDaily)
+      .values({ subject: u.subject, day: u.day, feature: u.feature, calls: 1, inputTokens: u.inputTokens, outputTokens: u.outputTokens, costMicroUsd: u.costMicroUsd })
+      .onConflictDoUpdate({
+        target: [aiUsageDaily.subject, aiUsageDaily.day, aiUsageDaily.feature],
+        set: {
+          calls: sql`${aiUsageDaily.calls} + 1`,
+          inputTokens: sql`${aiUsageDaily.inputTokens} + ${u.inputTokens}`,
+          outputTokens: sql`${aiUsageDaily.outputTokens} + ${u.outputTokens}`,
+          costMicroUsd: sql`${aiUsageDaily.costMicroUsd} + ${u.costMicroUsd}`,
+        },
+      });
+  }
+
+  /**
+   * Reserves `microUsd` of a subject's daily AI budget, or refuses (false) when it would pass
+   * either limit. One statement: the row lock on the conflict serialises concurrent calls.
+   */
+  async reserveAiBudget(r: { subject: string; day: string; microUsd: number; costLimitMicroUsd: number; callLimit: number }): Promise<boolean> {
+    const result: any = await db.execute(sql`
+      INSERT INTO ai_budget_daily (subject, day, cost_micro_usd, calls)
+      SELECT ${r.subject}, ${r.day}, ${r.microUsd}, 1
+      WHERE ${r.microUsd} <= ${r.costLimitMicroUsd} AND 1 <= ${r.callLimit}
+      ON CONFLICT (subject, day) DO UPDATE
+        SET cost_micro_usd = ai_budget_daily.cost_micro_usd + EXCLUDED.cost_micro_usd,
+            calls = ai_budget_daily.calls + 1
+        WHERE ai_budget_daily.cost_micro_usd + EXCLUDED.cost_micro_usd <= ${r.costLimitMicroUsd}
+          AND ai_budget_daily.calls + 1 <= ${r.callLimit}
+      RETURNING cost_micro_usd`);
+    return (result.rows ?? result).length > 0;
+  }
+
+  /** Replaces a reservation with the call's real cost. */
+  async settleAiBudget(r: { subject: string; day: string; reservedMicroUsd: number; actualMicroUsd: number }): Promise<void> {
+    await db.update(aiBudgetDaily)
+      .set({ costMicroUsd: sql`greatest(${aiBudgetDaily.costMicroUsd} - ${r.reservedMicroUsd} + ${r.actualMicroUsd}, 0)` })
+      .where(and(eq(aiBudgetDaily.subject, r.subject), eq(aiBudgetDaily.day, r.day)));
+  }
+
+  /** Today's budgeted AI use for a subject (paid report generation is not budgeted). */
+  async getAiUsageToday(subject: string, day: string): Promise<{ calls: number; costMicroUsd: number }> {
+    const [row] = await db.select().from(aiBudgetDaily).where(and(eq(aiBudgetDaily.subject, subject), eq(aiBudgetDaily.day, day)));
+    return { calls: row?.calls ?? 0, costMicroUsd: row?.costMicroUsd ?? 0 };
+  }
+
   // ─── Long-term user memory ─────────────────────────────────
   async addUserMemory(data: { userId: string; kind?: string; content: string; sourceSessionId?: string }): Promise<UserMemory> {
     const [row] = await db.insert(userMemories).values({
@@ -1056,18 +1308,19 @@ export class DatabaseStorage implements IStorage {
     await db.delete(coupons).where(eq(coupons.id, id));
   }
 
-  // Count only redemptions tied to a COMPLETED recharge, so abandoned
-  // payment attempts don't consume a user's offer eligibility.
+  // Redemptions that were paid out: applied at settlement, or (rows from before settlement-time
+  // checks) tied to a completed recharge. Staged and voided ones do not use up the offer.
+  // The same rule settlement applies.
   async getUserCouponRedemptionCount(userId: string, couponId: string): Promise<number> {
     const rows = await db
       .select({ id: couponRedemptions.id })
       .from(couponRedemptions)
-      .innerJoin(transactions, eq(transactions.id, couponRedemptions.transactionId))
+      .leftJoin(transactions, eq(transactions.id, couponRedemptions.transactionId))
       .where(
         and(
           eq(couponRedemptions.userId, userId),
           eq(couponRedemptions.couponId, couponId),
-          eq(transactions.status, "completed"),
+          sql`(${couponRedemptions.status} = 'applied' OR (${couponRedemptions.status} IS NULL AND ${transactions.status} = 'completed'))`,
         ),
       );
     return rows.length;
@@ -1146,21 +1399,34 @@ export class DatabaseStorage implements IStorage {
     referral: { id: string; referrerId: string; refereeId: string },
     referrerReward: number,
     refereeReward: number,
-  ): Promise<string | null> {
+    referrerMonthlyCap = Infinity,
+  ): Promise<{ refereeBalance: string; referrerPaid: boolean } | null> {
     return db.transaction(async (tx) => {
+      // Serialises one inviter's rewards so the monthly cap cannot be overrun by concurrent payments.
+      await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${"referrer:" + referral.referrerId}))`);
+      const [{ n: recent }] = await tx
+        .select({ n: sql<number>`count(*)::int` })
+        .from(referrals)
+        .where(and(
+          eq(referrals.referrerId, referral.referrerId), eq(referrals.status, "rewarded"),
+          sql`${referrals.referrerReward} > 0`, sql`${referrals.rewardedAt} > now() - interval '30 days'`,
+        ));
+      const referrerPaid = recent < referrerMonthlyCap && referrerReward > 0;
+      const paidToReferrer = referrerPaid ? referrerReward : 0;
       const [claimed] = await tx
         .update(referrals)
-        .set({ status: "rewarded", referrerReward: referrerReward.toString(), refereeReward: refereeReward.toString(), rewardedAt: new Date() })
+        .set({ status: "rewarded", referrerReward: paidToReferrer.toString(), refereeReward: refereeReward.toString(), rewardedAt: new Date() })
         .where(and(eq(referrals.id, referral.id), eq(referrals.status, "pending")))
         .returning({ id: referrals.id });
       if (!claimed) return null;
       const refereeBalance = await this.creditWallet(referral.refereeId, refereeReward, tx);
-      await this.creditWallet(referral.referrerId, referrerReward, tx);
-      await tx.insert(transactions).values([
-        { userId: referral.refereeId, amount: refereeReward.toString(), type: "recharge", description: "Referral bonus", status: "completed" },
-        { userId: referral.referrerId, amount: referrerReward.toString(), type: "recharge", description: "Referral reward", status: "completed" },
-      ]);
-      return refereeBalance;
+      const rows = [{ userId: referral.refereeId, amount: refereeReward.toString(), type: "recharge", description: "Referral bonus", status: "completed" }];
+      if (referrerPaid) {
+        await this.creditWallet(referral.referrerId, paidToReferrer, tx);
+        rows.push({ userId: referral.referrerId, amount: paidToReferrer.toString(), type: "recharge", description: "Referral reward", status: "completed" });
+      }
+      await tx.insert(transactions).values(rows);
+      return { refereeBalance, referrerPaid };
     });
   }
 
@@ -1248,74 +1514,164 @@ export class DatabaseStorage implements IStorage {
     return String(row.balance);
   }
 
-  /**
-   * Completes a pending Razorpay recharge and credits it, exactly once: the pending row
-   * is claimed by a conditional UPDATE in the same DB transaction as the credit, so the
-   * browser's verify call and the webhook can both arrive and only one of them credits.
-   * Returns null when there is no pending recharge for the order (already settled, or none).
-   * A recharge the reconciler gave up on ("failed") is still claimed: a payment that is
-   * captured late must be credited, not lost.
-   */
-  async settleRechargeOrder(
-    orderId: string,
-    paymentId: string,
-    signature?: string,
-    userId?: string,
-  ): Promise<{ transaction: Transaction; balance: string } | null> {
+  /** Creates a pending recharge and stages its coupon redemption in one DB transaction. */
+  async createPendingRecharge(data: PendingRechargeInput): Promise<Transaction> {
     return db.transaction(async (tx) => {
-      const [claimed] = await tx
-        .update(transactions)
-        .set({ status: "completed", gatewayPaymentId: paymentId, ...(signature ? { gatewaySignature: signature } : {}) })
-        .where(and(
-          eq(transactions.gatewayOrderId, orderId),
-          eq(transactions.type, "recharge"),
-          sql`${transactions.status} in ('pending', 'failed')`,
-          ...(userId ? [eq(transactions.userId, userId)] : []),
-        ))
-        .returning();
-      if (!claimed) return null;
-      const balance = await this.creditWallet(claimed.userId, parseFloat(claimed.amount), tx);
-      return { transaction: claimed, balance };
+      const [txn] = await tx.insert(transactions).values({
+        userId: data.userId,
+        amount: data.quotedCredit.toFixed(2),
+        type: "recharge",
+        description: data.description,
+        status: "pending",
+        paymentMethod: "razorpay",
+        gatewayOrderId: data.orderId,
+        gatewayAmountPaise: data.amountPaise,
+        gatewayCurrency: "INR",
+        packBonus: data.packBonus.toFixed(2),
+        couponBonus: data.coupon ? data.coupon.bonus.toFixed(2) : "0.00",
+        couponCode: data.coupon?.code,
+      }).returning();
+      if (data.coupon) {
+        await tx.insert(couponRedemptions).values({
+          couponId: data.coupon.id, userId: data.userId, transactionId: txn.id,
+          discountAmount: data.coupon.bonus.toFixed(2), status: "staged",
+        });
+      }
+      return txn;
     });
   }
 
+  /** Recharges a user has started but not completed since `since` (bounds order spam). */
+  async countOpenRecharges(userId: string, since: Date): Promise<number> {
+    const [row] = await db
+      .select({ n: sql<number>`count(*)::int` })
+      .from(transactions)
+      .where(and(eq(transactions.userId, userId), eq(transactions.type, "recharge"), eq(transactions.status, "pending"), sql`${transactions.createdAt} >= ${since}`));
+    return row?.n ?? 0;
+  }
+
   /**
-   * Records and credits a gateway recharge that has no pending row (Snapmint, LazyPay)
-   * at most once per order: a replayed callback finds the completed row and credits nothing.
+   * Credits a captured Razorpay payment to its pending recharge, exactly once. Only the
+   * gateway's own report of the payment is trusted: its order must be this recharge's order,
+   * its currency INR, and its amount exactly what the order was created for. A payment that
+   * does not match is not credited; the recharge is set to 'review' with the reason.
+   *
+   * Bonuses are re-derived here, not taken from the order: the pack bonus fixed at order time,
+   * and the coupon only if it is still eligible now (validity, global and per-user limits,
+   * first-recharge rule), checked under a row lock on the coupon so concurrent settlements
+   * cannot both take its last use. The user's settlements are serialised so two payments
+   * cannot both count as a "first recharge".
+   *
+   * Recharges created before these checks (no gatewayAmountPaise) are credited the payment
+   * plus the bonuses it can justify, never more than the amount recorded on the row.
    */
-  async settleExternalRecharge(data: {
-    userId: string; orderId: string; amount: number; description: string; paymentMethod: string; paymentId?: string;
-  }): Promise<{ transaction: Transaction; balance: string } | null> {
-    try {
-      return await db.transaction(async (tx) => {
-        // Serialises concurrent callbacks for the same order within this transaction.
-        await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${"recharge:" + data.orderId}))`);
-        const [done] = await tx
+  async settleRechargeOrder(payment: GatewayPayment, opts: { signature?: string; userId?: string } = {}): Promise<RechargeSettlement> {
+    if (payment.status !== "captured") return { kind: "none" };
+    return db.transaction(async (tx) => {
+      await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${"recharge:" + payment.orderId}))`);
+      const [row] = await tx
+        .select()
+        .from(transactions)
+        .where(and(
+          eq(transactions.gatewayOrderId, payment.orderId),
+          eq(transactions.type, "recharge"),
+          sql`${transactions.status} in ('pending', 'failed')`,
+          ...(opts.userId ? [eq(transactions.userId, opts.userId)] : []),
+        ))
+        .limit(1)
+        .for("update");
+      if (!row) {
+        // A second captured payment on an order already credited is never credited, but it is
+        // recorded for review so the payer can be refunded, not silently dropped.
+        const [done] = await tx.select().from(transactions)
+          .where(and(eq(transactions.gatewayOrderId, payment.orderId), eq(transactions.type, "recharge"), eq(transactions.status, "completed")))
+          .limit(1);
+        if (!done || !done.gatewayPaymentId || done.gatewayPaymentId === payment.id || (opts.userId && done.userId !== opts.userId)) return { kind: "none" };
+        const reason = `second payment on order already credited by ${done.gatewayPaymentId}`;
+        const [flagged] = await tx.insert(transactions).values({
+          userId: done.userId, amount: "0.00", type: "recharge", status: "review", description: "Payment held for review",
+          paymentMethod: "razorpay", gatewayOrderId: payment.orderId, gatewayPaymentId: payment.id,
+          gatewayAmountPaise: payment.amountPaise, gatewayCurrency: payment.currency, reviewReason: reason,
+        }).onConflictDoNothing().returning();
+        return flagged ? { kind: "mismatch", transaction: flagged, reason } : { kind: "none" };
+      }
+      await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${"recharge-user:" + row.userId}))`);
+
+      const reason = paymentMismatch(row, payment);
+      if (reason) {
+        const [flagged] = await tx.update(transactions)
+          .set({ status: "review", reviewReason: reason, gatewayPaymentId: payment.id })
+          .where(eq(transactions.id, row.id))
+          .returning();
+        return { kind: "mismatch", transaction: flagged, reason };
+      }
+
+      const paid = payment.amountPaise / 100;
+      const legacy = row.gatewayAmountPaise == null;
+      const packBonus = row.packBonus != null ? parseFloat(row.packBonus) : packBonusFor(paid);
+
+      let couponBonus = 0;
+      let coupon: "applied" | "void" | "none" = "none";
+      let voidReason: string | undefined;
+      const [redemption] = await tx.select().from(couponRedemptions).where(eq(couponRedemptions.transactionId, row.id)).limit(1);
+      if (redemption) {
+        const [c] = await tx.select().from(coupons).where(eq(coupons.id, redemption.couponId)).for("update");
+        const [{ n: priorUses }] = await tx
+          .select({ n: sql<number>`count(*)::int` })
+          .from(couponRedemptions)
+          .leftJoin(transactions, eq(transactions.id, couponRedemptions.transactionId))
+          .where(and(
+            eq(couponRedemptions.userId, row.userId),
+            eq(couponRedemptions.couponId, redemption.couponId),
+            sql`${couponRedemptions.id} <> ${redemption.id}`,
+            sql`(${couponRedemptions.status} = 'applied' OR (${couponRedemptions.status} IS NULL AND ${transactions.status} = 'completed'))`,
+          ));
+        const [earlier] = await tx
           .select({ id: transactions.id })
           .from(transactions)
-          .where(and(eq(transactions.gatewayOrderId, data.orderId), eq(transactions.type, "recharge"), eq(transactions.status, "completed")))
+          .where(and(
+            eq(transactions.userId, row.userId), eq(transactions.type, "recharge"), eq(transactions.status, "completed"),
+            sql`${transactions.gatewayOrderId} IS NOT NULL`, sql`${transactions.id} <> ${row.id}`,
+          ))
           .limit(1);
-        if (done) return null;
-        const [transaction] = await tx
-          .insert(transactions)
-          .values({
-            userId: data.userId,
-            amount: data.amount.toFixed(2),
-            type: "recharge",
-            description: data.description,
-            status: "completed",
-            paymentMethod: data.paymentMethod,
-            gatewayOrderId: data.orderId,
-            ...(data.paymentId ? { gatewayPaymentId: data.paymentId } : {}),
-          })
-          .returning();
-        const balance = await this.creditWallet(data.userId, data.amount, tx);
-        return { transaction, balance };
-      });
-    } catch (err: any) {
-      if (err?.code === "23505") return null; // unique index: another callback won the race
-      throw err;
-    }
+        // The offer's dates and active flag are judged when it was quoted (the order), so a
+        // payment that settles late keeps what it was promised; usage limits and the
+        // first-recharge rule are judged now, under the locks.
+        const verdict = c
+          ? evaluateCoupon({ ...c, isActive: true }, paid, { isFirstRecharge: !earlier, userRedemptionCount: priorUses }, row.createdAt ?? new Date())
+          : { ok: false, bonus: 0, message: "This offer no longer exists." };
+        if (verdict.ok) {
+          couponBonus = Math.min(verdict.bonus, parseFloat(redemption.discountAmount));
+          coupon = "applied";
+          await tx.update(coupons).set({ timesUsed: sql`coalesce(${coupons.timesUsed}, 0) + 1` }).where(eq(coupons.id, redemption.couponId));
+          await tx.update(couponRedemptions).set({ status: "applied", discountAmount: couponBonus.toFixed(2) }).where(eq(couponRedemptions.id, redemption.id));
+        } else {
+          coupon = "void";
+          voidReason = verdict.message;
+          await tx.update(couponRedemptions).set({ status: "void" }).where(eq(couponRedemptions.id, redemption.id));
+        }
+      }
+
+      let credit = Math.round((paid + packBonus + couponBonus) * 100) / 100;
+      if (legacy) credit = Math.min(credit, parseFloat(row.amount));
+      const [settled] = await tx.update(transactions)
+        .set({
+          status: "completed",
+          settlementVerifiedAt: new Date(),
+          amount: credit.toFixed(2),
+          gatewayPaymentId: payment.id,
+          ...(opts.signature ? { gatewaySignature: opts.signature } : {}),
+          gatewayAmountPaise: payment.amountPaise,
+          gatewayCurrency: payment.currency,
+          packBonus: packBonus.toFixed(2),
+          couponBonus: couponBonus.toFixed(2),
+          ...(voidReason ? { description: `${row.description ?? "Wallet recharge"} (offer not applied: ${voidReason})` } : {}),
+        })
+        .where(eq(transactions.id, row.id))
+        .returning();
+      const balance = await this.creditWallet(row.userId, credit, tx);
+      return { kind: "settled", transaction: settled, balance, paidRupees: paid, coupon, ...(voidReason ? { couponVoidReason: voidReason } : {}) };
+    });
   }
 
   async getRechargeByOrderId(orderId: string): Promise<Transaction | undefined> {
@@ -1323,9 +1679,22 @@ export class DatabaseStorage implements IStorage {
       .select()
       .from(transactions)
       .where(and(eq(transactions.gatewayOrderId, orderId), eq(transactions.type, "recharge")))
-      .orderBy(desc(transactions.createdAt))
+      .orderBy(sql`(${transactions.status} = 'completed') DESC`, desc(transactions.createdAt))
       .limit(1);
     return row;
+  }
+
+  async getRechargesForReview(): Promise<Array<Pick<Transaction, "id" | "userId" | "amount" | "gatewayOrderId" | "gatewayPaymentId" | "gatewayAmountPaise" | "gatewayCurrency" | "reviewReason" | "createdAt">>> {
+    return db
+      .select({
+        id: transactions.id, userId: transactions.userId, amount: transactions.amount, gatewayOrderId: transactions.gatewayOrderId,
+        gatewayPaymentId: transactions.gatewayPaymentId, gatewayAmountPaise: transactions.gatewayAmountPaise,
+        gatewayCurrency: transactions.gatewayCurrency, reviewReason: transactions.reviewReason, createdAt: transactions.createdAt,
+      })
+      .from(transactions)
+      .where(and(eq(transactions.type, "recharge"), eq(transactions.status, "review")))
+      .orderBy(desc(transactions.createdAt))
+      .limit(200);
   }
 
   async getStalePendingRecharges(createdBefore: Date, createdAfter?: Date): Promise<Transaction[]> {
@@ -1524,10 +1893,27 @@ export class DatabaseStorage implements IStorage {
     subjectName?: string;
     price: number;
     description: string;
-  }): Promise<{ order: ReportOrder; balance: string } | null> {
+  }): Promise<{ order: ReportOrder; balance: string } | { refused: "duplicate" | "free_daily_limit"; order?: ReportOrder } | null> {
     const free = await this.hasFreeAccess(data.userId);
     if (!(await this.getWallet(data.userId))) await this.createWallet(data.userId);
     return db.transaction(async (tx) => {
+      // One user's orders are placed one at a time, so a double submit cannot buy the same
+      // report twice and concurrent free orders cannot pass the daily cap together.
+      await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${"report-order:" + data.userId}))`);
+      const [inProgress] = await tx.select().from(reportOrders).where(and(
+        eq(reportOrders.userId, data.userId),
+        eq(reportOrders.reportTypeId, data.reportTypeId),
+        eq(reportOrders.status, "processing"),
+        sql`coalesce(${reportOrders.kundliId}, '') = ${data.kundliId ?? ""}`,
+        sql`coalesce(${reportOrders.subjectName}, '') = ${data.subjectName ?? ""}`,
+      )).limit(1);
+      if (inProgress) return { refused: "duplicate" as const, order: inProgress };
+      if (free) {
+        const [{ n }] = await tx.select({ n: sql<number>`count(*)::int` }).from(reportOrders).where(and(
+          eq(reportOrders.userId, data.userId), sql`${reportOrders.chargedAmount} = 0`, sql`${reportOrders.createdAt} > now() - interval '1 day'`,
+        ));
+        if (n >= FREE_ACCESS_REPORTS_PER_DAY) return { refused: "free_daily_limit" as const };
+      }
       const charged = free ? 0 : data.price;
       let balance: string | null;
       if (charged > 0) {
@@ -2007,28 +2393,31 @@ export class DatabaseStorage implements IStorage {
   }
 
   /** Studio tier soft cap — resets calendar-monthly. Returns remaining credits. */
+  /**
+   * Takes `cost` Pro AI credits in one conditional UPDATE (the month rolls over in the same
+   * statement), so concurrent requests cannot both take the last credit.
+   */
   async consumeProAiCredit(astrologerId: string, cost = 1, monthlyLimit = 80): Promise<{ ok: boolean; used: number; limit: number }> {
-    const astro = await this.getAstrologerById(astrologerId);
-    if (!astro) return { ok: false, used: 0, limit: monthlyLimit };
-    const now = new Date();
-    let used = astro.proAiCreditsUsed ?? 0;
-    const resetAt = astro.proAiCreditsResetAt ? new Date(astro.proAiCreditsResetAt) : null;
-    const needsReset = !resetAt || resetAt.getUTCFullYear() !== now.getUTCFullYear() || resetAt.getUTCMonth() !== now.getUTCMonth();
-    if (needsReset) {
-      used = 0;
-    }
-    if (used + cost > monthlyLimit) {
-      return { ok: false, used, limit: monthlyLimit };
-    }
-    const nextUsed = used + cost;
-    await db
+    const newMonth = sql`(${astrologers.proAiCreditsResetAt} IS NULL OR date_trunc('month', ${astrologers.proAiCreditsResetAt}) <> date_trunc('month', now() AT TIME ZONE 'UTC'))`;
+    const nextUsed = sql`(CASE WHEN ${newMonth} THEN ${cost} ELSE coalesce(${astrologers.proAiCreditsUsed}, 0) + ${cost} END)`;
+    const [row] = await db
       .update(astrologers)
       .set({
         proAiCreditsUsed: nextUsed,
-        proAiCreditsResetAt: needsReset ? now : (astro.proAiCreditsResetAt ?? now),
+        proAiCreditsResetAt: sql`(CASE WHEN ${newMonth} THEN now() AT TIME ZONE 'UTC' ELSE ${astrologers.proAiCreditsResetAt} END)`,
       })
+      .where(and(eq(astrologers.id, astrologerId), sql`${nextUsed} <= ${monthlyLimit}`))
+      .returning({ used: astrologers.proAiCreditsUsed });
+    if (row) return { ok: true, used: Number(row.used), limit: monthlyLimit };
+    const usage = await this.getProAiUsage(astrologerId, monthlyLimit);
+    return { ok: false, used: usage.used, limit: monthlyLimit };
+  }
+
+  /** Returns credits taken for a generation that failed. */
+  async refundProAiCredit(astrologerId: string, cost = 1): Promise<void> {
+    await db.update(astrologers)
+      .set({ proAiCreditsUsed: sql`greatest(coalesce(${astrologers.proAiCreditsUsed}, 0) - ${cost}, 0)` })
       .where(eq(astrologers.id, astrologerId));
-    return { ok: true, used: nextUsed, limit: monthlyLimit };
   }
 
   async getProAiUsage(astrologerId: string, monthlyLimit = 80): Promise<{ used: number; limit: number; remaining: number }> {

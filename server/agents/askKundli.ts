@@ -12,7 +12,8 @@
  * deterministic answer built from the evidence. Without an OpenAI key the
  * deterministic answer is returned directly.
  */
-import OpenAI from 'openai';
+import type OpenAI from 'openai';
+import { createOpenAI } from '../ai/metering';
 import { GRAHAS, SIGN_NAMES, type CanonicalChart, type Graha } from '@shared/v3/canonical';
 import { DOMAIN_LABELS, LIFE_DOMAINS, type DomainResolution, type LifeDomain, type TimelinePeriod } from '@shared/v3/evidence';
 import { domainResolution, INTERPRETIVE_NOTE } from '../astroEngine/evidence/insights.js';
@@ -165,7 +166,7 @@ Rules:
 let client: OpenAI | null = null;
 function getClient(): OpenAI | null {
   if (!process.env.OPENAI_API_KEY) return null;
-  client ??= new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+  client ??= createOpenAI(process.env.OPENAI_API_KEY);
   return client;
 }
 
