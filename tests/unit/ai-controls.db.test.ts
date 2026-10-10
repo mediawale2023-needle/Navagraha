@@ -36,14 +36,41 @@ describe.skipIf(!url)('AI spend controls (Postgres)', () => {
   }, 60_000);
   afterAll(async () => { await pool?.end(); });
 
-  it('usage from concurrent calls is summed per subject and day; paid report generation is not counted', async () => {
+  it('usage from concurrent calls is summed per subject, day and feature', async () => {
     const subject = `user:${crypto.randomUUID()}`;
     const day = '2026-10-10';
     await Promise.all(Array.from({ length: 10 }, () =>
       storage.recordAiUsage({ subject, day, feature: '/api/ai/chat', inputTokens: 100, outputTokens: 50, costMicroUsd: 45 })));
-    await storage.recordAiUsage({ subject, day, feature: '/api/reports/order', inputTokens: 9000, outputTokens: 9000, costMicroUsd: 112_500 });
-    expect(await storage.getAiUsageToday(subject, day)).toEqual({ calls: 10, costMicroUsd: 450 });
-    expect(await storage.getAiUsageToday(subject, '2026-10-11')).toEqual({ calls: 0, costMicroUsd: 0 });
+    const { rows } = await pool.query('SELECT calls, input_tokens, cost_micro_usd FROM ai_usage_daily WHERE subject = $1', [subject]);
+    expect(rows).toEqual([{ calls: 10, input_tokens: '1000', cost_micro_usd: '450' }]);
+  });
+
+  it('concurrent reservations never take a subject past its dollar budget', async () => {
+    const subject = `user:${crypto.randomUUID()}`;
+    const day = '2026-10-10';
+    // $0.50 budget, each call reserving $0.12: only four fit, however many arrive at once.
+    const results = await Promise.all(Array.from({ length: 12 }, () =>
+      storage.reserveAiBudget({ subject, day, microUsd: 120_000, costLimitMicroUsd: 500_000, callLimit: 2000 })));
+    expect(results.filter(Boolean)).toHaveLength(4);
+    expect(await storage.getAiUsageToday(subject, day)).toEqual({ calls: 4, costMicroUsd: 480_000 });
+  });
+
+  it('the dollar budget refuses before the call cap is reached; settling to the real cost frees the difference', async () => {
+    const subject = `user:${crypto.randomUUID()}`;
+    const day = '2026-10-10';
+    const reserve = () => storage.reserveAiBudget({ subject, day, microUsd: 200_000, costLimitMicroUsd: 500_000, callLimit: 2000 });
+    expect(await reserve()).toBe(true);
+    expect(await reserve()).toBe(true);
+    expect(await reserve()).toBe(false); // 2 calls of 2000 used, but $0.60 > $0.50
+    await storage.settleAiBudget({ subject, day, reservedMicroUsd: 200_000, actualMicroUsd: 1_000 });
+    expect(await reserve()).toBe(true);
+    expect(await storage.getAiUsageToday(subject, day)).toEqual({ calls: 3, costMicroUsd: 401_000 });
+  });
+
+  it('a single call larger than the whole budget is refused on the first call of the day', async () => {
+    const subject = `user:${crypto.randomUUID()}`;
+    expect(await storage.reserveAiBudget({ subject, day: '2026-10-10', microUsd: 600_000, costLimitMicroUsd: 500_000, callLimit: 2000 })).toBe(false);
+    expect(await storage.getAiUsageToday(subject, '2026-10-10')).toEqual({ calls: 0, costMicroUsd: 0 });
   });
 
   it('twenty concurrent Pro requests with five credits left take exactly five', async () => {

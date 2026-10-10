@@ -10,7 +10,7 @@ import { readFileSync } from 'node:fs';
 const mocks = vi.hoisted(() => ({
   storage: {
     getUser: vi.fn(), getWallet: vi.fn(), settleRechargeOrder: vi.fn(), getRechargeByOrderId: vi.fn(),
-    settleExternalRecharge: vi.fn(), createNotification: vi.fn(), getCouponByCode: vi.fn(), incrementCouponUsage: vi.fn(),
+    createNotification: vi.fn(), getCouponByCode: vi.fn(), incrementCouponUsage: vi.fn(),
     getReferralByReferee: vi.fn(), rewardReferral: vi.fn(), creditWallet: vi.fn(), createTransaction: vi.fn(),
     getStalePendingRecharges: vi.fn(), failPendingRecharge: vi.fn(), updateWalletBalance: vi.fn(), updateTransactionStatus: vi.fn(),
     createPendingRecharge: vi.fn(), countOpenRecharges: vi.fn(), hasCompletedRecharge: vi.fn(), getUserCouponRedemptionCount: vi.fn(),
@@ -41,7 +41,7 @@ const SECRET = 'rzp_test_secret';
 const WEBHOOK_SECRET = 'whsec_test';
 const sign = (orderId: string, paymentId: string) => crypto.createHmac('sha256', SECRET).update(`${orderId}|${paymentId}`).digest('hex');
 const txn = (over: object = {}) => ({ id: 't1', userId: 'payer', amount: '575.00', type: 'recharge', status: 'completed', gatewayOrderId: 'order_1', couponCode: null, gatewayAmountPaise: 50000, gatewayCurrency: 'INR', packBonus: '75.00', couponBonus: '0.00', ...over });
-const gw = (over: object = {}) => ({ id: 'pay_1', orderId: 'order_1', amountPaise: 50000, currency: 'INR', status: 'captured', ...over });
+const gw = (over: object = {}) => ({ id: 'pay_1', orderId: 'order_1', amountPaise: 50000, currency: 'INR', status: 'captured', amountRefundedPaise: 0, ...over });
 const settled = (over: object = {}, balance = '575.00') => ({ kind: 'settled', transaction: txn(over), balance, paidRupees: 500, coupon: 'none' });
 
 beforeAll(async () => {
@@ -146,7 +146,7 @@ describe('webhook', () => {
     mocks.storage.settleRechargeOrder.mockResolvedValue(settled({ gatewayOrderId: 'order_9' }));
     const res = await hook(captured);
     expect(res.status).toBe(200);
-    expect(mocks.storage.settleRechargeOrder).toHaveBeenCalledWith({ id: 'pay_9', orderId: 'order_9', amountPaise: 50000, currency: 'INR', status: 'captured' }, {});
+    expect(mocks.storage.settleRechargeOrder).toHaveBeenCalledWith({ id: 'pay_9', orderId: 'order_9', amountPaise: 50000, currency: 'INR', status: 'captured', amountRefundedPaise: 0 }, {});
     expect(mocks.notifyUser).toHaveBeenCalledWith('payer', expect.objectContaining({ type: 'payment_confirmed' }));
   });
 
@@ -234,7 +234,6 @@ describe('direct Snapmint and LazyPay flows are disabled', () => {
     expect(verifyPayUResponseHash({ ...fields, hash })).toBe(true);
     const res = await request(app).post('/api/payment/lazypay/callback').send({ ...fields, hash });
     expect(res.status).toBe(503);
-    expect(mocks.storage.settleExternalRecharge).not.toHaveBeenCalled();
     expect(mocks.notifyUser).not.toHaveBeenCalled();
   });
 
@@ -242,7 +241,6 @@ describe('direct Snapmint and LazyPay flows are disabled', () => {
     const res = await request(app).post(path).set('x-user', 'payer').send({ amount: 500, status: 'success', user_id: 'payer', order_id: 'x' });
     expect(res.status).toBe(503);
     expect(res.body.code).toBe('payment_method_unavailable');
-    expect(mocks.storage.settleExternalRecharge).not.toHaveBeenCalled();
   });
 });
 

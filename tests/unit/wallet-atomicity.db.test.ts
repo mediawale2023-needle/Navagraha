@@ -87,16 +87,6 @@ describe.skipIf(!url)('wallet money paths under concurrency (Postgres)', () => {
     expect(await balanceOf(owner)).toBe('0.00');
   });
 
-  it('a replayed BNPL callback credits once', async () => {
-    const id = await newUser('0.00');
-    const orderId = `sm_${crypto.randomUUID()}`;
-    const call = () => storage.settleExternalRecharge({ userId: id, orderId, amount: 300, description: 'Snapmint EMI recharge', paymentMethod: 'snapmint' });
-    const results = await Promise.all(Array.from({ length: 5 }, call));
-    expect(results.filter(Boolean)).toHaveLength(1);
-    expect(await call()).toBeNull();
-    expect(await balanceOf(id)).toBe('300.00');
-  });
-
   it('a referral reward is paid once, atomically, to both wallets', async () => {
     const referrer = await newUser('0.00');
     const referee = await newUser('0.00');

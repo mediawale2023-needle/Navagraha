@@ -20,7 +20,7 @@ describe.skipIf(!url)('recharge settlement integrity (Postgres)', () => {
   const balanceOf = async (id: string) =>
     (await pool.query('SELECT balance FROM wallets WHERE user_id = $1', [id])).rows[0]?.balance ?? '0';
   const payment = (orderId: string, paise: number, over: object = {}) =>
-    ({ id: `pay_${uid()}`, orderId, amountPaise: paise, currency: 'INR', status: 'captured', ...over });
+    ({ id: `pay_${uid()}`, orderId, amountPaise: paise, currency: 'INR', status: 'captured', amountRefundedPaise: 0, ...over });
   const newCoupon = async (over: Record<string, unknown> = {}) => {
     const c = { code: `T${uid().slice(0, 8)}`, discount_type: 'flat', discount_value: 50, min_amount: 0, per_user_limit: 1, usage_limit: null, first_recharge_only: false, ...over };
     const { rows } = await pool.query(
@@ -150,14 +150,63 @@ describe.skipIf(!url)('recharge settlement integrity (Postgres)', () => {
     expect(await balanceOf(user)).toBe('250.00');
   });
 
-  it('a coupon deactivated after the order was created is not paid at settlement', async () => {
+  it('an offer quoted at order time is honoured when the payment settles after it expires or is switched off', async () => {
     const user = await newUser();
     const coupon = await newCoupon();
     const txn = await order(user, 100, { coupon: { ...coupon, bonus: 50 } });
-    await pool.query('UPDATE coupons SET is_active = false WHERE id = $1', [coupon.id]);
+    await pool.query("UPDATE transactions SET created_at = now() - interval '10 minutes' WHERE id = $1", [txn.id]);
+    await pool.query("UPDATE coupons SET is_active = false, valid_until = now() - interval '1 minute' WHERE id = $1", [coupon.id]);
     const r = await storage.settleRechargeOrder(payment(txn.gatewayOrderId!, 10000));
-    expect(r).toMatchObject({ kind: 'settled', coupon: 'void' });
+    expect(r).toMatchObject({ kind: 'settled', coupon: 'applied' });
+    expect(await balanceOf(user)).toBe('150.00');
+  });
+
+  it('an offer that had already expired when the order was created is not paid', async () => {
+    const user = await newUser();
+    const coupon = await newCoupon();
+    const txn = await order(user, 100, { coupon: { ...coupon, bonus: 50 } });
+    await pool.query("UPDATE coupons SET valid_until = $2 WHERE id = $1", [coupon.id, new Date(Date.now() - 3_600_000)]);
+    await pool.query("UPDATE transactions SET created_at = now() - interval '30 minutes' WHERE id = $1", [txn.id]);
+    expect(await storage.settleRechargeOrder(payment(txn.gatewayOrderId!, 10000))).toMatchObject({ kind: 'settled', coupon: 'void' });
     expect(await balanceOf(user)).toBe('100.00');
+  });
+
+  it('a voided redemption does not use up the offer at order time', async () => {
+    const user = await newUser();
+    const coupon = await newCoupon({ per_user_limit: 1 });
+    const a = await order(user, 100, { coupon: { ...coupon, bonus: 50 } });
+    const b = await order(user, 100, { coupon: { ...coupon, bonus: 50 } });
+    await Promise.all([a, b].map((o) => storage.settleRechargeOrder(payment(o.gatewayOrderId!, 10000))));
+    expect(await storage.getUserCouponRedemptionCount(user, coupon.id)).toBe(1); // applied once, voided once
+  });
+
+  it('a referral bonus is not a first recharge', async () => {
+    const user = await newUser();
+    await pool.query("INSERT INTO transactions (user_id, amount, type, status, description) VALUES ($1, '25.00', 'recharge', 'completed', 'Referral bonus')", [user]);
+    expect(await storage.hasCompletedRecharge(user)).toBe(false);
+  });
+
+  it('a partly refunded payment is held for review, not credited', async () => {
+    const user = await newUser();
+    const txn = await order(user, 500);
+    const r = await storage.settleRechargeOrder(payment(txn.gatewayOrderId!, 50000, { amountRefundedPaise: 10000 }));
+    expect(r.kind).toBe('mismatch');
+    expect(await balanceOf(user)).toBe('0');
+  });
+
+  it('a second captured payment on an order already credited is recorded for review, never credited', async () => {
+    const user = await newUser();
+    const txn = await order(user, 100);
+    expect((await storage.settleRechargeOrder(payment(txn.gatewayOrderId!, 10000))).kind).toBe('settled');
+    const second = payment(txn.gatewayOrderId!, 10000);
+    const r = await storage.settleRechargeOrder(second);
+    expect(r.kind).toBe('mismatch');
+    expect(await balanceOf(user)).toBe('100.00');
+    expect((await storage.settleRechargeOrder(second)).kind).toBe('none'); // recorded once
+    const review = await storage.getRechargesForReview();
+    expect(review.find((x) => x.gatewayPaymentId === second.id)?.reviewReason).toMatch(/second payment/);
+    // The first payment's verify, replayed, still finds the order credited.
+    expect((await storage.getRechargeByOrderId(txn.gatewayOrderId!))?.status).toBe('completed');
   });
 
   it('one transaction cannot carry two coupon redemptions', async () => {

@@ -151,6 +151,10 @@ export async function reconcilePendingRecharges(
         if (outcome.kind === 'settled') result.settled++;
         else if (outcome.kind === 'mismatch') result.review++;
       }
+    } else if (payments.some((p) => p.status === 'authorized')) {
+      // Paid but not captured: credited only once Razorpay captures it (auto-capture must be on).
+      audit("payment.not_captured", { userId: txn.userId, transactionId: txn.id, orderId: txn.gatewayOrderId, status: 'authorized' });
+      console.warn(`[reconcile] recharge ${txn.id} (order ${txn.gatewayOrderId}) has an authorized, uncaptured payment`);
     } else if (abandoned) {
       note('fail');
       if (opts.dryRun) result.failed++;

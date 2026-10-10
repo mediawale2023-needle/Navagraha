@@ -73,7 +73,7 @@ import { generateAgoraToken, getChannelName } from "./agoraService";
 import { notifyUser, notifyAstrologer } from "./websocketService";
 import { audit } from "./audit";
 import { aiBudget, aiRequestContext } from "./ai/metering";
-import { ASK_FREE_FOLLOW_UPS, ASK_FREE_QUESTIONS, askChartKey, askEnforced, askIdempotencyKey } from "./askMetering";
+import { ASK_FREE_FOLLOW_UPS, askChartKey, askEnforced, askFreeQuestionsFor, askIdempotencyKey } from "./askMetering";
 import { sendPushToUser, sendPushToAstrologer } from "./pushService";
 import {
   interpretKundli,
@@ -2119,18 +2119,18 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
     }
   });
 
-  const askAllowance = async (userId: string, sessionId?: string, chartKey?: string) => {
-    const counts = await storage.getAskAllowance(userId, { freeQuestions: ASK_FREE_QUESTIONS, sessionId, chartKey });
-    return { enforced: askEnforced(), freeQuestionsTotal: ASK_FREE_QUESTIONS, ...counts };
+  const askAllowance = async (user: { id: string; emailVerifiedAt?: Date | string | null }, sessionId?: string, chartKey?: string) => {
+    const freeQuestions = askFreeQuestionsFor(user);
+    const counts = await storage.getAskAllowance(user.id, { freeQuestions, sessionId, chartKey });
+    return { enforced: askEnforced(), emailVerified: Boolean(user.emailVerifiedAt), freeQuestionsTotal: freeQuestions, ...counts };
   };
 
   // Ask allowance for the signed-in user (and, with sessionId + kundliId, the thread's follow-ups).
   app.get('/api/ai/question-count', isAuthenticated, async (req: any, res) => {
     try {
-      const userId = (req.user as any).id;
       const sessionId = typeof req.query.sessionId === 'string' && req.query.sessionId.length <= 64 ? req.query.sessionId : undefined;
       const kundliId = typeof req.query.kundliId === 'string' && req.query.kundliId.length <= 64 ? req.query.kundliId : undefined;
-      const allowance = await askAllowance(userId, sessionId, kundliId ? `kundli:${kundliId}` : undefined);
+      const allowance = await askAllowance(req.user as any, sessionId, kundliId ? `kundli:${kundliId}` : undefined);
       res.json({ used: allowance.freeQuestionsUsed, free: allowance.freeQuestionsTotal, remaining: allowance.freeQuestionsRemaining, ...allowance });
     } catch {
       res.status(500).json({ message: "Failed to fetch question count" });
@@ -2211,18 +2211,21 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
       const chartKey = askChartKey(selection as any, kundli?.id ?? null);
       const reservation = await storage.reserveAskUsage({
         userId: user.id, chartKey, sessionId: activeSessionId, idempotencyKey: askIdempotencyKey(req.body.requestId),
-        freeQuestions: ASK_FREE_QUESTIONS, freeFollowUps: ASK_FREE_FOLLOW_UPS, enforce: askEnforced(),
+        freeQuestions: askFreeQuestionsFor(user), freeFollowUps: ASK_FREE_FOLLOW_UPS, enforce: askEnforced(),
         unlimited: await storage.hasFreeAccess(user.id),
       });
       if (reservation.kind === 'in_flight') return res.status(409).json({ code: 'ask_in_flight', message: "This question is already being answered." });
       if (reservation.kind === 'exhausted') {
         audit("ask.refused", { userId: user.id, chart: chartKey.split(":")[0] });
-        return res.status(402).json({ code: 'ask_allowance_exhausted', message: "You have used your free questions.", allowance: await askAllowance(user.id, activeSessionId, chartKey) });
+        if (!user.emailVerifiedAt) {
+          return res.status(402).json({ code: 'email_verification_required', message: "Verify your email address to use your free questions.", allowance: await askAllowance(user, activeSessionId, chartKey) });
+        }
+        return res.status(402).json({ code: 'ask_allowance_exhausted', message: "You have used your free questions.", allowance: await askAllowance(user, activeSessionId, chartKey) });
       }
       if (reservation.kind === 'replay') {
         const prior = reservation.usage.replyMessageId ? await storage.getAiChatMessage(user.id, reservation.usage.replyMessageId) : undefined;
         if (!prior) return res.status(409).json({ code: 'ask_in_flight', message: "This question was already answered." });
-        const allowance = await askAllowance(user.id, reservation.usage.sessionId, reservation.usage.chartKey);
+        const allowance = await askAllowance(user, reservation.usage.sessionId, reservation.usage.chartKey);
         return res.json({ sessionId: reservation.usage.sessionId, reply: prior.content, evidence: null, answerSource: 'replay', replayed: true, questionsUsed: allowance.freeQuestionsUsed, allowance });
       }
       const usage = reservation.usage;
@@ -2339,7 +2342,7 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
           })
           .catch((err) => console.error('[memory] extraction failed:', err));
 
-        const allowance = await askAllowance(user.id, activeSessionId, chartKey);
+        const allowance = await askAllowance(user, activeSessionId, chartKey);
         res.json({
           sessionId: activeSessionId,
           reply: aiResponseText,
@@ -2446,16 +2449,16 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
     } catch { res.status(500).json({ message: 'Failed to load open marketplace items' }); }
   });
 
-  // Settle pending Razorpay recharges whose confirmation never arrived (also runs on a timer).
-  // Dry run unless ?apply=1; ?days=N (default 7) limits it to recharges from the last N days.
-  // Recharges whose gateway payment did not match the order (amount, currency or order):
-  // never credited automatically; listed for an admin to resolve with the gateway.
+  // Recharges whose gateway payment did not match the order (amount, currency, order, refund,
+  // or a second payment): never credited automatically; listed for an admin to resolve.
   app.get('/api/admin/payments/review', isAdmin, adminLimiter, async (_req, res) => {
     try {
       res.json(await storage.getRechargesForReview());
     } catch { res.status(500).json({ message: 'Failed to list payments for review' }); }
   });
 
+  // Settle pending Razorpay recharges whose confirmation never arrived (also runs on a timer).
+  // Dry run unless ?apply=1; ?days=N (default 7) limits it to recharges from the last N days.
   app.post('/api/admin/payments/reconcile', isAdmin, adminLimiter, async (req, res) => {
     try {
       const days = Math.min(Math.max(Number(req.query.days) || 7, 1), 90);
@@ -3052,6 +3055,7 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
         (delta) => res.write(delta),
         reading.language || 'English',
       );
+      creditTaken = false; // delivered: the credit is spent even if saving it fails
       await storage.updateJyotishReading(reading.id, { [READING_COLUMN[tradition]]: full, status: 'ready' } as any);
       res.end();
     } catch (err: any) {
@@ -3121,6 +3125,7 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
         (delta) => res.write(delta),
         language,
       );
+      creditTaken = false; // delivered: the credit is spent even if saving it fails
       await storage.createJyotishSessionQuery({ profileId, readingId: usedReadingId, tradition, question, answer });
       res.end();
     } catch (err: any) {

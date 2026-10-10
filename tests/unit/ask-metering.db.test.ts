@@ -139,6 +139,22 @@ describe.skipIf(!url)('Ask metering (Postgres)', () => {
     expect(await allowance(user)).toMatchObject({ paidQuestionsRemaining: 1 });
   });
 
+  it('retrying a request whose paid reservation went stale returns that question before taking another', async () => {
+    const user = await newUser();
+    for (let i = 0; i < 3; i++) await asked(user);
+    const { rows } = await pool.query(
+      "INSERT INTO entitlements (user_id, kind, quantity, follow_ups_each, source) VALUES ($1, 'ask_questions', 2, 2, 'grant') RETURNING id", [user]);
+    const idempotencyKey = key();
+    const first = (await reserve(user, { idempotencyKey })) as any;
+    await pool.query("UPDATE ask_usage SET created_at = now() - interval '11 minutes' WHERE id = $1", [first.usage.id]);
+    const retry = (await reserve(user, { idempotencyKey })) as any;
+    expect(retry).toMatchObject({ kind: 'reserved', usage: { entitlement: 'paid' } });
+    await storage.settleAskUsage(retry.usage.id, 'consumed');
+    expect((await pool.query('SELECT used FROM entitlements WHERE id = $1', [rows[0].id])).rows[0].used).toBe(1);
+    // The abandoned attempt is kept, released, under another key; its late settlement charges nothing.
+    expect(await storage.settleAskUsage(first.usage.id, 'consumed')).toBeNull();
+  });
+
   it('an entitlement can never be used beyond its quantity, even concurrently', async () => {
     const user = await newUser();
     for (let i = 0; i < 3; i++) await asked(user);

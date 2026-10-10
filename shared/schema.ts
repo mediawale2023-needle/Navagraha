@@ -12,6 +12,7 @@ import {
   decimal,
   serial,
   primaryKey,
+  bigint,
 } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
@@ -43,6 +44,9 @@ export const users = pgTable("users", {
   referralCode: varchar("referral_code").unique(),
   referredBy: varchar("referred_by"), // referralCode of the inviter
   freeChatUsed: boolean("free_chat_used").default(false),
+  // Set when the email address has been verified (Google sign-in reports it verified). The free
+  // Ask allowance is granted only to verified accounts.
+  emailVerifiedAt: timestamp("email_verified_at"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -877,7 +881,16 @@ export const aiUsageDaily = pgTable("ai_usage_daily", {
   day: varchar("day").notNull(), // YYYY-MM-DD (UTC)
   feature: varchar("feature").notNull(),
   calls: integer("calls").notNull().default(0),
-  inputTokens: integer("input_tokens").notNull().default(0),
-  outputTokens: integer("output_tokens").notNull().default(0),
-  costMicroUsd: integer("cost_micro_usd").notNull().default(0),
+  inputTokens: bigint("input_tokens", { mode: "number" }).notNull().default(0),
+  outputTokens: bigint("output_tokens", { mode: "number" }).notNull().default(0),
+  costMicroUsd: bigint("cost_micro_usd", { mode: "number" }).notNull().default(0),
 }, (t) => [primaryKey({ columns: [t.subject, t.day, t.feature] })]);
+
+// The daily AI budget per subject, enforced per call: each model call reserves its worst-case
+// cost here in one conditional upsert and is then corrected to its real cost.
+export const aiBudgetDaily = pgTable("ai_budget_daily", {
+  subject: varchar("subject").notNull(),
+  day: varchar("day").notNull(),
+  costMicroUsd: bigint("cost_micro_usd", { mode: "number" }).notNull().default(0),
+  calls: integer("calls").notNull().default(0),
+}, (t) => [primaryKey({ columns: [t.subject, t.day] })]);

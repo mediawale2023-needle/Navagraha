@@ -44,7 +44,7 @@ beforeAll(async () => {
   app = express(); app.use(express.json());
   app.use((req, _res, next) => {
     req.isAuthenticated = (() => Boolean(req.headers['x-user'])) as typeof req.isAuthenticated;
-    if (req.headers['x-user']) req.user = { id: String(req.headers['x-user']) };
+    if (req.headers['x-user']) req.user = { id: String(req.headers['x-user']), emailVerifiedAt: req.headers['x-unverified'] ? null : new Date('2026-01-01') };
     req.session = {} as typeof req.session;
     next();
   });
@@ -265,6 +265,24 @@ describe('Ask metering on POST /api/ai/chat (Release A)', () => {
     expect(mocks.storage.reserveAskUsage).toHaveBeenCalledWith(expect.objectContaining({ enforce: true }));
     expect(mocks.create).not.toHaveBeenCalled();
     expect(mocks.storage.saveAiChatMessage).not.toHaveBeenCalled();
+  });
+
+  it('an account without a verified email gets no free questions (metered as unmetered while not enforced)', async () => {
+    vi.stubEnv('OPENAI_API_KEY', 'test');
+    mocks.create.mockResolvedValue(reply('VERDICT: grounded.'));
+    const res = await request(app).post('/api/ai/chat').set('x-user', 'owner').set('x-unverified', '1').send({ message: 'How is my career?', kundliId: 'chart' });
+    expect(res.status).toBe(200);
+    expect(mocks.storage.reserveAskUsage).toHaveBeenCalledWith(expect.objectContaining({ freeQuestions: 0 }));
+    expect(res.body.allowance).toMatchObject({ emailVerified: false, freeQuestionsTotal: 0 });
+  });
+
+  it('with enforcement on, an unverified account is told to verify its email, before any model call', async () => {
+    vi.stubEnv('FEATURE_ASK_METERING_ENFORCE', 'true');
+    mocks.storage.reserveAskUsage.mockResolvedValue({ kind: 'exhausted' });
+    const res = await request(app).post('/api/ai/chat').set('x-user', 'owner').set('x-unverified', '1').send({ message: 'How is my career?', kundliId: 'chart' });
+    expect(res.status).toBe(402);
+    expect(res.body.code).toBe('email_verification_required');
+    expect(mocks.create).not.toHaveBeenCalled();
   });
 
   it("another user's chart is refused before anything is reserved", async () => {

@@ -15,6 +15,8 @@ import { audit } from "../audit";
 export interface AiContext {
   subject: string;
   feature: string;
+  /** Which daily limits apply; null = recorded only (paid report generation, background work). */
+  budget: "user" | "astrologer" | "admin" | null;
 }
 
 export const aiContext = new AsyncLocalStorage<AiContext>();
@@ -33,6 +35,13 @@ export const MAX_OUTPUT_TOKENS = 16000;
 export const MAX_INPUT_CHARS = 400_000;
 export const SDK_MAX_RETRIES = 1;
 
+export class AiBudgetExceededError extends Error {
+  constructor(public subject: string) {
+    super("Daily AI budget reached");
+    this.name = "AiBudgetExceededError";
+  }
+}
+
 export class AiInputTooLargeError extends Error {
   constructor(chars: number) {
     super(`AI prompt too large (${chars} characters)`);
@@ -43,6 +52,15 @@ export class AiInputTooLargeError extends Error {
 export function estimateCostMicroUsd(model: string, inputTokens: number, outputTokens: number): number {
   const p = priceOf(model);
   return Math.round(inputTokens * p.input + outputTokens * p.output);
+}
+
+/**
+ * The most a request can cost: every prompt character counted as half a token (generous for
+ * English, fair for Devanagari) and the full output cap. Reserved before the call, then
+ * corrected to the real cost, so concurrent calls cannot overrun the dollar budget.
+ */
+export function worstCaseCostMicroUsd(model: string, params: { messages?: unknown; max_tokens?: number | null }): number {
+  return estimateCostMicroUsd(model, Math.ceil(promptChars(params.messages) / 2), params.max_tokens ?? DEFAULT_MAX_OUTPUT_TOKENS);
 }
 
 const promptChars = (messages: unknown): number =>
@@ -65,10 +83,45 @@ const today = () => new Date().toISOString().slice(0, 10);
 let storageModule: Promise<typeof import("../storage")> | undefined;
 const loadStorage = () => (storageModule ??= import("../storage"));
 
-async function record(ctx: AiContext | undefined, model: string, usage: { prompt_tokens?: number; completion_tokens?: number } | undefined | null): Promise<void> {
+interface Reservation { subject: string; day: string; microUsd: number }
+
+/**
+ * Takes the request's worst-case cost from its subject's daily budget in one conditional
+ * statement (dollar limit first; the call count is only a flood guard set above what the
+ * dollar budget allows). Throws AiBudgetExceededError, before anything is sent, when it does
+ * not fit. Every model call passes here, whichever endpoint made it.
+ */
+async function reserveBudget(ctx: AiContext | undefined, model: string, params: any): Promise<Reservation | null> {
+  if (!ctx?.budget) return null;
+  const limit = aiDailyLimits()[ctx.budget];
+  const reservation = { subject: ctx.subject, day: today(), microUsd: worstCaseCostMicroUsd(model, params) };
+  const { storage } = await loadStorage();
+  if (typeof storage.reserveAiBudget !== "function") return null;
+  const ok = await storage.reserveAiBudget({ ...reservation, costLimitMicroUsd: limit.costMicroUsd, callLimit: limit.calls });
+  if (!ok) {
+    audit("ai.budget_refused", { subject: ctx.subject, feature: ctx.feature, model, at: "call" });
+    throw new AiBudgetExceededError(ctx.subject);
+  }
+  return reservation;
+}
+
+async function settleBudget(r: Reservation | null, actualMicroUsd: number): Promise<void> {
+  if (!r) return;
+  try {
+    const { storage } = await loadStorage();
+    await storage.settleAiBudget({ subject: r.subject, day: r.day, reservedMicroUsd: r.microUsd, actualMicroUsd });
+  } catch (err: any) {
+    // Left at the reserved (worst-case) cost: the budget errs on the side of spending less.
+    console.error("[ai] budget not settled:", err?.message ?? err);
+  }
+}
+
+async function record(ctx: AiContext | undefined, model: string, usage: { prompt_tokens?: number; completion_tokens?: number } | undefined | null, reservation: Reservation | null = null): Promise<void> {
   const inputTokens = usage?.prompt_tokens ?? 0;
   const outputTokens = usage?.completion_tokens ?? 0;
   const costMicroUsd = estimateCostMicroUsd(model, inputTokens, outputTokens);
+  // A response without usage keeps its worst-case reservation.
+  await settleBudget(reservation, usage ? costMicroUsd : reservation?.microUsd ?? 0);
   const subject = ctx?.subject ?? "system";
   const feature = ctx?.feature ?? "background";
   audit("ai.usage", { subject, feature, model, inputTokens, outputTokens, costUsd: costMicroUsd / 1e6 });
@@ -82,7 +135,7 @@ async function record(ctx: AiContext | undefined, model: string, usage: { prompt
   }
 }
 
-async function* meteredStream(stream: AsyncIterable<any>, ctx: AiContext | undefined, model: string): AsyncGenerator<any> {
+async function* meteredStream(stream: AsyncIterable<any>, ctx: AiContext | undefined, model: string, reservation: Reservation | null): AsyncGenerator<any> {
   let usage: any = null;
   try {
     for await (const chunk of stream) {
@@ -90,7 +143,7 @@ async function* meteredStream(stream: AsyncIterable<any>, ctx: AiContext | undef
       yield chunk;
     }
   } finally {
-    await record(ctx, model, usage);
+    await record(ctx, model, usage, reservation);
   }
 }
 
@@ -103,9 +156,17 @@ export function createOpenAI(apiKey = process.env.OPENAI_API_KEY): OpenAI {
   completions.create = async (params: any, options?: any) => {
     const bounded = boundedParams(params);
     const ctx = aiContext.getStore();
-    const res = await create(bounded, options);
-    if (bounded.stream) return meteredStream(res, ctx, String(bounded.model));
-    void record(ctx, String(bounded.model), res?.usage);
+    const model = String(bounded.model);
+    const reservation = await reserveBudget(ctx, model, bounded);
+    let res: any;
+    try {
+      res = await create(bounded, options);
+    } catch (err) {
+      await settleBudget(reservation, 0);
+      throw err;
+    }
+    if (bounded.stream) return meteredStream(res, ctx, model, reservation);
+    void record(ctx, model, res?.usage, reservation);
     return res;
   };
   return client;
@@ -116,12 +177,27 @@ export function createOpenAI(apiKey = process.env.OPENAI_API_KEY): OpenAI {
 const featureOf = (path: string) =>
   path.replace(/\/[0-9a-f]{8}-[0-9a-f-]{27,}/gi, "/:id").replace(/\/\d+(?=\/|$)/g, "/:n").slice(0, 80);
 
-/** Attributes model calls made while handling a request to its user or astrologer. */
+/**
+ * Attributes model calls made while handling a request (and work it starts) to its user,
+ * astrologer or admin, and chooses the budget they draw on. Paid report generation is
+ * recorded but not budgeted; unauthenticated requests share one "anonymous" budget.
+ */
+export function aiContextFor(req: Pick<Request, "path"> & { user?: any; session?: any }): AiContext {
+  const userId = req.user?.id;
+  const astrologerId = req.session?.astrologerId;
+  const feature = featureOf(req.path);
+  const lower = req.path.toLowerCase();
+  if (lower.startsWith("/api/reports")) return { subject: userId ? `user:${userId}` : "anonymous", feature, budget: null };
+  if (userId && lower.startsWith("/api/admin")) return { subject: `admin:${userId}`, feature, budget: "admin" };
+  // One browser can hold a user and an astrologer sign-in at once: astrologer routes are the astrologer's.
+  if (astrologerId && lower.startsWith("/api/astrologer")) return { subject: `astrologer:${astrologerId}`, feature, budget: "astrologer" };
+  if (userId) return { subject: `user:${userId}`, feature, budget: "user" };
+  if (astrologerId) return { subject: `astrologer:${astrologerId}`, feature, budget: "astrologer" };
+  return { subject: "anonymous", feature, budget: "user" };
+}
+
 export function aiRequestContext(req: Request, _res: Response, next: NextFunction): void {
-  const userId = (req as any).user?.id;
-  const astrologerId = (req as any).session?.astrologerId;
-  const subject = userId ? `user:${userId}` : astrologerId ? `astrologer:${astrologerId}` : "anonymous";
-  aiContext.run({ subject, feature: featureOf(req.path) }, next);
+  aiContext.run(aiContextFor(req as any), next);
 }
 
 const envNumber = (name: string, fallback: number) => {
@@ -131,7 +207,8 @@ const envNumber = (name: string, fallback: number) => {
 
 /** Daily limits on free (unpaid) AI use per subject; paid report generation is not counted. */
 export const aiDailyLimits = () => ({
-  user: { calls: envNumber("AI_USER_DAILY_CALLS", 400), costMicroUsd: envNumber("AI_USER_DAILY_COST_USD", 0.5) * 1e6 },
+  // The dollar limit governs; the call caps are flood guards set above what it allows in normal use.
+  user: { calls: envNumber("AI_USER_DAILY_CALLS", 2000), costMicroUsd: envNumber("AI_USER_DAILY_COST_USD", 0.5) * 1e6 },
   astrologer: { calls: envNumber("AI_ASTROLOGER_DAILY_CALLS", 300), costMicroUsd: envNumber("AI_ASTROLOGER_DAILY_COST_USD", 5) * 1e6 },
   admin: { calls: envNumber("AI_ADMIN_DAILY_CALLS", 300), costMicroUsd: envNumber("AI_ADMIN_DAILY_COST_USD", 5) * 1e6 },
 });
@@ -142,17 +219,17 @@ export const aiDailyLimits = () => ({
  */
 export function aiBudget(kind: "user" | "astrologer" | "admin") {
   return async (req: Request, res: Response, next: NextFunction) => {
-    const subject = kind === "astrologer" ? `astrologer:${(req as any).session?.astrologerId}` : `user:${(req as any).user?.id}`;
+    const ctx = aiContextFor(req as any);
     try {
       const { storage } = await loadStorage();
-      const used = await storage.getAiUsageToday(subject, today());
-      const limit = aiDailyLimits()[kind];
-      if (used.calls >= limit.calls || used.costMicroUsd >= limit.costMicroUsd) {
-        audit("ai.budget_refused", { subject, feature: featureOf(req.path), calls: used.calls, costUsd: used.costMicroUsd / 1e6 });
+      const used = await storage.getAiUsageToday(ctx.subject, today());
+      const limit = aiDailyLimits()[ctx.budget ?? kind];
+      if (used.costMicroUsd >= limit.costMicroUsd || used.calls >= limit.calls) {
+        audit("ai.budget_refused", { subject: ctx.subject, feature: ctx.feature, calls: used.calls, costUsd: used.costMicroUsd / 1e6, at: "request" });
         return res.status(429).json({ code: "ai_daily_limit", message: "You have reached today's limit for AI answers. Please try again tomorrow." });
       }
     } catch (err: any) {
-      // The budget is a cost guard, not an access control: an unreadable meter does not block.
+      // An early courtesy check only: every model call is still held to the budget atomically.
       console.error("[ai] budget check failed:", err?.message ?? err);
     }
     next();

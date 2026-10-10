@@ -65,13 +65,19 @@ export interface GatewayPayment {
   amountPaise: number;
   currency: string;
   status: string;
+  /** Refunded so far (a partly refunded payment keeps status "captured"). */
+  amountRefundedPaise: number;
 }
 
 export function toGatewayPayment(p: any): GatewayPayment | null {
   if (!p || typeof p.id !== "string" || typeof p.order_id !== "string") return null;
   const amountPaise = Number(p.amount);
   if (!Number.isSafeInteger(amountPaise)) return null;
-  return { id: p.id, orderId: p.order_id, amountPaise, currency: String(p.currency ?? ""), status: String(p.status ?? "") };
+  const amountRefundedPaise = Number(p.amount_refunded ?? 0);
+  return {
+    id: p.id, orderId: p.order_id, amountPaise, currency: String(p.currency ?? ""), status: String(p.status ?? ""),
+    amountRefundedPaise: Number.isFinite(amountRefundedPaise) ? amountRefundedPaise : 0,
+  };
 }
 
 /** Payments made against a Razorpay order, for reconciling recharges whose confirmation never arrived. */
@@ -426,9 +432,10 @@ export function evaluateCoupon(
   coupon: CouponLike,
   amount: number,
   ctx: { isFirstRecharge: boolean; userRedemptionCount: number },
+  at: Date = new Date(),
 ): CouponEvaluation {
   const num = (v: unknown) => (v == null ? null : parseFloat(String(v)));
-  const now = Date.now();
+  const now = at.getTime();
 
   if (!coupon.isActive) return { ok: false, bonus: 0, message: "This offer is no longer active." };
   if (coupon.validFrom && new Date(coupon.validFrom).getTime() > now)

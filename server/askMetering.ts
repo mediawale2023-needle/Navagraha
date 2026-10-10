@@ -42,3 +42,12 @@ export function startAskReservationSweeper(): void {
   run();
   setInterval(run, 10 * 60_000).unref();
 }
+
+/**
+ * The free allowance is for verified accounts only (an email/password account can be created
+ * at will, so its allowance would be unlimited). Unverified accounts are metered with none:
+ * unmetered while enforcement is off, refused once it is on.
+ */
+export function askFreeQuestionsFor(user: { emailVerifiedAt?: Date | string | null } | null | undefined): number {
+  return user?.emailVerifiedAt ? ASK_FREE_QUESTIONS : 0;
+}

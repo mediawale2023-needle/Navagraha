@@ -586,11 +586,21 @@ CREATE TABLE IF NOT EXISTS ai_usage_daily (
   day varchar NOT NULL,
   feature varchar NOT NULL,
   calls integer NOT NULL DEFAULT 0,
-  input_tokens integer NOT NULL DEFAULT 0,
-  output_tokens integer NOT NULL DEFAULT 0,
-  cost_micro_usd integer NOT NULL DEFAULT 0,
+  input_tokens bigint NOT NULL DEFAULT 0,
+  output_tokens bigint NOT NULL DEFAULT 0,
+  cost_micro_usd bigint NOT NULL DEFAULT 0,
   PRIMARY KEY (subject, day, feature)
 );
+
+CREATE TABLE IF NOT EXISTS ai_budget_daily (
+  subject varchar NOT NULL,
+  day varchar NOT NULL,
+  cost_micro_usd bigint NOT NULL DEFAULT 0,
+  calls integer NOT NULL DEFAULT 0,
+  PRIMARY KEY (subject, day)
+);
+
+ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verified_at timestamp;
 `;
 
 const SEED_STORE_SQL = `

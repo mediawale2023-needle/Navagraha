@@ -7,7 +7,7 @@ import path from 'node:path';
 const mocks = vi.hoisted(() => ({
   ctorOptions: [] as any[],
   create: vi.fn(),
-  storage: { recordAiUsage: vi.fn(), getAiUsageToday: vi.fn() },
+  storage: { recordAiUsage: vi.fn(), getAiUsageToday: vi.fn() } as Record<string, any>,
 }));
 vi.mock('openai', () => ({
   default: class {
@@ -18,7 +18,8 @@ vi.mock('openai', () => ({
 vi.mock('../../server/storage', () => ({ storage: mocks.storage }));
 
 import {
-  createOpenAI, boundedParams, aiContext, aiBudget, estimateCostMicroUsd, AiInputTooLargeError,
+  createOpenAI, boundedParams, aiContext, aiBudget, estimateCostMicroUsd, AiInputTooLargeError, AiBudgetExceededError,
+  worstCaseCostMicroUsd, aiDailyLimits, aiContextFor,
   DEFAULT_MAX_OUTPUT_TOKENS, MAX_OUTPUT_TOKENS, MAX_INPUT_CHARS, SDK_MAX_RETRIES,
 } from '../../server/ai/metering';
 
@@ -144,5 +145,58 @@ describe('every model call goes through the metered client', () => {
       }
     }
     expect(missing).toEqual([]);
+  });
+});
+
+describe('call-level budget (every endpoint)', () => {
+  it('a call over budget is refused before it is sent, whichever endpoint made it', async () => {
+    mocks.storage.reserveAiBudget = vi.fn().mockResolvedValue(false) as any;
+    const client = createOpenAI('k');
+    for (const feature of ['/api/ai/chat', '/api/some/new/endpoint', '/api/horoscope/personal']) {
+      await expect(aiContext.run({ subject: 'user:u1', feature, budget: 'user' }, () =>
+        client.chat.completions.create({ model: 'gpt-4o-mini', messages: [], max_tokens: 900 }))).rejects.toThrow(AiBudgetExceededError);
+    }
+    expect(mocks.create).not.toHaveBeenCalled();
+  });
+
+  it('a call is reserved at its worst case and settled to its real cost', async () => {
+    mocks.storage.reserveAiBudget = vi.fn().mockResolvedValue(true) as any;
+    mocks.storage.settleAiBudget = vi.fn().mockResolvedValue(undefined) as any;
+    mocks.create.mockResolvedValue({ choices: [], usage: { prompt_tokens: 100, completion_tokens: 10 } });
+    const client = createOpenAI('k');
+    await aiContext.run({ subject: 'user:u1', feature: '/api/ai/chat', budget: 'user' }, () =>
+      client.chat.completions.create({ model: 'gpt-4o-mini', messages: [{ role: 'user', content: 'x'.repeat(1000) }], max_tokens: 900 }));
+    const reserved = worstCaseCostMicroUsd('gpt-4o-mini', { messages: [{ role: 'user', content: 'x'.repeat(1000) }], max_tokens: 900 });
+    expect(mocks.storage.reserveAiBudget).toHaveBeenCalledWith(expect.objectContaining({ subject: 'user:u1', microUsd: reserved, costLimitMicroUsd: 500_000, callLimit: 2000 }));
+    await vi.waitFor(() => expect(mocks.storage.settleAiBudget).toHaveBeenCalledWith(expect.objectContaining({ reservedMicroUsd: reserved, actualMicroUsd: estimateCostMicroUsd('gpt-4o-mini', 100, 10) })));
+  });
+
+  it('a failed call returns its whole reservation', async () => {
+    mocks.storage.reserveAiBudget = vi.fn().mockResolvedValue(true) as any;
+    mocks.storage.settleAiBudget = vi.fn().mockResolvedValue(undefined) as any;
+    mocks.create.mockRejectedValue(new Error('upstream'));
+    const client = createOpenAI('k');
+    await expect(aiContext.run({ subject: 'user:u1', feature: '/api/ai/chat', budget: 'user' }, () =>
+      client.chat.completions.create({ model: 'gpt-4o-mini', messages: [], max_tokens: 900 }))).rejects.toThrow('upstream');
+    expect(mocks.storage.settleAiBudget).toHaveBeenCalledWith(expect.objectContaining({ actualMicroUsd: 0 }));
+  });
+
+  it('the dollar limit governs: the default call cap is above what the dollar budget allows for Ask', () => {
+    const limits = aiDailyLimits();
+    const askCall = estimateCostMicroUsd('gpt-4o-mini', 3000, 900);
+    expect(limits.user.calls * askCall).toBeGreaterThan(limits.user.costMicroUsd);
+  });
+});
+
+describe('who is charged for a call', () => {
+  it.each([
+    [{ path: '/api/ai/chat', user: { id: 'u1' } }, { subject: 'user:u1', budget: 'user' }],
+    [{ path: '/api/reports/order', user: { id: 'u1' } }, { subject: 'user:u1', budget: null }],
+    [{ path: '/api/admin/jyotish/session-queries', user: { id: 'a1' } }, { subject: 'admin:a1', budget: 'admin' }],
+    [{ path: '/api/astrologer/pro/session-queries', user: { id: 'u1' }, session: { astrologerId: 'x1' } }, { subject: 'astrologer:x1', budget: 'astrologer' }],
+    [{ path: '/api/ai/chat', user: { id: 'u1' }, session: { astrologerId: 'x1' } }, { subject: 'user:u1', budget: 'user' }],
+    [{ path: '/api/anything' }, { subject: 'anonymous', budget: 'user' }],
+  ])('%o → %o', (req, expected) => {
+    expect(aiContextFor(req as any)).toMatchObject(expected);
   });
 });
