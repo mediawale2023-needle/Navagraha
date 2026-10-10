@@ -18,6 +18,9 @@ import { isApiError } from "@/lib/apiError";
 import ReactMarkdown from "react-markdown";
 import { PageHeader } from '@/components/shell/PageHeader';
 import { AnswerCard, termsIn, type EvidenceSummary } from '@/components/ask/AnswerCard';
+import { AskAllowanceLine, AskLimitPanel, FollowUpHint, type AskAllowanceState } from '@/components/ask/AskAllowance';
+import { AskPacks } from '@/components/ask/AskPacks';
+import { useAppFeatures } from '@/lib/appConfig';
 import { GlossaryAside, GlossarySheet } from '@/components/ask/Glossary';
 import type { GlossaryEntry } from '@/lib/glossary';
 
@@ -115,14 +118,7 @@ const THINKING_STEPS = [
   'Composing your reading…',
 ];
 
-interface AskAllowance {
-  enforced: boolean;
-  freeQuestionsTotal: number;
-  freeQuestionsUsed: number;
-  freeQuestionsRemaining: number;
-  paidQuestionsRemaining: number;
-  followUpsRemaining: number | null;
-}
+type AskAllowance = AskAllowanceState;
 
 export default function AIAstrologer() {
   const { toast } = useToast();
@@ -156,7 +152,8 @@ export default function AIAstrologer() {
   // Counts come from the server's metering. They are shown only while the allowance is
   // enforced; until then nobody is limited, so a "questions left" count would be untrue.
   const current = allowance ?? questionCount ?? null;
-  const freeRemaining = current?.enforced ? current.freeQuestionsRemaining : null;
+  const { askPacksEnabled } = useAppFeatures();
+  const [packsOpen, setPacksOpen] = useState(false);
 
   const { data: kundlis = [] } = useQuery<Kundli[]>({
     queryKey: ["/api/kundli"],
@@ -390,8 +387,13 @@ export default function AIAstrologer() {
                 </Button>
               )}
             </div>
-            {freeRemaining !== null && freeRemaining > 0 && (
-              <p className={`${messages.length > 0 && !contextOpen ? 'hidden md:block' : ''} text-caption text-ink-muted`}>{freeRemaining} free {freeRemaining === 1 ? 'question' : 'questions'} left</p>
+            <div className={messages.length > 0 && !contextOpen ? 'hidden md:block' : ''}>
+              <AskAllowanceLine allowance={current} onBuy={askPacksEnabled ? () => setPacksOpen((o) => !o) : undefined} />
+            </div>
+            {packsOpen && askPacksEnabled && (
+              <div className="rounded-lg border border-line bg-surface p-4 md:p-[22px]">
+                <AskPacks onPurchased={() => { setPacksOpen(false); queryClient.invalidateQueries({ queryKey: ['/api/ai/question-count'] }); }} />
+              </div>
             )}
             {detailsMode && (
               <div className="flex flex-col gap-2 rounded-lg border border-line bg-surface p-4">
@@ -472,6 +474,15 @@ export default function AIAstrologer() {
               />
             )
           ))}
+
+          {failed?.problem && !chatMutation.isPending && (
+            <AskLimitPanel
+              problem={failed.problem}
+              packsEnabled={askPacksEnabled}
+              onPurchased={() => { setAllowance(null); queryClient.invalidateQueries({ queryKey: ['/api/ai/question-count'] }); retryFailed(); }}
+            />
+          )}
+          {!failed && !chatMutation.isPending && messages.length > 0 && <FollowUpHint allowance={current} />}
 
           {failed && !failed.problem && !chatMutation.isPending && (
             <div className="flex flex-wrap items-center gap-3 rounded-md border border-line bg-surface px-4 py-3 text-sm" role="alert" data-testid="ask-retry">
