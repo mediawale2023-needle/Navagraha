@@ -228,9 +228,8 @@ CREATE TABLE IF NOT EXISTS prediction_feedbacks (
   id serial PRIMARY KEY,
   user_id varchar NOT NULL REFERENCES users(id),
   kundli_id varchar REFERENCES kundlis(id),
-  predicted_event text NOT NULL,
-  predicted_start_date timestamp,
-  predicted_end_date timestamp,
+  prediction_category text NOT NULL,
+  predicted_date timestamp,
   actual_occurrence_date timestamp,
   was_accurate boolean NOT NULL,
   dasha_system_used varchar NOT NULL,
@@ -602,6 +601,19 @@ CREATE TABLE IF NOT EXISTS ai_budget_daily (
 );
 
 ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verified_at timestamp;
+
+-- prediction_feedbacks was first created with predicted_event / predicted_start_date /
+-- predicted_end_date, but the Drizzle table reads and writes prediction_category and
+-- predicted_date, so every feedback read and insert failed (42703). Add the columns the code
+-- uses and let the old required column be empty; existing rows and columns are kept.
+ALTER TABLE prediction_feedbacks ADD COLUMN IF NOT EXISTS prediction_category text;
+ALTER TABLE prediction_feedbacks ADD COLUMN IF NOT EXISTS predicted_date timestamp;
+DO $$ BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.columns
+             WHERE table_schema = current_schema() AND table_name = 'prediction_feedbacks' AND column_name = 'predicted_event') THEN
+    ALTER TABLE prediction_feedbacks ALTER COLUMN predicted_event DROP NOT NULL;
+  END IF;
+END $$;
 `;
 
 const SEED_STORE_SQL = `
