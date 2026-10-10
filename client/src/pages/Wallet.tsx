@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import type { Transaction, Wallet as WalletType } from '@shared/schema';
 import { AskQuestionsCard } from '@/components/ask/AskQuestionsCard';
+import { checkoutClosedMessage, type CheckoutFailure } from '@/lib/checkoutOutcome';
 import { PageHeader } from '@/components/shell/PageHeader';
 
 interface RechargePackType {
@@ -111,6 +112,8 @@ export default function Wallet() {
         return;
       }
 
+      // The last failed attempt in this Checkout window (cleared when a retry succeeds).
+      let lastFailure: CheckoutFailure | null = null;
       const rzp = new window.Razorpay({
         key: orderData.keyId || config?.razorpayKeyId,
         amount: orderData.amount,
@@ -119,6 +122,7 @@ export default function Wallet() {
         description: `Wallet Recharge${bonus > 0 ? ` + ₹${bonus} Bonus` : ''}`,
         order_id: orderData.orderId,
         handler: async (response: any) => {
+          lastFailure = null;
           try {
             const verifyData = await apiRequest('POST', '/api/payment/razorpay/verify', {
               orderId: response.razorpay_order_id,
@@ -149,10 +153,11 @@ export default function Wallet() {
         theme: { color: getComputedStyle(document.documentElement).getPropertyValue('--amber').trim() },
         modal: {
           ondismiss: () => {
-            toast({ title: 'Payment Cancelled', description: 'You cancelled the payment.', variant: 'destructive' });
+            toast({ ...checkoutClosedMessage(lastFailure), variant: 'destructive' });
           }
         }
       });
+      rzp.on?.('payment.failed', (failure: CheckoutFailure) => { lastFailure = failure; });
       rzp.open();
     } catch (error: any) {
       toast({ title: 'Error', description: error.message || 'Payment failed. Please try again.', variant: 'destructive' });
