@@ -38,6 +38,7 @@ import {
   aiUsageDaily,
   aiBudgetDaily,
   type AskUsage,
+  type Entitlement,
   type JyotishClientProfile,
   type InsertJyotishClientProfile,
   type JyotishReading,
@@ -128,6 +129,13 @@ export type AskReservation =
   | { kind: "replay"; usage: AskUsage }
   | { kind: "in_flight" }
   | { kind: "exhausted" };
+
+export type AskPackPurchase =
+  | { kind: "purchased" | "replay"; entitlement: Entitlement; balance: string }
+  | { kind: "insufficient" }
+  | { kind: "free_access" }
+  | { kind: "request_conflict" };
+export interface AskEntitlementRow { id: string; quantity: number; used: number; followUpsEach: number; source: string; price: string | null; createdAt: Date | null }
 
 export interface EmailVerificationLimits { ttlS: number; minIntervalS: number; perDay: number }
 export type EmailVerificationOutcome = "verified" | "already" | "expired" | "invalid" | "conflict";
@@ -288,6 +296,8 @@ export interface IStorage {
   getAskAllowance(userId: string, opts: { freeQuestions: number; sessionId?: string; chartKey?: string }): Promise<AskAllowanceCounts>;
   issueEmailVerificationToken(userId: string, email: string, tokenHash: string, limits: EmailVerificationLimits): Promise<{ issued: true } | { throttled: true; retryAfterS: number }>;
   consumeEmailVerificationToken(tokenHash: string): Promise<EmailVerificationOutcome>;
+  purchaseAskPack(userId: string, pack: { id: string; questions: number; price: number; followUpsEach: number }, requestId: string): Promise<AskPackPurchase>;
+  getAskEntitlements(userId: string): Promise<AskEntitlementRow[]>;
   getAiChatSessions(userId: string): Promise<{ sessionId: string; createdAt: Date | null; preview: string }[]>;
 }
 
@@ -1131,6 +1141,49 @@ export class DatabaseStorage implements IStorage {
       }
     }
     return { freeQuestionsUsed: freeUsed, freeQuestionsRemaining: Math.max(0, opts.freeQuestions - freeUsed), paidQuestionsRemaining: paidRemaining, followUpsRemaining };
+  }
+
+  // ─── Ask question packs ────────────────────────────────────
+  // The debit, its wallet transaction and the entitlement are written in one transaction, so a
+  // pack is never paid for without being granted, or granted without being paid for. One user's
+  // purchases run one at a time, and a request id buys once (entitlements.source_ref is unique).
+
+  async purchaseAskPack(userId: string, pack: { id: string; questions: number; price: number; followUpsEach: number }, requestId: string): Promise<AskPackPurchase> {
+    // Free-access (admin) accounts already ask without limit; a ₹0 pack would outlive admin access.
+    if (await this.hasFreeAccess(userId)) return { kind: "free_access" };
+    const sourceRef = `askpack:${userId}:${requestId}`;
+    return db.transaction(async (tx) => {
+      await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${"ask-pack:" + userId}))`);
+      const [existing] = await tx.select().from(entitlements).where(eq(entitlements.sourceRef, sourceRef));
+      if (existing) {
+        if (existing.quantity !== pack.questions) return { kind: "request_conflict" as const };
+        const [w] = await tx.select({ balance: wallets.balance }).from(wallets).where(eq(wallets.userId, userId));
+        return { kind: "replay" as const, entitlement: existing, balance: String(w?.balance ?? "0") };
+      }
+      const balance = await this.tryDebitBalance(userId, pack.price, tx);
+      if (balance === null) return { kind: "insufficient" as const };
+      const [txn] = await tx.insert(transactions).values({
+        userId, amount: (-pack.price).toFixed(2), type: "debit", status: "completed", paymentMethod: "wallet",
+        description: `Ask your Kundli: ${pack.questions} ${pack.questions === 1 ? "question" : "questions"}`,
+      }).returning({ id: transactions.id });
+      const [entitlement] = await tx.insert(entitlements).values({
+        userId, kind: "ask_questions", quantity: pack.questions, used: 0, followUpsEach: pack.followUpsEach,
+        source: "purchase", sourceRef, transactionId: txn.id,
+      }).returning();
+      return { kind: "purchased" as const, entitlement, balance };
+    });
+  }
+
+  /** The user's Ask entitlements, newest first, with what each purchase cost. */
+  async getAskEntitlements(userId: string): Promise<AskEntitlementRow[]> {
+    const rows = await db.select({
+      id: entitlements.id, quantity: entitlements.quantity, used: entitlements.used, followUpsEach: entitlements.followUpsEach,
+      source: entitlements.source, createdAt: entitlements.createdAt, amount: transactions.amount,
+    }).from(entitlements)
+      .leftJoin(transactions, eq(transactions.id, entitlements.transactionId))
+      .where(and(eq(entitlements.userId, userId), eq(entitlements.kind, "ask_questions")))
+      .orderBy(desc(entitlements.createdAt));
+    return rows.map(({ amount, ...r }) => ({ ...r, price: amount === null || amount === undefined ? null : Math.abs(Number(amount)).toFixed(2) }));
   }
 
   // ─── Email verification ────────────────────────────────────

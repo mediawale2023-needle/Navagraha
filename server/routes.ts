@@ -74,6 +74,7 @@ import { notifyUser, notifyAstrologer } from "./websocketService";
 import { audit } from "./audit";
 import { aiBudget, aiRequestContext } from "./ai/metering";
 import { ASK_FREE_FOLLOW_UPS, askChartKey, askEnforced, askFreeQuestionsFor, askIdempotencyKey } from "./askMetering";
+import { ASK_PACKS, ASK_PACK_FOLLOW_UPS, askPack, askPackRequestKey } from "./askPacks";
 import { sendPushToUser, sendPushToAstrologer } from "./pushService";
 import {
   interpretKundli,
@@ -2204,6 +2205,61 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
     }
   });
 
+  // ─── Ask question packs (wallet) ──────────────────────────
+  app.get('/api/ask/packs', isAuthenticated, async (req: any, res) => {
+    try {
+      const user = req.user as any;
+      const [allowance, history, wallet] = await Promise.all([askAllowance(user), storage.getAskEntitlements(user.id), storage.getWallet(user.id)]);
+      res.json({
+        enabled: features.askPacks(),
+        packs: features.askPacks() ? ASK_PACKS.map((p) => ({ ...p, followUpsEach: ASK_PACK_FOLLOW_UPS })) : [],
+        balance: wallet?.balance ?? "0.00",
+        allowance,
+        history,
+      });
+    } catch {
+      res.status(500).json({ message: "Failed to load question packs" });
+    }
+  });
+
+  // Price and quantity come only from the server's catalogue; one request id buys once.
+  app.post('/api/ask/packs/purchase', isAuthenticated, paymentLimiter, async (req: any, res) => {
+    try {
+      if (!features.askPacks()) return res.status(404).json({ code: 'ask_packs_disabled', message: "Question packs are not available." });
+      const user = req.user as any;
+      const pack = askPack(req.body?.packId);
+      if (!pack) return res.status(400).json({ message: "Choose a question pack", field: 'packId' });
+      const requestId = askPackRequestKey(req.body?.requestId);
+      if (!requestId) return res.status(400).json({ message: "Invalid request" });
+      const result = await storage.purchaseAskPack(user.id, { ...pack, followUpsEach: ASK_PACK_FOLLOW_UPS }, requestId);
+      if (result.kind === 'free_access') {
+        audit("ask.pack_refused", { userId: user.id, packId: pack.id, reason: 'free_access' });
+        return res.status(409).json({ code: 'free_access_unlimited', message: "Your account already asks without limit." });
+      }
+      if (result.kind === 'insufficient') {
+        audit("ask.pack_refused", { userId: user.id, packId: pack.id, reason: 'insufficient_balance' });
+        return res.status(402).json({ code: 'insufficient_balance', required: pack.price, message: "Your wallet balance doesn't cover this pack." });
+      }
+      if (result.kind === 'request_conflict') return res.status(409).json({ code: 'request_conflict', message: "This purchase was already made with a different pack." });
+      if (result.kind === 'purchased') {
+        audit("wallet.debit", { userId: user.id, reason: 'ask_pack', amount: pack.price, transactionId: result.entitlement.transactionId, entitlementId: result.entitlement.id });
+        audit("ask.pack_purchased", { userId: user.id, packId: pack.id, entitlementId: result.entitlement.id, quantity: pack.questions });
+      }
+      res.status(result.kind === 'purchased' ? 201 : 200).json({
+        replayed: result.kind === 'replay',
+        entitlementId: result.entitlement.id,
+        questions: result.entitlement.quantity,
+        followUpsEach: result.entitlement.followUpsEach,
+        newBalance: result.balance,
+        // The purchase is committed by now; a failed count must not turn it into an error reply.
+        allowance: await askAllowance(user).catch(() => null),
+      });
+    } catch (err) {
+      console.error("Ask pack purchase error:", (err as Error)?.message);
+      res.status(500).json({ message: "Purchase failed. You have not been charged." });
+    }
+  });
+
   // Chat with AI Astrologer (Super-Council Orchestrator)
   app.post('/api/ai/chat', isAuthenticated, aiLimiter, aiBudget('user'), async (req: any, res) => {
     try {
@@ -2287,7 +2343,7 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
         if (!user.emailVerifiedAt) {
           return res.status(402).json({ code: 'email_verification_required', message: "Verify your email address to use your free questions.", allowance: await askAllowance(user, activeSessionId, chartKey) });
         }
-        return res.status(402).json({ code: 'ask_allowance_exhausted', message: "You have used your free questions.", allowance: await askAllowance(user, activeSessionId, chartKey) });
+        return res.status(402).json({ code: 'ask_allowance_exhausted', message: "You have used your free questions.", packsAvailable: features.askPacks(), allowance: await askAllowance(user, activeSessionId, chartKey) });
       }
       if (reservation.kind === 'replay') {
         const prior = reservation.usage.replyMessageId ? await storage.getAiChatMessage(user.id, reservation.usage.replyMessageId) : undefined;
