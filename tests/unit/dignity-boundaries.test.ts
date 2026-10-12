@@ -1,8 +1,9 @@
 // Dignity against an independently entered reference table, and the read-time correction for
 // charts saved under the old rule. Reference: BPHS ch. 3 (Graha Guna Svarupa), R. Santhanam's
 // translation — exaltation and debilitation signs, Moolatrikona ranges, own signs — and BPHS
-// ch. 3 natural relationships. Degree ranges are half-open: a boundary degree belongs to the
-// range that starts there (the Moon at exactly 3° Taurus is Moolatrikona).
+// ch. 3 natural relationships. An exaltation range includes its peak (the Moon at exactly 3°00′
+// Taurus and Mercury at exactly 15°00′ Virgo are exalted); every other range is half-open, so a
+// boundary degree belongs to the range that starts there (Mercury at exactly 20°00′ Virgo is own sign).
 import { describe, expect, it } from 'vitest';
 import { computeDignities, dignityAt } from '../../server/astroEngine/dignity';
 import { getKundli } from '../../server/astroEngine/index';
@@ -30,10 +31,11 @@ const LORD: Record<Sign, string> = {
   Libra: 'Venus', Scorpio: 'Mars', Sagittarius: 'Jupiter', Capricorn: 'Saturn', Aquarius: 'Saturn', Pisces: 'Jupiter',
 };
 const within = ([from, to]: Range, deg: number) => deg >= from && deg < to;
+const withinPeak = ([from, peak]: Range, deg: number) => deg >= from && deg <= peak;
 
 function expected(planet: string, sign: Sign, deg: number): string {
   const r = REFERENCE[planet];
-  if (r.exalted[0] === sign && within(r.exalted[1], deg)) return 'Exalted';
+  if (r.exalted[0] === sign && withinPeak(r.exalted[1], deg)) return 'Exalted';
   if (r.debilitated === sign) return 'Debilitated';
   if (r.moolatrikona[0] === sign && within(r.moolatrikona[1], deg)) return 'Moolatrikona';
   if (r.own.includes(sign)) return 'Own sign';
@@ -85,9 +87,9 @@ describe('dignity matches the BPHS reference table for every planet, sign and de
   });
 
   it.each([
-    ['Moon', 1, 2.999, 'Exalted'], ['Moon', 1, 3, 'Moolatrikona'], ['Moon', 1, 20, 'Moolatrikona'], ['Moon', 1, 29.99, 'Moolatrikona'],
+    ['Moon', 1, 2.999, 'Exalted'], ['Moon', 1, 3, 'Exalted'], ['Moon', 1, 3.0001, 'Moolatrikona'], ['Moon', 1, 20, 'Moolatrikona'], ['Moon', 1, 29.99, 'Moolatrikona'],
     ['Moon', 3, 10, 'Own sign'], ['Moon', 7, 10, 'Debilitated'],
-    ['Mercury', 5, 0, 'Exalted'], ['Mercury', 5, 14.999, 'Exalted'], ['Mercury', 5, 15, 'Moolatrikona'], ['Mercury', 5, 19.999, 'Moolatrikona'],
+    ['Mercury', 5, 0, 'Exalted'], ['Mercury', 5, 14.999, 'Exalted'], ['Mercury', 5, 15, 'Exalted'], ['Mercury', 5, 15.0001, 'Moolatrikona'], ['Mercury', 5, 19.999, 'Moolatrikona'],
     ['Mercury', 5, 20, 'Own sign'], ['Mercury', 5, 29.99, 'Own sign'], ['Mercury', 2, 10, 'Own sign'], ['Mercury', 11, 10, 'Debilitated'],
   ] as const)('%s in %s at %s° is %s', (planet, sign, deg, want) => {
     expect(dignityAt(planet, sign, deg)).toBe(want);

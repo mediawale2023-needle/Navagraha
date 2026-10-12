@@ -14,12 +14,18 @@ const SIGN_LORDS = ['Mars', 'Venus', 'Mercury', 'Moon', 'Sun', 'Mercury', 'Venus
 const EXALT: Record<string, number> = { Sun: 0, Moon: 1, Mars: 9, Mercury: 5, Jupiter: 3, Venus: 11, Saturn: 6 };
 const DEBIL: Record<string, number> = { Sun: 6, Moon: 7, Mars: 3, Mercury: 11, Jupiter: 9, Venus: 5, Saturn: 0 };
 const OWN: Record<string, number[]> = { Sun: [4], Moon: [3], Mars: [0, 7], Mercury: [2, 5], Jupiter: [8, 11], Venus: [1, 6], Saturn: [9, 10] };
-// Degree ranges within a sign are half-open, [lo, hi). Source: BPHS ch. 3 (Graha Guna Svarupa,
-// R. Santhanam's translation): the Moon is exalted in the first 3° of Taurus and Moolatrikona in the
-// rest; Mercury is exalted in the first 15° of Virgo, Moolatrikona in the next 5° and in its own sign
-// in the last 10°. Only the Moon and Mercury share their exaltation sign with Moolatrikona or own
-// sign, so for every other planet exaltation is the whole sign, as before.
-const EXALT_RANGE: Record<string, { lo: number; hi: number }> = { Moon: { lo: 0, hi: 3 }, Mercury: { lo: 0, hi: 15 } };
+// BPHS ch. 3 (Graha Guna Svarupa): the Moon is exalted in the first 3° of Taurus and Moolatrikona
+// in the rest; Mercury is exalted in the first 15° of Virgo, Moolatrikona in the next 5° and in its
+// own sign in the last 10°. Only these two share their exaltation sign with Moolatrikona or own sign,
+// so every other planet's exaltation is the whole sign. Navagraha conventions (approved):
+//  - The exaltation range includes its peak: the Moon at exactly 3°00′ Taurus and Mercury at exactly
+//    15°00′ Virgo are Exalted; Moolatrikona begins just after the peak.
+//  - Every other range is half-open, [lo, hi): Mercury at exactly 20°00′ Virgo is in its own sign.
+//  - Mercury's Moolatrikona ends at 20° per BPHS and Saravali; one Phaladeepika translation gives
+//    15°–25°. "16°–20°" in common tables counts degrees ordinally (the 16th degree is 15°00′–16°00′).
+// These readings come from translations and secondary sources; the verses still need checking
+// against a primary BPHS edition.
+const EXALT_RANGE: Record<string, { lo: number; peak: number }> = { Moon: { lo: 0, peak: 3 }, Mercury: { lo: 0, peak: 15 } };
 const MOOLA: Record<string, { s: number; lo: number; hi: number }> = {
   Sun: { s: 4, lo: 0, hi: 20 }, Moon: { s: 1, lo: 3, hi: 30 }, Mars: { s: 0, lo: 0, hi: 12 },
   Mercury: { s: 5, lo: 15, hi: 20 }, Jupiter: { s: 8, lo: 0, hi: 10 }, Venus: { s: 6, lo: 0, hi: 15 }, Saturn: { s: 10, lo: 0, hi: 20 },
@@ -68,7 +74,7 @@ function angSep(a: number, b: number): number {
 export function dignityAt(planet: string, signIndex: number, degree: number): PlanetDignity['dignity'] {
   const ex = EXALT_RANGE[planet];
   const moola = MOOLA[planet];
-  if (EXALT[planet] === signIndex && (!ex || (degree >= ex.lo && degree < ex.hi))) return 'Exalted';
+  if (EXALT[planet] === signIndex && (!ex || (degree >= ex.lo && degree <= ex.peak))) return 'Exalted';
   if (DEBIL[planet] === signIndex) return 'Debilitated';
   if (moola.s === signIndex && degree >= moola.lo && degree < moola.hi) return 'Moolatrikona';
   if (OWN[planet].includes(signIndex)) return 'Own sign';
