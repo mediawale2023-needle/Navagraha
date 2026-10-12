@@ -14,9 +14,15 @@ const SIGN_LORDS = ['Mars', 'Venus', 'Mercury', 'Moon', 'Sun', 'Mercury', 'Venus
 const EXALT: Record<string, number> = { Sun: 0, Moon: 1, Mars: 9, Mercury: 5, Jupiter: 3, Venus: 11, Saturn: 6 };
 const DEBIL: Record<string, number> = { Sun: 6, Moon: 7, Mars: 3, Mercury: 11, Jupiter: 9, Venus: 5, Saturn: 0 };
 const OWN: Record<string, number[]> = { Sun: [4], Moon: [3], Mars: [0, 7], Mercury: [2, 5], Jupiter: [8, 11], Venus: [1, 6], Saturn: [9, 10] };
+// Degree ranges within a sign are half-open, [lo, hi). Source: BPHS ch. 3 (Graha Guna Svarupa,
+// R. Santhanam's translation): the Moon is exalted in the first 3° of Taurus and Moolatrikona in the
+// rest; Mercury is exalted in the first 15° of Virgo, Moolatrikona in the next 5° and in its own sign
+// in the last 10°. Only the Moon and Mercury share their exaltation sign with Moolatrikona or own
+// sign, so for every other planet exaltation is the whole sign, as before.
+const EXALT_RANGE: Record<string, { lo: number; hi: number }> = { Moon: { lo: 0, hi: 3 }, Mercury: { lo: 0, hi: 15 } };
 const MOOLA: Record<string, { s: number; lo: number; hi: number }> = {
   Sun: { s: 4, lo: 0, hi: 20 }, Moon: { s: 1, lo: 3, hi: 30 }, Mars: { s: 0, lo: 0, hi: 12 },
-  Mercury: { s: 5, lo: 16, hi: 20 }, Jupiter: { s: 8, lo: 0, hi: 10 }, Venus: { s: 6, lo: 0, hi: 15 }, Saturn: { s: 10, lo: 0, hi: 20 },
+  Mercury: { s: 5, lo: 15, hi: 20 }, Jupiter: { s: 8, lo: 0, hi: 10 }, Venus: { s: 6, lo: 0, hi: 15 }, Saturn: { s: 10, lo: 0, hi: 20 },
 };
 const FRIENDS: Record<string, string[]> = {
   Sun: ['Moon', 'Mars', 'Jupiter'], Moon: ['Sun', 'Mercury'], Mars: ['Sun', 'Moon', 'Jupiter'],
@@ -58,6 +64,20 @@ function angSep(a: number, b: number): number {
   return d;
 }
 
+/** Dignity of one of the seven grahas at `degree` (0–30) within the sign `signIndex`. */
+export function dignityAt(planet: string, signIndex: number, degree: number): PlanetDignity['dignity'] {
+  const ex = EXALT_RANGE[planet];
+  const moola = MOOLA[planet];
+  if (EXALT[planet] === signIndex && (!ex || (degree >= ex.lo && degree < ex.hi))) return 'Exalted';
+  if (DEBIL[planet] === signIndex) return 'Debilitated';
+  if (moola.s === signIndex && degree >= moola.lo && degree < moola.hi) return 'Moolatrikona';
+  if (OWN[planet].includes(signIndex)) return 'Own sign';
+  const lord = SIGN_LORDS[signIndex];
+  if (FRIENDS[planet].includes(lord)) return "Friend's sign";
+  if (ENEMIES[planet].includes(lord)) return "Enemy's sign";
+  return 'Neutral sign';
+}
+
 export function computeDignities(
   sidereal: Record<string, number>,
   ascSignIndex: number,
@@ -73,18 +93,7 @@ export function computeDignities(
     const s = signOf(lon);
     const d = degOf(lon);
 
-    let dignity: string;
-    if (EXALT[p] === s) dignity = 'Exalted';
-    else if (DEBIL[p] === s) dignity = 'Debilitated';
-    else if (MOOLA[p].s === s && d >= MOOLA[p].lo && d < MOOLA[p].hi) dignity = 'Moolatrikona';
-    else if (OWN[p].includes(s)) dignity = 'Own sign';
-    else {
-      const lord = SIGN_LORDS[s];
-      if (lord === p) dignity = 'Own sign';
-      else if (FRIENDS[p].includes(lord)) dignity = "Friend's sign";
-      else if (ENEMIES[p].includes(lord)) dignity = "Enemy's sign";
-      else dignity = 'Neutral sign';
-    }
+    const dignity = dignityAt(p, s, d);
 
     const combust = p !== 'Sun' && angSep(lon, sunLon) <= (COMBUST_ORB[p] ?? 0);
 

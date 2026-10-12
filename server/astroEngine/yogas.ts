@@ -12,6 +12,10 @@ const WEALTH = [2, 5, 9, 11];
 const PLANETS = ['Sun', 'Moon', 'Mars', 'Mercury', 'Jupiter', 'Venus', 'Saturn'];
 const MAHAPURUSHA: Record<string, string> = { Mars: 'Ruchaka', Mercury: 'Bhadra', Jupiter: 'Hamsa', Venus: 'Malavya', Saturn: 'Sasa' };
 
+export function mahapurushaDescription(planet: string, dignity: string, house: number): string {
+  return `${planet} is ${dignity} in a kendra (house ${house}) — a Pancha Mahapurusha yoga conferring its noble qualities.`;
+}
+
 export interface Yoga {
   name: string;
   category: string; // Mahapurusha | Raja | Dhana | Dosha
@@ -47,7 +51,7 @@ export function detectYogas(
   for (const p of ['Mars', 'Mercury', 'Jupiter', 'Venus', 'Saturn']) {
     const d = dig[p]?.dignity;
     if ((d === 'Exalted' || d === 'Own sign' || d === 'Moolatrikona') && KENDRA.includes(houseL[p])) {
-      yogas.push({ name: `${MAHAPURUSHA[p]} Yoga`, category: 'Mahapurusha', planets: [p], description: `${p} is ${d} in a kendra (house ${houseL[p]}) — a Pancha Mahapurusha yoga conferring its noble qualities.` });
+      yogas.push({ name: `${MAHAPURUSHA[p]} Yoga`, category: 'Mahapurusha', planets: [p], description: mahapurushaDescription(p, d, houseL[p]) });
     }
   }
 

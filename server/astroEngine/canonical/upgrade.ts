@@ -19,6 +19,8 @@ import { getKundli, birthDateString } from '../index.js';
 import { CalculationError } from './compute.js';
 import { reconcileBirthStarRemedies } from '../remedies.js';
 import { mangalDosha } from '../doshas.js';
+import { dignityAt } from '../dignity.js';
+import { mahapurushaDescription } from '../yogas.js';
 
 export interface ChartVersionStatus {
   version: 'v3' | 'v3-recalculated-from-legacy' | 'limited';
@@ -141,6 +143,35 @@ export function withReconciledRemedies<T extends Pick<Kundli, 'chartData' | 'rem
   if (!lord || !Array.isArray(houseLords)) return kundli;
   const remedies = reconcileBirthStarRemedies(kundli.remedies as any[], lord, houseLords, chart.birth.timeAccuracy === 'approximate');
   return { ...kundli, remedies };
+}
+
+/**
+ * Applies the current dignity rules to a V3 chart's stored dignities, so charts saved while the
+ * Moon was "Exalted" across all of Taurus and Mercury across all of Virgo are served with the
+ * degree-dependent dignity. The Pancha Mahapurusha yoga set cannot change (exaltation, Moolatrikona
+ * and own sign all qualify); only its description names the dignity. Read-only and idempotent.
+ */
+export function withCurrentDignityRules<T extends Pick<Kundli, 'chartData'>>(kundli: T): T {
+  const cd = (kundli.chartData ?? {}) as Record<string, any>;
+  if (!isCurrentCanonicalChart(cd.canonical)) return kundli;
+  const chart = cd.canonical as CanonicalChart;
+  const changed = new Map<string, string>();
+  const dignities = chart.strength.dignities.map((d) => {
+    const p = chart.planets.find((x) => x.name === d.planet);
+    const current = p ? dignityAt(d.planet, p.signIndex, p.longitude % 30) : d.dignity;
+    if (current === d.dignity) return d;
+    changed.set(d.planet, current);
+    return { ...d, dignity: current };
+  });
+  if (!changed.size) return kundli;
+  const yogas = chart.yogas.map((y) => {
+    const planet = y.planets[0];
+    const dignity = y.category === 'Mahapurusha' ? changed.get(planet) : undefined;
+    const house = chart.planets.find((x) => x.name === planet)?.house;
+    return dignity && house ? { ...y, description: mahapurushaDescription(planet, dignity, house) } : y;
+  });
+  const canonical = { ...chart, strength: { ...chart.strength, dignities }, yogas };
+  return { ...kundli, chartData: { ...cd, canonical, dignities, ...(Array.isArray(cd.yogas) ? { yogas } : {}) } };
 }
 
 /**
