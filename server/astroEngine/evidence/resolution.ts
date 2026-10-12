@@ -69,8 +69,9 @@ export function resolveDomain(domain: LifeDomain, evidence: EvidenceItem[], opts
   else if (core.length >= 6 && winning.length >= 3 && loseW <= 0.4 * winW) confidence = 'High';
   else confidence = 'Medium';
 
+  // How many indicators were set aside itself varies with the unknown birth time, so it is not counted out.
   if (opts.approximate && excluded.length) {
-    notes.push(`${excluded.length} birth-time-dependent indicator${excluded.length === 1 ? ' was' : 's were'} not used because the birth time is approximate.`);
+    notes.push('Indicators that depend on the exact birth time (the Lagna, houses and anything that changes during the birth date) were not used because the birth time is approximate.');
   }
   if (experimental.length) {
     notes.push(`${experimental.length} experimental indicator${experimental.length === 1 ? ' is' : 's are'} shown for context but not counted.`);

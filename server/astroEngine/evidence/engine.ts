@@ -15,6 +15,7 @@ import {
 } from '@shared/v3/evidence';
 import { signDignity } from '../dignity.js';
 import { vimshottariDasha } from '../dasha.js';
+import { birthDayStability, dignityStatementStable, yogaTimeStable, type BirthDayStability } from '../canonical/birthDay.js';
 
 export const KENDRA = [1, 4, 7, 10];
 export const TRIKONA = [1, 5, 9];
@@ -53,6 +54,10 @@ export interface ChartIndex {
   isBenefic: (g: Graha) => boolean;
   approximate: boolean;
   moonTimeSensitive: boolean;
+  /** Which planetary facts hold across the whole birth date (all of them for an exact time). */
+  stability: BirthDayStability;
+  /** The planet's sign, dignity and combustion hold across the birth date, and no Lagna-based cancellation is involved. */
+  conditionKnown: (g: Graha) => boolean;
 }
 
 export function indexChart(chart: CanonicalChart): ChartIndex {
@@ -61,6 +66,7 @@ export function indexChart(chart: CanonicalChart): ChartIndex {
   const moon = byName.get('Moon')!.longitude;
   const waxing = ((moon - sun + 360) % 360) < 180;
   const approximate = chart.birth.timeAccuracy === 'approximate';
+  const stability = birthDayStability(chart);
   return {
     chart,
     planet: (g) => byName.get(g)!,
@@ -71,6 +77,8 @@ export function indexChart(chart: CanonicalChart): ChartIndex {
     isBenefic: (g) => g === 'Jupiter' || g === 'Venus' || g === 'Mercury' || (g === 'Moon' && waxing),
     approximate,
     moonTimeSensitive: approximate && !chart.uncertainty.moonSignStableAcrossBirthDate,
+    stability,
+    conditionKnown: (g) => stability.planets[g].sign && dignityStatementStable(chart, stability, g),
   };
 }
 
@@ -249,7 +257,7 @@ function karakaRules(c: Collector, ix: ChartIndex, spec: DomainSpec) {
     if (!dd) continue;
     c.add({ factor: `${k} as significator`, planet: k, direction: dd.direction, strength: dd.strength === 'strong' ? 'moderate' : 'weak', source: 'D1', provenance: 'classical-principle',
       rule: `${k} is a natural significator (karaka) of this area; its strength colours the results.`,
-      explanation: `${k} is ${dd.text} in ${ix.planet(k).sign}.`, requiresBirthTime: k === 'Moon' && ix.moonTimeSensitive });
+      explanation: `${k} is ${dd.text} in ${ix.planet(k).sign}.`, requiresBirthTime: (k === 'Moon' && ix.moonTimeSensitive) || !ix.conditionKnown(k) });
   }
 }
 
@@ -262,7 +270,8 @@ function jaiminiRule(c: Collector, ix: ChartIndex, spec: DomainSpec) {
   c.add({ factor: spec.jaimini.label, planet: kar.planet, direction: dd.direction, strength: 'weak', source: 'Jaimini', provenance: 'derived-rule',
     rule: 'The Jaimini chara karaka for this area, judged by its sign dignity, adds a second-system view.',
     explanation: `${kar.planet} is the ${spec.jaimini.label} and is ${dd.text} in ${ix.planet(kar.planet).sign}.`,
-    requiresBirthTime: ix.approximate && kar.planet === 'Moon' });
+    // Chara karakas are ranked by degree, which moves through the birth date.
+    requiresBirthTime: ix.approximate });
 }
 
 // `common`: combinations present in roughly a third or more of charts (measured over the 44 golden
@@ -290,7 +299,8 @@ function yogaRules(c: Collector, ix: ChartIndex, domain: LifeDomain) {
       if (domain === 'relationships' && !y.cancelled) {
         c.add({ factor: 'Kemadruma Yoga', planet: 'Moon', direction: 'negative', strength: 'weak', source: 'Yoga', provenance: 'classical-principle',
           rule: 'An isolated Moon (Kemadruma, uncancelled) is traditionally read as needing steadier emotional support.',
-          explanation: y.description, requiresBirthTime: ix.moonTimeSensitive });
+          // Its cancellation is judged from the Moon's house, so it needs the Lagna.
+          explanation: y.description, requiresBirthTime: ix.approximate });
       }
       continue;
     }
@@ -301,7 +311,7 @@ function yogaRules(c: Collector, ix: ChartIndex, domain: LifeDomain) {
     seen.add(family);
     const primary = map.domains[0] === domain;
     // A yoga formed wholly in dusthanas (other than Vipreeta, which is defined there) gives diminished results.
-    const inDusthana = !/Vipreeta/.test(y.name) && y.planets.length > 0 && y.planets.every((p) => DUSTHANA.includes(ix.planet(p as Graha).house));
+    const inDusthana = !ix.approximate && !/Vipreeta/.test(y.name) && y.planets.length > 0 && y.planets.every((p) => DUSTHANA.includes(ix.planet(p as Graha).house));
     // Lord-union yogas (Raja/Dhana) are frequent; full strength only when they form in a kendra or trikona.
     const unionHouse = /^(Raja|Dhana) Yoga$/.test(y.name) ? ix.planet(y.planets[0] as Graha).house : null;
     const angular = unionHouse === null || KENDRA.includes(unionHouse) || TRIKONA.includes(unionHouse);
@@ -310,7 +320,7 @@ function yogaRules(c: Collector, ix: ChartIndex, domain: LifeDomain) {
     c.add({ factor: y.name, planet: y.planets[0] as Graha | undefined, direction: 'positive', strength, source: 'Yoga',
       provenance: primary ? 'classical-principle' : 'derived-rule', tier: map.common ? 'experimental' : 'core',
       rule: `${y.name} is a recognised combination; it is a promise that matures when its planets' periods run${inDusthana ? ', and it is weakened when formed in the 6th, 8th or 12th house' : ''}.`,
-      explanation: `${y.description}${others > 1 ? ` (${others} such combinations are present.)` : ''}`, requiresBirthTime: map.lagnaDependent || ix.moonTimeSensitive });
+      explanation: `${y.description}${others > 1 ? ` (${others} such combinations are present.)` : ''}`, requiresBirthTime: map.lagnaDependent || !yogaTimeStable(y.name, ix.stability) });
   }
 }
 
@@ -345,7 +355,7 @@ function domainSpecificRules(c: Collector, ix: ChartIndex, domain: LifeDomain) {
     if ([1, 5, 9].includes(jupFromMoon)) {
       c.add({ factor: 'Jupiter in trine from the Moon', planet: 'Jupiter', direction: 'positive', strength: 'weak', source: 'D1', provenance: 'derived-rule', tier: 'experimental',
         rule: 'Jupiter, significator of children, in a trine from the Moon supports this area when judged from the Moon as well as the Lagna.',
-        explanation: `Jupiter is ${ORD(jupFromMoon)} from the Moon.`, requiresBirthTime: ix.moonTimeSensitive });
+        explanation: `Jupiter is ${ORD(jupFromMoon)} from the Moon.`, requiresBirthTime: ix.moonTimeSensitive || !ix.stability.planets.Jupiter.sign });
     }
   }
 }
@@ -375,8 +385,11 @@ export function planetDomainLinks(ix: ChartIndex, planet: Graha): Array<{ domain
       if (ix.lordOf(h) === planet) { reasons.push(`${planet} rules the ${ORD(h)} house`); timeDependent = true; }
       if (pos.house === h) { reasons.push(`${planet} occupies the ${ORD(h)} house`); timeDependent = true; }
     }
-    if (spec.karakas.includes(planet)) reasons.push(`${planet} is a natural significator of ${DOMAIN_LABELS[d].toLowerCase()}`);
-    if (reasons.length) out.push({ domain: d, reasons, requiresBirthTime: timeDependent && reasons.every((r) => !r.includes('significator')) });
+    const significator = spec.karakas.includes(planet);
+    if (significator) reasons.push(`${planet} is a natural significator of ${DOMAIN_LABELS[d].toLowerCase()}`);
+    // With an approximate time the significator link stands alone: the house reasons are unknown.
+    const shown = ix.approximate && significator ? reasons.filter((r) => r.includes('significator')) : reasons;
+    if (shown.length) out.push({ domain: d, reasons: shown, requiresBirthTime: timeDependent && !significator });
   }
   return out;
 }
@@ -386,7 +399,7 @@ export function planetCondition(ix: ChartIndex, planet: Graha): { direction: Evi
   const reasons: string[] = [];
   let score = 0;
   const dig = ix.dignity(planet);
-  if (dig) {
+  if (dig && ix.conditionKnown(planet)) {
     if (STRONG_DIGNITIES.includes(dig.dignity)) { score += 2; reasons.push(`${planet} is ${dig.dignity.toLowerCase()}`); }
     else if (dig.dignity === 'Debilitated' && !dig.neechaBhanga) { score -= 2; reasons.push(`${planet} is debilitated`); }
     if (dig.combust) { score -= 1; reasons.push(`${planet} is combust`); }

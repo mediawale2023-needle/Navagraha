@@ -10,6 +10,8 @@ import { computeRemedies, reconcileBirthStarRemedies } from '../remedies.js';
 import { calculateDashas } from '../dasha.js';
 
 const r2 = (x: number) => parseFloat(x.toFixed(2));
+export const nakshatraUncertain = (chart: CanonicalChart) =>
+  chart.birth.timeAccuracy === 'approximate' && !chart.uncertainty.moonNakshatraStableAcrossBirthDate;
 
 export function legacyView(chart: CanonicalChart) {
   const lon = Object.fromEntries(chart.planets.map((p) => [p.name, p.longitude])) as Record<Graha, number>;
@@ -88,7 +90,7 @@ export function legacyView(chart: CanonicalChart) {
       planet: d.planet, period: d.period, status: d.status, startDate: d.startDate, endDate: d.endDate, antardashas: d.antardashas,
     })),
     doshas: { mangalDosha: dosha('mangal'), kaalSarpDosha: dosha('kaalSarp'), pitruDosha: dosha('pitru') },
-    remedies: reconcileBirthStarRemedies(getRemedies(moon.nakshatra.lord), moon.nakshatra.lord, bhava.houseLords, chart.birth.timeAccuracy === 'approximate'),
+    remedies: reconcileBirthStarRemedies(getRemedies(moon.nakshatra.lord), moon.nakshatra.lord, bhava.houseLords, chart.birth.timeAccuracy === 'approximate', nakshatraUncertain(chart)),
     raw: { ayanamsa: chart.meta.ayanamsaDegrees, jd: chart.meta.julianDayUT },
   };
 }

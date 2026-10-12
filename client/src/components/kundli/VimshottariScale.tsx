@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { GRAHA_ABBR } from '@/lib/jyotishNames';
 import { monthYearUTC, vimshottariScale, type Period } from '@/lib/vimshottari';
+import type { ApproximateDasha } from '@/lib/dashaTimeline';
 
 interface ScaleProps {
   periods: Period[];
@@ -93,5 +94,39 @@ export function VimshottariScale({ periods, birth, maha, antar, note, onSelect, 
       onSelect={onSelect}
       selected={selected}
     />
+  );
+}
+
+/**
+ * Approximate birth time: the Vimshottari order with each period's standard length, and why no
+ * dates or "now" marker can be given. The starting period is named only when it is known.
+ */
+export function ApproximateDashaSequence({ dasha, running, onSelect, selected }: {
+  dasha: ApproximateDasha;
+  /** The running Mahadasha, only when the birth time can vouch for it. */
+  running?: string;
+  onSelect?: (index: number) => void;
+  selected?: number | null;
+}) {
+  return (
+    <section aria-labelledby="kundli-dasha" className="flex flex-col gap-2.5" data-testid="vimshottari-approximate">
+      <h2 id="kundli-dasha" className="m-0 font-display text-card-title font-semibold md:text-heading">
+        Vimshottari periods <span lang="hi" className="text-base font-normal text-ink-muted md:text-[17px]">विंशोत्तरी</span>
+      </h2>
+      <p className="m-0 max-w-[65ch] text-sm text-ink-muted" data-testid="dasha-approximate-note">{dasha.explanation}</p>
+      <ol className="m-0 flex list-none flex-wrap gap-2 p-0" aria-label={dasha.startKnown ? 'Vimshottari periods from birth' : 'The Vimshottari order'}>
+        {dasha.sequence.map((s, i) => {
+          const label = <>{s.lord} · {s.years} yrs{s.atBirth ? ' · at birth' : ''}{s.lord === running ? ' · now' : ''}</>;
+          const cls = `rounded-chip border px-2.5 py-1 text-sm tabular-nums ${s.lord === running ? 'border-ink bg-amber font-semibold' : 'border-line bg-surface'} ${selected === i ? 'outline outline-2 -outline-offset-2 outline-ink' : ''}`;
+          return (
+            <li key={s.lord}>
+              {onSelect
+                ? <button type="button" className={`${cls} focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink`} aria-pressed={selected === i} onClick={() => onSelect(i)}>{label}</button>
+                : <span className={cls}>{label}</span>}
+            </li>
+          );
+        })}
+      </ol>
+    </section>
   );
 }

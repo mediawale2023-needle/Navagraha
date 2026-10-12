@@ -20,6 +20,7 @@ import { domainResolution, INTERPRETIVE_NOTE } from '../astroEngine/evidence/ins
 import { buildTimeline } from '../astroEngine/evidence/timeline.js';
 import { runningPeriod, dashaTimingStable } from '../astroEngine/evidence/engine.js';
 import { validateAnswer, type GuardContext } from './answerGuard.js';
+import { birthDayStability, dignityStatementStable } from '../astroEngine/canonical/birthDay.js';
 
 // ─── Question router (deterministic) ─────────────────────────────────────────
 
@@ -68,7 +69,7 @@ function resolutionBlock(r: DomainResolution): string {
     `  ${r.label}: verdict ${r.verdict.toUpperCase()}, confidence ${r.confidence}`,
     `   Supporting (${r.supporting.length}):`, ...r.supporting.slice(0, 6).map(line),
     `   Conflicting (${r.conflicting.length}):`, ...(r.conflicting.length ? r.conflicting.slice(0, 4).map(line) : ['    - none']),
-    r.excluded.length ? `   Not used (birth time approximate): ${r.excluded.length} house-based indicators` : '',
+    r.excluded.length ? '   Not used (birth time approximate): indicators that need the exact birth time' : '',
     `   Conclusion: ${r.conclusion}`,
   ].filter(Boolean).join('\n');
 }
@@ -80,10 +81,20 @@ export function buildEvidencePacket(chart: CanonicalChart, route: Route, asOf = 
   const rp = runningPeriod(chart, asOf);
   const approx = chart.birth.timeAccuracy === 'approximate';
   const stable = dashaTimingStable(chart, asOf);
+  const st = birthDayStability(chart);
   const planetLine = (g: Graha) => {
     const p = chart.planets.find((x) => x.name === g)!;
     const d = chart.strength.dignities.find((x) => x.planet === g);
     if (g === 'Moon' && approx && !chart.uncertainty.moonSignStableAcrossBirthDate) return '  - Moon: sign and nakshatra UNCERTAIN (the Moon changes sign during the birth date). Do not state them.';
+    if (approx) {
+      // Only what holds for the whole birth date: no degree, pada or house.
+      const s = st.planets[g];
+      const sign = s.sign ? p.sign : `sign UNCERTAIN (${s.signs.join(' or ')} during the birth date; do not state it)`;
+      const nak = s.nakshatra ? `${p.nakshatra.name} nakshatra` : 'nakshatra UNCERTAIN (do not state it)';
+      const retro = p.retrograde && g !== 'Rahu' && g !== 'Ketu' && s.retrograde ? ', retrograde' : '';
+      const dig = d && s.sign && dignityStatementStable(chart, st, g) ? `, ${d.dignity}${d.combust ? ', combust' : ''}` : '';
+      return `  - ${g}: ${sign}, ${nak}${retro}${dig}`;
+    }
     const nak = g === 'Moon' && approx && !chart.uncertainty.moonNakshatraStableAcrossBirthDate ? 'nakshatra UNCERTAIN (do not state it)' : `${p.nakshatra.name} pada ${p.nakshatra.pada}`;
     return `  - ${g}: ${p.sign} ${g === 'Moon' && approx ? '' : `${p.degreeInSign.toFixed(1)}°`}${approx ? '' : `, ${ORD(p.house)} house`}, ${nak}${p.retrograde && g !== 'Rahu' && g !== 'Ketu' ? ', retrograde' : ''}${d ? `, ${d.dignity}${d.combust ? ', combust' : ''}` : ''}`;
   };
@@ -100,7 +111,9 @@ export function buildEvidencePacket(chart: CanonicalChart, route: Route, asOf = 
   const text = [
     'AUTHORITATIVE CHART FACTS (calculated by the Navagraha engine; never recalculate, contradict or extend them):',
     `  Calculation: ${chart.meta.ephemeris}, ${chart.meta.ayanamsa} ayanamsa, ${chart.meta.houseSystem} houses.`,
-    `  Birth: ${chart.birth.localDate} ${chart.birth.localTime} (${chart.birth.timezone}, UTC${chart.birth.utcOffset}), ${chart.birth.place || 'place on record'}; birth time ${chart.birth.timeAccuracy}.`,
+    approx
+      ? `  Birth: ${chart.birth.localDate}, time UNKNOWN (any time on this date; ${chart.birth.localTime.slice(0, 5)} was only a placeholder), ${chart.birth.place || 'place on record'} (${chart.birth.timezone}).`
+      : `  Birth: ${chart.birth.localDate} ${chart.birth.localTime} (${chart.birth.timezone}, UTC${chart.birth.utcOffset}), ${chart.birth.place || 'place on record'}; birth time ${chart.birth.timeAccuracy}.`,
     approx ? '  The birth time is APPROXIMATE: the Lagna and houses are unknown. Do not mention the Ascendant or house numbers.' : `  Lagna: ${chart.ascendant.sign} ${chart.ascendant.degreeInSign.toFixed(1)}°.`,
     '  Planets:', ...GRAHAS.map(planetLine),
     runningLine,

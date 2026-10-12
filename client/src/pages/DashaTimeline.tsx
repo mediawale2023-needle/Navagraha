@@ -7,10 +7,10 @@ import { Sheet, SheetContent, SheetTitle } from '@/components/ui/sheet';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
 import { PageBody, PageHeader } from '@/components/shell/PageHeader';
-import { PeriodScale, VimshottariScale } from '@/components/kundli/VimshottariScale';
+import { ApproximateDashaSequence, PeriodScale, VimshottariScale } from '@/components/kundli/VimshottariScale';
 import { grahaSanskrit, GRAHA_HI } from '@/lib/jyotishNames';
 import { monthYear } from '@/lib/runningPeriods';
-import { periodLength, shownStatus, timelineView } from '@/lib/dashaTimeline';
+import { approximateDasha, periodLength, shownStatus, timelineView } from '@/lib/dashaTimeline';
 import { recreateHref } from '@/lib/recreateChart';
 import { DOMAIN_LABELS, type KundliInsights, type TimelinePeriod } from '@shared/v3/evidence';
 import type { CanonicalChart } from '@shared/v3/canonical';
@@ -65,7 +65,12 @@ export default function DashaTimeline() {
   const [antar, setAntar] = useState<number | null>(null);
   const isMobile = useIsMobile();
   const [sheetOpen, setSheetOpen] = useState(false);
-  useEffect(() => { if (view && selected === null) setSelected(view.initial); }, [view, selected]);
+  // With an approximate time the list is the Vimshottari order, so open the running period there (or the first).
+  const approxOrder = canonical ? approximateDasha(canonical) : null;
+  const initial = view && approxOrder
+    ? Math.max(0, approxOrder.sequence.findIndex((x) => view.current !== null && x.lord === view.periods[view.current].lord))
+    : view?.initial ?? 0;
+  useEffect(() => { if (view && selected === null) setSelected(initial); }, [view, selected, initial]);
 
   const back = { href: id ? `/kundli/${id}` : '/kundli', label: 'Kundli' };
   if (isLoading) return <LoadingSpinner />;
@@ -98,6 +103,51 @@ export default function DashaTimeline() {
     );
   }
   if (!insights || !view || !canonical) return <div>{header}<LoadingSpinner /></div>;
+
+  const approx = approxOrder;
+  if (approx) {
+    // Approximate birth time: the fixed order and standard lengths, never dates or a "now" marker
+    // (beyond a running period the whole birth date agrees on).
+    const running = view.current !== null ? view.periods[view.current].lord : undefined;
+    const pick = approx.sequence[selected ?? 0] ?? approx.sequence[0];
+    const evidence = view.periods.find((p) => p.lord === pick.lord);
+    const approxDetail = (
+      <>
+        <div className="flex flex-col gap-1">
+          {isMobile
+            ? <SheetTitle className="m-0 font-display text-section font-semibold">{grahaSanskrit(pick.lord)} Mahadasha <span lang="hi" className="text-subhead font-normal text-ink-muted">{GRAHA_HI[pick.lord]}</span></SheetTitle>
+            : <h2 id="dasha-detail-h" className="m-0 font-display text-section font-semibold md:text-title">{grahaSanskrit(pick.lord)} Mahadasha <span lang="hi" className="text-subhead font-normal text-ink-muted">{GRAHA_HI[pick.lord]}</span></h2>}
+          <p className="m-0 text-sm tabular-nums text-ink-muted">{pick.lord} · {pick.years} yrs (standard length)</p>
+          {evidence && evidence.themes.length > 0 && <p className="m-0 text-nav">{evidence.themes.join(' · ')}</p>}
+        </div>
+        {evidence && <PeriodEvidence p={evidence} />}
+        <Link href={`/ai-astrologer?${new URLSearchParams({ kundliId: kundli.id, q: `What does my ${pick.lord} Mahadasha bring?` }).toString()}`}
+          className="self-start text-sm underline hover:text-amber-text">
+          Ask your Kundli about this period
+        </Link>
+      </>
+    );
+    return (
+      <div>
+        {header}
+        <PageBody className="flex flex-col gap-8">
+          <ApproximateDashaSequence dasha={approx} running={running} onSelect={(i) => { setSelected(i); if (isMobile) setSheetOpen(true); }} selected={selected ?? 0} />
+          {!isMobile && <section aria-labelledby="dasha-detail-h" className="flex min-w-0 flex-col gap-5" data-testid="dasha-detail">{approxDetail}</section>}
+          {isMobile && (
+            <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
+              <SheetContent side="bottom" className="flex max-h-[85vh] flex-col gap-5 overflow-y-auto px-4 [&>*]:shrink-0 pb-[max(16px,env(safe-area-inset-bottom))] pt-2.5" data-testid="dasha-sheet" aria-describedby={undefined}>
+                <span aria-hidden="true" className="mx-auto h-1 w-10 shrink-0 rounded-full bg-line" />
+                {approxDetail}
+              </SheetContent>
+            </Sheet>
+          )}
+          <p className="m-0 max-w-[65ch] text-caption text-ink-muted">
+            Vimshottari dashas are counted from the Moon’s position at birth. Themes describe what each period’s planet engages in this chart; they are tendencies, not certainties.
+          </p>
+        </PageBody>
+      </div>
+    );
+  }
 
   const sel = view.periods[selected ?? view.initial];
   const selIndex = selected ?? view.initial;

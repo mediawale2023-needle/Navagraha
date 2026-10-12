@@ -15,15 +15,22 @@ import type OpenAI from "openai";
 import { createOpenAI } from "./ai/metering";
 import type { Kundli } from "@shared/schema";
 import { transitsForChart, transitSummary } from "./astroEngine/index.js";
-import { isCurrentCanonicalChart } from "@shared/v3/canonical";
+import { isCurrentCanonicalChart, type CanonicalChart, type Graha } from "@shared/v3/canonical";
+import { birthDayStability, dignityStatementStable, yogaTimeStable, type BirthDayStability } from "./astroEngine/canonical/birthDay.js";
 import { buildInsights } from "./astroEngine/evidence/insights.js";
 import {
   ReportGenerationError, checkSections, correctionNote, textProblems, MIN_SUMMARY_CHARS, type ReportGuard, type Section,
 } from "./reportQuality.js";
 import { localiseFields } from "./agents/localise.js";
+import { exactTimeRequiredReason } from "./reportEligibility.js";
 
 // Shared prediction discipline + ethics for all paid-report generation.
 const REPORT_DISCIPLINE = `Discipline: a yoga/placement is only a promise — tie predictions to the activating dasha + transit and at least two confirmations (Navamsa/Dasamsa, Ashtakavarga, house lord, karaka); weigh planetary strength (a weak/debilitated/combust planet under-delivers; note Neecha-bhanga and yoga cancellation). Give realistic timing windows. Grounding: use only the chart facts and deterministic evidence supplied; never invent a placement, yoga, dosha, strength or date; keep the engine's verdicts; never cite chapter/verse numbers or quote scriptures; if the birth time is approximate, say so and do not build on the Lagna or houses. Ethics: Jyotish is a traditional interpretive system, not certainty — describe tendencies and timing; never predict death, lifespan, serious illness, guaranteed pregnancy, guaranteed marriage/divorce or guaranteed financial outcomes; never frighten; pair difficulty with realistic guidance (remedies are optional, never a condition); respect free will; recommend only justified remedies, never push gemstones.`;
+
+// With an approximate birth time nothing can be timed or confirmed from the houses or vargas.
+const APPROXIMATE_DISCIPLINE = REPORT_DISCIPLINE.replace(/^Discipline: .*?Give realistic timing windows\. /,
+  "Discipline: the birth time is approximate, so describe each placement or yoga as a tendency without timing it, and judge a planet's strength only from the dignities listed. ");
+const disciplineFor = (kundli: Partial<Kundli>) => (isApproximate(kundli) ? APPROXIMATE_DISCIPLINE : REPORT_DISCIPLINE);
 
 // Lazy-init so the server starts without the key (degraded mode)
 let _client: OpenAI | null = null;
@@ -40,11 +47,30 @@ function getClient(): OpenAI {
 
 // ─── Internal helpers ─────────────────────────────────────────────────────────
 
-function chartSummary(kundli: Partial<Kundli>): string {
+/**
+ * For an approximate birth time: which facts hold across the whole birth date. Null for an
+ * exact time (every fact holds) or a chart without a V3 calculation.
+ */
+function approximateStability(kundli: Partial<Kundli>): { chart: CanonicalChart; st: BirthDayStability } | null {
+  const chart = (kundli as any).chartData?.canonical;
+  if (!isCurrentCanonicalChart(chart) || chart.birth.timeAccuracy !== "approximate") return null;
+  return { chart, st: birthDayStability(chart) };
+}
+
+export function chartSummary(kundli: Partial<Kundli>): string {
   const { birthDetails, planetaryPositions, dashaTimeline } = deriveStructured(kundli);
+  const unsure = approximateStability(kundli);
+  // With an approximate time a planet's sign is stated only when it holds all day, never its degree.
+  const signText = (planet: string, sign?: string) => {
+    if (!unsure) return sign ?? "—";
+    const p = unsure.st.planets[planet as Graha];
+    return !p || p.sign ? sign ?? "—" : `sign UNCERTAIN (${p.signs.join(" or ")} during the birth date; do not state it)`;
+  };
 
   const posLines = planetaryPositions
-    .map((p) => `- ${p.planet}: ${p.sign ?? "—"} (${p.house != null ? `House ${p.house}, ` : ""}${p.degree ?? "—"}°${p.retrograde ? ", retrograde" : ""})`)
+    .map((p) => unsure
+      ? `- ${p.planet}: ${signText(p.planet, p.sign)}${p.retrograde && unsure.st.planets[p.planet as Graha]?.retrograde ? ", retrograde" : ""}`
+      : `- ${p.planet}: ${p.sign ?? "—"} (${p.house != null ? `House ${p.house}, ` : ""}${p.degree ?? "—"}°${p.retrograde ? ", retrograde" : ""})`)
     .join("\n");
 
   const currentMd = dashaTimeline.find((d) => d.status === "current");
@@ -74,7 +100,9 @@ function chartSummary(kundli: Partial<Kundli>): string {
   ].filter(Boolean).join("\n");
 
   const doshas = ((kundli as any).doshas || {}) as Record<string, unknown>;
-  const doshaList = Object.entries(doshas).filter(([, v]) => v).map(([k]) => k).join(", ") || "None detected";
+  // Mangal Dosha is house-based; the others are kept only when they hold all day.
+  const doshaKnown = (k: string) => !unsure || (k === "kaalSarpDosha" ? unsure.st.doshas.kaalSarp : k === "pitruDosha" ? unsure.st.doshas.pitru : false);
+  const doshaList = Object.entries(doshas).filter(([k, v]) => v && doshaKnown(k)).map(([k]) => k).join(", ") || (unsure ? "None that the approximate birth time can support" : "None detected");
 
   const navPositions: any[] = approx ? [] : (kundli as any).chartData?.navamsa?.planetaryPositions || [];
   const navLines = navPositions
@@ -94,12 +122,16 @@ function chartSummary(kundli: Partial<Kundli>): string {
     : "";
 
   const dignities: any[] = (kundli as any).chartData?.dignities || [];
-  const dignityLines = dignities
-    .map((p) => `- ${p.planet}: ${p.dignity}${p.neechaBhanga ? " (Neecha Bhanga — cancellation)" : ""}${p.retrograde ? ", retrograde" : ""}${p.combust ? ", combust" : ""}${p.planetaryWar ? `, in planetary war with ${p.planetaryWar}` : ""} — ${p.avastha}`)
+  // Approximate time: only dignities that hold all day; no Neecha Bhanga (judged from the Lagna),
+  // avastha or planetary war (degree-based).
+  const dignityLines = (unsure ? dignities.filter((p) => unsure.st.planets[p.planet as Graha]?.sign && dignityStatementStable(unsure.chart, unsure.st, p.planet)) : dignities)
+    .map((p) => unsure
+      ? `- ${p.planet}: ${p.dignity}${p.retrograde && unsure.st.planets[p.planet as Graha]?.retrograde ? ", retrograde" : ""}${p.combust ? ", combust" : ""}`
+      : `- ${p.planet}: ${p.dignity}${p.neechaBhanga ? " (Neecha Bhanga — cancellation)" : ""}${p.retrograde ? ", retrograde" : ""}${p.combust ? ", combust" : ""}${p.planetaryWar ? `, in planetary war with ${p.planetaryWar}` : ""} — ${p.avastha}`)
     .join("\n");
 
   const yogasArr: any[] = (kundli as any).chartData?.yogas || [];
-  const yogaLines = yogasArr
+  const yogaLines = (unsure ? yogasArr.filter((y) => yogaTimeStable(y.name, unsure.st)) : yogasArr)
     .map((y) => `- ${y.name}${y.cancelled ? " (cancelled/bhanga)" : ""}: ${y.description}`)
     .join("\n");
 
@@ -123,11 +155,11 @@ function chartSummary(kundli: Partial<Kundli>): string {
   return `
 Name: ${birthDetails.name || "Unknown"}
 Date of Birth: ${birthDetails.dateOfBirth || "Unknown"}
-Time of Birth: ${birthDetails.timeOfBirth || "Unknown"}
+Time of Birth: ${unsure ? `unknown (${birthDetails.timeOfBirth || "a placeholder"} was used only as a placeholder; the birth could be at any time on this date)` : birthDetails.timeOfBirth || "Unknown"}
 Place of Birth: ${birthDetails.placeOfBirth || "Unknown"}
 Ascendant (Lagna): ${birthDetails.ascendant || (approx ? "Not stated — birth time approximate (do not mention the Lagna, houses or dasha dates)" : "Unknown")}
-Moon Sign (Rashi): ${birthDetails.moonSign || "Unknown"}
-Sun Sign: ${birthDetails.sunSign || "Unknown"}
+Moon Sign (Rashi): ${unsure ? signText("Moon", birthDetails.moonSign) : birthDetails.moonSign || "Unknown"}
+Sun Sign: ${unsure ? signText("Sun", birthDetails.sunSign) : birthDetails.sunSign || "Unknown"}
 
 Planetary Positions (D1 Rasi):
 ${posLines || "Not available"}
@@ -139,10 +171,10 @@ Dasamsa Positions (D10 — career & profession):
 ${dasamsaLines || "Not available"}
 
 Yogas detected (note any cancellation/bhanga):
-${yogaLines || "None detected"}
+${yogaLines || (unsure ? "None that the approximate birth time can support (house-based yogas are not stated)" : "None detected")}
 
 Planetary Dignity & State (what each planet can deliver):
-${dignityLines || "Not available"}
+${dignityLines || "Not available"}${unsure ? "\n(Birth time approximate: only facts that hold for the whole birth date are listed. Do not state any planet's degree, nakshatra pada, house, Neecha Bhanga or a fact listed as uncertain.)" : ""}
 
 House Lords (Bhavesh placements):
 ${lordLines || "Not available"}
@@ -233,7 +265,7 @@ export async function interpretKundli(kundli: Partial<Kundli>): Promise<Partial<
   let pending = INTERPRETATION_FIELDS;
   let correction = "";
   for (let attempt = 0; attempt < 2 && pending.length; attempt++) {
-    const prompt = `You are a Vedic astrology expert explaining a chart that has already been calculated. Use only the chart facts below; never invent a placement, yoga, dosha, period or date, and never mention health or lifespan. ${REPORT_DISCIPLINE}
+    const prompt = `You are a Vedic astrology expert explaining a chart that has already been calculated. Use only the chart facts below; never invent a placement, yoga, dosha, period or date, and never mention health or lifespan. ${disciplineFor(kundli)}
 
 Return ONLY a JSON object whose values are single paragraphs (plain strings):
 {${pending.map((f) => `"${f.key}": "${f.ask}"`).join(", ")}}
@@ -359,10 +391,16 @@ function deriveStructured(kundli: Partial<Kundli>): StructuredChart {
     sunSign: kundli.zodiacSign || undefined,
   };
 
+  const unsure = approximateStability(kundli);
   if (isApproximate(kundli)) {
+    // Signs only where they hold all day; never a degree or a house.
+    const known = (planet: string) => !unsure || unsure.st.planets[planet as Graha]?.sign !== false;
     return {
-      birthDetails: { ...birthDetails, ascendant: undefined, timeAccuracy: "approximate" },
-      planetaryPositions: planetaryPositions.filter((p) => p.planet !== "Ascendant").map((p) => ({ ...p, house: undefined })),
+      birthDetails: { ...birthDetails, ascendant: undefined, moonSign: known("Moon") ? birthDetails.moonSign : undefined, sunSign: known("Sun") ? birthDetails.sunSign : undefined, timeAccuracy: "approximate" },
+      planetaryPositions: planetaryPositions.filter((p) => p.planet !== "Ascendant").map((p) => ({
+        ...p, house: undefined, degree: undefined, sign: known(p.planet) ? p.sign : undefined,
+        retrograde: p.retrograde && (!unsure || unsure.st.planets[p.planet as Graha]?.retrograde !== false),
+      })),
       chartData: {},
       dashaTimeline: [],
       disclosure: APPROXIMATE_DISCLOSURE,
@@ -408,26 +446,31 @@ type ReportMeta = { title: string; focus: string; sections: string[] };
 type ReportNarrative = Pick<GeneratedReport, "title" | "summary" | "sections" | "remedies">;
 
 // Sections common to every report, wrapping the category-specific ones with a
-// chart overview up front and a dasha-timing section at the end.
-function sectionPlan(meta: ReportMeta): string[] {
-  return ["Birth Chart Overview", "Key Planetary Influences", ...meta.sections, "Dasha Periods & Timing"];
+// chart overview up front and a dasha-timing section at the end. With an approximate
+// birth time there are no dasha dates, so there is no timing section to promise.
+function sectionPlan(meta: ReportMeta, approximate = false): string[] {
+  return ["Birth Chart Overview", "Key Planetary Influences", ...meta.sections, ...(approximate ? [] : ["Dasha Periods & Timing"])];
 }
+
+const EXACT_TIME_BRIEF = "Use the EXACT planetary positions, houses and Vimshottari dasha timeline below. Reference specific planets, signs, houses and dasha periods by name throughout your analysis. Avoid generic statements that could apply to anyone.";
+const APPROXIMATE_TIME_BRIEF = "The birth time is APPROXIMATE: the person could have been born at any time on this date. Build the reading only on what the facts below list as holding for the whole day: planet signs and dignities, the Moon sign and nakshatra when they are given, the sign-based yogas listed and the planets' natural significations. Never mention the Lagna, houses or house lords, divisional charts, Ashtakavarga bindus, planet degrees, nakshatra padas, Neecha Bhanga or any dasha date, and make no timing prediction. Say once, plainly, that the exact birth time would add the house-based and timing detail. Reference the planets and signs by name; avoid generic statements that could apply to anyone.";
 
 async function aiNarrative(meta: ReportMeta, kundli: Partial<Kundli>, correction = ""): Promise<ReportNarrative> {
   const client = getClient();
-  const plan = sectionPlan(meta);
+  const approximate = isApproximate(kundli);
+  const plan = sectionPlan(meta, approximate);
   const prompt = `You are an expert Vedic astrologer preparing a premium, in-depth paid report titled "${meta.title}". This is a paid product (₹299–₹499), so it must read like a thorough professional consultation — detailed, specific and personalised, NOT a short summary. Focus on ${meta.focus}.
 
-Use the EXACT planetary positions, houses and Vimshottari dasha timeline below. Reference specific planets, signs, houses and dasha periods by name throughout your analysis. Avoid generic statements that could apply to anyone.
+${approximate ? APPROXIMATE_TIME_BRIEF : EXACT_TIME_BRIEF}
 
-${REPORT_DISCIPLINE}
+${disciplineFor(kundli)}
 
 Return ONLY valid JSON with this exact shape:
 {
   "title": "${meta.title}",
   "summary": "a rich, personalised overview of 5-7 sentences",
   "sections": [${plan.map((s) => `{"heading": "${s}", "body": "3-5 detailed, specific paragraphs that reference the actual chart"}`).join(", ")}],
-  "remedies": ["6-8 specific, practical Vedic remedies — include a gemstone, a mantra with its repetition count, a charity/daan, a fasting day, and a deity to worship where relevant"]
+  "remedies": ["6-8 specific, practical Vedic remedies — ${approximate ? "a mantra with its repetition count, a charity/daan, a fasting day and a deity to worship where relevant; no gemstone, because the planets' lordships depend on the unknown Lagna" : "include a gemstone, a mantra with its repetition count, a charity/daan, a fasting day, and a deity to worship where relevant"}"]
 }
 
 Birth chart:
@@ -483,11 +526,13 @@ export async function generateReport(
   requireAi();
   const meta = REPORT_FOCUS[category];
   if (!meta) throw new ReportGenerationError(`no report is offered for category "${category}"`);
+  // Orders are refused before payment; this keeps an order placed earlier from being delivered without its purpose.
+  if (isApproximate(kundli) && exactTimeRequiredReason(category)) throw new ReportGenerationError(`the ${meta.title} needs an exact birth time`);
   const asOf = new Date();
   // A year-ahead reading names the months it covers; those years are facts, not inventions.
   const window = category === "year_ahead" ? reportWindow(asOf) : "";
   const guard = reportGuard(kundli, undefined, window);
-  const plan = sectionPlan(meta);
+  const plan = sectionPlan(meta, isApproximate(kundli));
   const structured = deriveStructured(kundli);
 
   let correction = "";

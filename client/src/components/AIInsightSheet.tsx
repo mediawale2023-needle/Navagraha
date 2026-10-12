@@ -4,6 +4,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '
 import type { DomainResolution, EvidenceItem, EvidenceSource } from '@shared/v3/evidence';
 import type { CanonicalChart } from '@shared/v3/canonical';
 import { VerdictBadge, ConfidenceLabel } from '@/components/v3/verdict';
+import { dignityKnown, planetFacts, type TimeStability } from '@/lib/timeStability';
 
 const PROVENANCE_LABEL: Record<EvidenceItem['provenance'], string> = {
   'classical-principle': 'Classical principle',
@@ -38,7 +39,7 @@ function EvidenceRow({ e }: { e: EvidenceItem }) {
 
 export type InsightSubject =
   | { kind: 'domain'; resolution: DomainResolution }
-  | { kind: 'planet'; planet: string; chart: CanonicalChart; evidence: EvidenceItem[] };
+  | { kind: 'planet'; planet: string; chart: CanonicalChart; evidence: EvidenceItem[]; stability?: TimeStability | null };
 
 interface AIInsightSheetProps {
   open: boolean;
@@ -153,14 +154,25 @@ export function AIInsightSheet({ open, onOpenChange, subject, onAskQuestion }: A
   );
 }
 
-function planetLine(s: Extract<InsightSubject, { kind: 'planet' }>): string {
+export function planetLine(s: Extract<InsightSubject, { kind: 'planet' }>): string {
   const p = s.chart.planets.find((x) => x.name === s.planet);
   if (!p) return '';
   const d = s.chart.strength.dignities.find((x) => x.planet === s.planet);
   const approx = s.chart.birth.timeAccuracy === 'approximate';
+  if (approx) {
+    // Only what holds for the whole birth date: no degree, pada or house.
+    const f = planetFacts(s.chart, s.stability, s.planet);
+    return [
+      f.sign ? p.sign : 'sign uncertain',
+      f.nakshatra ? p.nakshatra.name : null,
+      d && dignityKnown(s.chart, s.stability, s.planet) ? d.dignity : null,
+      p.retrograde && p.name !== 'Rahu' && p.name !== 'Ketu' && f.retrograde ? 'retrograde' : null,
+      d?.combust && f.combust ? 'combust' : null,
+    ].filter(Boolean).join(' · ');
+  }
   return [
     `${p.sign} ${p.degreeInSign.toFixed(1)}°`,
-    approx ? null : `${ord(p.house)} house`,
+    `${ord(p.house)} house`,
     `${p.nakshatra.name} pada ${p.nakshatra.pada}`,
     d ? d.dignity : null,
     p.retrograde && p.name !== 'Rahu' && p.name !== 'Ketu' ? 'retrograde' : null,

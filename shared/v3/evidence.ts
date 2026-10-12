@@ -90,7 +90,7 @@ export interface TimelinePeriod {
 export interface KundliInsights {
   engineVersion: typeof EVIDENCE_ENGINE_VERSION;
   asOf: string;
-  headline: { lagna: string | null; moonSign: string; sunSign: string; calculation: string; timeAccuracy: "exact" | "approximate" };
+  headline: { lagna: string | null; moonSign: string | null; sunSign: string | null; calculation: string; timeAccuracy: "exact" | "approximate" };
   domains: DomainResolution[];
   timeline: TimelinePeriod[];
   currentPeriod: { mahadasha: Graha; antardasha: Graha | null; start: string; end: string } | null;

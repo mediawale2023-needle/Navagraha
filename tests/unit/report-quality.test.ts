@@ -82,7 +82,7 @@ describe('standard reports', () => {
 
   it('an approximate birth time withholds the Lagna, houses, Lagna-based charts and dasha dates, and says why', async () => {
     ai.respond.mockImplementation((p) => reply(p));
-    const content: any = await generateReport('career', approx);
+    const content: any = await generateReport('life', approx);
     expect(content.birthDetails.ascendant).toBeUndefined();
     expect(content.birthDetails.timeAccuracy).toBe('approximate');
     expect(content.planetaryPositions.length).toBe(9);
@@ -90,11 +90,38 @@ describe('standard reports', () => {
     expect(content.chartData).toEqual({});
     expect(content.dashaTimeline).toEqual([]);
     expect(content.disclosure).toMatch(/approximate/);
+    for (const p of content.planetaryPositions) expect(p.degree).toBeUndefined();
   });
 
   it('an approximate birth time rejects a section that names a house', async () => {
-    ai.respond.mockImplementation((p) => reply(p, (h) => (h === 'Career Overview' ? `Your 10th house shapes your work. ${NEUTRAL}` : NEUTRAL)));
-    await expect(generateReport('career', approx)).rejects.toThrow(/approximate/);
+    ai.respond.mockImplementation((p) => reply(p, (h) => (h === 'Life Overview' ? `Your 10th house shapes your work. ${NEUTRAL}` : NEUTRAL)));
+    await expect(generateReport('life', approx)).rejects.toThrow(/approximate/);
+  });
+
+  it('an approximate-time report promises no timing and is told not to build on houses or dates', async () => {
+    let prompt = '';
+    ai.respond.mockImplementation((p) => { prompt ||= p; return reply(p); });
+    const content: any = await generateReport('life', approx);
+    expect(content.sections.map((s: any) => s.heading)).not.toContain('Dasha Periods & Timing');
+    expect(prompt).not.toContain('Dasha Periods & Timing');
+    expect(prompt).not.toMatch(/Use the EXACT planetary positions/);
+    expect(prompt).toMatch(/birth time is APPROXIMATE/);
+    expect(prompt).not.toMatch(/Give realistic timing windows/);
+    expect(prompt).toMatch(/no gemstone/);
+  });
+
+  it.each(['career', 'marriage', 'finance', 'year_ahead'])('a %s report is never generated from an approximate birth time', async (category) => {
+    ai.respond.mockImplementation((p) => reply(p));
+    await expect(generateReport(category, approx)).rejects.toThrow(/needs an exact birth time/);
+    expect(ai.respond).not.toHaveBeenCalled();
+  });
+
+  it('an exact-time report keeps its timing section and exact-data brief', async () => {
+    let prompt = '';
+    ai.respond.mockImplementation((p) => { prompt ||= p; return reply(p); });
+    const content: any = await generateReport('career', exact);
+    expect(content.sections.map((s: any) => s.heading)).toContain('Dasha Periods & Timing');
+    expect(prompt).toMatch(/Use the EXACT planetary positions/);
   });
 });
 
@@ -119,7 +146,7 @@ describe('realistic drafts', () => {
     const timing = buildInsights(approx.chartData.canonical).timing;
     let prompt = '';
     ai.respond.mockImplementation((p) => { prompt ||= p; return reply(p); });
-    await generateReport('career', approx);
+    await generateReport('life', approx);
     const running = prompt.split('\n').find((l) => l.startsWith('Running period TODAY')) ?? '';
     if (!timing.mahadashaReliable) expect(running).toMatch(/UNCERTAIN/);
     else if (!timing.antardashaReliable) expect(running).toMatch(/do not name it/);
