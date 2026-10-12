@@ -97,6 +97,35 @@ describe('Sade Sati needs a certain Moon sign', () => {
   });
 });
 
+describe('Sade Sati with an exact birth time', () => {
+  // The Moon changes sign during 1992-01-13 (Pisces → Aries), but at 10:30 in Mumbai it is fixed at 29.7° Pisces.
+  it('is determined, not "approximate birth time", on a day the Moon changes sign', async () => {
+    const chart = (await getKundli('1992-01-13', '10:30', 19.076, 72.8777, { timeAccuracy: 'exact' })).chartData.canonical as CanonicalChart;
+    expect(chart.uncertainty.moonSignStableAcrossBirthDate).toBe(false);
+    const t = transitsForChart(chart, undefined, AS_OF);
+    expect(t.moonSignCertain).toBe(true);
+    expect(t.sadeSati.determined).toBe(true);
+    expect(t.sadeSati.phase).not.toMatch(/approximate birth time/);
+    expect(t.sadeSati).toEqual(getTransits('Pisces', chart.ascendant.sign, undefined, AS_OF).sadeSati);
+    expect(transitSummary(t)).not.toMatch(/uncertain|undetermined/i);
+  });
+
+  it('every exact-time chart reads Sade Sati from its own Moon sign, whatever the Moon did that day', async () => {
+    let unstableDays = 0;
+    for (let i = 0; i < 48; i++) {
+      const date = new Date(Date.UTC(1988, 0, 3 + i * 23)).toISOString().slice(0, 10);
+      const chart = (await getKundli(date, '05:45', 28.6139, 77.209, { timeAccuracy: 'exact' })).chartData.canonical as CanonicalChart;
+      if (!chart.uncertainty.moonSignStableAcrossBirthDate) unstableDays++;
+      const moon = chart.planets.find((p) => p.name === 'Moon')!;
+      const t = transitsForChart(chart, undefined, AS_OF);
+      expect(t.moonSignCertain, date).toBe(true);
+      expect(t.sadeSati, date).toEqual(getTransits(moon.sign, chart.ascendant.sign, undefined, AS_OF).sadeSati);
+    }
+    // The sample must include days the old code got wrong.
+    expect(unstableDays).toBeGreaterThan(5);
+  });
+});
+
 describe('answer guard on Mangal Dosha', () => {
   it('refuses any Mangal Dosha claim when the birth time is approximate', async () => {
     const chart = await approximateChart(true);

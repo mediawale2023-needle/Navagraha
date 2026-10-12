@@ -202,8 +202,10 @@ export function getTransits(
 /** Transits for a canonical chart; with an approximate birth time the Lagna is not used. */
 export function transitsForChart(canonical: CanonicalChart, savBySign?: number[], when?: Date): TransitInfo {
   const moon = canonical.planets.find((p) => p.name === 'Moon')!;
-  const lagna = canonical.birth.timeAccuracy === 'approximate' ? null : canonical.ascendant.sign;
-  return getTransits(moon.sign, lagna, savBySign, when, canonical.uncertainty.moonSignStableAcrossBirthDate);
+  const approximate = canonical.birth.timeAccuracy === 'approximate';
+  const lagna = approximate ? null : canonical.ascendant.sign;
+  // The Moon's sign is in doubt only when the birth time is: an exact time fixes it even on a day the Moon changes sign.
+  return getTransits(moon.sign, lagna, savBySign, when, !approximate || canonical.uncertainty.moonSignStableAcrossBirthDate);
 }
 
 /** Compact text summary of transits for AI prompts. */

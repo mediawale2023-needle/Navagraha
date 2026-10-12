@@ -44,7 +44,8 @@ describe('Dasha timeline', () => {
       const insights = await insightsFor(date, time, 'approximate');
       for (const p of insights.timeline.flatMap((m) => [m, ...(m.antardashas ?? [])])) {
         const text = [p.whyItMatters, ...p.domains.flatMap((d) => d.reasons), ...p.supporting, ...p.conflicting].join(' ');
-        expect(text).not.toMatch(/\b(1st|2nd|3rd|\d+th) house|dusthana|kendra|trikona/);
+        // Word-bounded: "trikona" (a house group) must not match the dignity "moolatrikona".
+        expect(text).not.toMatch(/\b(1st|2nd|3rd|\d+th) house|\bdusthana|\bkendra|\btrikona/);
       }
     }
   });

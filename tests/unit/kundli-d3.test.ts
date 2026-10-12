@@ -50,7 +50,8 @@ describe('the mockup’s sample chart, from the engine', () => {
     const cards = grahaCards(c, { lagnaKnown: true, moonSignKnown: true, nakshatraKnown: true, maha: 'Jupiter', antar: 'Mercury' });
     const by = (n: string) => cards.find((x) => x.planet === n)!;
     expect(by('Jupiter')).toMatchObject({ sign: 'Cancer', house: 12, nakshatra: 'Pushya', dignity: 'Exalted', role: 'Mahadasha lord' });
-    expect(by('Moon')).toMatchObject({ sign: 'Taurus', house: 10, nakshatra: 'Rohini', dignity: 'Exalted' });
+    // Rohini lies at 10°–23°20′ Taurus, past the Moon's 3° of exaltation: Moolatrikona (BPHS ch. 3).
+    expect(by('Moon')).toMatchObject({ sign: 'Taurus', house: 10, nakshatra: 'Rohini', dignity: 'Moolatrikona' });
     expect(by('Mars')).toMatchObject({ sign: 'Aries', house: 9, dignity: 'Own sign' });
     expect(by('Mercury')).toMatchObject({ sign: 'Leo', house: 1, dignity: "Friend's sign", role: 'Antardasha lord' });
     expect(by('Venus').dignity).toBe("Enemy's sign");
