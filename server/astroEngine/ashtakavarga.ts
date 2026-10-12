@@ -5,6 +5,11 @@
  * Ascendant) donates a bindu to specific houses counted from the contributor's
  * sign. The classical benefic-place tables below sum to the canonical totals
  * (Sun 48, Moon 49, Mars 39, Mercury 54, Jupiter 56, Venus 52, Saturn 39 = 337).
+ *
+ * Source: BPHS ch. 66 as tabulated by B.V. Raman, except one cell where classical texts differ:
+ * Jupiter gives the Moon a bindu in the 2nd from itself here (Phaladeepika ch. 23 v. 4, also PyJHora),
+ * where BPHS ch. 66 and Varahamihira give the 12th. Changing it is an open decision; the reading
+ * is pinned by tests/unit/ashtakavarga-table.test.ts, which lists the other known variants.
  */
 
 export const AV_PLANETS = ['Sun', 'Moon', 'Mars', 'Mercury', 'Jupiter', 'Venus', 'Saturn'] as const;
