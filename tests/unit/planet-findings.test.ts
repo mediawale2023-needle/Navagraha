@@ -83,7 +83,7 @@ describe('planetary findings', () => {
   it('one frozen finding per planet; calculated values are the FactIndex values; classifications reuse existing code', async () => {
     for (const c of await charts(12)) {
       const r = reasoningInput(c, asOf);
-      const pr = planetaryReasoningFrom(r);
+      const pr = planetaryReasoningFrom(r, c);
       const ix = indexChart(c);
       expect(pr.findings.map((f) => f.planet)).toEqual(['Sun', 'Moon', 'Mars', 'Mercury', 'Jupiter', 'Venus', 'Saturn', 'Rahu', 'Ketu']);
       expect(Object.isFrozen(pr.findings[0]) && Object.isFrozen(pr.findings[0].interpretation.functional)).toBe(true);
@@ -113,7 +113,7 @@ describe('planetary findings', () => {
   it('approximate time: nothing withheld is reconstructed, and lordship-based classifications are withheld', async () => {
     for (const c of await charts(16, 'approximate')) {
       const r = reasoningInput(c, asOf);
-      const pr = planetaryReasoningFrom(r);
+      const pr = planetaryReasoningFrom(r, c);
       expect(pr.unresolved).toEqual([]);
       expect(Object.keys(pr)).not.toContain('notAdmissibleByDomain');
       for (const f of pr.findings) {
@@ -145,7 +145,7 @@ describe('contradiction classification', () => {
     const totals = { repeated: 0, derivation: 0, gateOnly: 0, roleOnly: 0, samePlanet: 0 };
     for (const c of await charts(30)) {
       const r = reasoningInput(c, asOf);
-      const pr = planetaryReasoningFrom(r);
+      const pr = planetaryReasoningFrom(r, c);
       totals.gateOnly += pr.stats.gateOnlyPairs; totals.roleOnly += pr.stats.roleOrTimingOnlyPairs; totals.samePlanet += pr.stats.samePlanetNoSharedFactPairs;
       for (const k of pr.contradictions) {
         expect(KIND[k.code]).toContain(k.kind);
@@ -172,7 +172,7 @@ describe('contradiction classification', () => {
     let found = 0;
     for (const c of await charts(40)) {
       const r = reasoningInput(c, asOf);
-      for (const k of planetaryReasoningFrom(r).contradictions.filter((x) => x.code === 'repeated-fact' && x.ruleIds.includes('varga.vargottama') && x.ruleIds.some((id) => id === 'house.lord-dignity' || id === 'karaka.dignity'))) {
+      for (const k of planetaryReasoningFrom(r, c).contradictions.filter((x) => x.code === 'repeated-fact' && x.ruleIds.includes('varga.vargottama') && x.ruleIds.some((id) => id === 'house.lord-dignity' || id === 'karaka.dignity'))) {
         found++;
         expect(k.factIds.some((f) => f.startsWith('planet.sign:'))).toBe(true);
       }
@@ -184,7 +184,7 @@ describe('contradiction classification', () => {
     const seen = new Set<string>();
     for (const c of await charts(60)) {
       const r = reasoningInput(c, asOf);
-      for (const k of planetaryReasoningFrom(r).contradictions) {
+      for (const k of planetaryReasoningFrom(r, c).contradictions) {
         seen.add(`${k.code}:${k.kind}`);
         expect(k.kind).not.toBe('rule-conflict');
         const items = k.evidenceIds.map((id) => r.evidence.find((e) => e.item.id === id)!);
@@ -262,12 +262,12 @@ describe('approximate time: the same at every moment of the birth date', () => {
       const views = times.map((time) => {
         const chart = computeCanonicalChart(resolveBirthWithCoordinates({ ...input, time, timeAccuracy: 'approximate' }), { calculatedAt: asOf });
         const r = reasoningInput(chart, asOf);
-        const pr = planetaryReasoningFrom(r);
+        const pr = planetaryReasoningFrom(r, chart);
         const facts = Array.from(r.facts.facts.values());
         for (const f of facts) if (!f.reliable) expect('value' in f, f.id).toBe(false);
         return JSON.stringify({
           ids: facts.map((f) => f.id), facts, evidence: r.evidence.map((e) => [e.item, e.metadata]), dependencies: Array.from(r.dependencies),
-          unresolved: r.unresolved, findings: pr.findings, contradictions: pr.contradictions, stats: pr.stats,
+          unresolved: r.unresolved, findings: pr.findings, periods: pr.periods, yogas: pr.yogas, contradictions: pr.contradictions, relationships: pr.relationships, stats: pr.stats,
         });
       });
       for (const v of views) expect(v, `${input.date}`).toBe(views[0]);
@@ -292,7 +292,7 @@ describe('shadow mode', () => {
     const files: string[] = [];
     const walk = (dir: string) => { for (const n of readdirSync(dir)) { const p = join(dir, n); if (statSync(p).isDirectory()) walk(p); else if (/\.tsx?$/.test(n)) files.push(p); } };
     walk('server'); walk('client/src'); walk('shared');
-    const users = files.filter((f) => !f.includes(join('astroEngine', 'reasoning')) && /reasoning\/(planetary|planetFindings|contradictions)/.test(readFileSync(f, 'utf8')));
+    const users = files.filter((f) => !f.includes(join('astroEngine', 'reasoning')) && /reasoning\/(planetary|planetFindings|contradictions|periodFindings|yogaFindings|relationships)/.test(readFileSync(f, 'utf8')));
     expect(users).toEqual([]);
   });
 });
