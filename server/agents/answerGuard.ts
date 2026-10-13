@@ -125,7 +125,8 @@ const NB_LEAD = String.raw`(?:(?:has|have|had|gets|got|enjoys|receives|shows|wit
 
 // ── Life-area verdicts ───────────────────────────────────────────────────────
 // Only a flat statement of an area's overall verdict is checked ("Your career is challenging",
-// "Career: Strong"); a qualified or time-bound sentence is interpretation and is left alone.
+// "Career: Strong"): the claim must be the whole sentence. Anything around it (a time, a period,
+// a transit, a single technique, a condition) makes it interpretation, which is left alone.
 const DOMAIN_TERMS: Array<[LifeDomain, string]> = [
   ['career', 'career|profession'], ['wealth', 'wealth|finances?|money matters'], ['relationships', 'relationships?|marriage|partnerships?|married life'],
   ['leadership', 'leadership'], ['property', 'property(?: (?:&|and) home)?|home and property'], ['foreign', 'foreign (?:&|and) travel|foreign travel|life abroad|foreign settlement'],
@@ -136,7 +137,7 @@ const NEGATIVE_WORD = /^(very challenging|challenging|unfavou?rable|difficult)$/
 const POSITIVE_VERDICTS: Verdict[] = ['Exceptional', 'Very Strong', 'Strong'];
 const NEGATIVE_VERDICTS: Verdict[] = ['Challenging', 'Very Challenging'];
 const QUALIFIED = /\b(but|although|though|while|whereas|yet|however|despite|except|at times|sometimes|in parts?|in some|during|when|whenever|until|till|after|before|early|later|phases?|periods?|can be|could|may|might|if|unless|some|partly|partially|mixed|aspects? of|side of)\b/i;
-const VERDICT_CLAIM = new RegExp(`\\b(${DOMAIN_TERMS.map(([, t]) => t).join('|')})(?:\\s+(?:prospects?|outlook|picture|area|matters))?\\s*(?::|\\b(?:is|are|looks?|appears?|reads?\\s+as|comes?\\s+out\\s+as|is\\s+rated(?:\\s+as)?|verdict\\s+is)\\b)\\s*(?:(?:very|highly|quite|clearly|overall|largely|rather|decidedly)\\s+)?(?:an?\\s+)?(${VERDICT_WORDS})(?=\\s*(?:[.,;:!)]|$)|\\s+(?:overall|on balance|in (?:your|this) chart|for you)\\b)`, 'gi');
+const VERDICT_CLAIM = new RegExp(`^\\s*(?:(?:overall|on balance|in (?:your|this) chart),?\\s+)?(?:your\\s+)?(${DOMAIN_TERMS.map(([, t]) => t).join('|')})(?:\\s+(?:prospects?|outlook|picture|area|matters))?\\s*(?::|\\b(?:is|are|looks?|appears?|reads?\\s+as|comes?\\s+out\\s+as|is\\s+rated(?:\\s+as)?|verdict\\s+is)\\b)\\s*(?:(?:very|highly|quite|clearly|overall|largely|rather|decidedly)\\s+)?(?:an?\\s+)?(${VERDICT_WORDS})(?:\\s+(?:overall|on balance|in (?:your|this) chart|for you))?\\s*[.!]?\\s*$`, 'i');
 
 // ── The validator ────────────────────────────────────────────────────────────
 
@@ -301,10 +302,9 @@ export function validateAnswer(answer: string, ctx: GuardContext): string[] {
     // A flat statement of a life area's verdict must not reverse the engine's.
     const plain = s.replace(/[*_`#]/g, '');
     if (!QUALIFIED.test(plain)) {
-      for (const m of Array.from(plain.matchAll(VERDICT_CLAIM))) {
-        if (negatedBefore(plain, m.index!) || NEGATION.test(m[0])) continue;
-        const domain = DOMAIN_TERMS.find(([, t]) => new RegExp(`^(?:${t})$`, 'i').test(m[1]))?.[0];
-        if (!domain) continue;
+      const m = plain.match(VERDICT_CLAIM);
+      const domain = m && !NEGATION.test(m[0]) ? DOMAIN_TERMS.find(([, t]) => new RegExp(`^(?:${t})$`, 'i').test(m[1]))?.[0] : undefined;
+      if (m && domain) {
         verdicts ??= new Map(buildInsights(chart, ctx.asOf).domains.map((d) => [d.domain, d.verdict]));
         const v = verdicts.get(domain)!;
         const claimedNegative = NEGATIVE_WORD.test(m[2]);

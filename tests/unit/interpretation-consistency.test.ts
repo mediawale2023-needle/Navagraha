@@ -164,6 +164,58 @@ describe('answer guard: exact-time facts', () => {
     expect(reversals).toBeGreaterThan(0);
   });
 
+  it('checks only a whole-sentence overall verdict: time-bound, conditional and technique-specific readings pass', async () => {
+    const NOUN: Record<string, string> = { career: 'career', wealth: 'finances', relationships: 'marriage', leadership: 'leadership', property: 'property', foreign: 'foreign travel', education: 'education', children: 'children', spirituality: 'spirituality' };
+    // Every form here is legitimate whatever the overall verdict.
+    const QUALIFIED_FORMS = [
+      (n: string, w: string) => `Right now, your ${n} is ${w}.`,
+      (n: string, w: string) => `Currently your ${n} is ${w}.`,
+      (n: string, w: string) => `This year your ${n} is ${w}.`,
+      (n: string, w: string) => `In 2027 your ${n} is ${w}.`,
+      (n: string, w: string) => `Under the present Antardasha, your ${n} is ${w}.`,
+      (n: string, w: string) => `With effort, your ${n} is ${w}.`,
+      (n: string, w: string) => `Is your ${n} ${w}?`,
+      (n: string, w: string) => `Your ${n} is ${w} this year.`,
+      (n: string, w: string) => `Your ${n} would be ${w} without the 8th-lord placement.`,
+      (n: string) => `Your ${n} is stronger than it looks.`,
+      (n: string, w: string) => `For now, ${n} is ${w}.`,
+      (n: string, w: string) => `Transiting Saturn means your ${n} is ${w}.`,
+      (n: string, w: string) => `On the D10 alone, your ${n} is ${w}.`,
+      (n: string, w: string) => `As Jupiter transits your 10th, your ${n} is ${w}.`,
+    ];
+    let positive = 0, negative = 0;
+    for (const c of await sample(16)) {
+      // The year in one form is allowed, as when the packet supplies it; years are checked by their own rule.
+      const g = { ...buildEvidencePacket(c, routeQuestion('Will my career grow?'), asOf).guard, packetText: '2027' };
+      for (const r of buildInsights(c, asOf).domains) {
+        const n = NOUN[r.domain];
+        const opposite = ['Exceptional', 'Very Strong', 'Strong'].includes(r.verdict) ? 'challenging' : ['Challenging', 'Very Challenging'].includes(r.verdict) ? 'very strong' : null;
+        if (!opposite) continue;
+        opposite === 'challenging' ? positive++ : negative++;
+        for (const form of QUALIFIED_FORMS) expect(validateAnswer(form(n, opposite), g), form(n, opposite)).toEqual([]);
+        expect(validateAnswer(`Although your ${n} is strong overall, this period may be difficult.`, g)).toEqual([]);
+        // The flat, explicit forms are still refused.
+        const flat = opposite === 'challenging'
+          ? [`Your ${n} is challenging.`, `${DOMAIN_LABELS[r.domain]}: Challenging`, `Your ${n} is difficult.`, `Overall, your ${n} is challenging.`, `**${DOMAIN_LABELS[r.domain]}: Very Challenging**`]
+          : [`Your ${n} is very strong.`, `${DOMAIN_LABELS[r.domain]}: Strong`, `Overall, your ${n} is very strong.`, `Your ${n} looks excellent overall.`];
+        for (const s of flat) expect(validateAnswer(s, g), s).not.toEqual([]);
+      }
+    }
+    expect(positive).toBeGreaterThan(0);
+    expect(negative).toBeGreaterThan(0);
+  });
+
+  it('refuses the four example reversals', async () => {
+    for (const c of await sample(24)) {
+      const v = new Map(buildInsights(c, asOf).domains.map((d) => [d.domain, d.verdict]));
+      if (!['Strong', 'Very Strong', 'Exceptional'].includes(v.get('career')!) || !['Challenging', 'Very Challenging'].includes(v.get('relationships')!) || !['Strong', 'Very Strong', 'Exceptional'].includes(v.get('wealth')!)) continue;
+      const g = buildEvidencePacket(c, routeQuestion('Will my career grow?'), asOf).guard;
+      for (const s of ['Your career is challenging.', 'Career: Challenging', 'Overall, your marriage is very strong.', 'Your finances are difficult.']) expect(validateAnswer(s, g), s).not.toEqual([]);
+      return;
+    }
+    throw new Error('no chart in the sample with Strong career and wealth and Challenging relationships');
+  });
+
   it('keeps PR #98: an approximate chart still refuses bindu figures and Neecha Bhanga', async () => {
     const { canonical } = await chart('1958-04-28', '06:00', 22.5726, 88.3639, 'approximate');
     const g = buildEvidencePacket(canonical, routeQuestion('Will my career grow?'), asOf).guard;
