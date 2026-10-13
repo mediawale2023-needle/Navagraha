@@ -27,6 +27,21 @@ export interface Yoga {
 const ord = (n: number) => `${n}${n === 1 ? 'st' : n === 2 ? 'nd' : n === 3 ? 'rd' : 'th'}`;
 const signOf = (lon: number) => Math.floor((((lon % 360) + 360) % 360) / 30) % 12;
 
+/** Every kendra lord and trikona lord (different planets) placed in one house, in kendra-then-trikona order: the Raja Yoga condition. */
+export function rajaYogaUnions(houseLords: Array<{ house: number; lord: string; lordHouse: number }>): Array<{ kendra: number; trikona: number; lords: [string, string] }> {
+  const lordOf = (h: number) => houseLords.find((x) => x.house === h);
+  const out: Array<{ kendra: number; trikona: number; lords: [string, string] }> = [];
+  for (const k of KENDRA) {
+    for (const t of TRIKONA) {
+      if (k === t) continue;
+      const lk = lordOf(k);
+      const lt = lordOf(t);
+      if (lk && lt && lk.lord !== lt.lord && lk.lordHouse === lt.lordHouse) out.push({ kendra: k, trikona: t, lords: [lk.lord, lt.lord] });
+    }
+  }
+  return out;
+}
+
 export function detectYogas(
   sidereal: Record<string, number>,
   ascSignIndex: number,
@@ -76,18 +91,11 @@ export function detectYogas(
 
   // Raja Yoga — a kendra lord and a trikona lord uniting in one house.
   const seenRaja = new Set<string>();
-  for (const k of KENDRA) {
-    for (const t of TRIKONA) {
-      if (k === t) continue;
-      const lk = lordByHouse[k];
-      const lt = lordByHouse[t];
-      if (lk && lt && lk !== lt && lordHouseByHouse[k] === lordHouseByHouse[t]) {
-        const key = [lk, lt].sort().join('-');
-        if (seenRaja.has(key)) continue;
-        seenRaja.add(key);
-        yogas.push({ name: 'Raja Yoga', category: 'Raja', planets: [lk, lt], description: `Lords of the ${ord(k)} (kendra) and ${ord(t)} (trikona) unite in the ${ord(lordHouseByHouse[k])} house — status and success.` });
-      }
-    }
+  for (const { kendra: k, trikona: t, lords: [lk, lt] } of rajaYogaUnions(houseLords)) {
+    const key = [lk, lt].sort().join('-');
+    if (seenRaja.has(key)) continue;
+    seenRaja.add(key);
+    yogas.push({ name: 'Raja Yoga', category: 'Raja', planets: [lk, lt], description: `Lords of the ${ord(k)} (kendra) and ${ord(t)} (trikona) unite in the ${ord(lordHouseByHouse[k])} house — status and success.` });
   }
 
   // Dhana Yoga — two wealth-house lords together.
