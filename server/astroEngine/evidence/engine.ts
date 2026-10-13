@@ -15,6 +15,7 @@ import {
 } from '@shared/v3/evidence';
 import { savReading, SAV_RULE } from '@shared/v3/ashtakavargaPolicy';
 import { signDignity } from '../dignity.js';
+import { rajaYogaUnions } from '../yogas.js';
 import { vimshottariDasha } from '../dasha.js';
 import { birthDayStability, dignityStatementStable, yogaTimeStable, type BirthDayStability } from '../canonical/birthDay.js';
 import { fact } from '../reasoning/facts.js';
@@ -342,7 +343,12 @@ export function yogaDefinition(ix: ChartIndex, y: { name: string; category: stri
   if (y.name === 'Budha-Aditya Yoga') return signs(['Sun', 'Mercury']);
   if (y.name === 'Chandra-Mangala Yoga') return signs(['Moon', 'Mars']);
   if (y.name === 'Neecha Bhanga Raja Yoga') return [[fact.dignity(ps[0]), 'derived'], [fact.neechaBhanga(ps[0]), 'derived']];
-  if (y.name === 'Raja Yoga') return [...lordships([...KENDRA, ...TRIKONA]), ...houses()];
+  if (y.name === 'Raja Yoga') {
+    // Only the kendra–trikona lord pairs of these two planets that actually unite (the detector's condition).
+    const unions = rajaYogaUnions(ix.chart.houses).filter((u) => u.lords.every((l) => ps.includes(l as Graha)));
+    const pairs = unions.flatMap((u) => [[fact.lord(u.kendra), 'derived'], [fact.lord(u.trikona), 'derived']] as Dependency[]);
+    return [...pairs, ...houses()];
+  }
   if (y.name === 'Dhana Yoga') return [...lordships(WEALTH_HOUSES), ...houses()];
   const vipreeta = y.name.match(/^(Harsha|Sarala|Vimala) Vipreeta Raja Yoga$/);
   if (vipreeta) return [[fact.lord({ Harsha: 6, Sarala: 8, Vimala: 12 }[vipreeta[1]]!), 'derived'], ...houses()];
@@ -554,6 +560,8 @@ export function dashaEvidence(chart: CanonicalChart, domain: LifeDomain, asOf: D
   const c = new Collector(ix, domain);
   // With an approximate time, a period is used only if it is running whatever the actual birth moment was.
   const stable = dashaTimingStable(chart, asOf);
+  // The metadata is built later; keep the instant as it is now.
+  const at = new Date(asOf.getTime());
   const lords: Array<[Graha, 'Mahadasha' | 'Antardasha', EvidenceStrength, boolean]> = [[rp.mahadasha, 'Mahadasha', 'moderate', !stable.mahadasha]];
   if (rp.antardasha && rp.antardasha !== rp.mahadasha) lords.push([rp.antardasha, 'Antardasha', 'weak', !stable.antardasha]);
   for (const [lord, level, strength, timeSensitive] of lords) {
@@ -565,7 +573,7 @@ export function dashaEvidence(chart: CanonicalChart, domain: LifeDomain, asOf: D
       explanation: `The ${lord} ${level} is running. ${link.reasons.join('; ')}.${cond.reasons.length ? ` ${cond.reasons.join('; ')}.` : ''}`,
       requiresBirthTime: link.requiresBirthTime || timeSensitive },
       () => ({ ruleId: 'dasha.running-lord', role: 'period-lord', deps: [
-        [fact.running(level === 'Mahadasha' ? 'mahadasha' : 'antardasha'), 'timing'],
+        [fact.running(level === 'Mahadasha' ? 'mahadasha' : 'antardasha', at), 'timing'],
         ...linkInputs(ix, lord, domain),
         ...conditionInputs(ix, lord),
       ] }));

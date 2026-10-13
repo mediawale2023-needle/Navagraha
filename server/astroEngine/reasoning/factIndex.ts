@@ -7,7 +7,7 @@
 import type { CanonicalChart, Graha } from '@shared/v3/canonical';
 import { birthDayStability, yogaTimeStable } from '../canonical/birthDay.js';
 import { dashaTimingStable, runningPeriod } from '../evidence/engine.js';
-import { fact, type FactCategory, type FactId } from './facts.js';
+import { asOfKey, fact, type FactCategory, type FactId } from './facts.js';
 
 /**
  * exact-birth-time: the birth time is exact, so the chart's value is the fact.
@@ -17,22 +17,55 @@ import { fact, type FactCategory, type FactId } from './facts.js';
  */
 export type ReliabilityBasis = 'exact-birth-time' | 'stable-across-birth-date' | 'varies-across-birth-date' | 'requires-exact-birth-time';
 
-export interface Fact {
-  id: FactId;
-  category: FactCategory;
-  subject: string;
-  value: unknown;
+interface FactBase {
+  readonly id: FactId;
+  readonly category: FactCategory;
+  readonly subject: string;
   /** Where in the CanonicalChart the value is read from ('canonical'), or the read-out it applies ('derived-from-canonical'). */
-  provenance: { kind: 'canonical' | 'derived-from-canonical'; path: string };
-  reliable: boolean;
-  reliability: ReliabilityBasis;
+  readonly provenance: { readonly kind: 'canonical' | 'derived-from-canonical'; readonly path: string };
+  readonly reliable: boolean;
+  readonly reliability: ReliabilityBasis;
+}
+/**
+ * A fact the birth time cannot support keeps its identity (so dependencies still resolve) but not its
+ * value: `withheld: true` and no `value` property, which tells it apart from a value that is undefined.
+ */
+export type Fact = FactBase & ({ readonly withheld: false; readonly value: unknown } | { readonly withheld: true });
+
+/** A read-only view of the facts: lookups and iteration only (no set/delete/clear, and no access to the store). */
+export interface ReadonlyFacts extends Iterable<[FactId, Fact]> {
+  readonly size: number;
+  get(id: FactId): Fact | undefined;
+  has(id: FactId): boolean;
+  keys(): IterableIterator<FactId>;
+  values(): IterableIterator<Fact>;
+  entries(): IterableIterator<[FactId, Fact]>;
 }
 
 export interface FactIndex {
-  asOf: string;
-  approximate: boolean;
-  facts: ReadonlyMap<FactId, Readonly<Fact>>;
-  get(id: FactId): Readonly<Fact> | undefined;
+  readonly asOf: string;
+  readonly approximate: boolean;
+  readonly facts: ReadonlyFacts;
+  get(id: FactId): Fact | undefined;
+}
+
+/** A frozen deep copy, so a fact never shares (or freezes) an array or object of the CanonicalChart. */
+function frozenCopy<T>(v: T): T {
+  if (v === null || typeof v !== 'object') return v;
+  const copy: any = Array.isArray(v) ? v.map(frozenCopy) : Object.fromEntries(Object.entries(v).map(([k, x]) => [k, frozenCopy(x)]));
+  return Object.freeze(copy);
+}
+
+function readonlyFacts(store: Map<FactId, Fact>): ReadonlyFacts {
+  return Object.freeze({
+    get size() { return store.size; },
+    get: (id: FactId) => store.get(id),
+    has: (id: FactId) => store.has(id),
+    keys: () => store.keys(),
+    values: () => store.values(),
+    entries: () => store.entries(),
+    [Symbol.iterator]: () => store.entries(),
+  });
 }
 
 export function buildFactIndex(chart: CanonicalChart, asOf: Date): FactIndex {
@@ -41,8 +74,12 @@ export function buildFactIndex(chart: CanonicalChart, asOf: Date): FactIndex {
   const facts = new Map<FactId, Fact>();
   const exact = (stable: boolean): ReliabilityBasis => (!approximate ? 'exact-birth-time' : stable ? 'stable-across-birth-date' : 'varies-across-birth-date');
   const lagnaBound: ReliabilityBasis = approximate ? 'requires-exact-birth-time' : 'exact-birth-time';
-  const add = (id: FactId, category: FactCategory, subject: string, value: unknown, path: string, reliability: ReliabilityBasis, kind: Fact['provenance']['kind'] = 'canonical') =>
-    facts.set(id, Object.freeze({ id, category, subject, value, provenance: { kind, path }, reliable: reliability === 'exact-birth-time' || reliability === 'stable-across-birth-date', reliability }));
+  const add = (id: FactId, category: FactCategory, subject: string, value: unknown, path: string, reliability: ReliabilityBasis, kind: Fact['provenance']['kind'] = 'canonical') => {
+    const reliable = reliability === 'exact-birth-time' || reliability === 'stable-across-birth-date';
+    const base = { id, category, subject, provenance: Object.freeze({ kind, path }), reliable, reliability };
+    // An unreliable fact's value is the placeholder-time value, so it is never handed out.
+    facts.set(id, Object.freeze(reliable ? { ...base, withheld: false as const, value: frozenCopy(value) } : { ...base, withheld: true as const }));
+  };
 
   for (const p of chart.planets) {
     const s = st.planets[p.name as Graha];
@@ -80,8 +117,8 @@ export function buildFactIndex(chart: CanonicalChart, asOf: Date): FactIndex {
   const rp = runningPeriod(chart, asOf);
   if (rp) {
     const stable = dashaTimingStable(chart, asOf);
-    add(fact.running('mahadasha'), 'dasha.running', 'mahadasha', rp.mahadasha, `dashas.vimshottari.mahadashas[as of ${asOf.toISOString()}].lord`, exact(stable.mahadasha), 'derived-from-canonical');
-    if (rp.antardasha) add(fact.running('antardasha'), 'dasha.running', 'antardasha', rp.antardasha, `dashas.vimshottari.mahadashas[…].antardashas[as of ${asOf.toISOString()}].lord`, exact(stable.antardasha), 'derived-from-canonical');
+    add(fact.running('mahadasha', asOf), 'dasha.running', 'mahadasha', rp.mahadasha, `dashas.vimshottari.mahadashas[as of ${asOf.toISOString()}].lord`, exact(stable.mahadasha), 'derived-from-canonical');
+    if (rp.antardasha) add(fact.running('antardasha', asOf), 'dasha.running', 'antardasha', rp.antardasha, `dashas.vimshottari.mahadashas[…].antardashas[as of ${asOf.toISOString()}].lord`, exact(stable.antardasha), 'derived-from-canonical');
   }
-  return { asOf: asOf.toISOString(), approximate, facts, get: (id) => facts.get(id) };
+  return Object.freeze({ asOf: asOfKey(asOf), approximate, facts: readonlyFacts(facts), get: (id: FactId) => facts.get(id) });
 }

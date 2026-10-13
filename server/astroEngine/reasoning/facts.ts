@@ -9,6 +9,9 @@ export type FactCategory =
   | 'yoga' | 'dosha' | 'dasha.running';
 export type FactId = `${FactCategory}:${string}`;
 
+/** The one date normalisation for time-bound facts: the instant in UTC, to the millisecond (periods can change within a day). */
+export const asOfKey = (asOf: Date): string => asOf.toISOString();
+
 const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 
 export const fact = {
@@ -27,7 +30,8 @@ export const fact = {
   /** One detected yoga: its name and the planets that form it (the same name can form more than once). */
   yoga: (name: string, planets: string[]): FactId => `yoga:${slug(name)}:${planets.map(slug).join('-')}`,
   dosha: (id: string): FactId => `dosha:${id}`,
-  running: (level: 'mahadasha' | 'antardasha'): FactId => `dasha.running:${level}`,
+  /** The period running at one instant. The instant is part of the id (asOfKey), so a timing fact never matches another date. */
+  running: (level: 'mahadasha' | 'antardasha', asOf: Date): FactId => `dasha.running:${level}@${asOfKey(asOf)}`,
 };
 
 /**

@@ -21,9 +21,10 @@ export interface RuleDefinition {
 }
 
 const rule = (id: string, provenance: EvidenceProvenance, description: string): RuleDefinition =>
-  ({ id, version: 1, provenance, validation: 'unvalidated', description });
+  Object.freeze({ id, version: 1, provenance, validation: 'unvalidated', description });
 
-export const RULES: readonly RuleDefinition[] = [
+/** Frozen, entries included: the registry is shared by every request. */
+export const RULES: readonly Readonly<RuleDefinition>[] = Object.freeze([
   rule('house.lord-placement.own-house', 'classical-principle', 'A house lord in its own house strengthens that house.'),
   rule('house.lord-placement.kendra-trikona', 'classical-principle', 'A house lord in a kendra or trikona supports the house it rules.'),
   rule('house.lord-placement.eleventh', 'classical-principle', 'A house lord in the 11th brings results through gains.'),
@@ -51,7 +52,7 @@ export const RULES: readonly RuleDefinition[] = [
   rule('domain.relationships.mangal-dosha', 'modern-convention', 'An uncancelled Mangal Dosha is a mild partnership indicator.'),
   rule('domain.children.jupiter-trine-moon', 'derived-rule', 'Jupiter in a trine from the Moon supports children.'),
   rule('dasha.running-lord', 'classical-principle', 'A running Mahadasha or Antardasha lord brings forward the areas it rules, occupies or signifies; how well depends on its condition.'),
-];
+]);
 
 const BY_ID = new Map(RULES.map((r) => [r.id, r]));
-export function ruleById(id: string): RuleDefinition | undefined { return BY_ID.get(id); }
+export function ruleById(id: string): Readonly<RuleDefinition> | undefined { return BY_ID.get(id); }

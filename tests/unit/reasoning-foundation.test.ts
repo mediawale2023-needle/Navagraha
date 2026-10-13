@@ -188,3 +188,122 @@ describe('evidence dependency metadata', () => {
     expect(evidenceMetadata({ ...a.evidence[0].item })).toBeUndefined();
   });
 });
+
+describe('D1 — approximate time: unreliable facts keep their identity but not their value', () => {
+  it('withholds every unreliable value, in every affected category, and keeps reliable values', async () => {
+    const withheldCategories = new Set<string>();
+    for (const c of await charts(24, 'approximate')) {
+      const ix = buildFactIndex(c, asOf);
+      for (const f of ix.facts.values()) {
+        if (f.reliable) { expect(f.withheld).toBe(false); expect('value' in f).toBe(true); continue; }
+        withheldCategories.add(f.category);
+        expect([f.id, f.withheld, 'value' in f]).toEqual([f.id, true, false]);
+        expect(f.provenance.path.length).toBeGreaterThan(0);
+      }
+      // A reliable fact still carries the chart's value.
+      for (const p of c.planets) {
+        const s = ix.get(fact.sign(p.name))!;
+        if (s.reliable && !s.withheld) expect(s.value).toBe(p.sign);
+      }
+      // Dependencies still resolve to the withheld facts' identities.
+      for (const { metadata } of reasoningInput(c, asOf).evidence) for (const f of metadata.factIds) expect(ix.facts.has(f), f).toBe(true);
+    }
+    for (const cat of ['planet.house', 'house.lord', 'varga.sign', 'sav.house', 'aspect', 'shadbala.dig', 'jaimini.karaka', 'neecha-bhanga', 'moon.paksha']) expect(withheldCategories, cat).toContain(cat);
+    // Yogas, doshas, running periods and unstable planet conditions are withheld when the birth date moves them.
+    expect(['yoga', 'dosha', 'dasha.running'].some((c) => withheldCategories.has(c))).toBe(true);
+  });
+
+  it('a withheld value is told apart from a value that is undefined; an exact chart withholds nothing', async () => {
+    const [approx] = await charts(1, 'approximate');
+    const f = buildFactIndex(approx, asOf).get(fact.house('Sun'))!;
+    expect(f.withheld).toBe(true);
+    expect(Object.prototype.hasOwnProperty.call(f, 'value')).toBe(false);
+    const [exact] = await charts(1);
+    for (const x of buildFactIndex(exact, asOf).facts.values()) expect([x.withheld, 'value' in x]).toEqual([false, true]);
+  });
+});
+
+describe('D2 — Raja Yoga dependencies are the house pairs that formed it', () => {
+  it('declares only kendra–trikona lord pairs that unite, matching the detector', async () => {
+    let checked = 0;
+    for (const c of await charts(60)) {
+      for (const { item, metadata } of reasoningInput(c, asOf).evidence.filter((a) => a.item.factor === 'Raja Yoga')) {
+        const yoga = buildFactIndex(c, asOf).get(metadata.factIds[0])!;
+        const planets = (yoga as any).value.planets as string[];
+        const used = new Set<number>();
+        for (const k of [1, 4, 7, 10]) for (const t of [1, 5, 9]) {
+          const lk = c.houses[k - 1], lt = c.houses[t - 1];
+          if (k !== t && lk.lord !== lt.lord && lk.lordHouse === lt.lordHouse && planets.includes(lk.lord) && planets.includes(lt.lord)) { used.add(k); used.add(t); }
+        }
+        const declared = metadata.factIds.filter((f) => f.startsWith('house.lord:')).map((f) => Number(f.split(':')[1]));
+        expect(new Set(declared), item.id).toEqual(used);
+        expect(used.size).toBeGreaterThan(0);
+        checked++;
+      }
+    }
+    expect(checked).toBeGreaterThan(0);
+  });
+});
+
+describe('D3 — running-period facts are bound to their instant', () => {
+  it('a dasha dependency resolves only against the FactIndex for the same instant, across period boundaries', async () => {
+    let crossed = 0;
+    for (const c of await charts(12)) {
+      const md = c.dashas.vimshottari.mahadashas;
+      const i = md.findIndex((m) => Date.parse(m.start) <= asOf.getTime() && asOf.getTime() < Date.parse(m.end));
+      const dates = [asOf, new Date(Date.parse(md[i].end) + 3_600_000), new Date(Date.parse(md[i].antardashas[0].end) - 3_600_000), new Date(Date.parse(md[i].antardashas[0].end) + 3_600_000)];
+      const runs = dates.map((d) => reasoningInput(c, d));
+      runs.forEach((r, k) => {
+        for (const { item, metadata } of r.evidence.filter((a) => a.metadata.ruleId === 'dasha.running-lord')) {
+          const f = metadata.factIds.find((x) => x.startsWith('dasha.running:'))!;
+          expect(f.endsWith(`@${dates[k].toISOString()}`)).toBe(true);
+          expect((r.facts.get(f) as any).value).toBe(item.planet);
+          // Not a valid timing dependency for any other instant.
+          runs.forEach((other, j) => { if (j !== k) { expect(other.facts.get(f)).toBeUndefined(); crossed++; } });
+        }
+      });
+      // Identical instants give identical ids.
+      const again = reasoningInput(c, new Date(asOf.getTime()));
+      expect(again.evidence.map((a) => a.metadata.factIds)).toEqual(runs[0].evidence.map((a) => a.metadata.factIds));
+    }
+    expect(crossed).toBeGreaterThan(0);
+  });
+
+  it('the instant is captured when the evidence is built, even if the caller later changes its Date', async () => {
+    const [c] = await charts(1);
+    const d = new Date(asOf.getTime());
+    const items = dashaEvidence(c, 'career', d);
+    d.setUTCFullYear(2050);
+    for (const it of items) expect(evidenceMetadata(it)!.factIds.some((f) => f.endsWith(`@${asOf.toISOString()}`))).toBe(true);
+  });
+});
+
+describe('D4 — metadata is read-only', () => {
+  it('the registry, facts, fact collections, metadata and dependency map reject changes', async () => {
+    const [c] = await charts(1);
+    const r = reasoningInput(c, asOf);
+    expect(Object.isFrozen(RULES) && RULES.every((x) => Object.isFrozen(x))).toBe(true);
+    expect(() => (RULES as any).push({ id: 'x' })).toThrow();
+    expect(() => { (RULES[0] as any).validation = 'documented'; }).toThrow();
+    // The fact collection has no write methods and its store is not reachable.
+    expect((r.facts.facts as any).set).toBeUndefined();
+    expect((r.facts.facts as any).delete).toBeUndefined();
+    expect((r.facts.facts as any).clear).toBeUndefined();
+    expect(() => { (r.facts as any).facts = new Map(); }).toThrow();
+    const aspect = r.facts.get(fact.aspect('Jupiter')) as any;
+    expect(() => { aspect.reliable = false; }).toThrow();
+    expect(() => aspect.value.push(13)).toThrow();
+    // Fact values are copies: the CanonicalChart's own arrays stay unfrozen and unchanged.
+    expect(Object.isFrozen(c.aspects.find((a) => a.planet === 'Jupiter')!.aspectsHouses)).toBe(false);
+    const m = r.evidence[0].metadata as any;
+    expect(() => m.factIds.push('x')).toThrow();
+    expect(() => { m.ruleId = 'x'; }).toThrow();
+    expect(() => m.dependencyTypes[m.factIds[0]].push('timing')).toThrow();
+    expect(() => (r.evidence as any).push({})).toThrow();
+    expect((r.dependencies as any).set).toBeUndefined();
+    const [first] = r.dependencies.keys();
+    expect(() => (r.dependencies.get(first) as any).push('x')).toThrow();
+    // A later call is unaffected by attempts on an earlier one.
+    expect(reasoningInput(c, asOf).facts.get(fact.aspect('Jupiter'))!.reliable).toBe(true);
+  });
+});

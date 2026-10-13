@@ -7,7 +7,7 @@ import type { EvidenceItem } from '@shared/v3/evidence';
 import type { DependencyType, EvidenceRole, FactId } from './facts.js';
 
 export interface EvidenceMetadata {
-  ruleId: string;
+  readonly ruleId: string;
   /** The facts the rule read for this item, in the order it read them (no duplicates). */
   factIds: FactId[];
   /** How the item depends on each fact; one fact can play two parts (a period lord's house is both its link and its condition). */
@@ -33,7 +33,9 @@ function build({ ruleId, role, deps }: Inputs): EvidenceMetadata {
     if (!dependencyTypes[id]) { dependencyTypes[id] = []; factIds.push(id); }
     if (!dependencyTypes[id].includes(type)) dependencyTypes[id].push(type);
   }
-  return { ruleId, factIds, dependencyTypes, role };
+  for (const id of factIds) Object.freeze(dependencyTypes[id]);
+  // Frozen: every caller gets the same object, so none may change it for the others.
+  return Object.freeze({ ruleId, factIds: Object.freeze(factIds) as FactId[], dependencyTypes: Object.freeze(dependencyTypes), role });
 }
 
 /** The metadata for an item the evidence engine produced, or undefined for any other object. */

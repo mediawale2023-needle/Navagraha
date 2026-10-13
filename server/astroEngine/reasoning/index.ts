@@ -16,14 +16,22 @@ import type { FactId } from './facts.js';
 
 export interface AnnotatedEvidence { item: EvidenceItem; metadata: EvidenceMetadata }
 
+/** Which evidence items read each fact: lookups and iteration only. */
+export interface ReadonlyDependencies extends Iterable<[FactId, readonly string[]]> {
+  readonly size: number;
+  get(id: FactId): readonly string[] | undefined;
+  has(id: FactId): boolean;
+  keys(): IterableIterator<FactId>;
+  entries(): IterableIterator<[FactId, readonly string[]]>;
+}
+
 export interface ReasoningInput {
-  facts: FactIndex;
-  rules: readonly RuleDefinition[];
-  evidence: AnnotatedEvidence[];
-  /** Which evidence items read each fact. */
-  dependencies: ReadonlyMap<FactId, string[]>;
+  readonly facts: FactIndex;
+  readonly rules: readonly Readonly<RuleDefinition>[];
+  readonly evidence: readonly Readonly<AnnotatedEvidence>[];
+  readonly dependencies: ReadonlyDependencies;
   /** Declared inputs that do not resolve: a fact missing from the index, an unknown rule, or a yoga with no known definition. */
-  unresolved: Array<{ evidenceId: string; problem: 'unknown-fact' | 'unknown-rule' | 'no-metadata' | 'yoga-definition-unknown'; detail: string }>;
+  readonly unresolved: ReadonlyArray<Readonly<{ evidenceId: string; problem: 'unknown-fact' | 'unknown-rule' | 'no-metadata' | 'yoga-definition-unknown'; detail: string }>>;
 }
 
 export function reasoningInput(chart: CanonicalChart, asOf: Date): ReasoningInput {
@@ -32,11 +40,11 @@ export function reasoningInput(chart: CanonicalChart, asOf: Date): ReasoningInpu
   const items = LIFE_DOMAINS.flatMap((d) => [...natalEvidence(chart, d, ix), ...dashaEvidence(chart, d, asOf, ix)]);
   const evidence: AnnotatedEvidence[] = [];
   const dependencies = new Map<FactId, string[]>();
-  const unresolved: ReasoningInput['unresolved'] = [];
+  const unresolved: Array<ReasoningInput['unresolved'][number]> = [];
   for (const item of items) {
     const metadata = evidenceMetadata(item);
     if (!metadata) { unresolved.push({ evidenceId: item.id, problem: 'no-metadata', detail: item.factor }); continue; }
-    evidence.push({ item, metadata });
+    evidence.push(Object.freeze({ item, metadata }));
     if (!ruleById(metadata.ruleId)) unresolved.push({ evidenceId: item.id, problem: 'unknown-rule', detail: metadata.ruleId });
     if (metadata.role === 'yoga' && !metadata.factIds.some((f) => metadata.dependencyTypes[f].includes('derived'))) {
       unresolved.push({ evidenceId: item.id, problem: 'yoga-definition-unknown', detail: item.factor });
@@ -48,5 +56,14 @@ export function reasoningInput(chart: CanonicalChart, asOf: Date): ReasoningInpu
       dependencies.set(f, list);
     }
   }
-  return { facts, rules: RULES, evidence, dependencies, unresolved };
+  dependencies.forEach((ids) => Object.freeze(ids));
+  const deps: ReadonlyDependencies = Object.freeze({
+    get size() { return dependencies.size; },
+    get: (id: FactId) => dependencies.get(id),
+    has: (id: FactId) => dependencies.has(id),
+    keys: () => dependencies.keys(),
+    entries: () => dependencies.entries() as IterableIterator<[FactId, readonly string[]]>,
+    [Symbol.iterator]: () => dependencies.entries() as IterableIterator<[FactId, readonly string[]]>,
+  });
+  return Object.freeze({ facts, rules: RULES, evidence: Object.freeze(evidence), dependencies: deps, unresolved: Object.freeze(unresolved.map((u) => Object.freeze(u))) });
 }
