@@ -17,8 +17,8 @@ import { savReading, SAV_RULE } from '@shared/v3/ashtakavargaPolicy';
 import { signDignity } from '../dignity.js';
 import { rajaYogaUnions } from '../yogas.js';
 import { vimshottariDasha } from '../dasha.js';
-import { birthDayBounds, siderealPositions } from '../canonical/compute.js';
-import { offsetSecondsAt } from '../birthResolver.js';
+import { siderealPositions } from '../canonical/compute.js';
+import { wallClockOffsets } from '../birthResolver.js';
 import { birthDayStability, dignityStatementStable, yogaTimeStable, type BirthDayStability } from '../canonical/birthDay.js';
 import { fact } from '../reasoning/facts.js';
 import { attachEvidenceMetadata, type Dependency } from '../reasoning/evidenceMetadata.js';
@@ -536,22 +536,31 @@ export function runningPeriod(chart: CanonicalChart, asOf: Date): RunningPeriod 
   return { mahadasha: maha.lord, antardasha: antar?.lord ?? null, mahaStart: maha.start, mahaEnd: maha.end, antarStart: antar?.start, antarEnd: antar?.end };
 }
 
+const birthDateCache = new WeakMap<CanonicalChart, { dayStart: number; dayEnd: number } | null>();
+
 /**
- * The first and last instant of the local birth date. On a day the zone changes its offset (daylight
- * saving), the placeholder's offset holds for only part of the day, so the earliest midnight and the
- * latest 23:59:59 under either offset are taken: the interval can only grow, never miss a moment.
+ * The first and last instant of the local birth date: the earliest instant at which the wall clock
+ * read 00:00:00 and the latest at which it read 23:59:59, among the offsets the resolver itself
+ * considers (a repeated hour gives two instants, a 48-hour date two days apart). A reading the clock
+ * skipped takes the widest of those offsets, so the interval can run long but never misses an
+ * instant of the date. Null when the zone cannot be read.
  */
-function localBirthDate(chart: CanonicalChart): { dayStart: number; dayEnd: number } {
-  const nominal = birthDayBounds(chart.birth);
-  const offsets = [chart.birth.utcOffsetSeconds];
-  for (const ms of [nominal.dayStart, nominal.dayEnd]) {
-    try { offsets.push(offsetSecondsAt(chart.birth.timezone, ms)); } catch { /* a stored fixed offset stands alone */ }
-  }
-  const midnight = Date.parse(`${chart.birth.localDate}T00:00:00Z`);
-  return {
-    dayStart: Math.min(...offsets.map((o) => midnight - o * 1000)),
-    dayEnd: Math.max(...offsets.map((o) => midnight + 86_399_000 - o * 1000)),
+export function localBirthDate(chart: CanonicalChart): { dayStart: number; dayEnd: number } | null {
+  if (birthDateCache.has(chart)) return birthDateCache.get(chart)!;
+  const { timezone, localDate, utcOffsetSeconds } = chart.birth;
+  const midnight = Date.parse(`${localDate}T00:00:00Z`);
+  const instants = (wallMs: number) => {
+    const { candidates, valid } = wallClockOffsets(wallMs, timezone);
+    return (valid.length ? valid : Array.from(new Set([utcOffsetSeconds, ...candidates]))).map((o) => wallMs - o * 1000);
   };
+  let bounds: { dayStart: number; dayEnd: number } | null;
+  try {
+    bounds = { dayStart: Math.min(...instants(midnight)), dayEnd: Math.max(...instants(midnight + 86_399_000)) };
+  } catch {
+    bounds = null;
+  }
+  birthDateCache.set(chart, bounds);
+  return bounds;
 }
 
 /**
@@ -575,12 +584,15 @@ export function dashaTimingStable(chart: CanonicalChart, asOf: Date): { mahadash
     const antar = maha?.antardashas.find((a) => Date.parse(a.start) <= t && t < Date.parse(a.end));
     return { maha: maha?.lord ?? null, antar: antar?.lord ?? null };
   };
+  const day = localBirthDate(chart);
+  if (!day) return { mahadasha: false, antardasha: false };
   const moon = chart.planets.find((p) => p.name === 'Moon')!;
   const nominal = running(moon.longitude, Date.parse(chart.birth.birthUTC));
-  const { dayStart, dayEnd } = localBirthDate(chart);
-  const ends = [dayStart, dayEnd].map((ms) => running(siderealPositions(new Date(ms)).bodies.Moon.longitude, ms));
-  const mahadasha = ends.every((e) => e.maha === nominal.maha);
-  return { mahadasha, antardasha: mahadasha && ends.every((e) => e.antar === nominal.antar) };
+  const ends = [day.dayStart, day.dayEnd].map((ms) => running(siderealPositions(new Date(ms)).bodies.Moon.longitude, ms));
+  // The calendar lists one 120-year cycle, so asOf can fall outside it for part of the date (births
+  // about 100-120 years earlier): no period is then established, and none is vouched for.
+  const mahadasha = nominal.maha !== null && ends.every((e) => e.maha === nominal.maha);
+  return { mahadasha, antardasha: mahadasha && nominal.antar !== null && ends.every((e) => e.antar === nominal.antar) };
 }
 
 /** Timing evidence: how the running Mahadasha/Antardasha lords engage a domain as of `asOf`. */

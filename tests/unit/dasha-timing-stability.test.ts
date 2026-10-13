@@ -4,10 +4,10 @@
  * placeholder time was stored. Ground truth here is a dense Swiss Ephemeris sweep of the day.
  */
 import { describe, expect, it } from 'vitest';
-import { resolveBirthWithCoordinates } from '../../server/astroEngine/birthResolver';
+import { offsetSecondsAt, resolveBirthWithCoordinates } from '../../server/astroEngine/birthResolver';
 import { birthDayBounds, computeCanonicalChart, siderealPositions } from '../../server/astroEngine/canonical/compute';
 import { vimshottariDasha } from '../../server/astroEngine/dasha';
-import { dashaTimingStable } from '../../server/astroEngine/evidence/engine';
+import { dashaTimingStable, localBirthDate } from '../../server/astroEngine/evidence/engine';
 import { buildInsights } from '../../server/astroEngine/evidence/insights';
 import { buildFactIndex } from '../../server/astroEngine/reasoning/factIndex';
 import { fact } from '../../server/astroEngine/reasoning/facts';
@@ -131,5 +131,76 @@ describe('approximate-time dasha timing stability', () => {
     for (const time of ['00:05', '12:00', '23:55']) {
       expect(dashaTimingStable(chartAt('1988-02-24', time, 'exact'), asOf)).toEqual({ mahadasha: true, antardasha: true });
     }
+  });
+
+  describe('the local birth date is every instant the wall clock read that date', () => {
+    // Independent of localBirthDate: offsets probed every 6 hours over four days, then the first and last
+    // wall reading of the date that the clock actually showed.
+    const wallInstants = (tz: string, wallMs: number) => {
+      const offsets = new Set<number>();
+      for (let h = -48; h <= 48; h += 6) offsets.add(offsetSecondsAt(tz, wallMs + h * 3_600_000));
+      return Array.from(offsets).filter((o) => offsetSecondsAt(tz, wallMs - o * 1000) === o).map((o) => wallMs - o * 1000);
+    };
+    function trueDate(tz: string, date: string) {
+      const midnight = Date.parse(`${date}T00:00:00Z`);
+      let first = NaN, last = NaN;
+      for (let s = 0; s < 86_400 && Number.isNaN(first); s += 60) { const xs = wallInstants(tz, midnight + s * 1000); if (xs.length) first = Math.min(...xs); }
+      for (let s = 86_399; s >= 0 && Number.isNaN(last); s -= 60) { const xs = wallInstants(tz, midnight + s * 1000); if (xs.length) last = Math.max(...xs); }
+      return { first, last };
+    }
+    /** Mahadasha/Antardasha over every minute of the true date: established only if one period runs throughout. */
+    function truthOver(first: number, last: number) {
+      const seen: Array<{ maha: string | null; antar: string | null }> = [];
+      for (let ms = first; ms < last; ms += 60_000) seen.push(lordsAt(ms));
+      seen.push(lordsAt(last));
+      const maha = new Set(seen.map((x) => x.maha));
+      const pairs = new Set(seen.map((x) => `${x.maha}/${x.antar}`));
+      const mahadasha = maha.size === 1 && !maha.has(null);
+      return { mahadasha, antardasha: mahadasha && pairs.size === 1 && !seen.some((x) => x.antar === null) };
+    }
+    const PLACEHOLDERS = ['00:00', '00:30', '01:30', '02:30', '03:30', '07:29', '12:00', '18:00', '22:30', '23:30', '23:59'];
+
+    const cases: Array<[string, string, { latitude: number; longitude: number }, string, string, { mahadasha: boolean; antardasha: boolean }]> = [
+      // Clocks went back at 01:00 the next morning: the date ran to 01:59:59 UTC, an hour past a fixed-offset end. Venus, then Sun.
+      ['Azores', '1917-10-14', { latitude: 37.7412, longitude: -25.6756 }, '1917-10-14T01:00:00Z', '1917-10-15T01:59:59Z', { mahadasha: false, antardasha: false }],
+      // Clocks went back at midnight at the end of the date: 23:00-23:59 local happened twice.
+      ['Sao Paulo', '1932-03-31', { latitude: -23.5505, longitude: -46.6333 }, '1932-03-31T02:00:00Z', '1932-04-01T02:59:59Z', { mahadasha: true, antardasha: false }],
+      // Alaska moved across the date line: 18 October 1867 was lived twice, a 48-hour date. Outside the listed cycle today.
+      ['Anchorage', '1867-10-18', { latitude: 61.2181, longitude: -149.9003 }, '1867-10-17T09:59:36Z', '1867-10-19T09:59:35Z', { mahadasha: false, antardasha: false }],
+      // Clocks went forward at midnight: the date began at 01:00 local. Rahu, then Saturn.
+      ['Beirut', '2018-03-25', { latitude: 33.8938, longitude: 35.5018 }, '2018-03-24T22:00:00Z', '2018-03-25T20:59:59Z', { mahadasha: false, antardasha: false }],
+      // About 115 years before asOf: asOf lies outside the listed cycle for part of the date (none, Sun, none).
+      ['Kolkata', '1911-04-22', { latitude: 22.5726, longitude: 88.3639 }, '1911-04-21T18:30:00Z', '1911-04-22T18:29:59Z', { mahadasha: false, antardasha: false }],
+    ];
+
+    it.each(cases)('%s %s: the interval covers the whole date and the period is judged over it', (_name, date, place, first, last, expected) => {
+      let resolved = 0;
+      for (const time of PLACEHOLDERS) {
+        let chart: ReturnType<typeof chartAt>;
+        try { chart = chartAt(date, time, 'approximate', place); } catch { continue; } // a skipped or repeated time
+        resolved++;
+        const truth = trueDate(chart.birth.timezone, date);
+        expect(new Date(truth.first).toISOString().replace('.000', ''), 'first instant').toBe(first);
+        expect(new Date(truth.last).toISOString().replace('.000', ''), 'last instant').toBe(last);
+        const day = localBirthDate(chart)!;
+        expect(day.dayStart, `${time}: covers the first instant`).toBeLessThanOrEqual(truth.first);
+        expect(day.dayEnd, `${time}: covers the last instant`).toBeGreaterThanOrEqual(truth.last);
+        expect(dashaTimingStable(chart, asOf), time).toEqual(expected);
+        expect(truthOver(truth.first, truth.last), 'sweep of the true date').toEqual(expected);
+      }
+      expect(resolved).toBeGreaterThan(0);
+    });
+
+    it('Kolkata 1911-04-22 from a placeholder outside the listed cycle: no period is vouched for', () => {
+      const chart = chartAt('1911-04-22', '02:41', 'approximate', { latitude: 22.5726, longitude: 88.3639 });
+      expect(buildInsights(chart, asOf).timing).toMatchObject({ mahadashaReliable: false, antardashaReliable: false });
+    });
+
+    it('a zone that cannot be read withholds both periods', () => {
+      const chart = chartAt('1988-02-24', '12:00');
+      const broken = { ...chart, birth: { ...chart.birth, timezone: 'Not/AZone' } };
+      expect(localBirthDate(broken)).toBeNull();
+      expect(dashaTimingStable(broken, asOf)).toEqual({ mahadasha: false, antardasha: false });
+    });
   });
 });

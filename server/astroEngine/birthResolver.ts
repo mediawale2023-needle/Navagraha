@@ -101,15 +101,24 @@ export function parseLocalDateTime(date: string, time: string) {
 }
 
 /**
+ * The UTC offsets that could apply to a wall-clock reading in `timeZone` (every offset in force within
+ * a day and a half of it) and those under which the clock really showed it: none in a skipped hour,
+ * two in a repeated one.
+ */
+export function wallClockOffsets(wallMs: number, timeZone: string): { candidates: number[]; valid: number[] } {
+  const probes = [-36, -12, 0, 12, 36].map((h) => offsetSecondsAt(timeZone, wallMs + h * 3600_000));
+  const candidates = Array.from(new Set(probes));
+  const valid = candidates.filter((off) => offsetSecondsAt(timeZone, wallMs - off * 1000) === off);
+  return { candidates, valid };
+}
+
+/**
  * Convert a local wall-clock reading in `timeZone` to a UTC instant. Rejects
  * times that never occurred (spring-forward gap) and, unless `utcOffset`
  * selects one, times that occurred twice (fall-back fold).
  */
 export function localToUtc(wallMs: number, timeZone: string, utcOffset?: string | null): { utcMs: number; offsetSeconds: number } {
-  // Every offset that could apply is one in force within a day of the reading.
-  const probes = [-36, -12, 0, 12, 36].map((h) => offsetSecondsAt(timeZone, wallMs + h * 3600_000));
-  const candidates = Array.from(new Set(probes));
-  const valid = candidates.filter((off) => offsetSecondsAt(timeZone, wallMs - off * 1000) === off);
+  const { valid } = wallClockOffsets(wallMs, timeZone);
 
   if (utcOffset) {
     const wanted = parseOffset(utcOffset);
