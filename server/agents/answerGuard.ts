@@ -139,6 +139,95 @@ const NEGATIVE_VERDICTS: Verdict[] = ['Challenging', 'Very Challenging'];
 const QUALIFIED = /\b(but|although|though|while|whereas|yet|however|despite|except|at times|sometimes|in parts?|in some|during|when|whenever|until|till|after|before|early|later|phases?|periods?|can be|could|may|might|if|unless|some|partly|partially|mixed|aspects? of|side of)\b/i;
 const VERDICT_CLAIM = new RegExp(`^\\s*(?:(?:overall|on balance|in (?:your|this) chart),?\\s+)?(?:your\\s+)?(${DOMAIN_TERMS.map(([, t]) => t).join('|')})(?:\\s+(?:prospects?|outlook|picture|area|matters))?\\s*(?::|\\b(?:is|are|looks?|appears?|reads?\\s+as|comes?\\s+out\\s+as|is\\s+rated(?:\\s+as)?|verdict\\s+is)\\b)\\s*(?:(?:very|highly|quite|clearly|overall|largely|rather|decidedly)\\s+)?(?:an?\\s+)?(${VERDICT_WORDS})(?:\\s+(?:overall|on balance|in (?:your|this) chart|for you))?\\s*[.!]?\\s*$`, 'i');
 
+// ── Years and period boundaries ──────────────────────────────────────────────
+// A year may be named when it lies inside a timing range the facts state in one of the forms the
+// app writes: Ask's dasha lines ("2025-03-11 → 2042-03-11"), the dasha periods in the chart
+// summary ("2025-03 – 2042-03"), Sade Sati ("~Apr 2025 to ~Jun 2027") and the Year Ahead window
+// ("Report window: October 2026 to October 2027"). Dasha ranges count only for an exact birth time.
+const YEAR = '((?:19|20|21)\\d{2})';
+const DASHA_RANGES = [new RegExp(`\\b${YEAR}-\\d{2}-\\d{2} → ${YEAR}-\\d{2}-\\d{2}\\b`, 'g'), new RegExp(`\\b${YEAR}-\\d{2} – ${YEAR}-\\d{2}\\b`, 'g')];
+const OTHER_RANGES = [new RegExp(`~[A-Z][a-z]{2} ${YEAR} to ~[A-Z][a-z]{2} ${YEAR}\\b`, 'g'), new RegExp(`Report window: [A-Z][a-z]+ ${YEAR} to [A-Z][a-z]+ ${YEAR}\\b`, 'g')];
+
+function suppliedRanges(text: string, approximate: boolean): Array<[number, number]> {
+  const out: Array<[number, number]> = [];
+  for (const re of approximate ? OTHER_RANGES : [...DASHA_RANGES, ...OTHER_RANGES]) {
+    for (const m of Array.from(text.matchAll(re))) if (Number(m[1]) <= Number(m[2])) out.push([Number(m[1]), Number(m[2])]);
+  }
+  return out;
+}
+
+const MONTH_NAMES = ['january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december'];
+const DATE = `(?:(${MONTH_NAMES.join('|')}|${MONTH_NAMES.map((m) => m.slice(0, 3)).join('|')})\\.?\\s+)?${YEAR}(?:-(\\d{2}))?(?:-\\d{2})?\\b`;
+// "major/main period" is a Mahadasha, "minor/sub-period" an Antardasha; a bare "period" may be either.
+const PERIOD_NAME = `\\b${PLANET}(?:['’]s)?\\s*[- ]?\\s*(maha\\s?dasha|mahadasa|antar\\s?dasha|antardasa|bhukti|(?:major|main)\\s+period|(?:minor\\s+|sub-?)period|dasha|dasa|period)\\b`;
+const TAKES_OVER = `\\b${PLANET}\\s+(?:takes?|took|will\\s+take)\\s+over\\b`;
+// For an approximate time: these name a period too, so a date or change with them is refused like "dasha".
+const PERIOD_PARAPHRASE = new RegExp(`\\b${PLANET}(?:['’]s)?\\s+(?:(?:major|main|minor)\\s+|sub-?)?period\\b|${TAKES_OVER}`, 'i');
+// A date or a change for those paraphrases. Month names are matched capitalised, so "may" (the verb) is not a date.
+const PERIOD_DATE = /\b(?:1[89]\d{2}|2[01]\d{2}|begins?|began|starts?|started|ends?|ended|until|till|from|after|before|changes?|switch(?:es)?|next|upcoming|takes? over|took over)\b|\b(?:January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{4}\b/i;
+const START_WORD = '(?:begins?|began|starts?|started|commences?|commenced|opens?|from)';
+const END_WORD = '(?:ends?|ended|finishes|finished|concludes?|concluded|closes?|lasts until|runs until|runs till|until|till|through)';
+const AT = '\\s+(?:in\\s+|on\\s+|around\\s+|by\\s+|about\\s+)?';
+const RANGE_VERB = '(?:runs?|ran|lasts?|lasted|spans?|spanned|extends?|extended|continues?|operates?|is|was|will\\s+(?:run|last|span|extend|continue))';
+const RANGE_AFTER = new RegExp(`^\\s*[(,]?\\s*(?:${RANGE_VERB}\\s+)?(?:from\\s+|between\\s+)?${DATE}\\s*(?:–|—|-|→|to|until|till|through|and)\\s*${DATE}`, 'i');
+const TAKEOVER_AFTER = new RegExp(`^[^.;]{0,25}?\\b${DATE}`, 'i');
+const START_AFTER = new RegExp(`\\b${START_WORD}${AT}${DATE}`, 'i');
+const END_AFTER = new RegExp(`\\b${END_WORD}${AT}${DATE}`, 'i');
+const DENIED = /\b(?:not|never|no longer|n['’]t)\b[^.]{0,12}$/i;
+
+type Claim = { lord: Graha; level: 'maha' | 'antar' | 'any'; edge: 'start' | 'end'; year: number; month: number | null };
+const monthOf = (name?: string, mm?: string) => (mm ? Number(mm) - 1 : name ? MONTH_NAMES.findIndex((m) => m.startsWith(name.toLowerCase().slice(0, 3))) : null);
+
+/** Explicit start/end assertions about a named Mahadasha or Antardasha ("Venus Mahadasha begins in 2031", "Saturn Antardasha (2027–2030)"). */
+function periodBoundaryClaims(s: string): Claim[] {
+  const out: Claim[] = [];
+  for (const m of Array.from(s.matchAll(new RegExp(PERIOD_NAME, 'gi')))) {
+    const lord = planetOf(m[1]);
+    const level = /antar|bhukti|sub|minor/i.test(m[2]) ? 'antar' : /^period$/i.test(m[2]) ? 'any' : 'maha';
+    // "the Ketu Antardasha of the Mercury Mahadasha begins…": the Mahadasha only places the Antardasha.
+    if (level === 'maha' && /\b(?:antar\s?dasha|antardasa|bhukti|sub-?period|minor\s+period)\s+(?:of|within|in|inside)\s+(?:the\s+|your\s+)?$/i.test(s.slice(0, m.index!))) continue;
+    const tail = s.slice(m.index! + m[0].length, m.index! + m[0].length + 70);
+    const range = tail.match(RANGE_AFTER);
+    if (range) {
+      out.push({ lord, level, edge: 'start', year: Number(range[2]), month: monthOf(range[1], range[3]) });
+      out.push({ lord, level, edge: 'end', year: Number(range[5]), month: monthOf(range[4], range[6]) });
+      continue;
+    }
+    for (const [re, edge] of [[START_AFTER, 'start'], [END_AFTER, 'end']] as const) {
+      const b = tail.match(re);
+      if (b && !DENIED.test(tail.slice(0, b.index!))) out.push({ lord, level, edge, year: Number(b[2]), month: monthOf(b[1], b[3]) });
+    }
+  }
+  // "Venus takes over in 2031": the start of a Venus Mahadasha or Antardasha.
+  for (const m of Array.from(s.matchAll(new RegExp(TAKES_OVER, 'gi')))) {
+    if (DENIED.test(s.slice(0, m.index! + m[0].length))) continue;
+    const d = s.slice(m.index! + m[0].length).match(TAKEOVER_AFTER);
+    if (d) out.push({ lord: planetOf(m[1]), level: 'any', edge: 'start', year: Number(d[2]), month: monthOf(d[1], d[3]) });
+  }
+  return out;
+}
+
+/** The calculated dates a boundary claim may refer to (an Antardasha within the named, or else the previous, current or next, Mahadasha). */
+function boundaryDates(chart: CanonicalChart, c: Claim, s: string, asOf: Date): string[] {
+  const mds = chart.dashas.vimshottari.mahadashas;
+  const birth = chart.birth.birthUTC;
+  // The birth Mahadasha began before birth; the timeline shows it from the birth date.
+  const maha = mds.filter((m) => m.lord === c.lord).flatMap((m) => (c.edge === 'end' ? [m.end] : m.start < birth ? [m.start, birth] : [m.start]));
+  if (c.level === 'maha') return maha;
+  const named = Array.from(s.matchAll(new RegExp(`\\b${PLANET}(?:['’]s)?\\s*[- ]?\\s*(?:maha\\s?dasha|mahadasa)\\b`, 'gi'))).map((m) => planetOf(m[1]));
+  const t = asOf.getTime();
+  const i = mds.findIndex((m) => Date.parse(m.start) <= t && t < Date.parse(m.end));
+  const scope = named.length ? mds.filter((m) => named.includes(m.lord)) : mds.slice(Math.max(0, i - 1), i + 2);
+  const antar = scope.flatMap((m) => m.antardashas.filter((a) => a.lord === c.lord).map((a) => (c.edge === 'end' ? a.end : a.start)));
+  return c.level === 'any' ? [...maha, ...antar] : antar;
+}
+
+const matchesDate = (iso: string, c: Claim) => {
+  const year = Number(iso.slice(0, 4)), month = Number(iso.slice(5, 7)) - 1;
+  // A stated month may differ by one from the UTC date near a month boundary.
+  return c.month === null ? year === c.year : Math.abs(year * 12 + month - (c.year * 12 + c.month)) <= 1;
+};
+
 // ── The validator ────────────────────────────────────────────────────────────
 
 export function validateAnswer(answer: string, ctx: GuardContext): string[] {
@@ -177,7 +266,7 @@ export function validateAnswer(answer: string, ctx: GuardContext): string[] {
       if (VARGA.test(s) && (new RegExp(`\\b${PLANET}\\b|\\b${SIGN}\\b`, 'i').test(s))) issues.push('divisional-chart placements depend on the exact birth time');
       if (JAIMINI_KARAKA.test(s)) issues.push('Jaimini karakas are ranked by degree, which changes through the birth date');
       if (/\bneecha[ -]?bhanga\b/i.test(s)) issues.push('Neecha Bhanga is judged from the Lagna, so it cannot be stated with an approximate birth time');
-      if (DASHA_TERM.test(s) && DATE_OR_CHANGE.test(s)) issues.push('dasha dates depend on the exact birth time, so no period start, end or change can be stated');
+      if ((DASHA_TERM.test(s) && DATE_OR_CHANGE.test(s)) || (PERIOD_PARAPHRASE.test(s) && PERIOD_DATE.test(s))) issues.push('dasha dates depend on the exact birth time, so no period start, end or change can be stated');
     }
 
     // Houses and Lagna.
@@ -334,11 +423,29 @@ export function validateAnswer(answer: string, ctx: GuardContext): string[] {
     }
   }
 
-  // Dates: any year the answer names must come from the supplied facts.
+  // Period boundaries (exact time): a stated start or end of a Mahadasha or Antardasha must be the
+  // calculated one, checked against the dasha calculation itself, not against the years in the text.
+  // With an approximate time no dasha date may be stated at all (the rule above).
+  const verifiedYears = new Set<string>();
+  if (!approx) {
+    for (const s of sentences(answer)) {
+      for (const c of periodBoundaryClaims(s)) {
+        const dates = boundaryDates(chart, c, s, ctx.asOf);
+        if (!dates.length) continue;
+        if (dates.some((d) => matchesDate(d, c))) verifiedYears.add(String(c.year));
+        else issues.push(`the ${c.lord} ${c.level === 'antar' ? 'Antardasha' : c.level === 'maha' ? 'Mahadasha' : 'period'} ${c.edge === 'start' ? 'begins' : 'ends'} in ${Array.from(new Set(dates.map((d) => d.slice(0, 4)))).join(' or ')}, not ${c.year}`);
+      }
+    }
+  }
+
+  // Calendar years: a year the answer names must be one the facts state, or lie inside a timing
+  // range they state. Naming a year is not a claim that anything is timed to it.
   const allowedYears = new Set(Array.from(ctx.packetText.matchAll(/\b(1[89]\d{2}|2[01]\d{2})\b/g)).map((m) => m[1]));
   allowedYears.add(String(ctx.asOf.getUTCFullYear()));
+  const ranges = suppliedRanges(ctx.packetText, approx);
   for (const m of Array.from(answer.matchAll(/\b(1[89]\d{2}|2[01]\d{2})\b/g))) {
-    if (!allowedYears.has(m[1])) issues.push(`the year ${m[1]} is not in the calculated timing`);
+    const y = Number(m[1]);
+    if (!allowedYears.has(m[1]) && !verifiedYears.has(m[1]) && !ranges.some(([a, b]) => a <= y && y <= b)) issues.push(`the year ${m[1]} is not in the calculated timing`);
   }
 
   return Array.from(new Set(issues));
