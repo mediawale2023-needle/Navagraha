@@ -18,6 +18,7 @@ import { transitsForChart, transitSummary } from "./astroEngine/index.js";
 import { isCurrentCanonicalChart, type CanonicalChart, type Graha } from "@shared/v3/canonical";
 import { birthDayStability, dignityStatementStable, yogaTimeStable, type BirthDayStability } from "./astroEngine/canonical/birthDay.js";
 import { buildInsights } from "./astroEngine/evidence/insights.js";
+import { reportGroundingFor } from "./userFacingReasoning.js";
 import {
   ReportGenerationError, checkSections, correctionNote, textProblems, MIN_SUMMARY_CHARS, type ReportGuard, type Section,
 } from "./reportQuality.js";
@@ -472,7 +473,7 @@ Return ONLY valid JSON with this exact shape:
 }
 
 Birth chart:
-${chartSummary(kundli)}${correction ? `\n\n${correction}` : ""}`;
+${chartSummary(kundli)}${reportGroundingFor(kundli)}${correction ? `\n\n${correction}` : ""}`;
 
   const response = await client.chat.completions.create({
     model: "gpt-4o",
@@ -623,7 +624,8 @@ export async function generateLifeReport(kundli: Partial<Kundli>): Promise<Gener
     ? "\n\n" + transitSummary(transitsForChart(canonical, (kundli as any).chartData?.ashtakavarga?.sav))
     : "";
   const guard = reportGuard(kundli, transit);
-  const chart = chartSummary(kundli);
+  // USER_FACING_REASONING_V1 adds the shared explanation context to the prompt only ('' when off); the guard's facts are unchanged.
+  const chart = chartSummary(kundli) + reportGroundingFor(kundli);
 
   const results = await Promise.all(LIFE_REPORT_BATCHES.map((batch) => checkedLifeBatch(batch, chart, transit, guard)));
   const sections = results.flat();

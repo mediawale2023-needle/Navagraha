@@ -5,6 +5,8 @@ import type { DomainResolution, EvidenceItem, EvidenceSource } from '@shared/v3/
 import type { CanonicalChart } from '@shared/v3/canonical';
 import { VerdictBadge, ConfidenceLabel } from '@/components/v3/verdict';
 import { dignityKnown, dignityLabel, planetFacts, type TimeStability } from '@/lib/timeStability';
+import type { ChartExplanations } from '@shared/v3/explanations';
+import { AreaPlainExplanation, PlanetPlainExplanation } from '@/components/v3/PlainExplanation';
 
 const PROVENANCE_LABEL: Record<EvidenceItem['provenance'], string> = {
   'classical-principle': 'Classical principle',
@@ -46,13 +48,15 @@ interface AIInsightSheetProps {
   onOpenChange: (open: boolean) => void;
   subject: InsightSubject | null;
   onAskQuestion?: (question: string) => void;
+  /** Present only when the server sends explanations (USER_FACING_REASONING_V1). */
+  explanations?: ChartExplanations | null;
 }
 
 /**
  * Evidence Sheet — explains WHY Navagraha reached a conclusion, using only
  * deterministic evidence computed from this person's chart.
  */
-export function AIInsightSheet({ open, onOpenChange, subject, onAskQuestion }: AIInsightSheetProps) {
+export function AIInsightSheet({ open, onOpenChange, subject, onAskQuestion, explanations }: AIInsightSheetProps) {
   if (!subject) return null;
   const title = subject.kind === 'domain'
     ? `Why ${subject.resolution.label} is ${subject.resolution.verdict}`
@@ -85,6 +89,14 @@ export function AIInsightSheet({ open, onOpenChange, subject, onAskQuestion }: A
         </SheetHeader>
 
         <div className="h-full overflow-y-auto pb-28">
+          {subject.kind === 'domain' && (() => {
+            const ex = explanations?.areas.find((a) => a.domain === subject.resolution.domain);
+            return ex ? <AreaPlainExplanation explanation={ex} /> : null;
+          })()}
+          {subject.kind === 'planet' && (() => {
+            const ex = explanations?.planets.find((p) => p.planet === subject.planet);
+            return ex ? <PlanetPlainExplanation explanation={ex} /> : null;
+          })()}
           {subject.kind === 'domain' && (
             <div className="mb-4 flex flex-wrap items-center gap-2">
               <VerdictBadge verdict={subject.resolution.verdict} />

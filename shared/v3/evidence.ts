@@ -97,4 +97,6 @@ export interface KundliInsights {
   /** False when an approximate birth time could put a different period in force on asOf. */
   timing: { mahadashaReliable: boolean; antardashaReliable: boolean; note: string | null };
   notes: string[];
+  /** Present only when USER_FACING_REASONING_V1 is on (added by the insights routes, never by buildInsights). */
+  explanations?: import("./explanations").ChartExplanations;
 }
