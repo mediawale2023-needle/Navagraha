@@ -158,36 +158,51 @@ function suppliedRanges(text: string, approximate: boolean): Array<[number, numb
 
 const MONTH_NAMES = ['january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december'];
 const DATE = `(?:(${MONTH_NAMES.join('|')}|${MONTH_NAMES.map((m) => m.slice(0, 3)).join('|')})\\.?\\s+)?${YEAR}(?:-(\\d{2}))?(?:-\\d{2})?\\b`;
-const PERIOD_NAME = `\\b${PLANET}(?:['’]s)?\\s*[- ]?\\s*(maha\\s?dasha|mahadasa|antar\\s?dasha|antardasa|bhukti|sub-?period|dasha|dasa)\\b`;
+// "major/main period" is a Mahadasha, "minor/sub-period" an Antardasha; a bare "period" may be either.
+const PERIOD_NAME = `\\b${PLANET}(?:['’]s)?\\s*[- ]?\\s*(maha\\s?dasha|mahadasa|antar\\s?dasha|antardasa|bhukti|(?:major|main)\\s+period|(?:minor\\s+|sub-?)period|dasha|dasa|period)\\b`;
+const TAKES_OVER = `\\b${PLANET}\\s+(?:takes?|took|will\\s+take)\\s+over\\b`;
+// For an approximate time: these name a period too, so a date or change with them is refused like "dasha".
+const PERIOD_PARAPHRASE = new RegExp(`\\b${PLANET}(?:['’]s)?\\s+(?:(?:major|main|minor)\\s+|sub-?)?period\\b|${TAKES_OVER}`, 'i');
+// A date or a change for those paraphrases. Month names are matched capitalised, so "may" (the verb) is not a date.
+const PERIOD_DATE = /\b(?:1[89]\d{2}|2[01]\d{2}|begins?|began|starts?|started|ends?|ended|until|till|from|after|before|changes?|switch(?:es)?|next|upcoming|takes? over|took over)\b|\b(?:January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{4}\b/i;
 const START_WORD = '(?:begins?|began|starts?|started|commences?|commenced|opens?|from)';
 const END_WORD = '(?:ends?|ended|finishes|finished|concludes?|concluded|closes?|lasts until|runs until|runs till|until|till|through)';
 const AT = '\\s+(?:in\\s+|on\\s+|around\\s+|by\\s+|about\\s+)?';
-const RANGE_AFTER = new RegExp(`^\\s*[(,]?\\s*(?:from\\s+)?${DATE}\\s*(?:–|—|-|→|to)\\s*${DATE}`, 'i');
+const RANGE_VERB = '(?:runs?|ran|lasts?|lasted|spans?|spanned|extends?|extended|continues?|operates?|is|was|will\\s+(?:run|last|span|extend|continue))';
+const RANGE_AFTER = new RegExp(`^\\s*[(,]?\\s*(?:${RANGE_VERB}\\s+)?(?:from\\s+|between\\s+)?${DATE}\\s*(?:–|—|-|→|to|until|till|through|and)\\s*${DATE}`, 'i');
+const TAKEOVER_AFTER = new RegExp(`^[^.;]{0,25}?\\b${DATE}`, 'i');
 const START_AFTER = new RegExp(`\\b${START_WORD}${AT}${DATE}`, 'i');
 const END_AFTER = new RegExp(`\\b${END_WORD}${AT}${DATE}`, 'i');
 const DENIED = /\b(?:not|never|no longer|n['’]t)\b[^.]{0,12}$/i;
 
-type Claim = { lord: Graha; antar: boolean; edge: 'start' | 'end'; year: number; month: number | null };
+type Claim = { lord: Graha; level: 'maha' | 'antar' | 'any'; edge: 'start' | 'end'; year: number; month: number | null };
 const monthOf = (name?: string, mm?: string) => (mm ? Number(mm) - 1 : name ? MONTH_NAMES.findIndex((m) => m.startsWith(name.toLowerCase().slice(0, 3))) : null);
 
 /** Explicit start/end assertions about a named Mahadasha or Antardasha ("Venus Mahadasha begins in 2031", "Saturn Antardasha (2027–2030)"). */
 function periodBoundaryClaims(s: string): Claim[] {
   const out: Claim[] = [];
   for (const m of Array.from(s.matchAll(new RegExp(PERIOD_NAME, 'gi')))) {
-    const lord = planetOf(m[1]); const antar = /antar|bhukti|sub/i.test(m[2]);
+    const lord = planetOf(m[1]);
+    const level = /antar|bhukti|sub|minor/i.test(m[2]) ? 'antar' : /^period$/i.test(m[2]) ? 'any' : 'maha';
     // "the Ketu Antardasha of the Mercury Mahadasha begins…": the Mahadasha only places the Antardasha.
-    if (!antar && /\b(?:antar\s?dasha|antardasa|bhukti|sub-?period)\s+(?:of|within|in|inside)\s+(?:the\s+|your\s+)?$/i.test(s.slice(0, m.index!))) continue;
+    if (level === 'maha' && /\b(?:antar\s?dasha|antardasa|bhukti|sub-?period|minor\s+period)\s+(?:of|within|in|inside)\s+(?:the\s+|your\s+)?$/i.test(s.slice(0, m.index!))) continue;
     const tail = s.slice(m.index! + m[0].length, m.index! + m[0].length + 70);
     const range = tail.match(RANGE_AFTER);
     if (range) {
-      out.push({ lord, antar, edge: 'start', year: Number(range[2]), month: monthOf(range[1], range[3]) });
-      out.push({ lord, antar, edge: 'end', year: Number(range[5]), month: monthOf(range[4], range[6]) });
+      out.push({ lord, level, edge: 'start', year: Number(range[2]), month: monthOf(range[1], range[3]) });
+      out.push({ lord, level, edge: 'end', year: Number(range[5]), month: monthOf(range[4], range[6]) });
       continue;
     }
     for (const [re, edge] of [[START_AFTER, 'start'], [END_AFTER, 'end']] as const) {
       const b = tail.match(re);
-      if (b && !DENIED.test(tail.slice(0, b.index!))) out.push({ lord, antar, edge, year: Number(b[2]), month: monthOf(b[1], b[3]) });
+      if (b && !DENIED.test(tail.slice(0, b.index!))) out.push({ lord, level, edge, year: Number(b[2]), month: monthOf(b[1], b[3]) });
     }
+  }
+  // "Venus takes over in 2031": the start of a Venus Mahadasha or Antardasha.
+  for (const m of Array.from(s.matchAll(new RegExp(TAKES_OVER, 'gi')))) {
+    if (DENIED.test(s.slice(0, m.index! + m[0].length))) continue;
+    const d = s.slice(m.index! + m[0].length).match(TAKEOVER_AFTER);
+    if (d) out.push({ lord: planetOf(m[1]), level: 'any', edge: 'start', year: Number(d[2]), month: monthOf(d[1], d[3]) });
   }
   return out;
 }
@@ -196,15 +211,15 @@ function periodBoundaryClaims(s: string): Claim[] {
 function boundaryDates(chart: CanonicalChart, c: Claim, s: string, asOf: Date): string[] {
   const mds = chart.dashas.vimshottari.mahadashas;
   const birth = chart.birth.birthUTC;
-  if (!c.antar) {
-    // The birth Mahadasha began before birth; the timeline shows it from the birth date.
-    return mds.filter((m) => m.lord === c.lord).flatMap((m) => (c.edge === 'end' ? [m.end] : m.start < birth ? [m.start, birth] : [m.start]));
-  }
+  // The birth Mahadasha began before birth; the timeline shows it from the birth date.
+  const maha = mds.filter((m) => m.lord === c.lord).flatMap((m) => (c.edge === 'end' ? [m.end] : m.start < birth ? [m.start, birth] : [m.start]));
+  if (c.level === 'maha') return maha;
   const named = Array.from(s.matchAll(new RegExp(`\\b${PLANET}(?:['’]s)?\\s*[- ]?\\s*(?:maha\\s?dasha|mahadasa)\\b`, 'gi'))).map((m) => planetOf(m[1]));
   const t = asOf.getTime();
   const i = mds.findIndex((m) => Date.parse(m.start) <= t && t < Date.parse(m.end));
   const scope = named.length ? mds.filter((m) => named.includes(m.lord)) : mds.slice(Math.max(0, i - 1), i + 2);
-  return scope.flatMap((m) => m.antardashas.filter((a) => a.lord === c.lord).map((a) => (c.edge === 'end' ? a.end : a.start)));
+  const antar = scope.flatMap((m) => m.antardashas.filter((a) => a.lord === c.lord).map((a) => (c.edge === 'end' ? a.end : a.start)));
+  return c.level === 'any' ? [...maha, ...antar] : antar;
 }
 
 const matchesDate = (iso: string, c: Claim) => {
@@ -251,7 +266,7 @@ export function validateAnswer(answer: string, ctx: GuardContext): string[] {
       if (VARGA.test(s) && (new RegExp(`\\b${PLANET}\\b|\\b${SIGN}\\b`, 'i').test(s))) issues.push('divisional-chart placements depend on the exact birth time');
       if (JAIMINI_KARAKA.test(s)) issues.push('Jaimini karakas are ranked by degree, which changes through the birth date');
       if (/\bneecha[ -]?bhanga\b/i.test(s)) issues.push('Neecha Bhanga is judged from the Lagna, so it cannot be stated with an approximate birth time');
-      if (DASHA_TERM.test(s) && DATE_OR_CHANGE.test(s)) issues.push('dasha dates depend on the exact birth time, so no period start, end or change can be stated');
+      if ((DASHA_TERM.test(s) && DATE_OR_CHANGE.test(s)) || (PERIOD_PARAPHRASE.test(s) && PERIOD_DATE.test(s))) issues.push('dasha dates depend on the exact birth time, so no period start, end or change can be stated');
     }
 
     // Houses and Lagna.
@@ -418,7 +433,7 @@ export function validateAnswer(answer: string, ctx: GuardContext): string[] {
         const dates = boundaryDates(chart, c, s, ctx.asOf);
         if (!dates.length) continue;
         if (dates.some((d) => matchesDate(d, c))) verifiedYears.add(String(c.year));
-        else issues.push(`the ${c.lord} ${c.antar ? 'Antardasha' : 'Mahadasha'} ${c.edge === 'start' ? 'begins' : 'ends'} in ${Array.from(new Set(dates.map((d) => d.slice(0, 4)))).join(' or ')}, not ${c.year}`);
+        else issues.push(`the ${c.lord} ${c.level === 'antar' ? 'Antardasha' : c.level === 'maha' ? 'Mahadasha' : 'period'} ${c.edge === 'start' ? 'begins' : 'ends'} in ${Array.from(new Set(dates.map((d) => d.slice(0, 4)))).join(' or ')}, not ${c.year}`);
       }
     }
   }

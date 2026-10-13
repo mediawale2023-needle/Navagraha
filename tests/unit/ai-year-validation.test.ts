@@ -122,3 +122,45 @@ describe('a Mahadasha named only to place an Antardasha', () => {
     ok(`During your ${md.lord} Mahadasha, which ends in ${md.end.slice(0, 4)}, career matters deepen.`, g);
   });
 });
+
+describe('range and paraphrase boundary claims', () => {
+  it('checks both ends of a stated range, whatever the verb', async () => {
+    const { chart, transits, next } = await load('2001-03-24', '08:43');
+    const g = ask(chart, 'When will my career improve?', transits);
+    const [S, E] = [next.start.slice(0, 4), next.end.slice(0, 4)];
+    for (const verb of ['runs from', 'lasts from', 'spans from', 'runs between']) {
+      const sep = verb.endsWith('between') ? 'and' : 'to';
+      ok(`${next.lord} Mahadasha ${verb} ${S} ${sep} ${E}.`, g);
+      refused(`${next.lord} Mahadasha ${verb} ${S} ${sep} ${Number(E) + 3}.`, g);
+      refused(`${next.lord} Mahadasha ${verb} ${Number(S) - 2} ${sep} ${E}.`, g);
+    }
+  });
+
+  it('reads "major/main period", "minor period/sub-period" and "takes over" as period claims', async () => {
+    const { chart, transits, md, next, ad } = await load('2001-03-24', '08:43');
+    const g = ask(chart, 'When will my career improve?', transits);
+    const following = md.antardashas[md.antardashas.indexOf(ad) + 1];
+    ok(`${next.lord}'s major period begins in ${next.start.slice(0, 4)}.`, g);
+    refused(`${next.lord}'s major period begins in ${Number(next.start.slice(0, 4)) + 1}.`, g);
+    ok(`${md.lord}'s main period concludes in ${md.end.slice(0, 4)}.`, g);
+    refused(`${md.lord}'s main period concludes in 2027.`, g);
+    ok(`The ${ad.lord} minor period ends in ${ad.end.slice(0, 4)}.`, g);
+    refused(`The ${ad.lord} minor period ends in ${Number(ad.end.slice(0, 4)) + 4}.`, g);
+    ok(`The ${following.lord} sub-period starts in ${following.start.slice(0, 4)}.`, g);
+    ok(`${next.lord} takes over in ${next.start.slice(0, 4)}.`, g);
+    refused(`${next.lord} takes over in ${Number(next.start.slice(0, 4)) - 3}.`, g);
+    ok(`Your ${next.lord} period begins in ${next.start.slice(0, 4)}.`, g);
+    refused(`Your ${next.lord} period begins in ${Number(next.start.slice(0, 4)) + 2}.`, g);
+    // Talk about a period without a boundary stays allowed.
+    ok(`During the ${md.lord} period, communication and study come forward.`, g);
+  });
+
+  it('approximate time: these paraphrases cannot state a date either, but plain mentions still pass', async () => {
+    const { chart, transits, next } = await load('2001-03-24', '12:00', 'approximate');
+    const g = ask(chart, 'When will my career improve?', transits);
+    refused(`${next.lord} takes over in 2027.`, g);
+    refused(`Your ${next.lord} period begins in 2027.`, g);
+    refused(`${next.lord}'s major period runs from 2027 to 2033.`, g);
+    ok('Wealth may feel difficult during the Saturn period.', g);
+  });
+});
