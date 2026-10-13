@@ -112,7 +112,7 @@ class Collector {
   }
 }
 
-function dignityDirection(d?: { dignity: string; combust: boolean; neechaBhanga?: boolean }): { direction: EvidenceDirection; strength: EvidenceStrength; text: string } | null {
+export function dignityDirection(d?: { dignity: string; combust: boolean; neechaBhanga?: boolean }): { direction: EvidenceDirection; strength: EvidenceStrength; text: string } | null {
   if (!d) return null;
   if (STRONG_DIGNITIES.includes(d.dignity)) return { direction: 'positive', strength: d.dignity === 'Exalted' ? 'strong' : 'moderate', text: d.dignity.toLowerCase() };
   if (d.dignity === 'Debilitated') {
@@ -333,6 +333,12 @@ const YOGA_DOMAINS: Array<{ match: RegExp; domains: LifeDomain[]; lagnaDependent
   { match: /^Budha-Aditya Yoga$/, domains: ['education', 'career'], lagnaDependent: false, common: true },
   { match: /^Chandra-Mangala Yoga$/, domains: ['wealth'], lagnaDependent: false },
 ];
+
+/** The life areas the evidence engine maps a yoga to (YOGA_DOMAINS), or undefined when it maps none (Kemadruma is handled on its own). */
+export function yogaAreaMapping(name: string): Readonly<{ domains: readonly LifeDomain[]; lagnaDependent: boolean; common: boolean }> | undefined {
+  const m = YOGA_DOMAINS.find((x) => x.match.test(name));
+  return m && { domains: m.domains, lagnaDependent: m.lagnaDependent, common: !!m.common };
+}
 
 /**
  * The chart facts that define a detected yoga (yogas.ts), as derived dependencies. A yoga name this
