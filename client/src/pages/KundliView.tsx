@@ -14,7 +14,8 @@ import { PageHeader, PageBody } from '@/components/shell/PageHeader';
 import { recreateHref } from '@/lib/recreateChart';
 import { BalanceShortfall } from '@/components/BalanceShortfall';
 import { chartTabView, type ChartTabView } from '@/lib/approximateChart';
-import { dignityKnown, planetFacts, type TimeStability } from '@/lib/timeStability';
+import { dignityKnown, dignityLabel, planetFacts, type TimeStability } from '@/lib/timeStability';
+import { savReading, SAV_POLICY_TEXT, SAV_TOTAL } from '@shared/v3/ashtakavargaPolicy';
 import { approximateDasha } from '@/lib/dashaTimeline';
 import type { Kundli } from '@shared/schema';
 import { useAuth } from '@/hooks/useAuth';
@@ -474,14 +475,17 @@ export default function KundliView() {
                   <div>
                     <p className="text-xs font-semibold text-amber-text mb-2">Sarvashtakavarga (SAV) — strength by house</p>
                     <div className="grid grid-cols-6 gap-1.5">
-                      {chartData.ashtakavarga.savByHouse.map((b: number, i: number) => (
-                        <div key={i} className={`rounded-lg p-2 text-center ${b >= 30 ? 'bg-positive/10 text-positive' : b < 25 ? 'bg-negative/10 text-negative' : 'bg-highlight text-ink'}`}>
-                          <div className="text-xs text-muted-foreground">H{i + 1}</div>
-                          <div className="text-sm font-bold">{b}</div>
-                        </div>
-                      ))}
+                      {chartData.ashtakavarga.savByHouse.map((b: number, i: number) => {
+                        const r = savReading(b);
+                        return (
+                          <div key={i} title={r.label} aria-label={`House ${i + 1}: ${b} bindus, ${r.label.toLowerCase()}`} className={`rounded-lg p-2 text-center ${r.direction === 'positive' ? 'bg-positive/10 text-positive' : r.direction === 'negative' ? 'bg-negative/10 text-negative' : 'bg-highlight text-ink'}`}>
+                            <div className="text-xs text-muted-foreground">H{i + 1}</div>
+                            <div className="text-sm font-bold">{b}</div>
+                          </div>
+                        );
+                      })}
                     </div>
-                    <p className="text-xs text-muted-foreground mt-1.5">Higher bindus = stronger house. Total across all houses = 337.</p>
+                    <p className="text-xs text-muted-foreground mt-1.5">{SAV_POLICY_TEXT} Total across all houses = {SAV_TOTAL}.</p>
                   </div>
 
                   {chartData.ashtakavarga.bav && (
@@ -585,8 +589,8 @@ export default function KundliView() {
                           <tr key={p.planet} className="border-b border-border/40">
                             <td className="p-1.5 font-medium">{p.planet}</td>
                             <td className="p-1.5">{approx && !f!.sign ? 'Uncertain — changes during the birth date' : p.sign}</td>
-                            <td className={`p-1.5 ${dignityShown && (p.dignity === 'Exalted' || p.dignity === 'Own sign' || p.dignity === 'Moolatrikona') ? 'text-positive' : dignityShown && p.dignity === 'Debilitated' ? 'text-negative' : ''}`}>
-                              {dignityShown ? <>{p.dignity}{!approx && p.neechaBhanga ? ' (cancelled)' : ''}</> : 'Uncertain'}
+                            <td className={`p-1.5 ${dignityShown && (p.dignity === 'Exalted' || p.dignity === 'Own sign' || p.dignity === 'Moolatrikona') ? 'text-positive' : dignityShown && p.dignity === 'Debilitated' && !(p.neechaBhanga && !approx) ? 'text-negative' : ''}`}>
+                              {dignityShown ? dignityLabel(p, approx) : 'Uncertain'}
                             </td>
                             <td className="p-1.5 text-muted-foreground">
                               {approx

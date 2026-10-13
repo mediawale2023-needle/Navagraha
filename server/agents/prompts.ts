@@ -21,8 +21,8 @@ Keep it to a short list of confirmations and contradictions.`,
 
   ashtakavarga: `You are the Ashtakavarga Agent.
 ${GROUNDING}
-Using only the supplied Sarvashtakavarga evidence (average ≈ 28 bindus per house):
-1. Report the bindu figures supplied for the houses relevant to the question.
+Using only the supplied Sarvashtakavarga evidence items (about 28 bindus a house is average; 32 or more supports a house, 24 or fewer strains it, 25–31 is average and gives no evidence item):
+1. For each house relevant to the question, quote a bindu figure only if an evidence item in the context states it, word for word. For a house with no Sarvashtakavarga item give no number: with an exact birth time that means its bindus are average (25–31); with an approximate birth time bindus are not stated at all. Never estimate, infer or compute a figure.
 2. If Ashtakavarga contradicts another supporting factor, say so explicitly.
 Output: house_bindus, contradictions.`,
 

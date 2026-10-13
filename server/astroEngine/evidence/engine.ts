@@ -13,6 +13,7 @@ import {
   DOMAIN_LABELS, LIFE_DOMAINS, type EvidenceItem, type EvidenceDirection, type EvidenceProvenance,
   type EvidenceSource, type EvidenceStrength, type EvidenceTier, type LifeDomain,
 } from '@shared/v3/evidence';
+import { savReading, SAV_RULE } from '@shared/v3/ashtakavargaPolicy';
 import { signDignity } from '../dignity.js';
 import { vimshottariDasha } from '../dasha.js';
 import { birthDayStability, dignityStatementStable, yogaTimeStable, type BirthDayStability } from '../canonical/birthDay.js';
@@ -199,18 +200,16 @@ function houseRules(c: Collector, ix: ChartIndex, domain: LifeDomain, h: number)
     }
   }
 
-  // 5. Sarvashtakavarga bindus of the house (average ≈ 28 = 337/12).
+  // 5. Sarvashtakavarga bindus of the house, read through the shared policy (average ≈ 28 = 337/12).
   const sav = chart.strength.ashtakavarga.savByHouse[h - 1];
-  const savItem = (direction: EvidenceDirection, strength: EvidenceStrength, verdict: string) => c.add({
-    factor: `${ORD(h)} house Sarvashtakavarga`, house: h, direction, strength, source: 'Ashtakavarga', provenance: 'derived-rule',
-    rule: 'Sarvashtakavarga averages about 28 bindus per house; 32 or more supports the house, 24 or fewer strains it.',
-    explanation: `The ${ORD(h)} house (${ix.houseSign(h)}) has ${sav} bindus — ${verdict}.`, requiresBirthTime: true,
-  });
-  // Symmetric bands around the ~28 average.
-  if (sav >= 36) savItem('positive', 'strong', 'well above average');
-  else if (sav >= 32) savItem('positive', 'moderate', 'above average');
-  else if (sav <= 20) savItem('negative', 'strong', 'well below average');
-  else if (sav <= 24) savItem('negative', 'moderate', 'below average');
+  const reading = savReading(sav);
+  if (reading.strength) {
+    c.add({
+      factor: `${ORD(h)} house Sarvashtakavarga`, house: h, direction: reading.direction, strength: reading.strength, source: 'Ashtakavarga', provenance: 'derived-rule',
+      rule: SAV_RULE,
+      explanation: `The ${ORD(h)} house (${ix.houseSign(h)}) has ${sav} bindus — ${reading.label.toLowerCase()}.`, requiresBirthTime: true,
+    });
+  }
 
   // 6. Directional strength of the house lord (partial Shadbala).
   const sb = chart.strength.shadbala.planets.find((p) => p.planet === lord);

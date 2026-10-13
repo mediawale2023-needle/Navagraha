@@ -4,7 +4,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '
 import type { DomainResolution, EvidenceItem, EvidenceSource } from '@shared/v3/evidence';
 import type { CanonicalChart } from '@shared/v3/canonical';
 import { VerdictBadge, ConfidenceLabel } from '@/components/v3/verdict';
-import { dignityKnown, planetFacts, type TimeStability } from '@/lib/timeStability';
+import { dignityKnown, dignityLabel, planetFacts, type TimeStability } from '@/lib/timeStability';
 
 const PROVENANCE_LABEL: Record<EvidenceItem['provenance'], string> = {
   'classical-principle': 'Classical principle',
@@ -174,7 +174,7 @@ export function planetLine(s: Extract<InsightSubject, { kind: 'planet' }>): stri
     `${p.sign} ${p.degreeInSign.toFixed(1)}°`,
     `${ord(p.house)} house`,
     `${p.nakshatra.name} pada ${p.nakshatra.pada}`,
-    d ? d.dignity : null,
+    d ? dignityLabel(d, false) : null,
     p.retrograde && p.name !== 'Rahu' && p.name !== 'Ketu' ? 'retrograde' : null,
     d?.combust ? 'combust' : null,
   ].filter(Boolean).join(' · ');

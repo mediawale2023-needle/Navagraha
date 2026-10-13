@@ -1,3 +1,5 @@
+import { SAV_POLICY_TEXT } from '@shared/v3/ashtakavargaPolicy';
+
 // General Jyotish terms used in answers, with their Devanagari names and plain definitions.
 // These define vocabulary only; nothing here describes anyone's chart.
 
@@ -5,7 +7,7 @@ export interface GlossaryEntry { term: string; hi: string; definition: string; m
 
 export const GLOSSARY: GlossaryEntry[] = [
   { term: 'Sarvashtakavarga', hi: 'सर्वाष्टकवर्ग', match: /sarvashtakavarga|\bSAV\b/i,
-    definition: "A score for each house from all seven planets' bindus. About 28 is average; 32 or more supports the house." },
+    definition: `A score for each house from all seven planets' bindus. ${SAV_POLICY_TEXT}` },
   { term: 'Ashtakavarga', hi: 'अष्टकवर्ग', match: /(?<!sarv)ashtakavarga|bindus?/i,
     definition: 'A points system: each planet gives 0 to 8 bindus to every sign; more bindus make a sign better for transits and placements.' },
   { term: 'Dasamsa · D10', hi: 'दशांश', match: /dasamsa|\bD10\b/i,
@@ -33,7 +35,9 @@ export const GLOSSARY: GlossaryEntry[] = [
   { term: 'Exalted', hi: 'उच्च', match: /exalt/i,
     definition: 'A planet in its sign of greatest strength.' },
   { term: 'Debilitated', hi: 'नीच', match: /debilitat/i,
-    definition: 'A planet in its sign of greatest weakness; some conditions cancel it (neecha bhanga).' },
+    definition: 'A planet in its sign of greatest weakness. Some placements cancel the debilitation (Neecha Bhanga).' },
+  { term: 'Neecha Bhanga', hi: 'नीचभंग', match: /neecha[ -]?bhanga/i,
+    definition: "Cancellation of a planet's debilitation by placements judged from the Lagna. It removes the debilitation; on its own it does not make the planet strong." },
   { term: 'Own sign', hi: 'स्वक्षेत्र', match: /own sign/i,
     definition: 'A planet in a sign it rules, where it acts with confidence.' },
   { term: 'Yoga', hi: 'योग', match: /\byogas?\b/i,

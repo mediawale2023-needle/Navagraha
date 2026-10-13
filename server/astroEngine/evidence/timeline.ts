@@ -38,7 +38,8 @@ function describe(ix: ChartIndex, level: TimelinePeriod['level'], lord: Graha, s
   const conflicting = cond.reasons.filter(isNegative);
   let confidence: Confidence = 'Medium';
   if (ix.approximate || dashaTimeSensitive) confidence = 'Low';
-  else if (links.length > 0 && cond.reasons.length >= 2) confidence = 'High';
+  // High needs both quantity and agreement: two or more reasons, none pulling the other way.
+  else if (links.length > 0 && cond.reasons.length >= 2 && (supporting.length === 0 || conflicting.length === 0)) confidence = 'High';
   const areaNames = domains.map((d) => DOMAIN_LABELS[d.domain].toLowerCase());
   const years = ((Date.parse(end) - Date.parse(start)) / (365.25 * 86_400_000)).toFixed(1);
   const quality = cond.direction === 'positive' ? 'a well-placed' : cond.direction === 'negative' ? 'a strained' : 'a neutral';
