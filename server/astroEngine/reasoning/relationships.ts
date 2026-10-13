@@ -8,7 +8,9 @@
  * - natal-vs-activation: in one area, the natal evidence about a period lord against the period's own
  *   item (natal potential vs period activation); a neutral period is `period-neutral`, not a conflict.
  * - yoga-condition: a formed yoga and a participant's condition (supporting, challenging or neutral).
- * - yoga-activation: a yoga participant's period is running.
+ * - yoga-activation: a participating planet rules the running Mahadasha or Antardasha
+ *   (`participant-period-running`). Timing only: it does not mean the yoga is effective, will give its
+ *   result in full, or that anything positive follows.
  * - shared-dependency: two findings' evidence in one area rests on one fact (from the classifier).
  * - tension: every other classified contradiction, marked legitimate-mixed or unresolved.
  */
@@ -24,7 +26,7 @@ import type { YogaFinding } from './yogaFindings.js';
 export type RelationshipType = 'participates' | 'period-lord' | 'natal-vs-activation' | 'yoga-condition' | 'yoga-activation' | 'shared-dependency' | 'tension';
 export type RelationshipStatus =
   | 'linked' | 'aligned' | 'period-only' | 'period-neutral' | 'supporting' | 'challenging' | 'neutral' | 'withheld'
-  | 'activated' | 'shared' | 'legitimate-mixed' | 'unresolved';
+  | 'participant-period-running' | 'shared' | 'legitimate-mixed' | 'unresolved';
 
 export type Relationship = Readonly<{
   id: string;
@@ -118,7 +120,7 @@ export function buildRelationships(
       }
       for (const level of pc.activePeriods) {
         const p = known.find((x) => x.level === level)!;
-        out.push({ type: 'yoga-activation', status: 'activated', findings: [y.id, p.id], factIds: [y.factId, p.timingFactId], ruleIds: [], evidenceIds: [], contradictionIds: [] });
+        out.push({ type: 'yoga-activation', status: 'participant-period-running', findings: [y.id, p.id], factIds: [y.factId, p.timingFactId], ruleIds: [], evidenceIds: [], contradictionIds: [] });
       }
     }
   }

@@ -31,10 +31,22 @@ export type AreaLink = Readonly<{
   significator: boolean;
 }>;
 
+/**
+ * Where an area's period direction comes from: the one capacity reading of the period lord, which the
+ * existing rule applies to every area the lord is linked to. It is not a result calculated for this area.
+ */
+export type SharedPeriodDirection = Readonly<{
+  value: EvidenceDirection;
+  source: 'shared-period-lord-capacity';
+  areaSpecific: false;
+}>;
+
 export type PeriodArea = Readonly<{
   link: AreaLink;
   /** The existing period evidence in this area (dasha.running-lord), when the rule produced a usable item. */
   periodEvidence: EvidenceRef | null;
+  /** The period's direction in this area — always the lord's shared capacity, never an area-specific prediction; null without a period item. */
+  periodDirection: SharedPeriodDirection | null;
   /** Natal evidence about the lord in this area (not the period's own item), by direction. */
   natal: Readonly<{ supporting: readonly string[]; challenging: readonly string[]; neutral: readonly string[]; experimental: readonly string[] }>;
 }>;
@@ -104,6 +116,7 @@ export function buildPeriodFindings(r: ReasoningInput, planets: readonly PlanetF
           significator: spec.karakas.includes(lord),
         },
         periodEvidence: periodItem ? evidenceRef(periodItem, 'subject') : null,
+        periodDirection: periodItem ? { value: periodItem.item.direction, source: 'shared-period-lord-capacity', areaSpecific: false } : null,
         natal,
       };
     }
