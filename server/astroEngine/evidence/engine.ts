@@ -51,7 +51,7 @@ export const DOMAIN_SPECS: Record<LifeDomain, DomainSpec> = {
 };
 
 const ORD = (n: number) => `${n}${n % 10 === 1 && n !== 11 ? 'st' : n % 10 === 2 && n !== 12 ? 'nd' : n % 10 === 3 && n !== 13 ? 'rd' : 'th'}`;
-const STRONG_DIGNITIES = ['Exalted', 'Own sign', 'Moolatrikona'];
+export const STRONG_DIGNITIES = ['Exalted', 'Own sign', 'Moolatrikona'];
 
 export interface ChartIndex {
   chart: CanonicalChart;
@@ -68,6 +68,11 @@ export interface ChartIndex {
   conditionKnown: (g: Graha) => boolean;
 }
 
+/** Natural benefics: Jupiter, Venus, Mercury, and the waxing Moon (Mercury's associations are not considered). */
+export function isNaturalBenefic(g: Graha, waxingMoon: boolean): boolean {
+  return g === 'Jupiter' || g === 'Venus' || g === 'Mercury' || (g === 'Moon' && waxingMoon);
+}
+
 export function indexChart(chart: CanonicalChart): ChartIndex {
   const byName = new Map(chart.planets.map((p) => [p.name, p]));
   const sun = byName.get('Sun')!.longitude;
@@ -81,8 +86,7 @@ export function indexChart(chart: CanonicalChart): ChartIndex {
     lordOf: (h) => chart.houses[h - 1].lord,
     houseSign: (h) => chart.houses[h - 1].sign,
     dignity: (g) => chart.strength.dignities.find((d) => d.planet === g),
-    // Natural benefics: Jupiter, Venus, Mercury, and the waxing Moon.
-    isBenefic: (g) => g === 'Jupiter' || g === 'Venus' || g === 'Mercury' || (g === 'Moon' && waxing),
+    isBenefic: (g) => isNaturalBenefic(g, waxing),
     approximate,
     moonTimeSensitive: approximate && !chart.uncertainty.moonSignStableAcrossBirthDate,
     stability,
