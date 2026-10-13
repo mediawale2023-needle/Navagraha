@@ -6,20 +6,40 @@ and are applied only by the shadow reconciliation (`reasoning/reconciliation.ts`
 
 **Source limits.** The primary texts (Brihat Parashara Hora Shastra, Laghu Parashari) could not be read
 verse by verse while this was prepared: page fetches were unavailable and web search returned
-secondary commentary only. No verse, chapter number or Sanskrit quotation is claimed anywhere. A
-classical point supported only by secondary commentary is at most **provisional**. The one
-**validated** policy rests on the engine's own registered rules (an internal contradiction), with
-secondary classical support noted.
+secondary commentary only. No verse, chapter number or Sanskrit quotation is claimed anywhere.
 
-Status meanings: **validated** — may produce a candidate shadow verdict; **provisional** — what-if
-diagnostic only; **unresolved** — flagged only, no treatment computed.
+**Three separate statuses.** Every policy is judged on three dimensions that are never merged:
+
+| Dimension | Meaning | Values used |
+|---|---|---|
+| A. Technical correctness | The treatment is implemented and reproduced by tests | `validated`, `not-implemented` |
+| B. Classical support | Support in the tradition | `validated` only with a verified primary text or qualified expert review (**none yet**); `provisional` (secondary commentary or internal consistency); `unresolved` |
+| C. Production approval | May the app use it | `not-approved` for every policy |
+
+The **shadow role** says what a policy may do in the comparison: `provisional-candidate` shapes the
+proposed shadow verdict (only a technically validated policy that resolves a contradiction between two
+registered engine rules); `what-if` gives a diagnostic verdict reported apart; `diagnostic` is reported
+without a verdict; `flag-only` is listed only. Before any activation: primary-text validation (BPHS /
+Laghu Parashari) or qualified expert review, then an explicit production decision.
+
+| Policy | Technical | Classical | Production | Shadow role |
+|---|---|---|---|---|
+| `own-house-lord-not-malefic-occupant` | validated | **provisional** | not approved | provisional-candidate |
+| `lord-aspect-on-own-house` | validated | provisional | not approved | what-if |
+| `planet-dignity-once-per-area` | validated | provisional | not approved | what-if |
+| `functional-roles-laghu-parashari` | validated | provisional | not approved | diagnostic |
+| `combust-strong-dignity` | not implemented | unresolved | not approved | flag-only |
+| `neecha-bhanga-raja-yoga` | not implemented | unresolved | not approved | flag-only |
+| `weak-yoga-participant` | not implemented | unresolved | not approved | flag-only |
+| `shared-period-direction` | not implemented | unresolved | not approved | flag-only |
+| `rahu-ketu-kendra-trikona` | not implemented | unresolved | not approved | flag-only |
 
 ## A. Functional planetary roles
 
 The remedy logic (`functionalRoles`, PR #102) is unchanged. A provisional Laghu Parashari reading
 (`functionalRoleReview`) is computed beside it for review; it feeds no verdict and no remedy.
 
-| Question | Existing rule | Proposed interpretation | Source / tradition | Exceptions | Ascendants affected | Expected impact | Confidence | Traditions disagree | Status |
+| Question | Existing rule | Proposed interpretation | Source / tradition | Exceptions | Ascendants affected | Expected impact | Confidence | Traditions disagree | Classical status |
 |---|---|---|---|---|---|---|---|---|---|
 | Yogakaraka | First of Sun…Saturn owning a trikona (1,5,9) and a kendra (4,7,10): a Lagna lord owning a kendra qualifies | Only a planet owning a kendra (4,7,10) and a trikona (5,9); the Lagna lord is benefic in its own right | Laghu Parashari commentary (yogakaraka = kendra–trikona lord; Lagna lord treated separately); primary verses not verified | — | Gemini, Virgo (Mercury); Sagittarius, Pisces (Jupiter) | Remedies only (the yogakaraka "Strengthen" entry); no verdict uses functional role | Medium | Some modern authors still call a Lagna lord owning a kendra a yogakaraka | Provisional |
 | Lagna lord beneficence | Lagna lord also owning the 6th or 8th is `mixed` | Lagna lord benefic (exempt from the 8th-lord blemish and from Kendradhipati) | Laghu Parashari commentary on the 8th lord who is also the Lagna lord | — | Aries, Scorpio (Mars); Taurus, Libra (Venus); Aquarius (Saturn, 1 and 12) | Remedies only | Medium | Some hold the 6th lordship still harms | Provisional |
@@ -34,13 +54,13 @@ The full 12-ascendant table of differences is generated in `PR104_SHADOW_COMPARI
 
 ## B. Planetary condition
 
-| Question | Existing rule | Proposed interpretation | Source | Impact | Confidence | Status |
+| Question | Existing rule | Proposed interpretation | Source | Impact | Classical confidence | Technical / classical / production |
 |---|---|---|---|---|---|---|
-| Malefic occupying the house it rules | `house.lord-placement.own-house` (+, "protects and strengthens that house") and `house.occupant.malefic` (−) both read the same `planet.house` fact for the same house | The specific own-house rule governs; the malefic-occupant item is neutral there (no new weight) | The engine's own registered rule text; rule specificity; secondary commentary (BPHS-based bhava strength names the house lord's strength; a Tajika text: a house aspected or joined by its own lord is strong) | 130 area items on seed 99; 51 candidate verdict/confidence changes | High (internal consistency), classical case "even when malefic" not verified in a primary edition | **Validated** |
-| Lord's aspect on its own house | `house.aspect.saturn-mars` reads Saturn's or Mars's aspect as pressure even on a house it rules | Neutral when the aspecting planet rules the aspected house | Secondary commentary only | 301 areas; 56 would change (what-if) | Medium | Provisional |
-| Combustion with a strong dignity | Natal dignity ignores combustion; period capacity subtracts 1 | None | No documented basis for size or direction | 78 cases flagged | Low | Unresolved |
+| Malefic occupying the house it rules | `house.lord-placement.own-house` (+, "protects and strengthens that house") and `house.occupant.malefic` (−) both read the same `planet.house` fact for the same house | The specific own-house rule governs; the malefic-occupant item is neutral there (no new weight) | The engine's own registered rule text; rule specificity; secondary commentary (BPHS-based bhava strength names the house lord's strength; a Tajika text: a house aspected or joined by its own lord is strong) | 130 areas on seed 99; 51 **provisional candidate** verdict/confidence changes | Medium — the engine contradiction is certain; the classical "even when malefic" case is not verified in a primary edition | validated / **provisional** / not approved — needs primary-text validation or qualified expert review before activation |
+| Lord's aspect on its own house | `house.aspect.saturn-mars` reads Saturn's or Mars's aspect as pressure even on a house it rules | Neutral when the aspecting planet rules the aspected house | Secondary commentary only | 301 areas; 56 would change (what-if) | Medium | validated / provisional / not approved |
+| Combustion with a strong dignity | Natal dignity ignores combustion; period capacity subtracts 1 | None | No documented basis for size or direction | 78 cases flagged | Low | not implemented / unresolved / not approved |
 | Neecha Bhanga | Cancelled debilitation is neutral | Unchanged | — | — | — | Kept (no question) |
-| Neecha Bhanga Raja Yoga | Counted as a strong positive yoga (career, leadership) | None; strength restored vs yoga formed are different questions | Texts differ on the forming conditions | 85 cases flagged | Low | Unresolved |
+| Neecha Bhanga Raja Yoga | Counted as a strong positive yoga (career, leadership) | None; strength restored vs yoga formed are different questions | Texts differ on the forming conditions | 85 cases flagged | Low | not implemented / unresolved / not approved |
 | Exaltation, debilitation, own sign | `dignity.ts` (BPHS degree ranges, PR #99) | Unchanged | Existing | — | — | Kept |
 
 Dignity (a planet's own condition) is kept apart from functional effects (lordship): no policy uses
@@ -79,9 +99,12 @@ functional role to alter a dignity reading or a verdict.
 
 ## Recommendations for PR #105
 
-1. Consider enabling `own-house-lord-not-malefic-occupant` in production behind a flag, after an
-   astrologer reviews the 51 candidate changes in `pr104-shadow-comparison.json`.
-2. Before anything else, obtain a primary-edition check (BPHS / Laghu Parashari) for the provisional
-   functional-role reading and the lord's-aspect policy; promote only what the text supports.
-3. Keep combustion with strong dignity, Neecha Bhanga Raja Yoga, weak yoga participants, the shared
+1. Obtain primary-text validation (a BPHS / Laghu Parashari edition) or qualified expert review for
+   `own-house-lord-not-malefic-occupant`. Until then it stays classically provisional and **not
+   approved**; its 51 changes are provisional candidates, not validated or improved predictions.
+2. Only after that, consider it for production behind a flag, with an astrologer reviewing the 51
+   candidate changes in `pr104-shadow-comparison.json`.
+3. Seek the same check for the provisional functional-role reading and the lord's-aspect policy;
+   promote only what the text supports.
+4. Keep combustion with strong dignity, Neecha Bhanga Raja Yoga, weak yoga participants, the shared
    period direction and Rahu/Ketu in kendras unresolved until a documented basis exists.

@@ -1,6 +1,7 @@
 {
  "generatedFor": "PR #104",
  "asOf": "2026-10-13T06:00:00.000Z",
+ "statusNote": "Shadow only. Candidate changes come from provisional-candidate policies: technically validated, classically provisional, not approved for production. They are not validated or improved predictions.",
  "sample": {
   "exact": 336,
   "approximate": 72
@@ -71,6 +72,8 @@
  },
  "changedVerdicts": [
   {
+   "kind": "provisional-candidate",
+   "productionApproved": false,
    "set": "exact",
    "birth": {
     "date": "1961-08-22",
@@ -96,7 +99,8 @@
    "treatments": [
     {
      "policyId": "own-house-lord-not-malefic-occupant",
-     "status": "validated",
+     "shadowRole": "provisional-candidate",
+     "classicalStatus": "provisional",
      "evidenceId": "leadership:d1:sun-in-the-1st:sun:1",
      "from": "negative",
      "to": "neutral",
@@ -119,6 +123,8 @@
    "uncertain": true
   },
   {
+   "kind": "provisional-candidate",
+   "productionApproved": false,
    "set": "exact",
    "birth": {
     "date": "1994-04-20",
@@ -144,7 +150,8 @@
    "treatments": [
     {
      "policyId": "own-house-lord-not-malefic-occupant",
-     "status": "validated",
+     "shadowRole": "provisional-candidate",
+     "classicalStatus": "provisional",
      "evidenceId": "foreign:d1:saturn-in-the-9th:saturn:9",
      "from": "negative",
      "to": "neutral",
@@ -163,6 +170,8 @@
    "uncertain": false
   },
   {
+   "kind": "provisional-candidate",
+   "productionApproved": false,
    "set": "exact",
    "birth": {
     "date": "1969-07-25",
@@ -188,7 +197,8 @@
    "treatments": [
     {
      "policyId": "own-house-lord-not-malefic-occupant",
-     "status": "validated",
+     "shadowRole": "provisional-candidate",
+     "classicalStatus": "provisional",
      "evidenceId": "education:d1:mars-in-the-4th:mars:4",
      "from": "negative",
      "to": "neutral",
@@ -211,6 +221,8 @@
    "uncertain": true
   },
   {
+   "kind": "provisional-candidate",
+   "productionApproved": false,
    "set": "exact",
    "birth": {
     "date": "1963-12-28",
@@ -236,7 +248,8 @@
    "treatments": [
     {
      "policyId": "own-house-lord-not-malefic-occupant",
-     "status": "validated",
+     "shadowRole": "provisional-candidate",
+     "classicalStatus": "provisional",
      "evidenceId": "foreign:d1:saturn-in-the-12th:saturn:12",
      "from": "negative",
      "to": "neutral",
@@ -257,6 +270,8 @@
    "uncertain": true
   },
   {
+   "kind": "provisional-candidate",
+   "productionApproved": false,
    "set": "exact",
    "birth": {
     "date": "1963-12-28",
@@ -282,7 +297,8 @@
    "treatments": [
     {
      "policyId": "own-house-lord-not-malefic-occupant",
-     "status": "validated",
+     "shadowRole": "provisional-candidate",
+     "classicalStatus": "provisional",
      "evidenceId": "spirituality:d1:saturn-in-the-12th:saturn:12",
      "from": "negative",
      "to": "neutral",
@@ -304,6 +320,8 @@
    "uncertain": true
   },
   {
+   "kind": "provisional-candidate",
+   "productionApproved": false,
    "set": "exact",
    "birth": {
     "date": "1973-08-20",
@@ -329,7 +347,8 @@
    "treatments": [
     {
      "policyId": "own-house-lord-not-malefic-occupant",
-     "status": "validated",
+     "shadowRole": "provisional-candidate",
+     "classicalStatus": "provisional",
      "evidenceId": "leadership:d1:sun-in-the-1st:sun:1",
      "from": "negative",
      "to": "neutral",
@@ -352,6 +371,8 @@
    "uncertain": true
   },
   {
+   "kind": "provisional-candidate",
+   "productionApproved": false,
    "set": "exact",
    "birth": {
     "date": "1973-08-20",
@@ -377,7 +398,8 @@
    "treatments": [
     {
      "policyId": "own-house-lord-not-malefic-occupant",
-     "status": "validated",
+     "shadowRole": "provisional-candidate",
+     "classicalStatus": "provisional",
      "evidenceId": "foreign:d1:mars-in-the-9th:mars:9",
      "from": "negative",
      "to": "neutral",
@@ -399,6 +421,8 @@
    "uncertain": true
   },
   {
+   "kind": "provisional-candidate",
+   "productionApproved": false,
    "set": "exact",
    "birth": {
     "date": "1995-12-14",
@@ -424,7 +448,8 @@
    "treatments": [
     {
      "policyId": "own-house-lord-not-malefic-occupant",
-     "status": "validated",
+     "shadowRole": "provisional-candidate",
+     "classicalStatus": "provisional",
      "evidenceId": "relationships:d1:saturn-in-the-7th:saturn:7",
      "from": "negative",
      "to": "neutral",
@@ -443,6 +468,8 @@
    "uncertain": false
   },
   {
+   "kind": "provisional-candidate",
+   "productionApproved": false,
    "set": "exact",
    "birth": {
     "date": "1956-02-07",
@@ -468,7 +495,8 @@
    "treatments": [
     {
      "policyId": "own-house-lord-not-malefic-occupant",
-     "status": "validated",
+     "shadowRole": "provisional-candidate",
+     "classicalStatus": "provisional",
      "evidenceId": "property:d1:mars-in-the-4th:mars:4",
      "from": "negative",
      "to": "neutral",
@@ -490,6 +518,8 @@
    "uncertain": true
   },
   {
+   "kind": "provisional-candidate",
+   "productionApproved": false,
    "set": "exact",
    "birth": {
     "date": "1984-08-06",
@@ -515,7 +545,8 @@
    "treatments": [
     {
      "policyId": "own-house-lord-not-malefic-occupant",
-     "status": "validated",
+     "shadowRole": "provisional-candidate",
+     "classicalStatus": "provisional",
      "evidenceId": "wealth:d1:mars-in-the-2nd:mars:2",
      "from": "negative",
      "to": "neutral",
@@ -538,6 +569,8 @@
    "uncertain": true
   },
   {
+   "kind": "provisional-candidate",
+   "productionApproved": false,
    "set": "exact",
    "birth": {
     "date": "1988-08-11",
@@ -563,7 +596,8 @@
    "treatments": [
     {
      "policyId": "own-house-lord-not-malefic-occupant",
-     "status": "validated",
+     "shadowRole": "provisional-candidate",
+     "classicalStatus": "provisional",
      "evidenceId": "education:d1:moon-in-the-5th:moon:5",
      "from": "negative",
      "to": "neutral",
@@ -587,6 +621,8 @@
    "uncertain": true
   },
   {
+   "kind": "provisional-candidate",
+   "productionApproved": false,
    "set": "exact",
    "birth": {
     "date": "1988-08-11",
@@ -612,7 +648,8 @@
    "treatments": [
     {
      "policyId": "own-house-lord-not-malefic-occupant",
-     "status": "validated",
+     "shadowRole": "provisional-candidate",
+     "classicalStatus": "provisional",
      "evidenceId": "children:d1:moon-in-the-5th:moon:5",
      "from": "negative",
      "to": "neutral",
@@ -634,6 +671,8 @@
    "uncertain": true
   },
   {
+   "kind": "provisional-candidate",
+   "productionApproved": false,
    "set": "exact",
    "birth": {
     "date": "1963-01-24",
@@ -659,7 +698,8 @@
    "treatments": [
     {
      "policyId": "own-house-lord-not-malefic-occupant",
-     "status": "validated",
+     "shadowRole": "provisional-candidate",
+     "classicalStatus": "provisional",
      "evidenceId": "wealth:d1:saturn-in-the-2nd:saturn:2",
      "from": "negative",
      "to": "neutral",
@@ -685,6 +725,8 @@
    "uncertain": true
   },
   {
+   "kind": "provisional-candidate",
+   "productionApproved": false,
    "set": "exact",
    "birth": {
     "date": "1980-10-21",
@@ -710,7 +752,8 @@
    "treatments": [
     {
      "policyId": "own-house-lord-not-malefic-occupant",
-     "status": "validated",
+     "shadowRole": "provisional-candidate",
+     "classicalStatus": "provisional",
      "evidenceId": "relationships:d1:mars-in-the-7th:mars:7",
      "from": "negative",
      "to": "neutral",
@@ -731,6 +774,8 @@
    "uncertain": true
   },
   {
+   "kind": "provisional-candidate",
+   "productionApproved": false,
    "set": "exact",
    "birth": {
     "date": "1974-02-07",
@@ -756,7 +801,8 @@
    "treatments": [
     {
      "policyId": "own-house-lord-not-malefic-occupant",
-     "status": "validated",
+     "shadowRole": "provisional-candidate",
+     "classicalStatus": "provisional",
      "evidenceId": "children:d1:moon-in-the-5th:moon:5",
      "from": "negative",
      "to": "neutral",
@@ -778,6 +824,8 @@
    "uncertain": true
   },
   {
+   "kind": "provisional-candidate",
+   "productionApproved": false,
    "set": "exact",
    "birth": {
     "date": "1997-10-25",
@@ -803,7 +851,8 @@
    "treatments": [
     {
      "policyId": "own-house-lord-not-malefic-occupant",
-     "status": "validated",
+     "shadowRole": "provisional-candidate",
+     "classicalStatus": "provisional",
      "evidenceId": "spirituality:d1:mars-in-the-9th:mars:9",
      "from": "negative",
      "to": "neutral",
@@ -826,6 +875,8 @@
    "uncertain": true
   },
   {
+   "kind": "provisional-candidate",
+   "productionApproved": false,
    "set": "exact",
    "birth": {
     "date": "1975-06-26",
@@ -851,7 +902,8 @@
    "treatments": [
     {
      "policyId": "own-house-lord-not-malefic-occupant",
-     "status": "validated",
+     "shadowRole": "provisional-candidate",
+     "classicalStatus": "provisional",
      "evidenceId": "foreign:d1:mars-in-the-9th:mars:9",
      "from": "negative",
      "to": "neutral",
@@ -873,6 +925,8 @@
    "uncertain": true
   },
   {
+   "kind": "provisional-candidate",
+   "productionApproved": false,
    "set": "exact",
    "birth": {
     "date": "1975-06-26",
@@ -898,7 +952,8 @@
    "treatments": [
     {
      "policyId": "own-house-lord-not-malefic-occupant",
-     "status": "validated",
+     "shadowRole": "provisional-candidate",
+     "classicalStatus": "provisional",
      "evidenceId": "spirituality:d1:mars-in-the-9th:mars:9",
      "from": "negative",
      "to": "neutral",
@@ -920,6 +975,8 @@
    "uncertain": true
   },
   {
+   "kind": "provisional-candidate",
+   "productionApproved": false,
    "set": "exact",
    "birth": {
     "date": "1993-08-06",
@@ -945,7 +1002,8 @@
    "treatments": [
     {
      "policyId": "own-house-lord-not-malefic-occupant",
-     "status": "validated",
+     "shadowRole": "provisional-candidate",
+     "classicalStatus": "provisional",
      "evidenceId": "spirituality:d1:saturn-in-the-9th:saturn:9",
      "from": "negative",
      "to": "neutral",
@@ -964,6 +1022,8 @@
    "uncertain": false
   },
   {
+   "kind": "provisional-candidate",
+   "productionApproved": false,
    "set": "exact",
    "birth": {
     "date": "1945-01-28",
@@ -989,7 +1049,8 @@
    "treatments": [
     {
      "policyId": "own-house-lord-not-malefic-occupant",
-     "status": "validated",
+     "shadowRole": "provisional-candidate",
+     "classicalStatus": "provisional",
      "evidenceId": "children:d1:moon-in-the-5th:moon:5",
      "from": "negative",
      "to": "neutral",
@@ -1011,6 +1072,8 @@
    "uncertain": true
   },
   {
+   "kind": "provisional-candidate",
+   "productionApproved": false,
    "set": "exact",
    "birth": {
     "date": "1942-01-02",
@@ -1036,7 +1099,8 @@
    "treatments": [
     {
      "policyId": "own-house-lord-not-malefic-occupant",
-     "status": "validated",
+     "shadowRole": "provisional-candidate",
+     "classicalStatus": "provisional",
      "evidenceId": "property:d1:mars-in-the-4th:mars:4",
      "from": "negative",
      "to": "neutral",
@@ -1058,6 +1122,8 @@
    "uncertain": true
   },
   {
+   "kind": "provisional-candidate",
+   "productionApproved": false,
    "set": "exact",
    "birth": {
     "date": "1942-01-02",
@@ -1083,7 +1149,8 @@
    "treatments": [
     {
      "policyId": "own-house-lord-not-malefic-occupant",
-     "status": "validated",
+     "shadowRole": "provisional-candidate",
+     "classicalStatus": "provisional",
      "evidenceId": "education:d1:mars-in-the-4th:mars:4",
      "from": "negative",
      "to": "neutral",
@@ -1106,6 +1173,8 @@
    "uncertain": true
   },
   {
+   "kind": "provisional-candidate",
+   "productionApproved": false,
    "set": "exact",
    "birth": {
     "date": "1989-02-08",
@@ -1131,7 +1200,8 @@
    "treatments": [
     {
      "policyId": "own-house-lord-not-malefic-occupant",
-     "status": "validated",
+     "shadowRole": "provisional-candidate",
+     "classicalStatus": "provisional",
      "evidenceId": "foreign:d1:mars-in-the-12th:mars:12",
      "from": "negative",
      "to": "neutral",
@@ -1153,6 +1223,8 @@
    "uncertain": true
   },
   {
+   "kind": "provisional-candidate",
+   "productionApproved": false,
    "set": "exact",
    "birth": {
     "date": "1989-02-08",
@@ -1178,7 +1250,8 @@
    "treatments": [
     {
      "policyId": "own-house-lord-not-malefic-occupant",
-     "status": "validated",
+     "shadowRole": "provisional-candidate",
+     "classicalStatus": "provisional",
      "evidenceId": "spirituality:d1:mars-in-the-12th:mars:12",
      "from": "negative",
      "to": "neutral",
@@ -1200,6 +1273,8 @@
    "uncertain": true
   },
   {
+   "kind": "provisional-candidate",
+   "productionApproved": false,
    "set": "exact",
    "birth": {
     "date": "1965-10-09",
@@ -1225,7 +1300,8 @@
    "treatments": [
     {
      "policyId": "own-house-lord-not-malefic-occupant",
-     "status": "validated",
+     "shadowRole": "provisional-candidate",
+     "classicalStatus": "provisional",
      "evidenceId": "education:d1:mars-in-the-5th:mars:5",
      "from": "negative",
      "to": "neutral",
@@ -1247,6 +1323,8 @@
    "uncertain": true
   },
   {
+   "kind": "provisional-candidate",
+   "productionApproved": false,
    "set": "exact",
    "birth": {
     "date": "2005-09-26",
@@ -1272,7 +1350,8 @@
    "treatments": [
     {
      "policyId": "own-house-lord-not-malefic-occupant",
-     "status": "validated",
+     "shadowRole": "provisional-candidate",
+     "classicalStatus": "provisional",
      "evidenceId": "property:d1:mars-in-the-4th:mars:4",
      "from": "negative",
      "to": "neutral",
@@ -1294,6 +1373,8 @@
    "uncertain": true
   },
   {
+   "kind": "provisional-candidate",
+   "productionApproved": false,
    "set": "exact",
    "birth": {
     "date": "1962-01-24",
@@ -1319,7 +1400,8 @@
    "treatments": [
     {
      "policyId": "own-house-lord-not-malefic-occupant",
-     "status": "validated",
+     "shadowRole": "provisional-candidate",
+     "classicalStatus": "provisional",
      "evidenceId": "leadership:d1:saturn-in-the-1st:saturn:1",
      "from": "negative",
      "to": "neutral",
@@ -1346,6 +1428,8 @@
    "uncertain": true
   },
   {
+   "kind": "provisional-candidate",
+   "productionApproved": false,
    "set": "exact",
    "birth": {
     "date": "1992-07-19",
@@ -1371,7 +1455,8 @@
    "treatments": [
     {
      "policyId": "own-house-lord-not-malefic-occupant",
-     "status": "validated",
+     "shadowRole": "provisional-candidate",
+     "classicalStatus": "provisional",
      "evidenceId": "wealth:d1:saturn-in-the-2nd:saturn:2",
      "from": "negative",
      "to": "neutral",
@@ -1395,6 +1480,8 @@
    "uncertain": true
   },
   {
+   "kind": "provisional-candidate",
+   "productionApproved": false,
    "set": "exact",
    "birth": {
     "date": "1964-04-21",
@@ -1420,7 +1507,8 @@
    "treatments": [
     {
      "policyId": "own-house-lord-not-malefic-occupant",
-     "status": "validated",
+     "shadowRole": "provisional-candidate",
+     "classicalStatus": "provisional",
      "evidenceId": "education:d1:saturn-in-the-4th:saturn:4",
      "from": "negative",
      "to": "neutral",
@@ -1442,6 +1530,8 @@
    "uncertain": true
   },
   {
+   "kind": "provisional-candidate",
+   "productionApproved": false,
    "set": "exact",
    "birth": {
     "date": "1952-09-28",
@@ -1467,7 +1557,8 @@
    "treatments": [
     {
      "policyId": "own-house-lord-not-malefic-occupant",
-     "status": "validated",
+     "shadowRole": "provisional-candidate",
+     "classicalStatus": "provisional",
      "evidenceId": "foreign:d1:mars-in-the-9th:mars:9",
      "from": "negative",
      "to": "neutral",
@@ -1490,6 +1581,8 @@
    "uncertain": true
   },
   {
+   "kind": "provisional-candidate",
+   "productionApproved": false,
    "set": "exact",
    "birth": {
     "date": "1952-09-28",
@@ -1515,7 +1608,8 @@
    "treatments": [
     {
      "policyId": "own-house-lord-not-malefic-occupant",
-     "status": "validated",
+     "shadowRole": "provisional-candidate",
+     "classicalStatus": "provisional",
      "evidenceId": "spirituality:d1:mars-in-the-9th:mars:9",
      "from": "negative",
      "to": "neutral",
@@ -1538,6 +1632,8 @@
    "uncertain": true
   },
   {
+   "kind": "provisional-candidate",
+   "productionApproved": false,
    "set": "exact",
    "birth": {
     "date": "1969-08-15",
@@ -1563,7 +1659,8 @@
    "treatments": [
     {
      "policyId": "own-house-lord-not-malefic-occupant",
-     "status": "validated",
+     "shadowRole": "provisional-candidate",
+     "classicalStatus": "provisional",
      "evidenceId": "relationships:d1:mars-in-the-7th:mars:7",
      "from": "negative",
      "to": "neutral",
@@ -1582,6 +1679,8 @@
    "uncertain": false
   },
   {
+   "kind": "provisional-candidate",
+   "productionApproved": false,
    "set": "exact",
    "birth": {
     "date": "1991-11-27",
@@ -1607,7 +1706,8 @@
    "treatments": [
     {
      "policyId": "own-house-lord-not-malefic-occupant",
-     "status": "validated",
+     "shadowRole": "provisional-candidate",
+     "classicalStatus": "provisional",
      "evidenceId": "foreign:d1:saturn-in-the-12th:saturn:12",
      "from": "negative",
      "to": "neutral",
@@ -1628,6 +1728,8 @@
    "uncertain": true
   },
   {
+   "kind": "provisional-candidate",
+   "productionApproved": false,
    "set": "exact",
    "birth": {
     "date": "1992-02-19",
@@ -1653,7 +1755,8 @@
    "treatments": [
     {
      "policyId": "own-house-lord-not-malefic-occupant",
-     "status": "validated",
+     "shadowRole": "provisional-candidate",
+     "classicalStatus": "provisional",
      "evidenceId": "wealth:d1:saturn-in-the-2nd:saturn:2",
      "from": "negative",
      "to": "neutral",
@@ -1676,6 +1779,8 @@
    "uncertain": true
   },
   {
+   "kind": "provisional-candidate",
+   "productionApproved": false,
    "set": "exact",
    "birth": {
     "date": "1957-02-28",
@@ -1701,7 +1806,8 @@
    "treatments": [
     {
      "policyId": "own-house-lord-not-malefic-occupant",
-     "status": "validated",
+     "shadowRole": "provisional-candidate",
+     "classicalStatus": "provisional",
      "evidenceId": "leadership:d1:mars-in-the-1st:mars:1",
      "from": "negative",
      "to": "neutral",
@@ -1724,6 +1830,8 @@
    "uncertain": true
   },
   {
+   "kind": "provisional-candidate",
+   "productionApproved": false,
    "set": "exact",
    "birth": {
     "date": "1972-12-26",
@@ -1749,7 +1857,8 @@
    "treatments": [
     {
      "policyId": "own-house-lord-not-malefic-occupant",
-     "status": "validated",
+     "shadowRole": "provisional-candidate",
+     "classicalStatus": "provisional",
      "evidenceId": "education:d1:mars-in-the-5th:mars:5",
      "from": "negative",
      "to": "neutral",
@@ -1771,6 +1880,8 @@
    "uncertain": true
   },
   {
+   "kind": "provisional-candidate",
+   "productionApproved": false,
    "set": "exact",
    "birth": {
     "date": "1988-08-21",
@@ -1796,7 +1907,8 @@
    "treatments": [
     {
      "policyId": "own-house-lord-not-malefic-occupant",
-     "status": "validated",
+     "shadowRole": "provisional-candidate",
+     "classicalStatus": "provisional",
      "evidenceId": "property:d1:sun-in-the-4th:sun:4",
      "from": "negative",
      "to": "neutral",
@@ -1817,6 +1929,8 @@
    "uncertain": true
   },
   {
+   "kind": "provisional-candidate",
+   "productionApproved": false,
    "set": "exact",
    "birth": {
     "date": "1963-09-15",
@@ -1842,7 +1956,8 @@
    "treatments": [
     {
      "policyId": "own-house-lord-not-malefic-occupant",
-     "status": "validated",
+     "shadowRole": "provisional-candidate",
+     "classicalStatus": "provisional",
      "evidenceId": "leadership:d1:sun-in-the-1st:sun:1",
      "from": "negative",
      "to": "neutral",
@@ -1863,6 +1978,8 @@
    "uncertain": true
   },
   {
+   "kind": "provisional-candidate",
+   "productionApproved": false,
    "set": "exact",
    "birth": {
     "date": "1997-08-21",
@@ -1888,7 +2005,8 @@
    "treatments": [
     {
      "policyId": "own-house-lord-not-malefic-occupant",
-     "status": "validated",
+     "shadowRole": "provisional-candidate",
+     "classicalStatus": "provisional",
      "evidenceId": "foreign:d1:sun-in-the-12th:sun:12",
      "from": "negative",
      "to": "neutral",
@@ -1907,6 +2025,8 @@
    "uncertain": false
   },
   {
+   "kind": "provisional-candidate",
+   "productionApproved": false,
    "set": "exact",
    "birth": {
     "date": "1973-09-13",
@@ -1932,7 +2052,8 @@
    "treatments": [
     {
      "policyId": "own-house-lord-not-malefic-occupant",
-     "status": "validated",
+     "shadowRole": "provisional-candidate",
+     "classicalStatus": "provisional",
      "evidenceId": "relationships:d1:mars-in-the-7th:mars:7",
      "from": "negative",
      "to": "neutral",
@@ -1953,6 +2074,8 @@
    "uncertain": true
   },
   {
+   "kind": "provisional-candidate",
+   "productionApproved": false,
    "set": "exact",
    "birth": {
     "date": "1944-12-11",
@@ -1978,7 +2101,8 @@
    "treatments": [
     {
      "policyId": "own-house-lord-not-malefic-occupant",
-     "status": "validated",
+     "shadowRole": "provisional-candidate",
+     "classicalStatus": "provisional",
      "evidenceId": "wealth:d1:mars-in-the-2nd:mars:2",
      "from": "negative",
      "to": "neutral",
@@ -2003,6 +2127,8 @@
    "uncertain": true
   },
   {
+   "kind": "provisional-candidate",
+   "productionApproved": false,
    "set": "exact",
    "birth": {
     "date": "1946-11-05",
@@ -2028,7 +2154,8 @@
    "treatments": [
     {
      "policyId": "own-house-lord-not-malefic-occupant",
-     "status": "validated",
+     "shadowRole": "provisional-candidate",
+     "classicalStatus": "provisional",
      "evidenceId": "education:d1:mars-in-the-4th:mars:4",
      "from": "negative",
      "to": "neutral",
@@ -2050,6 +2177,8 @@
    "uncertain": true
   },
   {
+   "kind": "provisional-candidate",
+   "productionApproved": false,
    "set": "exact",
    "birth": {
     "date": "2005-01-20",
@@ -2075,7 +2204,8 @@
    "treatments": [
     {
      "policyId": "own-house-lord-not-malefic-occupant",
-     "status": "validated",
+     "shadowRole": "provisional-candidate",
+     "classicalStatus": "provisional",
      "evidenceId": "leadership:d1:mars-in-the-1st:mars:1",
      "from": "negative",
      "to": "neutral",
@@ -2096,6 +2226,8 @@
    "uncertain": true
   },
   {
+   "kind": "provisional-candidate",
+   "productionApproved": false,
    "set": "exact",
    "birth": {
     "date": "1965-01-06",
@@ -2121,7 +2253,8 @@
    "treatments": [
     {
      "policyId": "own-house-lord-not-malefic-occupant",
-     "status": "validated",
+     "shadowRole": "provisional-candidate",
+     "classicalStatus": "provisional",
      "evidenceId": "property:d1:saturn-in-the-4th:saturn:4",
      "from": "negative",
      "to": "neutral",
@@ -2140,6 +2273,8 @@
    "uncertain": false
   },
   {
+   "kind": "provisional-candidate",
+   "productionApproved": false,
    "set": "exact",
    "birth": {
     "date": "1965-01-06",
@@ -2165,7 +2300,8 @@
    "treatments": [
     {
      "policyId": "own-house-lord-not-malefic-occupant",
-     "status": "validated",
+     "shadowRole": "provisional-candidate",
+     "classicalStatus": "provisional",
      "evidenceId": "education:d1:saturn-in-the-4th:saturn:4",
      "from": "negative",
      "to": "neutral",
@@ -2186,6 +2322,8 @@
    "uncertain": true
   },
   {
+   "kind": "provisional-candidate",
+   "productionApproved": false,
    "set": "exact",
    "birth": {
     "date": "1970-10-22",
@@ -2211,7 +2349,8 @@
    "treatments": [
     {
      "policyId": "own-house-lord-not-malefic-occupant",
-     "status": "validated",
+     "shadowRole": "provisional-candidate",
+     "classicalStatus": "provisional",
      "evidenceId": "children:d1:moon-in-the-5th:moon:5",
      "from": "negative",
      "to": "neutral",
@@ -2232,6 +2371,8 @@
    "uncertain": true
   },
   {
+   "kind": "provisional-candidate",
+   "productionApproved": false,
    "set": "exact",
    "birth": {
     "date": "1988-01-28",
@@ -2257,7 +2398,8 @@
    "treatments": [
     {
      "policyId": "own-house-lord-not-malefic-occupant",
-     "status": "validated",
+     "shadowRole": "provisional-candidate",
+     "classicalStatus": "provisional",
      "evidenceId": "spirituality:d1:mars-in-the-9th:mars:9",
      "from": "negative",
      "to": "neutral",
@@ -2281,6 +2423,8 @@
    "uncertain": true
   },
   {
+   "kind": "provisional-candidate",
+   "productionApproved": false,
    "set": "exact",
    "birth": {
     "date": "1957-02-16",
@@ -2306,7 +2450,8 @@
    "treatments": [
     {
      "policyId": "own-house-lord-not-malefic-occupant",
-     "status": "validated",
+     "shadowRole": "provisional-candidate",
+     "classicalStatus": "provisional",
      "evidenceId": "wealth:d1:mars-in-the-2nd:mars:2",
      "from": "negative",
      "to": "neutral",
@@ -2328,6 +2473,8 @@
    "uncertain": true
   },
   {
+   "kind": "provisional-candidate",
+   "productionApproved": false,
    "set": "exact",
    "birth": {
     "date": "2005-09-15",
@@ -2353,7 +2500,8 @@
    "treatments": [
     {
      "policyId": "own-house-lord-not-malefic-occupant",
-     "status": "validated",
+     "shadowRole": "provisional-candidate",
+     "classicalStatus": "provisional",
      "evidenceId": "children:d1:mars-in-the-5th:mars:5",
      "from": "negative",
      "to": "neutral",
@@ -2372,6 +2520,8 @@
    "uncertain": false
   },
   {
+   "kind": "provisional-candidate",
+   "productionApproved": false,
    "set": "exact",
    "birth": {
     "date": "2005-09-15",
@@ -2397,7 +2547,8 @@
    "treatments": [
     {
      "policyId": "own-house-lord-not-malefic-occupant",
-     "status": "validated",
+     "shadowRole": "provisional-candidate",
+     "classicalStatus": "provisional",
      "evidenceId": "spirituality:d1:sun-in-the-9th:sun:9",
      "from": "negative",
      "to": "neutral",
@@ -2419,6 +2570,8 @@
    "uncertain": true
   },
   {
+   "kind": "provisional-candidate",
+   "productionApproved": false,
    "set": "exact",
    "birth": {
     "date": "1995-09-04",
@@ -2444,7 +2597,8 @@
    "treatments": [
     {
      "policyId": "own-house-lord-not-malefic-occupant",
-     "status": "validated",
+     "shadowRole": "provisional-candidate",
+     "classicalStatus": "provisional",
      "evidenceId": "relationships:d1:sun-in-the-7th:sun:7",
      "from": "negative",
      "to": "neutral",
@@ -2517,39 +2671,39 @@
   "exact": {
    "charts": 336,
    "reasoningInput": {
-    "medianMs": 0.993,
-    "p95Ms": 1.764
+    "medianMs": 0.962,
+    "p95Ms": 1.76
    },
    "findingsAndRelationships": {
-    "medianMs": 3.323,
-    "p95Ms": 6.968
+    "medianMs": 3.257,
+    "p95Ms": 6.927
    },
    "reconciliation": {
-    "medianMs": 0.288,
-    "p95Ms": 0.538
+    "medianMs": 0.275,
+    "p95Ms": 0.495
    },
    "productionBuildInsightsForComparison": {
-    "medianMs": 0.611,
-    "p95Ms": 1.765
+    "medianMs": 0.568,
+    "p95Ms": 1.183
    }
   },
   "approximate": {
    "charts": 72,
    "reasoningInput": {
-    "medianMs": 40.812,
-    "p95Ms": 58.379
+    "medianMs": 42.938,
+    "p95Ms": 55.536
    },
    "findingsAndRelationships": {
-    "medianMs": 7.614,
-    "p95Ms": 18.361
+    "medianMs": 7.7,
+    "p95Ms": 21.429
    },
    "reconciliation": {
     "medianMs": 0.118,
-    "p95Ms": 0.197
+    "p95Ms": 0.208
    },
    "productionBuildInsightsForComparison": {
-    "medianMs": 40.273,
-    "p95Ms": 56.264
+    "medianMs": 41.218,
+    "p95Ms": 53.498
    }
   }
  },
@@ -3460,7 +3614,12 @@
    "id": "own-house-lord-not-malefic-occupant",
    "title": "A planet occupying the house it rules is not read as a malefic occupant of that house",
    "area": "planetary-condition",
-   "status": "validated",
+   "technicalStatus": "validated",
+   "classicalStatus": "provisional",
+   "productionEligibility": "not-approved",
+   "shadowRole": "provisional-candidate",
+   "shadowRoleReason": "Technically validated and it resolves a contradiction between two registered engine rules on one fact and house; its classical support is secondary only.",
+   "activationRequires": "Primary-text validation (BPHS / Laghu Parashari) or qualified expert review, then an explicit production decision.",
    "existingRule": "house.lord-placement.own-house reads the lord in its own house as protecting it (positive), while house.occupant.malefic reads the same planet in the same house as friction (negative): two registered rules make opposite claims from one fact about one house (121 incompatible claims on seed 99).",
    "proposedInterpretation": "Where the occupant rules the house it occupies, the more specific own-house rule governs; the generic malefic-occupant item is treated as neutral (no harm counted). Its positive own-house item is unchanged and no new weight is added.",
    "sources": [
@@ -3484,7 +3643,7 @@
    ],
    "affects": "verdicts",
    "treatment": "neutralize-item",
-   "confidence": "high",
+   "confidence": "medium",
    "traditionsDisagree": false,
    "requires": [
     "house.lord",
@@ -3495,7 +3654,12 @@
    "id": "lord-aspect-on-own-house",
    "title": "Saturn's or Mars's aspect on a house it rules is not read as pressure",
    "area": "planetary-condition",
-   "status": "provisional",
+   "technicalStatus": "validated",
+   "classicalStatus": "provisional",
+   "productionEligibility": "not-approved",
+   "shadowRole": "what-if",
+   "shadowRoleReason": "Technically validated, but no registered engine rule contradicts the aspect rule; secondary support only.",
+   "activationRequires": "Primary-text validation (BPHS / Laghu Parashari) or qualified expert review, then an explicit production decision.",
    "existingRule": "house.aspect.saturn-mars reads Saturn's or Mars's aspect on any non-upachaya house as pressure, including a house the aspecting planet rules.",
    "proposedInterpretation": "Treat the aspect as neutral when the aspecting planet rules the aspected house (diagnostic what-if only).",
    "sources": [
@@ -3525,7 +3689,12 @@
    "id": "planet-dignity-once-per-area",
    "title": "One planet's dignity counted once per life area",
    "area": "evidence-duplication",
-   "status": "provisional",
+   "technicalStatus": "validated",
+   "classicalStatus": "provisional",
+   "productionEligibility": "not-approved",
+   "shadowRole": "what-if",
+   "shadowRoleReason": "Technically validated, but classically the house, its lord and its karaka are separate factors; whether one planet in two roles counts once is not settled.",
+   "activationRequires": "Primary-text validation (BPHS / Laghu Parashari) or qualified expert review, then an explicit production decision.",
    "existingRule": "house.lord-dignity and karaka.dignity both apply dignityDirection to the same dignity fact; a planet that rules two houses of an area, or rules an area house and signifies the area, has that one reading counted two or three times.",
    "proposedInterpretation": "Count the planet's dignity reading once per area (the strongest item), the rest neutral (diagnostic what-if only).",
    "sources": [
@@ -3558,7 +3727,12 @@
    "id": "combust-strong-dignity",
    "title": "Combustion of a planet in exaltation, own sign or moolatrikona",
    "area": "planetary-condition",
-   "status": "unresolved",
+   "technicalStatus": "not-implemented",
+   "classicalStatus": "unresolved",
+   "productionEligibility": "not-approved",
+   "shadowRole": "flag-only",
+   "shadowRoleReason": "No treatment is computable without a documented basis; flagged only.",
+   "activationRequires": "Primary-text validation (BPHS / Laghu Parashari) or qualified expert review, then an explicit production decision.",
    "existingRule": "dignityDirection ignores combustion below a strong dignity (positive); planetCondition subtracts one for combustion (period capacity). The engine reads the same pair two ways.",
    "proposedInterpretation": "None proposed: neither the size nor the direction of the effect has a documented basis.",
    "sources": [
@@ -3581,7 +3755,12 @@
    "id": "neecha-bhanga-raja-yoga",
    "title": "A cancelled debilitation: neutral strength, or a Raja Yoga",
    "area": "yoga",
-   "status": "unresolved",
+   "technicalStatus": "not-implemented",
+   "classicalStatus": "unresolved",
+   "productionEligibility": "not-approved",
+   "shadowRole": "flag-only",
+   "shadowRoleReason": "No treatment is computable without a documented basis; flagged only.",
+   "activationRequires": "Primary-text validation (BPHS / Laghu Parashari) or qualified expert review, then an explicit production decision.",
    "existingRule": "Lord/karaka dignity reads a cancelled debilitation as neutral; the Neecha Bhanga Raja Yoga item counts it as a strong positive yoga in career and leadership.",
    "proposedInterpretation": "None proposed; the two readings answer different questions (strength restored vs yoga formed).",
    "sources": [
@@ -3604,7 +3783,12 @@
    "id": "weak-yoga-participant",
    "title": "A debilitated or combust participant and the yoga it forms",
    "area": "yoga",
-   "status": "unresolved",
+   "technicalStatus": "not-implemented",
+   "classicalStatus": "unresolved",
+   "productionEligibility": "not-approved",
+   "shadowRole": "flag-only",
+   "shadowRoleReason": "No treatment is computable without a documented basis; flagged only.",
+   "activationRequires": "Primary-text validation (BPHS / Laghu Parashari) or qualified expert review, then an explicit production decision.",
    "existingRule": "Yoga items do not read participant dignity or combustion (only dusthana placement weakens them).",
    "proposedInterpretation": "None proposed: no documented rule says by how much a weak participant reduces a yoga.",
    "sources": [
@@ -3628,7 +3812,12 @@
    "id": "shared-period-direction",
    "title": "One period capacity applied to every linked area",
    "area": "dasha",
-   "status": "unresolved",
+   "technicalStatus": "not-implemented",
+   "classicalStatus": "unresolved",
+   "productionEligibility": "not-approved",
+   "shadowRole": "flag-only",
+   "shadowRoleReason": "No treatment is computable without a documented basis; flagged only.",
+   "activationRequires": "Primary-text validation (BPHS / Laghu Parashari) or qualified expert review, then an explicit production decision.",
    "existingRule": "dasha.running-lord gives every linked area the same direction (planetCondition), whether the lord rules, occupies or signifies the area.",
    "proposedInterpretation": "None proposed: an area-specific period rule would be a new formula.",
    "sources": [
@@ -3650,7 +3839,12 @@
    "id": "rahu-ketu-kendra-trikona",
    "title": "Rahu or Ketu in a kendra or trikona: malefic occupant vs well-placed period lord",
    "area": "dasha",
-   "status": "unresolved",
+   "technicalStatus": "not-implemented",
+   "classicalStatus": "unresolved",
+   "productionEligibility": "not-approved",
+   "shadowRole": "flag-only",
+   "shadowRoleReason": "No treatment is computable without a documented basis; flagged only.",
+   "activationRequires": "Primary-text validation (BPHS / Laghu Parashari) or qualified expert review, then an explicit production decision.",
    "existingRule": "The occupant rule reads Rahu/Ketu in a non-upachaya house as friction; planetCondition gives the period lord +1 for a kendra/trikona house.",
    "proposedInterpretation": "None proposed; the natal and timing readings answer different questions and both are kept.",
    "sources": [
@@ -3673,7 +3867,12 @@
    "id": "functional-roles-laghu-parashari",
    "title": "Functional roles by lordship (yogakaraka, Lagna lord, 3/6/11, 8th, 2/12, Kendradhipati, maraka)",
    "area": "functional-roles",
-   "status": "provisional",
+   "technicalStatus": "validated",
+   "classicalStatus": "provisional",
+   "productionEligibility": "not-approved",
+   "shadowRole": "diagnostic",
+   "shadowRoleReason": "The review is computed and tested; no verdict uses functional role and remedies keep the existing logic.",
+   "activationRequires": "Primary-text validation (BPHS / Laghu Parashari) or qualified expert review, then an explicit production decision.",
    "existingRule": "remedies.ts functionalRoles: trikona (1,5,9) vs dusthana (6,8,12) lordship; yogakaraka = first planet owning a trikona and a kendra (so a Lagna lord owning a kendra qualifies); 3rd/11th, Kendradhipati, Sun/Moon 8th exemption and marakas ignored.",
    "proposedInterpretation": "Lagna lord benefic; yogakaraka only for a planet owning a kendra (4,7,10) and a trikona (5,9); 3rd/6th/11th lords malefic; 8th lord malefic except as Lagna lord or when the Sun or Moon; 2nd/12th lords neutral (by association); kendra-only lords neutral (Kendradhipati); 2nd/7th lords marakas. See functionalRoleReview().",
    "sources": [

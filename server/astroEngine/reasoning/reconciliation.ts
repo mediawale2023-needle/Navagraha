@@ -1,13 +1,14 @@
 /**
  * Shadow reconciliation (internal only): for each life area, the existing verdict beside a proposed
- * one that applies only validated reconciliation policies, plus what-if diagnostics for provisional
- * policies and the open questions that remain.
+ * one shaped only by `provisional-candidate` policies (technically validated, classically
+ * provisional, not approved for production), plus what-if diagnostics and the open questions.
  *
  * It never replaces the production resolver: verdicts are computed by the existing resolveDomain,
- * once on the area's evidence as it is and once on a shadow list in which a validated policy has
+ * once on the area's evidence as it is and once on a shadow list in which a candidate policy has
  * replaced an item with a neutral copy. Original items are never changed or removed, no threshold is
- * copied, and no weight is added. With an approximate time every policy that needs a withheld fact is
- * inapplicable, so the proposed verdict is the existing one.
+ * copied, and no weight is added. Every result is shadow-only (`productionApproved: false`); this
+ * module has no way to switch a policy on. With an approximate time every policy that needs a
+ * withheld fact is inapplicable, so the proposed verdict is the existing one.
  */
 import type { CanonicalChart, Graha } from '@shared/v3/canonical';
 import { LIFE_DOMAINS, type Confidence, type EvidenceItem, type LifeDomain, type Verdict } from '@shared/v3/evidence';
@@ -16,11 +17,12 @@ import { fact, type FactId } from './facts.js';
 import type { AnnotatedEvidence, ReasoningInput } from './index.js';
 import { planetaryReasoningFrom, type PlanetaryReasoning } from './planetary.js';
 import { counted, valueOf } from './planetFindings.js';
-import { POLICIES, policyById, type PolicyStatus } from './reconciliationPolicies.js';
+import { POLICIES, policyById, type ClassicalStatus, type ShadowRole } from './reconciliationPolicies.js';
 
 export type Treatment = Readonly<{
   policyId: string;
-  status: PolicyStatus;
+  shadowRole: ShadowRole;
+  classicalStatus: ClassicalStatus;
   evidenceId: string;
   from: EvidenceItem['direction'];
   to: 'neutral';
@@ -36,14 +38,15 @@ export type DomainReconciliation = Readonly<{
   original: VerdictView;
   /** The counted (supporting or conflicting) evidence of the existing verdict. */
   originalEvidenceIds: readonly string[];
-  /** Validated treatments: the only ones that shape the proposed verdict. */
+  /** Treatments from provisional-candidate policies: the only ones that shape the proposed verdict. */
   treatments: readonly Treatment[];
   proposed: VerdictView;
-  status: 'unchanged' | 'candidate-change';
+  /** A provisional candidate is not a validated prediction: its policy is classically provisional and not approved. */
+  status: 'unchanged' | 'provisional-candidate-change';
   /** How the proposed verdict differs; null when it does not. Direction is not quality. */
   change: null | Readonly<{ verdict: boolean; confidence: boolean; towards: 'more-favourable' | 'less-favourable' | 'same-verdict' }>;
   /** Provisional what-ifs: each policy alone, diagnostic only. */
-  diagnostics: ReadonlyArray<Readonly<{ policyId: string; status: PolicyStatus; treatments: readonly Treatment[]; whatIf: VerdictView; wouldChange: boolean }>>;
+  diagnostics: ReadonlyArray<Readonly<{ policyId: string; shadowRole: ShadowRole; classicalStatus: ClassicalStatus; treatments: readonly Treatment[]; whatIf: VerdictView; wouldChange: boolean }>>;
   /** Open questions bearing on this area's evidence (unresolved policies and classifier questions). */
   openQuestions: ReadonlyArray<Readonly<{ policyId: string | null; question: string; evidenceIds: readonly string[] }>>;
   reliability: Readonly<{ approximate: boolean; inapplicablePolicies: readonly string[] }>;
@@ -52,6 +55,9 @@ export type DomainReconciliation = Readonly<{
 export type Reconciliation = Readonly<{
   asOf: string;
   approximate: boolean;
+  /** Always true: nothing here is served, and no policy is approved for production. */
+  shadowOnly: true;
+  productionApproved: false;
   domains: readonly DomainReconciliation[];
 }>;
 
@@ -63,7 +69,14 @@ const freeze = <T>(v: T): T => {
 const ord = (n: number) => `${n}${n % 10 === 1 && n !== 11 ? 'st' : n % 10 === 2 && n !== 12 ? 'nd' : n % 10 === 3 && n !== 13 ? 'rd' : 'th'}`;
 const view = (d: { verdict: Verdict; confidence: Confidence }): VerdictView => ({ verdict: d.verdict, confidence: d.confidence });
 
-/** Validated: a malefic occupant that rules the house it occupies (the own-house rule governs). */
+const role = (policyId: string) => {
+  const p = policyById(policyId)!;
+  return { policyId, shadowRole: p.shadowRole, classicalStatus: p.classicalStatus };
+};
+
+type TreatmentFn = (r: ReasoningInput, items: readonly AnnotatedEvidence[]) => Treatment[];
+
+/** Provisional candidate: a malefic occupant that rules the house it occupies (the own-house rule governs). */
 function ownHouseMaleficTreatments(r: ReasoningInput, items: readonly AnnotatedEvidence[]): Treatment[] {
   const out: Treatment[] = [];
   for (const a of items) {
@@ -72,7 +85,7 @@ function ownHouseMaleficTreatments(r: ReasoningInput, items: readonly AnnotatedE
     if (valueOf<Graha>(r.facts, lordFact) !== a.item.planet) continue;
     const own = items.find((x) => x.metadata.ruleId === 'house.lord-placement.own-house' && x.item.planet === a.item.planet && x.item.house === a.item.house);
     out.push({
-      policyId: 'own-house-lord-not-malefic-occupant', status: 'validated', evidenceId: a.item.id, from: a.item.direction, to: 'neutral',
+      ...role('own-house-lord-not-malefic-occupant'), evidenceId: a.item.id, from: a.item.direction, to: 'neutral',
       factIds: [fact.house(a.item.planet), lordFact], ruleIds: ['house.occupant.malefic', 'house.lord-placement.own-house'],
       explanation: `${a.item.planet} occupies the ${ord(a.item.house)} house, which it rules: the own-house rule${own ? ` (${own.item.id})` : ''} reads it as protecting the house, so the malefic-occupant strain is not counted.`,
     });
@@ -80,17 +93,17 @@ function ownHouseMaleficTreatments(r: ReasoningInput, items: readonly AnnotatedE
   return out;
 }
 
-/** Provisional: Saturn's or Mars's aspect on a house it rules. */
+/** What-if: Saturn's or Mars's aspect on a house it rules. */
 function lordAspectTreatments(r: ReasoningInput, items: readonly AnnotatedEvidence[]): Treatment[] {
   return items.filter((a) => a.metadata.ruleId === 'house.aspect.saturn-mars' && counted(r.facts, a) && a.item.house !== undefined
     && valueOf<Graha>(r.facts, fact.lord(a.item.house)) === a.item.planet).map((a) => ({
-    policyId: 'lord-aspect-on-own-house', status: 'provisional' as const, evidenceId: a.item.id, from: a.item.direction, to: 'neutral' as const,
+    ...role('lord-aspect-on-own-house'), evidenceId: a.item.id, from: a.item.direction, to: 'neutral' as const,
     factIds: [fact.aspect(a.item.planet!), fact.lord(a.item.house!)], ruleIds: ['house.aspect.saturn-mars'],
     explanation: `${a.item.planet} aspects the ${ord(a.item.house!)} house, which it rules.`,
   }));
 }
 
-/** Provisional: one planet's dignity reading counted once per area (the strongest item stays). */
+/** What-if: one planet's dignity reading counted once per area (the strongest item stays). */
 function dignityOnceTreatments(r: ReasoningInput, items: readonly AnnotatedEvidence[]): Treatment[] {
   const W = { strong: 3, moderate: 2, weak: 1 } as const;
   const byPlanet = new Map<string, AnnotatedEvidence[]>();
@@ -103,13 +116,24 @@ function dignityOnceTreatments(r: ReasoningInput, items: readonly AnnotatedEvide
     if (list.length < 2) return;
     const keep = [...list].sort((x, y) => W[y.item.strength] - W[x.item.strength])[0];
     for (const a of list) if (a !== keep) out.push({
-      policyId: 'planet-dignity-once-per-area', status: 'provisional', evidenceId: a.item.id, from: a.item.direction, to: 'neutral',
+      ...role('planet-dignity-once-per-area'), evidenceId: a.item.id, from: a.item.direction, to: 'neutral',
       factIds: [fact.dignity(planet)], ruleIds: [a.metadata.ruleId, keep.metadata.ruleId],
       explanation: `${planet}'s dignity is already counted in this area by ${keep.item.id}.`,
     });
   });
   return out;
 }
+
+// The implemented treatments, by policy id. Which of them shape the proposed verdict is decided by the
+// registry's shadow role, never here.
+const TREATMENTS: Record<string, TreatmentFn> = {
+  'own-house-lord-not-malefic-occupant': ownHouseMaleficTreatments,
+  'lord-aspect-on-own-house': lordAspectTreatments,
+  'planet-dignity-once-per-area': dignityOnceTreatments,
+};
+const CANDIDATES = POLICIES.filter((p) => p.shadowRole === 'provisional-candidate').map((p) => p.id);
+const WHAT_IFS = POLICIES.filter((p) => p.shadowRole === 'what-if').map((p) => p.id);
+for (const id of [...CANDIDATES, ...WHAT_IFS]) if (!TREATMENTS[id]) throw new Error(`policy ${id}: no implemented treatment`);
 
 /** The area's evidence with each treated item replaced by a neutral copy; originals are untouched. */
 function shadowList(items: readonly AnnotatedEvidence[], treatments: readonly Treatment[]): EvidenceItem[] {
@@ -131,15 +155,15 @@ export function reconcileFrom(r: ReasoningInput, pr: PlanetaryReasoning): Reconc
   const domains = LIFE_DOMAINS.map((domain) => {
     const items = r.evidence.filter((a) => a.item.domain === domain);
     const original = resolveDomain(domain, items.map((a) => a.item), { approximate });
-    const treatments = inapplicable.includes('own-house-lord-not-malefic-occupant') ? [] : ownHouseMaleficTreatments(r, items);
+    const treatments = CANDIDATES.filter((id) => !inapplicable.includes(id)).flatMap((id) => TREATMENTS[id](r, items));
     const proposed = treatments.length ? resolveDomain(domain, shadowList(items, treatments), { approximate }) : original;
-    const diagnostics = ([['lord-aspect-on-own-house', lordAspectTreatments], ['planet-dignity-once-per-area', dignityOnceTreatments]] as const)
-      .filter(([id]) => !inapplicable.includes(id))
-      .map(([id, fn]) => {
-        const t = fn(r, items);
+    const diagnostics = WHAT_IFS.filter((id) => !inapplicable.includes(id))
+      .map((id) => {
+        const t = TREATMENTS[id](r, items);
         if (!t.length) return null;
         const whatIf = resolveDomain(domain, shadowList(items, t), { approximate });
-        return { policyId: id, status: policyById(id)!.status, treatments: t, whatIf: view(whatIf), wouldChange: whatIf.verdict !== original.verdict || whatIf.confidence !== original.confidence };
+        const p = policyById(id)!;
+        return { policyId: id, shadowRole: p.shadowRole, classicalStatus: p.classicalStatus, treatments: t, whatIf: view(whatIf), wouldChange: whatIf.verdict !== original.verdict || whatIf.confidence !== original.confidence };
       }).filter((x): x is NonNullable<typeof x> => !!x);
     const ids = new Set(items.map((a) => a.item.id));
     const answered = new Set(treatments.map((t) => t.evidenceId));
@@ -151,13 +175,13 @@ export function reconcileFrom(r: ReasoningInput, pr: PlanetaryReasoning): Reconc
       domain, original: view(original),
       originalEvidenceIds: [...original.supporting, ...original.conflicting].map((e) => e.id),
       treatments, proposed: view(proposed),
-      status: changed ? 'candidate-change' as const : 'unchanged' as const,
+      status: changed ? 'provisional-candidate-change' as const : 'unchanged' as const,
       change: changed ? { verdict: proposed.verdict !== original.verdict, confidence: proposed.confidence !== original.confidence, towards: towards(original.verdict, proposed.verdict) } : null,
       diagnostics, openQuestions,
       reliability: { approximate, inapplicablePolicies: inapplicable },
     }) as DomainReconciliation;
   });
-  return freeze({ asOf: r.facts.asOf, approximate, domains });
+  return freeze({ asOf: r.facts.asOf, approximate, shadowOnly: true as const, productionApproved: false as const, domains });
 }
 
 /** The policy a classifier question belongs to, when one does. */
