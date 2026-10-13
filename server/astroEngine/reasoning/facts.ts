@@ -29,6 +29,11 @@ export const fact = {
   charaKaraka: (karaka: string): FactId => `jaimini.karaka:${karaka}`,
   /** One detected yoga: its name and the planets that form it (the same name can form more than once). */
   yoga: (name: string, planets: string[]): FactId => `yoga:${slug(name)}:${planets.map(slug).join('-')}`,
+  /**
+   * With an approximate birth time, every yoga the birth date can form or dissolve shares this one
+   * identity: a per-yoga id would itself say which yogas the placeholder time happened to form.
+   */
+  timeDependentYogas: (): FactId => 'yoga:time-dependent',
   dosha: (id: string): FactId => `dosha:${id}`,
   /** The period running at one instant. The instant is part of the id (asOfKey), so a timing fact never matches another date. */
   running: (level: 'mahadasha' | 'antardasha', asOf: Date): FactId => `dasha.running:${level}@${asOfKey(asOf)}`,
@@ -36,12 +41,14 @@ export const fact = {
 
 /**
  * How an evidence item depends on a fact.
- * - direct: the item reads the fact itself (the lord's dignity, the house's bindus).
+ * - direct: the fact decides the item's direction (the lord's dignity, the house's bindus, the occupant's house).
  * - derived: the fact enters through a combination of facts (a yoga's defining conditions, a period lord's overall condition).
+ * - gate: the fact decides only whether, or how strongly, the rule applies — never which way it points
+ *   (an occupant's dignity read to rule debilitation out; the houses that weaken a yoga formed in dusthanas).
  * - role: the fact only makes the planet or house relevant (it is the 10th lord, the Amatyakaraka, it occupies the house).
  * - timing: the fact says the item is active now (the running Mahadasha or Antardasha).
  */
-export type DependencyType = 'direct' | 'derived' | 'role' | 'timing';
+export type DependencyType = 'direct' | 'derived' | 'gate' | 'role' | 'timing';
 
 export type EvidenceRole =
   | 'house-lord' | 'occupant' | 'aspecting-planet' | 'house-bindus' | 'divisional-lord' | 'karaka'

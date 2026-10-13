@@ -135,7 +135,9 @@ function planetFacts(r: ReasoningInput, planet: Graha): FactRef[] {
   const out: FactRef[] = [];
   const add = (id: FactId) => { const f = r.facts.get(id); if (f) out.push(ref(f)); };
   add(fact.sign(planet)); add(fact.house(planet)); add(fact.dignity(planet)); add(fact.combust(planet));
-  add(fact.neechaBhanga(planet)); add(fact.aspect(planet)); add(fact.digBala(planet));
+  // A Neecha Bhanga is listed only beside a dignity the birth time supports (its presence says "debilitated").
+  if (r.facts.get(fact.dignity(planet))?.reliable) add(fact.neechaBhanga(planet));
+  add(fact.aspect(planet)); add(fact.digBala(planet));
   if (planet === 'Moon') add(fact.paksha());
   for (const f of Array.from(r.facts.facts.values())) if (f.category === 'varga.sign' && f.subject.endsWith(`:${planet}`)) out.push(ref(f));
   return out;
