@@ -4,6 +4,7 @@ import { Sheet, SheetContent, SheetTitle } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
 import { NorthIndianChartEnhanced } from '@/components/NorthIndianChartEnhanced';
 import type { ReportContent } from '@/lib/reportPdf';
+import { savReading, SAV_POLICY_TEXT } from '@shared/v3/ashtakavargaPolicy';
 
 interface Props {
   content: ReportContent;
@@ -117,12 +118,12 @@ export function ReportReader({ content, title, refunded, downloading, onDownload
               <h3 className={h3}>Sarvashtakavarga by house</h3>
               <ol className="m-0 grid list-none grid-cols-6 gap-1.5 p-0 tabular-nums md:grid-cols-12">
                 {content.chartData.ashtakavarga.savByHouse.map((v, i) => (
-                  <li key={i} className={`flex flex-col items-center rounded-sm border border-line py-2 ${v >= 30 ? 'bg-highlight' : 'bg-surface'}`}>
+                  <li key={i} aria-label={`House ${i + 1}: ${v} bindus, ${savReading(v).label.toLowerCase()}`} className={`flex flex-col items-center rounded-sm border border-line py-2 ${savReading(v).direction === 'positive' ? 'bg-highlight' : 'bg-surface'}`}>
                     <span className="text-caption text-ink-muted">{i + 1}</span><span className="font-semibold">{v}</span>
                   </li>
                 ))}
               </ol>
-              <p className="text-caption text-ink-muted">About 28 bindus is average; 30 or more is shaded.</p>
+              <p className="text-caption text-ink-muted">{SAV_POLICY_TEXT} Above-average houses are shaded.</p>
             </section>
           )}
 

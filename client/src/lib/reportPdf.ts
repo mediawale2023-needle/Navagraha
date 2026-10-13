@@ -1,6 +1,7 @@
 // Client-side PDF export for paid astrology reports. jsPDF is imported lazily
 // so it stays out of the main bundle and only loads when a user downloads.
 import { HOUSE_TEXT, PLANET_ABBR, PLANET_COLORS, SIGN_NUM } from "@/components/NorthIndianChartEnhanced";
+import { savReading } from "@shared/v3/ashtakavargaPolicy";
 
 interface ChartPlanetPos {
   planet: string;
@@ -193,10 +194,10 @@ export async function downloadReportPdf(content: ReportContent) {
     const rows = content.chartData.ashtakavarga.savByHouse.map((b, i) => [
       `House ${i + 1}`,
       String(b),
-      b >= 30 ? "Strong" : b < 25 ? "Weak" : "Moderate",
+      savReading(b).label,
     ]);
-    y = drawTable(doc, M, y, ["House", "SAV Bindus", "Strength"], [55, 45, 55], rows, (i) =>
-      (content.chartData!.ashtakavarga!.savByHouse![i]) >= 30,
+    y = drawTable(doc, M, y, ["House", "SAV Bindus", "Reading"], [55, 45, 55], rows, (i) =>
+      savReading(content.chartData!.ashtakavarga!.savByHouse![i]).direction === "positive",
     );
   }
 

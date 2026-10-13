@@ -20,6 +20,15 @@ export function planetFacts(chart: CanonicalChart, stability: TimeStability | nu
 }
 
 /**
+ * A planet's dignity as shown in the chart. A debilitation cancelled by Neecha Bhanga is named as such,
+ * so it is never read as plain debilitation; the cancellation is judged from the Lagna and needs an exact time.
+ */
+export function dignityLabel(d: { dignity: string; neechaBhanga?: boolean }, approximate: boolean): string {
+  return d.dignity === 'Debilitated' && d.neechaBhanga && !approximate ? `Debilitated, ${NEECHA_BHANGA_NOTE}` : d.dignity;
+}
+export const NEECHA_BHANGA_NOTE = 'cancelled (Neecha Bhanga)';
+
+/**
  * Whether a planet's dignity line holds all day. A debilitated planet's Neecha Bhanga is judged from
  * the Lagna, so whether its debilitation is cancelled is unknown with an approximate time.
  */

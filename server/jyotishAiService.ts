@@ -21,6 +21,8 @@ import { isCurrentCanonicalChart } from '@shared/v3/canonical';
 import { buildInsights } from './astroEngine/evidence/insights.js';
 import { features } from './features.js';
 import { textProblems } from './reportQuality.js';
+import { birthDayStability, dignityStatementStable } from './astroEngine/canonical/birthDay.js';
+import { NEECHA_BHANGA_RULE, SAV_PROMPT_HEADING, savHouseLine } from './interpretationPolicy.js';
 
 export type Tradition = 'parashar' | 'kn_rao' | 'kamakhya';
 
@@ -33,7 +35,7 @@ export const TRADITION_LABELS: Record<Tradition, string> = {
 // Shared ethics/discipline, mirrored from aiAstrologerService.ts's
 // REPORT_DISCIPLINE so every tradition's output holds to the same standard
 // regardless of methodology.
-const DISCIPLINE = `Discipline: tie every prediction to the activating dasha + at least two confirmations (Navamsa/Dasamsa, Ashtakavarga SAV, house lord placement, karaka). Weigh planetary strength — a weak/debilitated/combust planet under-delivers; note Neecha-bhanga and yoga cancellation explicitly. Give realistic timing windows, not vague ones. Ethics: never predict death or loss of longevity, serious illness or guaranteed outcomes; never frighten; pair every difficulty with realistic guidance (remedies are optional, never a condition for a good outcome); respect free will; never push a gemstone — flag this engine's own gemstone-contraindication checks if any are present for the chart.
+const DISCIPLINE = `Discipline: tie every prediction to the activating dasha + at least two confirmations (Navamsa/Dasamsa, Ashtakavarga SAV, house lord placement, karaka). Weigh planetary strength from the dignities supplied — a debilitated planet without cancellation, or a combust one, under-delivers; note yoga cancellation explicitly. ${NEECHA_BHANGA_RULE} Give realistic timing windows, not vague ones. Ethics: never predict death or loss of longevity, serious illness or guaranteed outcomes; never frighten; pair every difficulty with realistic guidance (remedies are optional, never a condition for a good outcome); respect free will; never push a gemstone — flag this engine's own gemstone-contraindication checks if any are present for the chart.
 
 Depth and structure (mandatory — this is a working reference for a professional astrologer, not a short summary; write the full length needed to satisfy every point below, do not compress or truncate):
 1. THIS IS NOT A DASHA-ONLY REPORT: begin with a full chart-darshan before timeline work. Open by naming the chart's foundational architecture — Lagna, Lagna lord, Atmakaraka, Karakamsha, Ishta Devata, strongest yoga(s), standout dosha(s), special coincidences, and any rare signature explicitly supplied by the chart data. Explain what kind of life this chart is fundamentally built for before you start period analysis.
@@ -161,6 +163,24 @@ function fmtRemedies(chartData: JyotishChartData): string {
   return `Functional remedies:\n${functional}\n\nGemstone contraindications (check before recommending any stone):\n${contraindications}`;
 }
 
+/**
+ * Dignities and Sarvashtakavarga, the data the cross-check instructions above ask for, labelled
+ * with the shared interpretation policy. With an approximate birth time only what holds for the
+ * whole birth date is given: no house bindus (they follow the Lagna) and no Neecha Bhanga.
+ */
+function fmtStrength(chartData: JyotishChartData): string {
+  const canonical = (chartData as any).canonical;
+  const approximate = isCurrentCanonicalChart(canonical) && canonical.birth.timeAccuracy === 'approximate';
+  const st = approximate ? birthDayStability(canonical) : null;
+  const shown = chartData.dignities.filter((d) => !st || (st.planets[d.planet as keyof typeof st.planets]?.sign && dignityStatementStable(canonical, st, d.planet as any)));
+  const dignityLines = shown.map((d) => `- ${d.planet}: ${d.dignity}${d.neechaBhanga && !approximate ? ' (debilitation cancelled by Neecha Bhanga)' : ''}${d.combust ? ', combust' : ''}`).join('\n');
+  const sav = chartData.ashtakavarga.savByHouse;
+  const savText = approximate
+    ? 'Sarvashtakavarga by house: not stated — the birth time is approximate, so the houses (and their bindus) are unknown. Do not quote bindu figures.'
+    : sav.length === 12 ? `${SAV_PROMPT_HEADING}\n${savHouseLine(sav)}` : 'Sarvashtakavarga by house: not available.';
+  return `Planetary dignity (calculated by the engine; the only dignity facts to use)${approximate ? ' — birth time approximate: only dignities that hold for the whole birth date are listed' : ''}:\n${dignityLines || 'None that the approximate birth time can support'}\n\n${savText}`;
+}
+
 function fmtMahavidya(chartData: JyotishChartData): string {
   const m = chartData.mahavidya;
   return `Primary Mahavidya (via Atmakaraka ${m.primary.graha}): ${m.primary.mahavidya} — ${m.primary.reasoning}\nLagna Mahavidya (${m.lagna.sign}): ${m.lagna.mahavidya} — ${m.lagna.reasoning}`;
@@ -201,6 +221,8 @@ Ascendant (Lagna): ${chartData.ascendant.sign} ${chartData.ascendant.degree}° �
 
 Planetary Positions (D1 Rasi, Lahiri sidereal, Swiss Ephemeris precision):
 ${fmtPlanets(chartData)}
+
+${fmtStrength(chartData)}
 
 Dasha Timeline (Vimshottari + Yogini cross-check):
 ${fmtDasha(chartData)}

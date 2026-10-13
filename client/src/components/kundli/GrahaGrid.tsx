@@ -1,6 +1,6 @@
 import type { CanonicalChart } from '@shared/v3/canonical';
 import { GRAHA_HI, GRAHA_ORDER, ordinal } from '@/lib/jyotishNames';
-import { dignityKnown, planetFacts, type TimeStability } from '@/lib/timeStability';
+import { dignityKnown, dignityLabel, planetFacts, type TimeStability } from '@/lib/timeStability';
 
 const STRONG = new Set(['Exalted', 'Own sign', 'Moolatrikona']);
 
@@ -33,8 +33,7 @@ export function grahaCards(chart: CanonicalChart, opts: { lagnaKnown: boolean; m
       house: opts.lagnaKnown ? p.house : null,
       nakshatra: moonUncertain || (facts !== null && !facts.nakshatra) ? null : p.nakshatra.name,
       retrograde: p.retrograde && name !== 'Rahu' && name !== 'Ketu' && (!facts || facts.retrograde),
-      // Neecha Bhanga is judged from the Lagna, so "(cancelled)" needs an exact time.
-      dignity: dignityShown ? `${d.dignity}${d.neechaBhanga && !approximate ? ' (cancelled)' : ''}` : null,
+      dignity: dignityShown ? dignityLabel(d, approximate) : null,
       role: name === opts.maha ? 'Mahadasha lord' : name === opts.antar ? 'Antardasha lord' : null,
     };
   });
@@ -57,7 +56,7 @@ export function GrahaGrid({ cards, onSelect }: { cards: GrahaCard[]; onSelect: (
     <div className="grid grid-cols-2 gap-2.5 lg:grid-cols-3" data-testid="graha-grid">
       {cards.map((c) => {
         const maha = c.role === 'Mahadasha lord';
-        const strong = !!c.dignity && STRONG.has(c.dignity.replace(' (cancelled)', ''));
+        const strong = !!c.dignity && STRONG.has(c.dignity);
         return (
           <button
             key={c.planet}

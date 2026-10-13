@@ -23,9 +23,10 @@ import {
 } from "./reportQuality.js";
 import { localiseFields } from "./agents/localise.js";
 import { exactTimeRequiredReason } from "./reportEligibility.js";
+import { NEECHA_BHANGA_RULE, SAV_PROMPT_HEADING, savHouseLine } from "./interpretationPolicy.js";
 
 // Shared prediction discipline + ethics for all paid-report generation.
-const REPORT_DISCIPLINE = `Discipline: a yoga/placement is only a promise — tie predictions to the activating dasha + transit and at least two confirmations (Navamsa/Dasamsa, Ashtakavarga, house lord, karaka); weigh planetary strength (a weak/debilitated/combust planet under-delivers; note Neecha-bhanga and yoga cancellation). Give realistic timing windows. Grounding: use only the chart facts and deterministic evidence supplied; never invent a placement, yoga, dosha, strength or date; keep the engine's verdicts; never cite chapter/verse numbers or quote scriptures; if the birth time is approximate, say so and do not build on the Lagna or houses. Ethics: Jyotish is a traditional interpretive system, not certainty — describe tendencies and timing; never predict death, lifespan, serious illness, guaranteed pregnancy, guaranteed marriage/divorce or guaranteed financial outcomes; never frighten; pair difficulty with realistic guidance (remedies are optional, never a condition); respect free will; recommend only justified remedies, never push gemstones.`;
+const REPORT_DISCIPLINE = `Discipline: a yoga/placement is only a promise — tie predictions to the activating dasha + transit and at least two confirmations (Navamsa/Dasamsa, Ashtakavarga, house lord, karaka); weigh planetary strength (a debilitated planet without cancellation, or a combust one, under-delivers; note yoga cancellation). ${NEECHA_BHANGA_RULE} Give realistic timing windows. Grounding: use only the chart facts and deterministic evidence supplied; never invent a placement, yoga, dosha, strength or date; keep the engine's verdicts; never cite chapter/verse numbers or quote scriptures; if the birth time is approximate, say so and do not build on the Lagna or houses. Ethics: Jyotish is a traditional interpretive system, not certainty — describe tendencies and timing; never predict death, lifespan, serious illness, guaranteed pregnancy, guaranteed marriage/divorce or guaranteed financial outcomes; never frighten; pair difficulty with realistic guidance (remedies are optional, never a condition); respect free will; recommend only justified remedies, never push gemstones.`;
 
 // With an approximate birth time nothing can be timed or confirmed from the houses or vargas.
 const APPROXIMATE_DISCIPLINE = REPORT_DISCIPLINE.replace(/^Discipline: .*?Give realistic timing windows\. /,
@@ -117,9 +118,7 @@ export function chartSummary(kundli: Partial<Kundli>): string {
     .join("\n");
 
   const savByHouse: number[] = (kundli as any).chartData?.ashtakavarga?.savByHouse || [];
-  const savLine = !approx && savByHouse.length === 12
-    ? savByHouse.map((b, i) => `H${i + 1}:${b}`).join("  ")
-    : "";
+  const savLine = !approx && savByHouse.length === 12 ? savHouseLine(savByHouse) : "";
 
   const dignities: any[] = (kundli as any).chartData?.dignities || [];
   // Approximate time: only dignities that hold all day; no Neecha Bhanga (judged from the Lagna),
@@ -127,7 +126,7 @@ export function chartSummary(kundli: Partial<Kundli>): string {
   const dignityLines = (unsure ? dignities.filter((p) => unsure.st.planets[p.planet as Graha]?.sign && dignityStatementStable(unsure.chart, unsure.st, p.planet)) : dignities)
     .map((p) => unsure
       ? `- ${p.planet}: ${p.dignity}${p.retrograde && unsure.st.planets[p.planet as Graha]?.retrograde ? ", retrograde" : ""}${p.combust ? ", combust" : ""}`
-      : `- ${p.planet}: ${p.dignity}${p.neechaBhanga ? " (Neecha Bhanga — cancellation)" : ""}${p.retrograde ? ", retrograde" : ""}${p.combust ? ", combust" : ""}${p.planetaryWar ? `, in planetary war with ${p.planetaryWar}` : ""} — ${p.avastha}`)
+      : `- ${p.planet}: ${p.dignity}${p.neechaBhanga ? " (debilitation cancelled by Neecha Bhanga)" : ""}${p.retrograde ? ", retrograde" : ""}${p.combust ? ", combust" : ""}${p.planetaryWar ? `, in planetary war with ${p.planetaryWar}` : ""} — ${p.avastha}`)
     .join("\n");
 
   const yogasArr: any[] = (kundli as any).chartData?.yogas || [];
@@ -184,8 +183,7 @@ ${aspectLines || "Not available"}
 
 Bhava Chalit shifts (planets near a sign edge): ${chalitShifts || "none"}
 
-Sarvashtakavarga (SAV) bindus by house (higher = stronger; >30 strong, <25 weak; total 337):
-${savLine || "Not available"}
+${savLine ? `${SAV_PROMPT_HEADING}\n${savLine}` : "Sarvashtakavarga (SAV) bindus by house: Not available"}
 
 Dasha Timeline:
 ${dashaLines}

@@ -8,6 +8,8 @@
 import { SIGN_NAMES, type CanonicalChart, type Graha } from '@shared/v3/canonical';
 import { NAKSHATRAS } from '../astroEngine/vedic.js';
 import { birthDayStability, yogaTimeStable } from '../astroEngine/canonical/birthDay.js';
+import { buildInsights } from '../astroEngine/evidence/insights.js';
+import { DOMAIN_LABELS, type LifeDomain, type Verdict } from '@shared/v3/evidence';
 
 export interface GuardContext {
   chart: CanonicalChart;
@@ -91,6 +93,51 @@ const JAIMINI_KARAKA = /\b(?:atma|amatya|bhratri|matri|pitri|putra|gnati|dara)[ 
 const DASHA_TERM = /\b(maha\s?dasha|mahadasa|dasha|dasa|antar\s?dasha|antardasa|bhukti)\b/i;
 const DATE_OR_CHANGE = new RegExp(`\\b(1[89]\\d{2}|2[01]\\d{2}|${['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'].join('|')}|begins?|began|starts?|started|ends?|ended|until|till|from|after|before|changes?|switch(?:es)?|next|upcoming|coming|later|following|years? (?:old|of age)|age \\d)\\b`, 'i');
 
+// ── Exact-time facts: Sarvashtakavarga figures and Neecha Bhanga ────────────
+const HOUSE_WORDS: Record<string, number> = { first: 1, second: 2, third: 3, fourth: 4, fifth: 5, sixth: 6, seventh: 7, eighth: 8, ninth: 9, tenth: 10, eleventh: 11, twelfth: 12 };
+const HOUSE_REF = `(?:(\\d{1,2})(?:st|nd|rd|th)\\s+house|(${Object.keys(HOUSE_WORDS).join('|')})\\s+house|\\bH(\\d{1,2})\\b)`;
+const houseOf = (m: RegExpMatchArray, i: number) => Number(m[i] ?? m[i + 2]) || HOUSE_WORDS[(m[i + 1] ?? '').toLowerCase()];
+// A number quoted as a threshold ("32 or more bindus", "fewer than 25") describes the scale, not this chart.
+const THRESHOLD_BEFORE = /\b(?:than|least|most|above|below|over|under|about|around|roughly|nearly|approximately|average(?: of)?|between|and|to|or)\s*$/i;
+const THRESHOLD_AFTER = /^\s*(?:\+|or (?:more|fewer|less|above|below|higher|lower)|and (?:above|below|over|under)|(?:–|-|to)\s*\d)/i;
+const FROM_MOON = /\bfrom (?:the |your )?(?:moon|chandra)\b/i;
+const ANOTHER_HOUSE = new RegExp(`\\b\\d{1,2}(?:st|nd|rd|th)\\b|\\b(?:${Object.keys(HOUSE_WORDS).join('|')})\\b|\\bH\\d{1,2}\\b`, 'i');
+
+/** "the 10th house has 34 bindus", "34 bindus in the 10th house", "H10 (34 bindus)": [house, bindus, index of the number]. */
+function houseBinduClaims(s: string): Array<{ house: number; bindus: number; at: number }> {
+  const out: Array<{ house: number; bindus: number; at: number }> = [];
+  for (const m of Array.from(s.matchAll(new RegExp(`${HOUSE_REF}([^.;]{0,60}?)\\b(\\d{1,2})\\s*bindus?\\b`, 'gi')))) {
+    // The figure must belong to this house: no second house, and not a house counted from the Moon.
+    if (FROM_MOON.test(m[4]) || ANOTHER_HOUSE.test(m[4])) continue;
+    out.push({ house: houseOf(m, 1), bindus: Number(m[5]), at: m.index! + m[0].length - m[0].match(/\d{1,2}\s*bindus?$/i)![0].length });
+  }
+  for (const m of Array.from(s.matchAll(new RegExp(`\\b(\\d{1,2})\\s*bindus?\\b[^.;]{0,30}?\\b(?:in|for|of|to|at)\\s+(?:your\\s+|the\\s+|its\\s+)?${HOUSE_REF}`, 'gi')))) {
+    if (FROM_MOON.test(s.slice(m.index! + m[0].length, m.index! + m[0].length + 25))) continue;
+    out.push({ house: houseOf(m, 2), bindus: Number(m[1]), at: m.index! });
+  }
+  return out.filter((c) => c.house >= 1 && c.house <= 12 && !THRESHOLD_BEFORE.test(s.slice(0, c.at)) && !THRESHOLD_AFTER.test(s.slice(c.at).replace(/^\d{1,2}/, '')));
+}
+
+const NB_PHRASE = String.raw`(?:neecha[ -]?bhanga|debilitation\s+(?:is\s+|was\s+|gets\s+|stands\s+)?(?:cancel+ed|nullified|neutrali[sz]ed)|cancel+(?:ed|ation of)\s+(?:its\s+|his\s+|her\s+|the\s+)?debilitation)`;
+
+// Words allowed between a planet and the phrase, so a planet named as the cause ("because Venus sits in a kendra") is not read as the subject.
+const NB_LEAD = String.raw`(?:(?:has|have|had|gets|got|enjoys|receives|shows|with|without|is|was|isn['’]t|also|a|an|the|its|his|her|clear|full|partial|real|no|not|never|debilitated|and|but|lacks?)\s+){0,6}`;
+
+// ── Life-area verdicts ───────────────────────────────────────────────────────
+// Only a flat statement of an area's overall verdict is checked ("Your career is challenging",
+// "Career: Strong"); a qualified or time-bound sentence is interpretation and is left alone.
+const DOMAIN_TERMS: Array<[LifeDomain, string]> = [
+  ['career', 'career|profession'], ['wealth', 'wealth|finances?|money matters'], ['relationships', 'relationships?|marriage|partnerships?|married life'],
+  ['leadership', 'leadership'], ['property', 'property(?: (?:&|and) home)?|home and property'], ['foreign', 'foreign (?:&|and) travel|foreign travel|life abroad|foreign settlement'],
+  ['education', 'education|studies'], ['children', 'children|progeny'], ['spirituality', 'spirituality|spiritual life'],
+];
+const VERDICT_WORDS = 'exceptional|very strong|strong|very challenging|challenging|very favou?rable|favou?rable|unfavou?rable|excellent|difficult';
+const NEGATIVE_WORD = /^(very challenging|challenging|unfavou?rable|difficult)$/i;
+const POSITIVE_VERDICTS: Verdict[] = ['Exceptional', 'Very Strong', 'Strong'];
+const NEGATIVE_VERDICTS: Verdict[] = ['Challenging', 'Very Challenging'];
+const QUALIFIED = /\b(but|although|though|while|whereas|yet|however|despite|except|at times|sometimes|in parts?|in some|during|when|whenever|until|till|after|before|early|later|phases?|periods?|can be|could|may|might|if|unless|some|partly|partially|mixed|aspects? of|side of)\b/i;
+const VERDICT_CLAIM = new RegExp(`\\b(${DOMAIN_TERMS.map(([, t]) => t).join('|')})(?:\\s+(?:prospects?|outlook|picture|area|matters))?\\s*(?::|\\b(?:is|are|looks?|appears?|reads?\\s+as|comes?\\s+out\\s+as|is\\s+rated(?:\\s+as)?|verdict\\s+is)\\b)\\s*(?:(?:very|highly|quite|clearly|overall|largely|rather|decidedly)\\s+)?(?:an?\\s+)?(${VERDICT_WORDS})(?=\\s*(?:[.,;:!)]|$)|\\s+(?:overall|on balance|in (?:your|this) chart|for you)\\b)`, 'gi');
+
 // ── The validator ────────────────────────────────────────────────────────────
 
 export function validateAnswer(answer: string, ctx: GuardContext): string[] {
@@ -101,6 +148,7 @@ export function validateAnswer(answer: string, ctx: GuardContext): string[] {
   const dignity = (g: Graha) => chart.strength.dignities.find((d) => d.planet === g);
   const yogas = presentYogas(chart);
   const st = birthDayStability(chart);
+  let verdicts: Map<LifeDomain, Verdict> | undefined;
   const sadeSatiActive = !ctx.transits || /Sade Sati undetermined/.test(ctx.transits) ? null : /Sade Sati ACTIVE/.test(ctx.transits);
 
   for (const s of sentences(answer)) {
@@ -218,6 +266,52 @@ export function validateAnswer(answer: string, ctx: GuardContext): string[] {
       if (present === null) { if (!negated) issues.push(`${m[0]} is not calculated for this chart`); continue; }
       if (id === 'mangal' && chart.doshas.find((d) => d.id === 'mangal')?.cancelledBy?.length && /\b(cancel(?:led|ed|s|lation)?|neutrali[sz]ed|nullified|bhanga)\b/i.test(s)) continue;
       if (present === negated) issues.push(`${m[0]} is ${present ? 'present' : 'not present'} in this chart`);
+    }
+
+    if (!approx) {
+      // Sarvashtakavarga figures stated for a house must be the chart's own.
+      for (const c of houseBinduClaims(s)) {
+        const actual = chart.strength.ashtakavarga.savByHouse[c.house - 1];
+        if (actual !== c.bindus && !negatedBefore(s, c.at)) issues.push(`the ${ORD(c.house)} house has ${actual} Sarvashtakavarga bindus, not ${c.bindus}`);
+      }
+      // Neecha Bhanga: only for a debilitated planet whose debilitation the engine found cancelled.
+      const nbRe = new RegExp(NB_PHRASE, 'gi');
+      const phrases = Array.from(s.matchAll(nbRe)).map((m) => m.index!);
+      if (phrases.length) {
+        const cancelled = (g: Graha) => dignity(g)?.dignity === 'Debilitated' && !!dignity(g)?.neechaBhanga;
+        const deniedAt = (at: number) => /\b(?:no|not|never|without|lacks?|isn['’]t|wasn['’]t|doesn['’]t|does not|nor)\b[^.]{0,12}$/i.test(s.slice(Math.max(0, at - 30), at));
+        const named = [
+          ...Array.from(s.matchAll(new RegExp(`\\b${PLANET}\\b(?:['’]s)?\\s+${NB_LEAD}(?=${NB_PHRASE})`, 'gi'))).map((m) => ({ g: planetOf(m[1]), at: m.index! + m[0].length })),
+          ...Array.from(s.matchAll(new RegExp(`${NB_PHRASE}\\s+(?:of|for|on)\\s+(?:the\\s+)?${PLANET}\\b`, 'gi'))).map((m) => ({ g: planetOf(m[1]), at: m.index! })),
+        ];
+        for (const { g, at } of named) {
+          const claimed = !deniedAt(at);
+          if (cancelled(g) !== claimed) {
+            issues.push(cancelled(g) ? `${g}'s debilitation is cancelled (Neecha Bhanga) in this chart`
+              : dignity(g)?.dignity === 'Debilitated' ? `${g}'s debilitation is not cancelled (no Neecha Bhanga) in this chart`
+                : `${g} is not debilitated, so there is no Neecha Bhanga for it`);
+          }
+        }
+        const anyCancelled = chart.strength.dignities.some((d) => d.dignity === 'Debilitated' && d.neechaBhanga);
+        // A sentence about this chart (not a definition of the term) must not claim a cancellation the engine did not find.
+        if (!named.length && !anyCancelled && /\b(?:your|you have|this chart|the chart)\b/i.test(s) && phrases.some((at) => !deniedAt(at))) issues.push('no planet in this chart has a cancelled debilitation (Neecha Bhanga)');
+      }
+    }
+
+    // A flat statement of a life area's verdict must not reverse the engine's.
+    const plain = s.replace(/[*_`#]/g, '');
+    if (!QUALIFIED.test(plain)) {
+      for (const m of Array.from(plain.matchAll(VERDICT_CLAIM))) {
+        if (negatedBefore(plain, m.index!) || NEGATION.test(m[0])) continue;
+        const domain = DOMAIN_TERMS.find(([, t]) => new RegExp(`^(?:${t})$`, 'i').test(m[1]))?.[0];
+        if (!domain) continue;
+        verdicts ??= new Map(buildInsights(chart, ctx.asOf).domains.map((d) => [d.domain, d.verdict]));
+        const v = verdicts.get(domain)!;
+        const claimedNegative = NEGATIVE_WORD.test(m[2]);
+        if ((claimedNegative && POSITIVE_VERDICTS.includes(v)) || (!claimedNegative && NEGATIVE_VERDICTS.includes(v))) {
+          issues.push(`the calculated verdict for ${DOMAIN_LABELS[domain]} is ${v}, not ${m[2].toLowerCase()}`);
+        }
+      }
     }
 
     // Running periods.
