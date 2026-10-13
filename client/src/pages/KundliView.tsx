@@ -14,6 +14,8 @@ import { PageHeader, PageBody } from '@/components/shell/PageHeader';
 import { recreateHref } from '@/lib/recreateChart';
 import { BalanceShortfall } from '@/components/BalanceShortfall';
 import { chartTabView, type ChartTabView } from '@/lib/approximateChart';
+import { dignityKnown, planetFacts, type TimeStability } from '@/lib/timeStability';
+import { approximateDasha } from '@/lib/dashaTimeline';
 import type { Kundli } from '@shared/schema';
 import { useAuth } from '@/hooks/useAuth';
 import { apiRequest } from '@/lib/queryClient';
@@ -26,7 +28,7 @@ import { PriorityRemedyCard } from '@/components/PriorityRemedyCard';
 import { RashiChart } from '@/components/kundli/RashiChart';
 import { ChartToggles } from '@/components/kundli/ChartToggles';
 import { GrahaGrid, GrahaStrip, grahaCards } from '@/components/kundli/GrahaGrid';
-import { VimshottariScale } from '@/components/kundli/VimshottariScale';
+import { ApproximateDashaSequence, VimshottariScale } from '@/components/kundli/VimshottariScale';
 import { summariseYogasAndDoshas } from '@/lib/kundliSummary';
 import { SIGN_HI } from '@/lib/jyotishNames';
 import type { ChartLabels } from '@/lib/rashiChart';
@@ -225,7 +227,7 @@ export default function KundliView() {
         if (e.planet === planet.planet && !seen.has(e.explanation)) { seen.add(e.explanation); evidence.push(e); }
       }
     }
-    setSheetSubject({ kind: 'planet', planet: planet.planet, chart: canonical, evidence });
+    setSheetSubject({ kind: 'planet', planet: planet.planet, chart: canonical, evidence, stability: (kundli?.chartData as any)?.timeStability ?? null });
     setAiSheetOpen(true);
   };
 
@@ -266,8 +268,11 @@ export default function KundliView() {
   const limited = (kundli as any).chartStatus?.version === 'limited';
   const requestedTab = typeof window === 'undefined' ? null : new URLSearchParams(window.location.search).get('tab');
   const initialTab = requestedTab && ['overview', 'chart', 'remedies'].includes(requestedTab) ? requestedTab : 'overview';
-  const chartView: ChartTabView = canonical ? chartTabView(canonical) : { mode: 'exact' };
-  const moonSignUncertain = chartView.mode === 'table';
+  // Which planetary facts an approximate birth time supports (derived by the server on read).
+  const stability: TimeStability | null = chartData?.timeStability ?? null;
+  const chartView: ChartTabView = canonical ? chartTabView(canonical, stability ?? undefined) : { mode: 'exact' };
+  const moonSignUncertain = !!canonical && canonical.birth.timeAccuracy === 'approximate' && !canonical.uncertainty.moonSignStableAcrossBirthDate;
+  const approxDasha = canonical ? approximateDasha(canonical) : null;
 
   const moonPlanet = canonical?.planets.find((p) => p.name === 'Moon');
   const sunPlanet = canonical?.planets.find((p) => p.name === 'Sun');
@@ -275,8 +280,8 @@ export default function KundliView() {
   const nakshatraKnown = !!canonical && (exactTimeV3 || canonical.uncertainty.moonNakshatraStableAcrossBirthDate);
   const lagnaLine = canonical ? (exactTimeV3 ? `${canonical.ascendant.sign} Lagna` : 'Lagna unknown') : null;
   const moonLine = moonPlanet ? (moonSignUncertain ? 'Moon sign uncertain' : `${moonPlanet.sign} Moon${nakshatraKnown ? ` in ${moonPlanet.nakshatra.name}` : ''}`) : null;
-  const cards = canonical ? grahaCards(canonical, { lagnaKnown: chartView.mode === 'exact', moonSignKnown: !moonSignUncertain, nakshatraKnown, maha: running?.maha?.lord, antar: running?.antar?.lord }) : [];
-  const placements = canonical?.planets.map((p) => ({ planet: p.name, signIndex: p.signIndex, retrograde: p.retrograde })) ?? [];
+  const cards = canonical ? grahaCards(canonical, { lagnaKnown: chartView.mode === 'exact', moonSignKnown: !moonSignUncertain, nakshatraKnown, maha: running?.maha?.lord, antar: running?.antar?.lord, stability }) : [];
+  const placements = canonical?.planets.map((p) => ({ planet: p.name, signIndex: p.signIndex, retrograde: p.retrograde && planetFacts(canonical, stability, p.name).retrograde })) ?? [];
   const firstHouseSign = chartView.mode === 'chandra' ? moonPlanet!.signIndex : canonical?.ascendant.signIndex ?? 0;
   const selectPlanet = (planet: string) => handlePlanetClick({ planet });
   const chartTitle = `${chartView.mode === 'chandra' ? 'Chandra Lagna' : 'North Indian'} chart for ${kundli.name}`;
@@ -286,7 +291,7 @@ export default function KundliView() {
     <div>
       <PageHeader
         title={canonical ? (exactTimeV3 ? <><span lang="hi">{SIGN_HI[canonical.ascendant.sign]} लग्न</span> · {lagnaLine}</> : lagnaLine) : kundli.name}
-        sub={canonical ? [kundli.name, moonLine, `${sunPlanet?.sign} Sun`].filter(Boolean).join(' · ') : undefined}
+        sub={canonical ? [kundli.name, moonLine, canonical && !planetFacts(canonical, stability, 'Sun').sign ? 'Sun sign uncertain' : `${sunPlanet?.sign} Sun`].filter(Boolean).join(' · ') : undefined}
         back={isPreview ? undefined : { href: '/kundli', label: 'Kundli' }}
         desktop={false}
       />
@@ -349,15 +354,14 @@ export default function KundliView() {
               </p>
               {chartView.mode === 'table' ? (
                 <div className="w-full rounded-lg border border-line bg-surface p-4" data-testid="approximate-planet-table">
-                  <p className="mb-3 text-caption text-ink-muted">Birth time is approximate and the Moon changed sign on this birth date, so no house chart can be drawn. Only sign positions are shown.</p>
+                  <p className="mb-3 text-caption text-ink-muted">Birth time is approximate and {chartView.changedSign.join(', ')} changed sign on this birth date, so no house chart can be drawn. Only sign positions are shown.</p>
                   <table className="w-full text-sm">
-                    <thead><tr className="text-left text-caption text-ink-muted"><th className="py-1.5 font-medium">Planet</th><th className="py-1.5 font-medium">Sign</th><th className="py-1.5 text-right font-medium">Degree</th></tr></thead>
+                    <thead><tr className="text-left text-caption text-ink-muted"><th className="py-1.5 font-medium">Planet</th><th className="py-1.5 font-medium">Sign</th></tr></thead>
                     <tbody>
                       {chartView.rows.map((r) => (
                         <tr key={r.planet} className="border-t border-hairline">
                           <td className="py-1.5">{r.planet}{r.retrograde && r.planet !== 'Rahu' && r.planet !== 'Ketu' ? ' ℞' : ''}</td>
-                          <td className="py-1.5">{r.signUncertain ? `${r.sign} at the entered time · may differ` : r.sign}</td>
-                          <td className="py-1.5 text-right tabular-nums">{r.signUncertain ? '—' : `${r.degree.toFixed(2)}°`}</td>
+                          <td className="py-1.5">{r.signUncertain ? `${r.signs.join(' or ')} · changes during the birth date` : r.sign}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -394,7 +398,9 @@ export default function KundliView() {
           </div>
         )}
 
-        {insights && canonical && (
+        {insights && canonical && (approxDasha ? (
+          <ApproximateDashaSequence dasha={approxDasha} running={running?.maha?.lord} />
+        ) : (
           <VimshottariScale
             periods={insights.timeline}
             birth={new Date(canonical.birth.birthUTC)}
@@ -402,7 +408,7 @@ export default function KundliView() {
             antar={running?.antar?.lord}
             note={insights.timing?.note}
           />
-        )}
+        ))}
         {insights && canonical && !isPreview && kundliId && (
           <Link href={`/kundli/${kundliId}/dasha`} className="-mt-4 self-start text-sm underline hover:text-amber-text" data-testid="link-dasha-timeline">
             Every Mahadasha and Antardasha, with what each engages →
@@ -570,25 +576,33 @@ export default function KundliView() {
                       </tr>
                     </thead>
                     <tbody>
-                      {chartData.dignities.map((p: any) => (
-                        <tr key={p.planet} className="border-b border-border/40">
-                          <td className="p-1.5 font-medium">{p.planet}</td>
-                          <td className="p-1.5">{p.sign}</td>
-                          <td className={`p-1.5 ${p.dignity === 'Exalted' || p.dignity === 'Own sign' || p.dignity === 'Moolatrikona' ? 'text-positive' : p.dignity === 'Debilitated' ? 'text-negative' : ''}`}>
-                            {p.dignity}{p.neechaBhanga ? ' (cancelled)' : ''}
-                          </td>
-                          <td className="p-1.5 text-muted-foreground">
-                            {[p.retrograde ? 'R' : '', p.combust ? 'Combust' : '', p.planetaryWar ? `War:${p.planetaryWar}` : '', p.avastha?.split(' ')[0]].filter(Boolean).join(', ')}
-                          </td>
-                        </tr>
-                      ))}
+                      {chartData.dignities.map((p: any) => {
+                        // Approximate time: only what holds all day; no Neecha Bhanga (Lagna-based), war or avastha (degree-based).
+                        const f = canonical ? planetFacts(canonical, stability, p.planet) : null;
+                        const approx = !exactTimeV3 && !!f;
+                        const dignityShown = !approx || dignityKnown(canonical!, stability, p.planet);
+                        return (
+                          <tr key={p.planet} className="border-b border-border/40">
+                            <td className="p-1.5 font-medium">{p.planet}</td>
+                            <td className="p-1.5">{approx && !f!.sign ? 'Uncertain — changes during the birth date' : p.sign}</td>
+                            <td className={`p-1.5 ${dignityShown && (p.dignity === 'Exalted' || p.dignity === 'Own sign' || p.dignity === 'Moolatrikona') ? 'text-positive' : dignityShown && p.dignity === 'Debilitated' ? 'text-negative' : ''}`}>
+                              {dignityShown ? <>{p.dignity}{!approx && p.neechaBhanga ? ' (cancelled)' : ''}</> : 'Uncertain'}
+                            </td>
+                            <td className="p-1.5 text-muted-foreground">
+                              {approx
+                                ? [p.retrograde && f!.retrograde ? 'R' : '', p.combust && f!.combust ? 'Combust' : ''].filter(Boolean).join(', ')
+                                : [p.retrograde ? 'R' : '', p.combust ? 'Combust' : '', p.planetaryWar ? `War:${p.planetaryWar}` : '', p.avastha?.split(' ')[0]].filter(Boolean).join(', ')}
+                            </td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </CardContent>
               </Card>
             )}
 
-            {chartData?.bhava?.houseLords?.length > 0 && (
+            {chartView.mode === 'exact' && chartData?.bhava?.houseLords?.length > 0 && (
               <Card className="mt-4">
                 <CardHeader>
                   <CardTitle className="text-base">Houses &amp; Lords</CardTitle>

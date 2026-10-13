@@ -42,9 +42,11 @@ function describe(ix: ChartIndex, level: TimelinePeriod['level'], lord: Graha, s
   const areaNames = domains.map((d) => DOMAIN_LABELS[d.domain].toLowerCase());
   const years = ((Date.parse(end) - Date.parse(start)) / (365.25 * 86_400_000)).toFixed(1);
   const quality = cond.direction === 'positive' ? 'a well-placed' : cond.direction === 'negative' ? 'a strained' : 'a neutral';
+  // The length of the period running at birth depends on the birth time, so an approximate chart does not quote it.
+  const span = ix.approximate ? level : `${years}-year ${level}`;
   const whyItMatters = areaNames.length
-    ? `${lord} is ${quality} period lord in this chart, and it engages ${areaNames.join(', ')}${links[0] ? ` (${links[0].reasons[0]})` : ''}, so this ${years}-year ${level} brings those areas forward.`
-    : `${lord} has no direct link to the main life areas in this chart; this ${years}-year ${level} is coloured mainly by ${lord}'s general themes.`;
+    ? `${lord} is ${quality} period lord in this chart, and it engages ${areaNames.join(', ')}${links[0] ? ` (${links[0].reasons[0]})` : ''}, so this ${span} brings those areas forward.`
+    : `${lord} has no direct link to the main life areas in this chart; this ${span} is coloured mainly by ${lord}'s general themes.`;
   return {
     level, lord, start, end, status: status(start, end, t),
     themes: PLANET_THEMES[lord], domains, supporting, conflicting, confidence, whyItMatters,

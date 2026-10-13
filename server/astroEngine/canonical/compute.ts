@@ -126,10 +126,15 @@ const VARGA_RULES: Record<VargaDivision, { name: string; fn: (lon: number) => nu
   D60: { name: 'Shashtiamsa', fn: shashtiamsaSign },
 };
 
+/** First and last instant (UTC ms) of the local birth date, at the birth's UTC offset. */
+export function birthDayBounds(birth: Pick<ResolvedBirth, 'localDate' | 'utcOffsetSeconds'>): { dayStart: number; dayEnd: number } {
+  const dayStart = Date.parse(`${birth.localDate}T00:00:00Z`) - birth.utcOffsetSeconds * 1000;
+  return { dayStart, dayEnd: dayStart + 86_399_000 };
+}
+
 function moonStableAcrossDate(birth: ResolvedBirth) {
   // Moon at the first and last instant of the local birth date (same offset).
-  const dayStart = Date.parse(`${birth.localDate}T00:00:00Z`) - birth.utcOffsetSeconds * 1000;
-  const dayEnd = dayStart + 86_399_000;
+  const { dayStart, dayEnd } = birthDayBounds(birth);
   const a = siderealPositions(new Date(dayStart)).bodies.Moon.longitude;
   const b = siderealPositions(new Date(dayEnd)).bodies.Moon.longitude;
   return { sign: signIdx(a) === signIdx(b), nakshatra: nakshatraIndex(a) === nakshatraIndex(b) };

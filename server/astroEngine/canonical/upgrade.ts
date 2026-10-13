@@ -18,6 +18,8 @@ import { BirthInputError } from '../errors.js';
 import { getKundli, birthDateString } from '../index.js';
 import { CalculationError } from './compute.js';
 import { reconcileBirthStarRemedies } from '../remedies.js';
+import { nakshatraUncertain } from './legacy.js';
+import { birthDayStability } from './birthDay.js';
 import { mangalDosha } from '../doshas.js';
 import { dignityAt } from '../dignity.js';
 import { mahapurushaDescription } from '../yogas.js';
@@ -141,7 +143,7 @@ export function withReconciledRemedies<T extends Pick<Kundli, 'chartData' | 'rem
   const lord = chart.planets.find((p) => p.name === 'Moon')?.nakshatra.lord;
   const houseLords = cd.bhava?.houseLords;
   if (!lord || !Array.isArray(houseLords)) return kundli;
-  const remedies = reconcileBirthStarRemedies(kundli.remedies as any[], lord, houseLords, chart.birth.timeAccuracy === 'approximate');
+  const remedies = reconcileBirthStarRemedies(kundli.remedies as any[], lord, houseLords, chart.birth.timeAccuracy === 'approximate', nakshatraUncertain(chart));
   return { ...kundli, remedies };
 }
 
@@ -190,4 +192,16 @@ export function withCurrentDoshaRules<T extends Pick<Kundli, 'chartData' | 'dosh
   const canonical = { ...chart, doshas: chart.doshas.map((d) => (d.id === 'mangal' ? mangal : d)) };
   const doshas = kundli.doshas && typeof kundli.doshas === 'object' ? { ...(kundli.doshas as Record<string, unknown>), mangalDosha: mangal.present } : kundli.doshas;
   return { ...kundli, chartData: { ...cd, canonical }, doshas };
+}
+
+/**
+ * Adds `chartData.timeStability` to an approximate-time V3 chart: which planetary facts hold across
+ * the whole birth date, so the client never states one that the unknown time could change.
+ * Derived on read, never stored; exact-time and non-V3 charts are returned unchanged.
+ */
+export function withApproximateTimeView<T extends Pick<Kundli, 'chartData'>>(kundli: T): T {
+  const cd = (kundli.chartData ?? {}) as Record<string, any>;
+  if (!isCurrentCanonicalChart(cd.canonical) || cd.canonical.birth.timeAccuracy !== 'approximate') return kundli;
+  const { planets, doshas } = birthDayStability(cd.canonical as CanonicalChart);
+  return { ...kundli, chartData: { ...cd, timeStability: { planets, doshas } } };
 }

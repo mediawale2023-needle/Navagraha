@@ -252,6 +252,8 @@ for (const route of routes) describe(`${route.path} explicit chart selection`, (
   });
 
   it.each(['06:30', '06:30:45'])('accepts valid explicit birth details with time %s', async time => {
+    // An approximate time can only order a report it can honestly support (the Life Reading).
+    mocks.storage.getReportTypeById.mockResolvedValue({ id: 'type', name: 'Life Reading', category: 'life', isActive: true, price: '100' });
     const res = await post({ birthDetails: { name: 'Guest', gender: 'female', dateOfBirth: '1992-05-13', timeOfBirth: time, ...coords, isBirthTimeApproximate: true } });
     expect(res.status).toBe(route.success);
     expect(mocks.storage.getUserKundlis).not.toHaveBeenCalled();
@@ -275,6 +277,7 @@ describe('chart actually used after selection', () => {
   });
 
   it('report from explicit details computes an unsaved chart with seconds and the approximate flag', async () => {
+    mocks.storage.getReportTypeById.mockResolvedValue({ id: 'type', name: 'Life Reading', category: 'life', isActive: true, price: '100' });
     const res = await request(app).post('/api/reports/order').set('x-user', 'owner').send({
       reportTypeId: 'type',
       birthDetails: { name: 'Guest', dateOfBirth: '1992-05-13', timeOfBirth: '06:30:45', ...coords, isBirthTimeApproximate: true },
@@ -287,6 +290,18 @@ describe('chart actually used after selection', () => {
     expect(chart.chartData.isBirthTimeApproximate).toBe(true);
     expect(chart.chartData.canonical.birth.latitude).toBe(coords.latitude);
     expect(chart.chartData.canonical.birth.localTime).toBe('06:30:45');
+  });
+
+  it('refuses, before any charge, a report an approximate birth time cannot support', async () => {
+    const res = await request(app).post('/api/reports/order').set('x-user', 'owner').send({
+      reportTypeId: 'type',
+      birthDetails: { name: 'Guest', dateOfBirth: '1992-05-13', timeOfBirth: '06:30', ...coords, isBirthTimeApproximate: true },
+    });
+    expect(res.status).toBe(409);
+    expect(res.body.code).toBe('exact_birth_time_required');
+    expect(res.body.message).toMatch(/10th house[\s\S]*not been charged/);
+    expect(mocks.storage.placeReportOrder).not.toHaveBeenCalled();
+    expect(mocks.generateReport).not.toHaveBeenCalled();
   });
 
   it('chat with explicit details passes that chart, not the saved one, to the council', async () => {

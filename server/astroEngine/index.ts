@@ -204,6 +204,8 @@ export function transitsForChart(canonical: CanonicalChart, savBySign?: number[]
   const moon = canonical.planets.find((p) => p.name === 'Moon')!;
   const approximate = canonical.birth.timeAccuracy === 'approximate';
   const lagna = approximate ? null : canonical.ascendant.sign;
+  // Every planet's bindus include the Ascendant's contribution, so per-sign SAV moves with the unknown Lagna.
+  if (approximate) savBySign = undefined;
   // The Moon's sign is in doubt only when the birth time is: an exact time fixes it even on a day the Moon changes sign.
   return getTransits(moon.sign, lagna, savBySign, when, !approximate || canonical.uncertainty.moonSignStableAcrossBirthDate);
 }

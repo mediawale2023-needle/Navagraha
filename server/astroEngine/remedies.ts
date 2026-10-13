@@ -202,7 +202,10 @@ export function reconcileBirthStarRemedies(
   nakshatraLord: string,
   houseLords: Array<{ house: number; lord: string }>,
   approximate: boolean,
+  /** The Moon's nakshatra changes during the birth date, so its lord (and these remedies) are unknown. */
+  nakshatraUncertain = false,
 ): BirthStarRemedy[] {
+  if (nakshatraUncertain) return [];
   const functionalMalefic = isFunctionalMaleficLord(nakshatraLord, houseLords);
   return remedies.flatMap((r) => {
     if (r.type !== 'gemstone') return [r];

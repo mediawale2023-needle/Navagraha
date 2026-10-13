@@ -42,7 +42,8 @@ import {
 } from "./astroEngine/index.js";
 import { computePrashna, PRASHNA_CATEGORIES } from "./astroEngine/prashna.js";
 import { CalculationError } from "./astroEngine/canonical/compute.js";
-import { upgradeLegacyKundli, chartVersionStatus, listedChart, withReconciledRemedies, withCurrentDoshaRules, withCurrentDignityRules } from "./astroEngine/canonical/upgrade.js";
+import { exactTimeRequiredReason } from "./reportEligibility.js";
+import { upgradeLegacyKundli, chartVersionStatus, listedChart, withReconciledRemedies, withCurrentDoshaRules, withCurrentDignityRules, withApproximateTimeView } from "./astroEngine/canonical/upgrade.js";
 import { buildInsights } from "./astroEngine/evidence/insights.js";
 import { routeQuestion, buildEvidencePacket, answerSimple, answerWithoutChart, guardAnswer, packetSummary, limitedChartReply } from "./agents/askKundli.js";
 import { canonicalChartSchema, isCurrentCanonicalChart } from "@shared/v3/canonical";
@@ -332,7 +333,7 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
   const upgradesInFlight = new Map<string, Promise<Kundli>>();
   async function currentChart<T extends Kundli | null | undefined>(kundli: T): Promise<T> {
     if (!kundli?.id) return kundli;
-    if (isCurrentCanonicalChart((kundli.chartData as any)?.canonical)) return withReconciledRemedies(withCurrentDoshaRules(withCurrentDignityRules(kundli))) as T;
+    if (isCurrentCanonicalChart((kundli.chartData as any)?.canonical)) return withApproximateTimeView(withReconciledRemedies(withCurrentDoshaRules(withCurrentDignityRules(kundli)))) as T;
     const id = kundli.id;
     let pending = upgradesInFlight.get(id);
     if (!pending) {
@@ -361,7 +362,7 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
       })().finally(() => upgradesInFlight.delete(id));
       upgradesInFlight.set(id, pending);
     }
-    return (await pending) as T;
+    return withApproximateTimeView(await pending) as T;
   }
 
   /** A stored professional reading's chart if it is a current V3 chart, else recomputed canonically from the profile. */
@@ -408,17 +409,17 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
 
       // Guests: return computed data without saving
       if (!userId) {
-        return res.json({
+        return res.json(withApproximateTimeView({
           ...req.body,
           ...kundliData,
           id: null,
           saved: false,
-        });
+        }));
       }
 
       const validatedData = insertKundliSchema.parse({ ...req.body, latitude: lat, longitude: lon, userId });
       const kundli = await storage.createKundli({ ...validatedData, ...kundliData });
-      res.json(kundli);
+      res.json(withApproximateTimeView(kundli));
     } catch (error) {
       if (error instanceof BirthInputError || error instanceof CalculationError) return res.status(400).json({ message: error.message });
       if (error instanceof z.ZodError) return res.status(400).json({ message: "Validation error", errors: error.errors });
@@ -1880,8 +1881,10 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
         return res.status(409).json({ message: chartVersionStatus(kundli).notes[0] ?? 'This chart needs to be recreated with its birth place before a report can be generated.', chartStatus: chartVersionStatus(kundli) });
       }
 
-      if (reportType.category === 'life_complete' && (kundli.chartData as any)?.canonical?.birth?.timeAccuracy === 'approximate') {
-        return res.status(409).json({ message: 'The Complete Life Report reads every house, so it needs an exact birth time. You have not been charged.' });
+      // A report whose purpose rests on the houses or dasha dates is refused before any charge.
+      const needsExactTime = (kundli.chartData as any)?.canonical?.birth?.timeAccuracy === 'approximate' ? exactTimeRequiredReason(reportType.category) : null;
+      if (needsExactTime) {
+        return res.status(409).json({ code: 'exact_birth_time_required', message: needsExactTime });
       }
       const placed = await storage.placeReportOrder({
         userId,

@@ -36,8 +36,9 @@ export function buildInsights(chart: CanonicalChart, asOf = new Date()): KundliI
     asOf: asOf.toISOString(),
     headline: {
       lagna: approximate ? null : chart.ascendant.sign,
-      moonSign: planet('Moon').sign,
-      sunSign: planet('Sun').sign,
+      // Null when the sign changes during the birth date and the birth time is approximate.
+      moonSign: ix.stability.planets.Moon.sign ? planet('Moon').sign : null,
+      sunSign: ix.stability.planets.Sun.sign ? planet('Sun').sign : null,
       calculation: `${chart.meta.ephemeris.replace(/ \(.*\)$/, '')} · ${chart.meta.ayanamsa} ayanamsa`,
       timeAccuracy: chart.birth.timeAccuracy,
     },

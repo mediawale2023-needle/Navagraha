@@ -1,5 +1,6 @@
 import type { CanonicalChart } from '@shared/v3/canonical';
 import { GRAHA_HI, GRAHA_ORDER, ordinal } from '@/lib/jyotishNames';
+import { dignityKnown, planetFacts, type TimeStability } from '@/lib/timeStability';
 
 const STRONG = new Set(['Exalted', 'Own sign', 'Moolatrikona']);
 
@@ -15,20 +16,25 @@ export interface GrahaCard {
 }
 
 /** One card per graha, from the canonical chart and the running periods the chart can vouch for. */
-export function grahaCards(chart: CanonicalChart, opts: { lagnaKnown: boolean; moonSignKnown: boolean; nakshatraKnown: boolean; maha?: string; antar?: string }): GrahaCard[] {
+export function grahaCards(chart: CanonicalChart, opts: { lagnaKnown: boolean; moonSignKnown: boolean; nakshatraKnown: boolean; maha?: string; antar?: string; stability?: TimeStability | null }): GrahaCard[] {
+  const approximate = chart.birth.timeAccuracy === 'approximate';
   return GRAHA_ORDER.map((name) => {
     const p = chart.planets.find((x) => x.name === name)!;
     const d = chart.strength.dignities.find((x) => x.planet === name);
+    // Without stability data only the Moon is checked (callers that predate it).
+    const facts = approximate && opts.stability ? planetFacts(chart, opts.stability, name) : null;
     const moonUncertain = name === 'Moon' && !opts.nakshatraKnown;
-    // An approximate birth time can leave even the Moon's sign open; then nothing that depends on it is stated.
-    const signUnknown = name === 'Moon' && !opts.moonSignKnown;
+    // An approximate birth time can leave a planet's sign open; then nothing that depends on it is stated.
+    const signUnknown = (name === 'Moon' && !opts.moonSignKnown) || (facts !== null && !facts.sign);
+    const dignityShown = d && !signUnknown && (!facts || dignityKnown(chart, opts.stability, name));
     return {
       planet: name,
       sign: signUnknown ? 'Sign uncertain' : p.sign,
       house: opts.lagnaKnown ? p.house : null,
-      nakshatra: moonUncertain ? null : p.nakshatra.name,
-      retrograde: p.retrograde && name !== 'Rahu' && name !== 'Ketu',
-      dignity: d && !signUnknown ? `${d.dignity}${d.neechaBhanga ? ' (cancelled)' : ''}` : null,
+      nakshatra: moonUncertain || (facts !== null && !facts.nakshatra) ? null : p.nakshatra.name,
+      retrograde: p.retrograde && name !== 'Rahu' && name !== 'Ketu' && (!facts || facts.retrograde),
+      // Neecha Bhanga is judged from the Lagna, so "(cancelled)" needs an exact time.
+      dignity: dignityShown ? `${d.dignity}${d.neechaBhanga && !approximate ? ' (cancelled)' : ''}` : null,
       role: name === opts.maha ? 'Mahadasha lord' : name === opts.antar ? 'Antardasha lord' : null,
     };
   });

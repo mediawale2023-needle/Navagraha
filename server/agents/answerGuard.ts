@@ -7,6 +7,7 @@
  */
 import { SIGN_NAMES, type CanonicalChart, type Graha } from '@shared/v3/canonical';
 import { NAKSHATRAS } from '../astroEngine/vedic.js';
+import { birthDayStability, yogaTimeStable } from '../astroEngine/canonical/birthDay.js';
 
 export interface GuardContext {
   chart: CanonicalChart;
@@ -78,6 +79,18 @@ function presentYogas(chart: CanonicalChart): Set<string> {
   return names;
 }
 
+// ── Approximate birth time ───────────────────────────────────────────────────
+// Claims an approximate birth time can never support: they depend on the Lagna, a degree, or
+// a date the unknown time moves. Checked only when the birth time is approximate.
+const SPELLED_HOUSE = /\b(first|second|third|fourth|fifth|sixth|seventh|eighth|ninth|tenth|eleventh|twelfth)\s+house\b/i;
+const BINDUS = /\b\d{1,2}\s*bindus?\b|\b(?:sav|sarvashtakavarga|ashtakavarga)\b[^.]{0,40}?\b\d{1,2}\b/i;
+const DEGREES = /\b\d{1,2}(?:\.\d+)?\s?(?:°|degrees?\b)/i;
+const PADA = /\bpada\s*\d|\b(?:first|second|third|fourth|[1-4](?:st|nd|rd|th))\s+pada\b/i;
+const VARGA = /\b(navamsa|navamsha|navansh|d-?9|dasamsa|dashamsha|dasamsha|d-?10|d-?60|shashtiamsa|vargottama|divisional chart)\b/i;
+const JAIMINI_KARAKA = /\b(?:atma|amatya|bhratri|matri|pitri|putra|gnati|dara)[ -]?karaka\b/i;
+const DASHA_TERM = /\b(maha\s?dasha|mahadasa|dasha|dasa|antar\s?dasha|antardasa|bhukti)\b/i;
+const DATE_OR_CHANGE = new RegExp(`\\b(1[89]\\d{2}|2[01]\\d{2}|${['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'].join('|')}|begins?|began|starts?|started|ends?|ended|until|till|from|after|before|changes?|switch(?:es)?|next|upcoming|coming|later|following|years? (?:old|of age)|age \\d)\\b`, 'i');
+
 // ── The validator ────────────────────────────────────────────────────────────
 
 export function validateAnswer(answer: string, ctx: GuardContext): string[] {
@@ -87,6 +100,7 @@ export function validateAnswer(answer: string, ctx: GuardContext): string[] {
   const planet = (g: Graha) => chart.planets.find((p) => p.name === g)!;
   const dignity = (g: Graha) => chart.strength.dignities.find((d) => d.planet === g);
   const yogas = presentYogas(chart);
+  const st = birthDayStability(chart);
   const sadeSatiActive = !ctx.transits || /Sade Sati undetermined/.test(ctx.transits) ? null : /Sade Sati ACTIVE/.test(ctx.transits);
 
   for (const s of sentences(answer)) {
@@ -96,8 +110,25 @@ export function validateAnswer(answer: string, ctx: GuardContext): string[] {
     if (!transitSentence) {
       for (const m of Array.from(s.matchAll(new RegExp(`\\b${PLANET}\\b(?:['’]s)?\\s+(?:is\\s+|sits\\s+|placed\\s+|posited\\s+|located\\s+|was\\s+)?(?:in|into)\\s+(?:the\\s+sign\\s+(?:of\\s+)?)?${SIGN}\\b`, 'gi')))) {
         const g = planetOf(m[1]); const claimed = cap(m[2]);
+        if (approx && !st.planets[g].sign) { if (!negatedBefore(s, m.index!)) issues.push(`${g}'s sign is uncertain: it changes during the birth date and the birth time is approximate`); continue; }
         if (planet(g).sign !== claimed && !negatedBefore(s, m.index!)) issues.push(`${g} is in ${planet(g).sign}, not ${claimed}`);
       }
+    }
+
+    if (approx && !NEGATION.test(s)) {
+      const moonSign = s.match(new RegExp(`\\b(?:moon sign|rashi|rasi)\\b(?:\\s+is|:)?\\s+${SIGN}|\\b${SIGN}\\s+(?:moon sign|rashi|rasi)\\b`, 'i'));
+      if (moonSign) {
+        if (!st.planets.Moon.sign) issues.push("the Moon's sign is uncertain: it changes during the birth date and the birth time is approximate");
+        else if (cap(moonSign[1] ?? moonSign[2]) !== planet('Moon').sign) issues.push(`the Moon sign is ${planet('Moon').sign}, not ${cap(moonSign[1] ?? moonSign[2])}`);
+      }
+      if (SPELLED_HOUSE.test(s)) issues.push('the birth time is approximate, so houses and the Lagna must not be stated');
+      if (BINDUS.test(s)) issues.push('Ashtakavarga bindus depend on the Lagna, so they are not stated with an approximate birth time');
+      if (DEGREES.test(s)) issues.push('planet degrees change through the birth date, so they are not stated with an approximate birth time');
+      if (PADA.test(s)) issues.push('nakshatra padas change through the birth date, so they are not stated with an approximate birth time');
+      if (VARGA.test(s) && (new RegExp(`\\b${PLANET}\\b|\\b${SIGN}\\b`, 'i').test(s))) issues.push('divisional-chart placements depend on the exact birth time');
+      if (JAIMINI_KARAKA.test(s)) issues.push('Jaimini karakas are ranked by degree, which changes through the birth date');
+      if (/\bneecha[ -]?bhanga\b/i.test(s)) issues.push('Neecha Bhanga is judged from the Lagna, so it cannot be stated with an approximate birth time');
+      if (DASHA_TERM.test(s) && DATE_OR_CHANGE.test(s)) issues.push('dasha dates depend on the exact birth time, so no period start, end or change can be stated');
     }
 
     // Houses and Lagna.
@@ -121,6 +152,7 @@ export function validateAnswer(answer: string, ctx: GuardContext): string[] {
       if (transitSentence) continue;
       const g = planetOf(m[1]); const claimed = m[2].replace(/[ -]?(Phalguni|Ashadha|Bhadrapada)/i, ' $1').trim().toLowerCase();
       if (g === 'Moon' && !moonNakStable) { issues.push("the Moon's nakshatra is uncertain with an approximate birth time"); continue; }
+      if (approx && !st.planets[g].nakshatra) { issues.push(`${g}'s nakshatra changes during the birth date, so it is uncertain`); continue; }
       if (planet(g).nakshatra.name.toLowerCase() !== claimed) issues.push(`${g} is in ${planet(g).nakshatra.name} nakshatra, not ${m[2]}`);
     }
     const birthStar = s.match(new RegExp(`\\b(?:birth star|janma nakshatra|your nakshatra|moon nakshatra)\\b[^.]{0,20}?\\b${NAK}\\b|\\b${NAK}\\s+(?:is\\s+)?(?:your\\s+)?(?:birth star|janma nakshatra)`, 'i'));
@@ -134,6 +166,11 @@ export function validateAnswer(answer: string, ctx: GuardContext): string[] {
     if (!transitSentence) {
       for (const m of Array.from(s.matchAll(new RegExp(`\\b${PLANET}\\b(?:['’]s)?\\s+(?:is\\s+|was\\s+|being\\s+)?(not\\s+)?(retrograde|exalted|debilitated|combust|in (?:its|his|her) own sign)`, 'gi')))) {
         const g = planetOf(m[1]); const negated = Boolean(m[2]) || negatedBefore(s, m.index!); const what = m[3].toLowerCase();
+        if (approx) {
+          const ps = st.planets[g];
+          const known = what === 'retrograde' ? ps.retrograde : what === 'combust' ? ps.combust : ps.dignity && ps.sign;
+          if (!known) { if (!negated) issues.push(`${g}'s ${what === 'retrograde' || what === 'combust' ? what : 'dignity'} state changes during the birth date, so it is uncertain`); continue; }
+        }
         let actual: boolean | null;
         if (what === 'retrograde') actual = g === 'Rahu' || g === 'Ketu' ? true : planet(g).retrograde;
         else if (g === 'Rahu' || g === 'Ketu') actual = null; // the engine assigns no dignity to the nodes
@@ -153,6 +190,10 @@ export function validateAnswer(answer: string, ctx: GuardContext): string[] {
       const m = (engineName === 'Raja Yoga' ? withoutCompoundRaja : s).match(re);
       if (!m) continue;
       const negated = negatedBefore(s, m.index!);
+      if (approx && engineName && !yogaTimeStable(engineName, st)) {
+        if (!negated) issues.push(`${engineName} depends on the Lagna or a sign that changes during the birth date, so it cannot be stated with an approximate birth time`);
+        continue;
+      }
       if (engineName === 'Kemadruma Yoga') {
         const k = chart.yogas.find((y) => y.name === 'Kemadruma Yoga');
         if (!negated && (!k || k.cancelled)) issues.push('Kemadruma Yoga is not present (or is cancelled) in this chart');
@@ -172,6 +213,7 @@ export function validateAnswer(answer: string, ctx: GuardContext): string[] {
       else if (id) present = chart.doshas.find((d) => d.id === id)?.present ?? null;
       else present = null;
       if (id === 'mangal' && approx) { if (!negated) issues.push('Mangal Dosha depends on the houses, which an approximate birth time cannot support'); continue; }
+      if (approx && (id === 'kaalSarp' || id === 'pitru' || id === 'vishaYoga') && !st.doshas[id]) { if (!negated) issues.push(`${m[0]} changes during the birth date, so it cannot be stated with an approximate birth time`); continue; }
       if (id === 'sadeSati' && ctx.transits && present === null) { issues.push('Sade Sati cannot be determined: the natal Moon sign is uncertain'); continue; }
       if (present === null) { if (!negated) issues.push(`${m[0]} is not calculated for this chart`); continue; }
       if (id === 'mangal' && chart.doshas.find((d) => d.id === 'mangal')?.cancelledBy?.length && /\b(cancel(?:led|ed|s|lation)?|neutrali[sz]ed|nullified|bhanga)\b/i.test(s)) continue;
