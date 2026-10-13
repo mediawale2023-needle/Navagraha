@@ -51,7 +51,7 @@ export const DOMAIN_SPECS: Record<LifeDomain, DomainSpec> = {
 };
 
 const ORD = (n: number) => `${n}${n % 10 === 1 && n !== 11 ? 'st' : n % 10 === 2 && n !== 12 ? 'nd' : n % 10 === 3 && n !== 13 ? 'rd' : 'th'}`;
-const STRONG_DIGNITIES = ['Exalted', 'Own sign', 'Moolatrikona'];
+export const STRONG_DIGNITIES = ['Exalted', 'Own sign', 'Moolatrikona'];
 
 export interface ChartIndex {
   chart: CanonicalChart;
@@ -68,6 +68,11 @@ export interface ChartIndex {
   conditionKnown: (g: Graha) => boolean;
 }
 
+/** Natural benefics: Jupiter, Venus, Mercury, and the waxing Moon (Mercury's associations are not considered). */
+export function isNaturalBenefic(g: Graha, waxingMoon: boolean): boolean {
+  return g === 'Jupiter' || g === 'Venus' || g === 'Mercury' || (g === 'Moon' && waxingMoon);
+}
+
 export function indexChart(chart: CanonicalChart): ChartIndex {
   const byName = new Map(chart.planets.map((p) => [p.name, p]));
   const sun = byName.get('Sun')!.longitude;
@@ -81,8 +86,7 @@ export function indexChart(chart: CanonicalChart): ChartIndex {
     lordOf: (h) => chart.houses[h - 1].lord,
     houseSign: (h) => chart.houses[h - 1].sign,
     dignity: (g) => chart.strength.dignities.find((d) => d.planet === g),
-    // Natural benefics: Jupiter, Venus, Mercury, and the waxing Moon.
-    isBenefic: (g) => g === 'Jupiter' || g === 'Venus' || g === 'Mercury' || (g === 'Moon' && waxing),
+    isBenefic: (g) => isNaturalBenefic(g, waxing),
     approximate,
     moonTimeSensitive: approximate && !chart.uncertainty.moonSignStableAcrossBirthDate,
     stability,
@@ -176,7 +180,9 @@ function houseRules(c: Collector, ix: ChartIndex, domain: LifeDomain, h: number)
     const benefic = ix.isBenefic(occ);
     const dig = ix.dignity(occ);
     const weakened = dig?.dignity === 'Debilitated' && !dig.neechaBhanga;
-    // Every branch below first reads the dignity (to rule debilitation in or out); the Moon's nature is its paksha.
+    // Every branch below first reads the dignity to rule debilitation in or out: it decides the
+    // debilitated branch's direction and is only a gate (and, for a benefic, a strength) for the others.
+    // The Moon's nature is its paksha.
     const occupantInputs = (ruleId: string, dignityRead: Dependency[1]): RuleInputs => ({ ruleId, role: 'occupant', deps: [
       [fact.house(occ), 'direct'],
       ...(dig ? [[fact.dignity(occ), dignityRead] as Dependency] : []),
@@ -204,16 +210,16 @@ function houseRules(c: Collector, ix: ChartIndex, domain: LifeDomain, h: number)
     } else if (benefic) {
       c.add({ factor: `${occ} in the ${ORD(h)}`, planet: occ, house: h, direction: 'positive', strength: dig && STRONG_DIGNITIES.includes(dig.dignity) ? 'strong' : 'moderate', source: 'D1', provenance: 'classical-principle',
         rule: 'Natural benefics (Jupiter, Venus, Mercury, waxing Moon) occupying a house support its significations.',
-        explanation: `${occ} occupies the ${ORD(h)} house (${ix.houseSign(h)}).`, requiresBirthTime: true }, () => occupantInputs('house.occupant.natural-benefic', 'direct'));
+        explanation: `${occ} occupies the ${ORD(h)} house (${ix.houseSign(h)}).`, requiresBirthTime: true }, () => occupantInputs('house.occupant.natural-benefic', 'gate'));
     } else if (UPACHAYA.includes(h)) {
       // Weak: growth through effort over time, not ease — and it applies to every malefic in these houses.
       c.add({ factor: `${occ} in the ${ORD(h)}`, planet: occ, house: h, direction: 'positive', strength: 'weak', source: 'D1', provenance: 'classical-principle',
         rule: 'Natural malefics do well in upachaya houses (3, 6, 10, 11), where they give drive and growth over time, through effort.',
-        explanation: `${occ} occupies the ${ORD(h)} house (${ix.houseSign(h)}), an upachaya house.`, requiresBirthTime: true }, () => occupantInputs('house.occupant.malefic-upachaya', 'derived'));
+        explanation: `${occ} occupies the ${ORD(h)} house (${ix.houseSign(h)}), an upachaya house.`, requiresBirthTime: true }, () => occupantInputs('house.occupant.malefic-upachaya', 'gate'));
     } else {
       c.add({ factor: `${occ} in the ${ORD(h)}`, planet: occ, house: h, direction: 'negative', strength: 'moderate', source: 'D1', provenance: 'classical-principle',
         rule: 'Natural malefics (Sun, Mars, Saturn, Rahu, Ketu, waning Moon) in a non-upachaya house tend to create friction or delay in its matters.',
-        explanation: `${occ} occupies the ${ORD(h)} house (${ix.houseSign(h)}).`, requiresBirthTime: true }, () => occupantInputs('house.occupant.malefic', 'derived'));
+        explanation: `${occ} occupies the ${ORD(h)} house (${ix.houseSign(h)}).`, requiresBirthTime: true }, () => occupantInputs('house.occupant.malefic', 'gate'));
     }
   }
 
@@ -390,9 +396,9 @@ function yogaRules(c: Collector, ix: ChartIndex, domain: LifeDomain) {
       () => ({ ruleId: 'yoga.domain', role: 'yoga', deps: [
         [fact.yoga(y.name, y.planets), 'direct'],
         ...yogaDefinition(ix, y),
-        // Its strength reads the participants' houses (all in dusthanas?) and, for Raja/Dhana, the union house.
-        ...(!ix.approximate && !/Vipreeta/.test(y.name) ? y.planets.map((p) => [fact.house(p), 'derived'] as Dependency) : []),
-        ...(unionHouse !== null ? [[fact.house(y.planets[0]), 'derived'] as Dependency] : []),
+        // Its strength (never its direction) reads the participants' houses (all in dusthanas?) and, for Raja/Dhana, the union house.
+        ...(!ix.approximate && !/Vipreeta/.test(y.name) ? y.planets.map((p) => [fact.house(p), 'gate'] as Dependency) : []),
+        ...(unionHouse !== null ? [[fact.house(y.planets[0]), 'gate'] as Dependency] : []),
       ] }));
   }
 }

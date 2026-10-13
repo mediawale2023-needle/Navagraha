@@ -40,25 +40,64 @@ export interface Remedy {
   reason: string;
 }
 
+/**
+ * The functional classification the remedies below already apply, by lordship from the Lagna.
+ * It is the remedy logic itself, exposed so the reasoning layer can read it rather than restate it:
+ * - trikona lord: owns the 1st, 5th or 9th (the Lagna counts as a trikona only);
+ * - kendra lord: owns the 4th, 7th or 10th;
+ * - dusthana lord: owns the 6th, 8th or 12th;
+ * - yogakaraka: the first of Sun…Saturn that owns both a trikona and a kendra (so a Lagna lord that
+ *   also rules the 4th, 7th or 10th qualifies, e.g. Mercury for Gemini or Jupiter for Sagittarius);
+ * - role: yogakaraka; functional-benefic (trikona, no dusthana); functional-malefic (dusthana, no
+ *   trikona); mixed (both); neutral (neither).
+ * Known limits, kept as they are (changing them would change remedies): the 3rd and 11th
+ * lordships, Kendradhipati Dosha, the 2nd/12th maraka lords and the Moon's paksha play no part, and
+ * only one yogakaraka is named even when two planets qualify. Rahu and Ketu own no house.
+ */
+export type FunctionalRoleName = 'yogakaraka' | 'functional-benefic' | 'functional-malefic' | 'mixed' | 'neutral';
+export interface FunctionalRole {
+  ownedHouses: number[];
+  trikonaLord: boolean;
+  kendraLord: boolean;
+  dusthanaLord: boolean;
+  yogakaraka: boolean;
+  role: FunctionalRoleName;
+}
+
+export function functionalRoles(houseLords: ReadonlyArray<{ house: number; lord: string }>): Record<string, FunctionalRole> {
+  const owned: Record<string, number[]> = {};
+  for (const hl of houseLords) (owned[hl.lord] ||= []).push(hl.house);
+  const ownsAny = (p: string, hs: number[]) => (owned[p] || []).some((h) => hs.includes(h));
+  const yogakaraka = PLANETS7.find((p) => ownsAny(p, [1, 5, 9]) && ownsAny(p, [4, 7, 10]));
+  const out: Record<string, FunctionalRole> = {};
+  for (const p of Object.keys(owned)) {
+    const trikonaLord = ownsAny(p, [1, 5, 9]);
+    const kendraLord = ownsAny(p, [4, 7, 10]);
+    const dusthanaLord = ownsAny(p, [6, 8, 12]);
+    const role: FunctionalRoleName = p === yogakaraka ? 'yogakaraka'
+      : trikonaLord && dusthanaLord ? 'mixed'
+      : trikonaLord ? 'functional-benefic'
+      : dusthanaLord ? 'functional-malefic'
+      : 'neutral';
+    out[p] = { ownedHouses: owned[p], trikonaLord, kendraLord, dusthanaLord, yogakaraka: p === yogakaraka, role };
+  }
+  return out;
+}
+
 export function computeRemedies(
   dignities: PlanetDignity[],
   houseLords: Array<{ house: number; lord: string; lordHouse: number }>,
   sadeSatiActive = false,
 ): Remedy[] {
-  const lordsOwned: Record<string, number[]> = {};
   const planetHouse: Record<string, number> = {};
-  for (const hl of houseLords) {
-    (lordsOwned[hl.lord] ||= []).push(hl.house);
-    planetHouse[hl.lord] = hl.lordHouse;
-  }
+  for (const hl of houseLords) planetHouse[hl.lord] = hl.lordHouse;
   const dig: Record<string, PlanetDignity> = Object.fromEntries(dignities.map((d) => [d.planet, d]));
   const lagnaLord = houseLords.find((h) => h.house === 1)?.lord;
 
-  const ownsAny = (p: string, hs: number[]) => (lordsOwned[p] || []).some((h) => hs.includes(h));
-  const isTrikona = (p: string) => ownsAny(p, [1, 5, 9]);
-  const isKendra = (p: string) => ownsAny(p, [4, 7, 10]);
-  const isDusthana = (p: string) => ownsAny(p, [6, 8, 12]);
-  const yogakaraka = PLANETS7.find((p) => isTrikona(p) && isKendra(p));
+  const roles = functionalRoles(houseLords);
+  const isTrikona = (p: string) => roles[p]?.trikonaLord ?? false;
+  const isDusthana = (p: string) => roles[p]?.dusthanaLord ?? false;
+  const yogakaraka = PLANETS7.find((p) => roles[p]?.yogakaraka);
 
   const remedies: Remedy[] = [];
   const seen = new Set<string>();
@@ -183,8 +222,7 @@ export function checkGemstoneContraindications(
 
 /** A planet that rules a dusthana (6/8/12) and no trikona (1/5/9): pacified, never strengthened with its gemstone. */
 export function isFunctionalMaleficLord(planet: string, houseLords: Array<{ house: number; lord: string }>): boolean {
-  const owned = houseLords.filter((h) => h.lord === planet).map((h) => h.house);
-  return owned.some((h) => [6, 8, 12].includes(h)) && !owned.some((h) => [1, 5, 9].includes(h));
+  return functionalRoles(houseLords)[planet]?.role === 'functional-malefic';
 }
 
 type BirthStarRemedy = { title: string; description: string; type: string };

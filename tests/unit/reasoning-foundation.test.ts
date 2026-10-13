@@ -81,7 +81,9 @@ describe('evidence dependency metadata', () => {
       expect(r.unresolved).toEqual([]);
       const ix = indexChart(c);
       const all = LIFE_DOMAINS.flatMap((d) => [...natalEvidence(c, d, ix), ...dashaEvidence(c, d, asOf, ix)]);
-      expect(r.evidence.length).toBe(all.length);
+      // An exact chart hands on every item; an approximate one only the items the birth time supports.
+      const supported = all.filter((e) => !ix.approximate || (e.usable && evidenceMetadata(e)!.factIds.every((f) => r.facts.get(f)?.reliable)));
+      expect(r.evidence.map((a) => a.item.id)).toEqual(supported.map((e) => e.id));
       for (const { item, metadata } of r.evidence) {
         expect(ruleById(metadata.ruleId), metadata.ruleId).toBeDefined();
         expect(metadata.factIds.length, item.id).toBeGreaterThan(0);
@@ -220,6 +222,48 @@ describe('D1 — approximate time: unreliable facts keep their identity but not 
     expect(Object.prototype.hasOwnProperty.call(f, 'value')).toBe(false);
     const [exact] = await charts(1);
     for (const x of buildFactIndex(exact, asOf).facts.values()) expect([x.withheld, 'value' in x]).toEqual([false, true]);
+  });
+});
+
+describe('fact identities with an approximate time', () => {
+  it('a conditional fact gets its own identity only when its condition is stable; time-dependent yogas share one', async () => {
+    for (const c of await charts(24, 'approximate')) {
+      const ix = buildFactIndex(c, asOf);
+      for (const f of ix.facts.values()) {
+        if (f.category === 'neecha-bhanga') {
+          const d = ix.get(fact.dignity(f.subject))!;
+          expect([d.reliable, !d.withheld && d.value]).toEqual([true, 'Debilitated']);
+        }
+        if (f.category === 'yoga' && f.id !== fact.timeDependentYogas()) expect(f.reliable, f.id).toBe(true);
+      }
+      expect(ix.get(fact.timeDependentYogas())).toMatchObject({ withheld: true, reliable: false });
+    }
+    // An exact chart keeps a Neecha Bhanga fact for every debilitated planet and an identity per yoga.
+    for (const c of await charts(12)) {
+      const ix = buildFactIndex(c, asOf);
+      for (const d of c.strength.dignities) expect(ix.facts.has(fact.neechaBhanga(d.planet))).toBe(d.dignity === 'Debilitated');
+      for (const y of c.yogas) expect(ix.facts.has(fact.yoga(y.name, y.planets))).toBe(true);
+      expect(ix.facts.has(fact.timeDependentYogas())).toBe(false);
+    }
+  });
+
+  it('records which facts are calculated from which (a dignity from its sign, an aspect from its house)', async () => {
+    const [c] = await charts(1);
+    const ix = buildFactIndex(c, asOf);
+    expect(ix.get(fact.dignity('Mars'))!.derivedFrom).toEqual([fact.sign('Mars')]);
+    expect(ix.get(fact.aspect('Saturn'))!.derivedFrom).toEqual([fact.house('Saturn')]);
+    expect(ix.get(fact.house('Saturn'))!.derivedFrom).toEqual([]);
+  });
+
+  it('an occupant reads its dignity as a gate unless debilitation decides its direction', async () => {
+    let checked = 0;
+    for (const c of await charts(24)) {
+      for (const { item, metadata } of reasoningInput(c, asOf).evidence.filter((a) => a.metadata.role === 'occupant' && a.metadata.factIds.includes(fact.dignity(a.item.planet!)))) {
+        checked++;
+        expect(metadata.dependencyTypes[fact.dignity(item.planet!)]).toEqual([metadata.ruleId === 'house.occupant.debilitated' ? 'direct' : 'gate']);
+      }
+    }
+    expect(checked).toBeGreaterThan(0);
   });
 });
 

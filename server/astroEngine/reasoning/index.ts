@@ -30,8 +30,11 @@ export interface ReasoningInput {
   readonly rules: readonly Readonly<RuleDefinition>[];
   readonly evidence: readonly Readonly<AnnotatedEvidence>[];
   readonly dependencies: ReadonlyDependencies;
-  /** Declared inputs that do not resolve: a fact missing from the index, an unknown rule, or a yoga with no known definition. */
-  readonly unresolved: ReadonlyArray<Readonly<{ evidenceId: string; problem: 'unknown-fact' | 'unknown-rule' | 'no-metadata' | 'yoga-definition-unknown'; detail: string }>>;
+  /**
+   * Declared inputs that do not resolve: a fact missing from the index, an unknown rule, a yoga with no
+   * known definition, or (approximate time) a usable item that reads a fact the birth time cannot support.
+   */
+  readonly unresolved: ReadonlyArray<Readonly<{ evidenceId: string; problem: 'unknown-fact' | 'unknown-rule' | 'no-metadata' | 'yoga-definition-unknown' | 'usable-reads-unreliable-fact'; detail: string }>>;
 }
 
 export function reasoningInput(chart: CanonicalChart, asOf: Date): ReasoningInput {
@@ -44,6 +47,13 @@ export function reasoningInput(chart: CanonicalChart, asOf: Date): ReasoningInpu
   for (const item of items) {
     const metadata = evidenceMetadata(item);
     if (!metadata) { unresolved.push({ evidenceId: item.id, problem: 'no-metadata', detail: item.factor }); continue; }
+    // With an approximate time only evidence the birth time supports is handed on: an item built from
+    // placeholder-time houses or yogas (its id, its facts, even how many there are) would describe the
+    // placeholder chart, not this one.
+    if (facts.approximate && !(item.usable && metadata.factIds.every((f) => facts.get(f)?.reliable === true))) {
+      if (item.usable) unresolved.push({ evidenceId: item.id, problem: 'usable-reads-unreliable-fact', detail: metadata.ruleId });
+      continue;
+    }
     evidence.push(Object.freeze({ item, metadata }));
     if (!ruleById(metadata.ruleId)) unresolved.push({ evidenceId: item.id, problem: 'unknown-rule', detail: metadata.ruleId });
     if (metadata.role === 'yoga' && !metadata.factIds.some((f) => metadata.dependencyTypes[f].includes('derived'))) {
