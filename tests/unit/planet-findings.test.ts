@@ -14,6 +14,7 @@ import { computeRemedies, functionalRoles, isFunctionalMaleficLord } from '../..
 import { reasoningInput } from '../../server/astroEngine/reasoning/index';
 import { admissible, counted } from '../../server/astroEngine/reasoning/planetFindings';
 import { planetaryReasoning, planetaryReasoningFrom } from '../../server/astroEngine/reasoning/planetary';
+import { reconcileFrom } from '../../server/astroEngine/reasoning/reconciliation';
 import { closure, type ContradictionCode, type ContradictionKind } from '../../server/astroEngine/reasoning/contradictions';
 import { fact } from '../../server/astroEngine/reasoning/facts';
 
@@ -267,7 +268,7 @@ describe('approximate time: the same at every moment of the birth date', () => {
         for (const f of facts) if (!f.reliable) expect('value' in f, f.id).toBe(false);
         return JSON.stringify({
           ids: facts.map((f) => f.id), facts, evidence: r.evidence.map((e) => [e.item, e.metadata]), dependencies: Array.from(r.dependencies),
-          unresolved: r.unresolved, findings: pr.findings, periods: pr.periods, yogas: pr.yogas, contradictions: pr.contradictions, relationships: pr.relationships, stats: pr.stats,
+          unresolved: r.unresolved, findings: pr.findings, periods: pr.periods, yogas: pr.yogas, contradictions: pr.contradictions, relationships: pr.relationships, stats: pr.stats, reconciliation: reconcileFrom(r, pr),
         });
       });
       for (const v of views) expect(v, `${input.date}`).toBe(views[0]);
@@ -292,7 +293,7 @@ describe('shadow mode', () => {
     const files: string[] = [];
     const walk = (dir: string) => { for (const n of readdirSync(dir)) { const p = join(dir, n); if (statSync(p).isDirectory()) walk(p); else if (/\.tsx?$/.test(n)) files.push(p); } };
     walk('server'); walk('client/src'); walk('shared');
-    const users = files.filter((f) => !f.includes(join('astroEngine', 'reasoning')) && /reasoning\/(planetary|planetFindings|contradictions|periodFindings|yogaFindings|relationships)/.test(readFileSync(f, 'utf8')));
+    const users = files.filter((f) => !f.includes(join('astroEngine', 'reasoning')) && /reasoning\/(planetary|planetFindings|contradictions|periodFindings|yogaFindings|relationships|reconciliation|reconciliationPolicies)/.test(readFileSync(f, 'utf8')));
     expect(users).toEqual([]);
   });
 });

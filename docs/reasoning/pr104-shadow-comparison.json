@@ -1,0 +1,3901 @@
+{
+ "generatedFor": "PR #104",
+ "asOf": "2026-10-13T06:00:00.000Z",
+ "statusNote": "Shadow only. Candidate changes come from provisional-candidate policies: technically validated, classically provisional, not approved for production. They are not validated or improved predictions.",
+ "sample": {
+  "exact": 336,
+  "approximate": 72
+ },
+ "sets": {
+  "exact": {
+   "verdicts": 3024,
+   "originalMatchesProduction": 3024,
+   "unchanged": 2973,
+   "candidateChanges": 51,
+   "verdictChanged": 45,
+   "confidenceChanged": 37,
+   "confidenceOnly": 6,
+   "towards": {
+    "more-favourable": 44,
+    "same-verdict": 7
+   },
+   "transitions": {
+    "Strong (High) → Very Strong (High)": 12,
+    "Mixed (Low) → Strong (Medium)": 24,
+    "Strong (Medium) → Very Strong (High)": 2,
+    "Strong (Medium) → Strong (High)": 5,
+    "Mixed (Low) → Strong (Low)": 1,
+    "Challenging (Medium) → Mixed (Low)": 5,
+    "Challenging (High) → Challenging (Medium)": 1,
+    "Mixed (Low) → Insufficient evidence (Low)": 1
+   },
+   "byPolicy": {
+    "own-house-lord-not-malefic-occupant": 130
+   },
+   "multiplePolicies": 12,
+   "openQuestionAreas": 2244,
+   "verdictDependsOnProvisional": 220,
+   "diagnosticWhatIf": {
+    "planet-dignity-once-per-area": 879,
+    "lord-aspect-on-own-house": 301
+   },
+   "diagnosticWouldChange": {
+    "planet-dignity-once-per-area": 168,
+    "lord-aspect-on-own-house": 56
+   },
+   "inapplicablePolicies": {}
+  },
+  "approximate": {
+   "verdicts": 648,
+   "originalMatchesProduction": 648,
+   "unchanged": 648,
+   "candidateChanges": 0,
+   "verdictChanged": 0,
+   "confidenceChanged": 0,
+   "confidenceOnly": 0,
+   "towards": {},
+   "transitions": {},
+   "byPolicy": {},
+   "multiplePolicies": 0,
+   "openQuestionAreas": 74,
+   "verdictDependsOnProvisional": 0,
+   "diagnosticWhatIf": {},
+   "diagnosticWouldChange": {},
+   "inapplicablePolicies": {
+    "own-house-lord-not-malefic-occupant": 648,
+    "lord-aspect-on-own-house": 648,
+    "neecha-bhanga-raja-yoga": 648,
+    "rahu-ketu-kendra-trikona": 648,
+    "functional-roles-laghu-parashari": 648
+   }
+  }
+ },
+ "changedVerdicts": [
+  {
+   "kind": "provisional-candidate",
+   "productionApproved": false,
+   "set": "exact",
+   "birth": {
+    "date": "1961-08-22",
+    "time": "07:28",
+    "latitude": 26.9124,
+    "longitude": 75.7873
+   },
+   "ascendant": "Leo",
+   "domain": "leadership",
+   "original": {
+    "verdict": "Strong",
+    "confidence": "High"
+   },
+   "proposed": {
+    "verdict": "Very Strong",
+    "confidence": "High"
+   },
+   "change": {
+    "verdict": true,
+    "confidence": false,
+    "towards": "more-favourable"
+   },
+   "treatments": [
+    {
+     "policyId": "own-house-lord-not-malefic-occupant",
+     "shadowRole": "provisional-candidate",
+     "classicalStatus": "provisional",
+     "evidenceId": "leadership:d1:sun-in-the-1st:sun:1",
+     "from": "negative",
+     "to": "neutral",
+     "factIds": [
+      "planet.house:Sun",
+      "house.lord:1"
+     ],
+     "ruleIds": [
+      "house.occupant.malefic",
+      "house.lord-placement.own-house"
+     ],
+     "explanation": "Sun occupies the 1st house, which it rules: the own-house rule (leadership:d1:1st-lord-placement:sun:1) reads it as protecting the house, so the malefic-occupant strain is not counted."
+    }
+   ],
+   "remainingQuestions": [
+    "Which classification governs which reading (occupant effects, period results, remedies) is not encoded.",
+    "Which classification governs which reading (occupant effects, period results, remedies) is not encoded.",
+    "Whether a debilitated or combust participant weakens or cancels the yoga is not encoded."
+   ],
+   "uncertain": true
+  },
+  {
+   "kind": "provisional-candidate",
+   "productionApproved": false,
+   "set": "exact",
+   "birth": {
+    "date": "1994-04-20",
+    "time": "09:13",
+    "latitude": 28.6139,
+    "longitude": 77.209
+   },
+   "ascendant": "Gemini",
+   "domain": "foreign",
+   "original": {
+    "verdict": "Mixed",
+    "confidence": "Low"
+   },
+   "proposed": {
+    "verdict": "Strong",
+    "confidence": "Medium"
+   },
+   "change": {
+    "verdict": true,
+    "confidence": true,
+    "towards": "more-favourable"
+   },
+   "treatments": [
+    {
+     "policyId": "own-house-lord-not-malefic-occupant",
+     "shadowRole": "provisional-candidate",
+     "classicalStatus": "provisional",
+     "evidenceId": "foreign:d1:saturn-in-the-9th:saturn:9",
+     "from": "negative",
+     "to": "neutral",
+     "factIds": [
+      "planet.house:Saturn",
+      "house.lord:9"
+     ],
+     "ruleIds": [
+      "house.occupant.malefic",
+      "house.lord-placement.own-house"
+     ],
+     "explanation": "Saturn occupies the 9th house, which it rules: the own-house rule (foreign:d1:9th-lord-placement:saturn:9) reads it as protecting the house, so the malefic-occupant strain is not counted."
+    }
+   ],
+   "remainingQuestions": [],
+   "uncertain": false
+  },
+  {
+   "kind": "provisional-candidate",
+   "productionApproved": false,
+   "set": "exact",
+   "birth": {
+    "date": "1969-07-25",
+    "time": "07:55",
+    "latitude": 40.7128,
+    "longitude": -74.006
+   },
+   "ascendant": "Leo",
+   "domain": "education",
+   "original": {
+    "verdict": "Mixed",
+    "confidence": "Low"
+   },
+   "proposed": {
+    "verdict": "Strong",
+    "confidence": "Medium"
+   },
+   "change": {
+    "verdict": true,
+    "confidence": true,
+    "towards": "more-favourable"
+   },
+   "treatments": [
+    {
+     "policyId": "own-house-lord-not-malefic-occupant",
+     "shadowRole": "provisional-candidate",
+     "classicalStatus": "provisional",
+     "evidenceId": "education:d1:mars-in-the-4th:mars:4",
+     "from": "negative",
+     "to": "neutral",
+     "factIds": [
+      "planet.house:Mars",
+      "house.lord:4"
+     ],
+     "ruleIds": [
+      "house.occupant.malefic",
+      "house.lord-placement.own-house"
+     ],
+     "explanation": "Mars occupies the 4th house, which it rules: the own-house rule (education:d1:4th-lord-placement:mars:4) reads it as protecting the house, so the malefic-occupant strain is not counted."
+    }
+   ],
+   "remainingQuestions": [
+    "Which classification governs which reading (occupant effects, period results, remedies) is not encoded.",
+    "Which classification governs which reading (occupant effects, period results, remedies) is not encoded.",
+    "Whether a debilitated or combust participant weakens or cancels the yoga is not encoded."
+   ],
+   "uncertain": true
+  },
+  {
+   "kind": "provisional-candidate",
+   "productionApproved": false,
+   "set": "exact",
+   "birth": {
+    "date": "1963-12-28",
+    "time": "11:52",
+    "latitude": 19.076,
+    "longitude": 72.8777
+   },
+   "ascendant": "Aquarius",
+   "domain": "foreign",
+   "original": {
+    "verdict": "Strong",
+    "confidence": "Medium"
+   },
+   "proposed": {
+    "verdict": "Very Strong",
+    "confidence": "High"
+   },
+   "change": {
+    "verdict": true,
+    "confidence": true,
+    "towards": "more-favourable"
+   },
+   "treatments": [
+    {
+     "policyId": "own-house-lord-not-malefic-occupant",
+     "shadowRole": "provisional-candidate",
+     "classicalStatus": "provisional",
+     "evidenceId": "foreign:d1:saturn-in-the-12th:saturn:12",
+     "from": "negative",
+     "to": "neutral",
+     "factIds": [
+      "planet.house:Saturn",
+      "house.lord:12"
+     ],
+     "ruleIds": [
+      "house.occupant.malefic",
+      "house.lord-placement.own-house"
+     ],
+     "explanation": "Saturn occupies the 12th house, which it rules: the own-house rule (foreign:d1:12th-lord-placement:saturn:12) reads it as protecting the house, so the malefic-occupant strain is not counted."
+    }
+   ],
+   "remainingQuestions": [
+    "Which reading of planet.house:Saturn governs foreign — house.lord-placement.own-house or house.aspect.saturn-mars — is not encoded."
+   ],
+   "uncertain": true
+  },
+  {
+   "kind": "provisional-candidate",
+   "productionApproved": false,
+   "set": "exact",
+   "birth": {
+    "date": "1963-12-28",
+    "time": "11:52",
+    "latitude": 19.076,
+    "longitude": 72.8777
+   },
+   "ascendant": "Aquarius",
+   "domain": "spirituality",
+   "original": {
+    "verdict": "Strong",
+    "confidence": "Medium"
+   },
+   "proposed": {
+    "verdict": "Strong",
+    "confidence": "High"
+   },
+   "change": {
+    "verdict": false,
+    "confidence": true,
+    "towards": "same-verdict"
+   },
+   "treatments": [
+    {
+     "policyId": "own-house-lord-not-malefic-occupant",
+     "shadowRole": "provisional-candidate",
+     "classicalStatus": "provisional",
+     "evidenceId": "spirituality:d1:saturn-in-the-12th:saturn:12",
+     "from": "negative",
+     "to": "neutral",
+     "factIds": [
+      "planet.house:Saturn",
+      "house.lord:12"
+     ],
+     "ruleIds": [
+      "house.occupant.malefic",
+      "house.lord-placement.own-house"
+     ],
+     "explanation": "Saturn occupies the 12th house, which it rules: the own-house rule (spirituality:d1:12th-lord-placement:saturn:12) reads it as protecting the house, so the malefic-occupant strain is not counted."
+    }
+   ],
+   "remainingQuestions": [
+    "Whether a planet well or badly placed as a house lord helps or harms the other house of the area it occupies, as an occupant, is not encoded.",
+    "Which reading of planet.house:Saturn governs spirituality — house.aspect.saturn-mars or house.lord-placement.own-house — is not encoded."
+   ],
+   "uncertain": true
+  },
+  {
+   "kind": "provisional-candidate",
+   "productionApproved": false,
+   "set": "exact",
+   "birth": {
+    "date": "1973-08-20",
+    "time": "07:03",
+    "latitude": 40.7128,
+    "longitude": -74.006
+   },
+   "ascendant": "Leo",
+   "domain": "leadership",
+   "original": {
+    "verdict": "Mixed",
+    "confidence": "Low"
+   },
+   "proposed": {
+    "verdict": "Strong",
+    "confidence": "Medium"
+   },
+   "change": {
+    "verdict": true,
+    "confidence": true,
+    "towards": "more-favourable"
+   },
+   "treatments": [
+    {
+     "policyId": "own-house-lord-not-malefic-occupant",
+     "shadowRole": "provisional-candidate",
+     "classicalStatus": "provisional",
+     "evidenceId": "leadership:d1:sun-in-the-1st:sun:1",
+     "from": "negative",
+     "to": "neutral",
+     "factIds": [
+      "planet.house:Sun",
+      "house.lord:1"
+     ],
+     "ruleIds": [
+      "house.occupant.malefic",
+      "house.lord-placement.own-house"
+     ],
+     "explanation": "Sun occupies the 1st house, which it rules: the own-house rule (leadership:d1:1st-lord-placement:sun:1) reads it as protecting the house, so the malefic-occupant strain is not counted."
+    }
+   ],
+   "remainingQuestions": [
+    "Which classification governs which reading (occupant effects, period results, remedies) is not encoded.",
+    "Which classification governs which reading (occupant effects, period results, remedies) is not encoded.",
+    "Whether a debilitated or combust participant weakens or cancels the yoga is not encoded."
+   ],
+   "uncertain": true
+  },
+  {
+   "kind": "provisional-candidate",
+   "productionApproved": false,
+   "set": "exact",
+   "birth": {
+    "date": "1973-08-20",
+    "time": "07:03",
+    "latitude": 40.7128,
+    "longitude": -74.006
+   },
+   "ascendant": "Leo",
+   "domain": "foreign",
+   "original": {
+    "verdict": "Mixed",
+    "confidence": "Low"
+   },
+   "proposed": {
+    "verdict": "Strong",
+    "confidence": "Medium"
+   },
+   "change": {
+    "verdict": true,
+    "confidence": true,
+    "towards": "more-favourable"
+   },
+   "treatments": [
+    {
+     "policyId": "own-house-lord-not-malefic-occupant",
+     "shadowRole": "provisional-candidate",
+     "classicalStatus": "provisional",
+     "evidenceId": "foreign:d1:mars-in-the-9th:mars:9",
+     "from": "negative",
+     "to": "neutral",
+     "factIds": [
+      "planet.house:Mars",
+      "house.lord:9"
+     ],
+     "ruleIds": [
+      "house.occupant.malefic",
+      "house.lord-placement.own-house"
+     ],
+     "explanation": "Mars occupies the 9th house, which it rules: the own-house rule (foreign:d1:9th-lord-placement:mars:9) reads it as protecting the house, so the malefic-occupant strain is not counted."
+    }
+   ],
+   "remainingQuestions": [
+    "Which reading of planet.house:Mars governs foreign — house.aspect.saturn-mars or house.lord-placement.own-house — is not encoded.",
+    "Which classification governs which reading (occupant effects, period results, remedies) is not encoded."
+   ],
+   "uncertain": true
+  },
+  {
+   "kind": "provisional-candidate",
+   "productionApproved": false,
+   "set": "exact",
+   "birth": {
+    "date": "1995-12-14",
+    "time": "22:23",
+    "latitude": 13.0827,
+    "longitude": 80.2707
+   },
+   "ascendant": "Leo",
+   "domain": "relationships",
+   "original": {
+    "verdict": "Mixed",
+    "confidence": "Low"
+   },
+   "proposed": {
+    "verdict": "Strong",
+    "confidence": "Low"
+   },
+   "change": {
+    "verdict": true,
+    "confidence": false,
+    "towards": "more-favourable"
+   },
+   "treatments": [
+    {
+     "policyId": "own-house-lord-not-malefic-occupant",
+     "shadowRole": "provisional-candidate",
+     "classicalStatus": "provisional",
+     "evidenceId": "relationships:d1:saturn-in-the-7th:saturn:7",
+     "from": "negative",
+     "to": "neutral",
+     "factIds": [
+      "planet.house:Saturn",
+      "house.lord:7"
+     ],
+     "ruleIds": [
+      "house.occupant.malefic",
+      "house.lord-placement.own-house"
+     ],
+     "explanation": "Saturn occupies the 7th house, which it rules: the own-house rule (relationships:d1:7th-lord-placement:saturn:7) reads it as protecting the house, so the malefic-occupant strain is not counted."
+    }
+   ],
+   "remainingQuestions": [],
+   "uncertain": false
+  },
+  {
+   "kind": "provisional-candidate",
+   "productionApproved": false,
+   "set": "exact",
+   "birth": {
+    "date": "1956-02-07",
+    "time": "17:51",
+    "latitude": 51.5074,
+    "longitude": -0.1278
+   },
+   "ascendant": "Leo",
+   "domain": "property",
+   "original": {
+    "verdict": "Mixed",
+    "confidence": "Low"
+   },
+   "proposed": {
+    "verdict": "Strong",
+    "confidence": "Medium"
+   },
+   "change": {
+    "verdict": true,
+    "confidence": true,
+    "towards": "more-favourable"
+   },
+   "treatments": [
+    {
+     "policyId": "own-house-lord-not-malefic-occupant",
+     "shadowRole": "provisional-candidate",
+     "classicalStatus": "provisional",
+     "evidenceId": "property:d1:mars-in-the-4th:mars:4",
+     "from": "negative",
+     "to": "neutral",
+     "factIds": [
+      "planet.house:Mars",
+      "house.lord:4"
+     ],
+     "ruleIds": [
+      "house.occupant.malefic",
+      "house.lord-placement.own-house"
+     ],
+     "explanation": "Mars occupies the 4th house, which it rules: the own-house rule (property:d1:4th-lord-placement:mars:4) reads it as protecting the house, so the malefic-occupant strain is not counted."
+    }
+   ],
+   "remainingQuestions": [
+    "Which reading of planet.house:Mars governs property — house.occupant.malefic or yoga.domain — is not encoded.",
+    "Which classification governs which reading (occupant effects, period results, remedies) is not encoded."
+   ],
+   "uncertain": true
+  },
+  {
+   "kind": "provisional-candidate",
+   "productionApproved": false,
+   "set": "exact",
+   "birth": {
+    "date": "1984-08-06",
+    "time": "13:07",
+    "latitude": 28.6139,
+    "longitude": 77.209
+   },
+   "ascendant": "Libra",
+   "domain": "wealth",
+   "original": {
+    "verdict": "Strong",
+    "confidence": "Medium"
+   },
+   "proposed": {
+    "verdict": "Strong",
+    "confidence": "High"
+   },
+   "change": {
+    "verdict": false,
+    "confidence": true,
+    "towards": "same-verdict"
+   },
+   "treatments": [
+    {
+     "policyId": "own-house-lord-not-malefic-occupant",
+     "shadowRole": "provisional-candidate",
+     "classicalStatus": "provisional",
+     "evidenceId": "wealth:d1:mars-in-the-2nd:mars:2",
+     "from": "negative",
+     "to": "neutral",
+     "factIds": [
+      "planet.house:Mars",
+      "house.lord:2"
+     ],
+     "ruleIds": [
+      "house.occupant.malefic",
+      "house.lord-placement.own-house"
+     ],
+     "explanation": "Mars occupies the 2nd house, which it rules: the own-house rule (wealth:d1:2nd-lord-placement:mars:2) reads it as protecting the house, so the malefic-occupant strain is not counted."
+    }
+   ],
+   "remainingQuestions": [
+    "Which reading of planet.sign:Moon governs wealth — house.occupant.debilitated or yoga.domain — is not encoded.",
+    "Which classification governs which reading (occupant effects, period results, remedies) is not encoded.",
+    "Whether a debilitated or combust participant weakens or cancels the yoga is not encoded."
+   ],
+   "uncertain": true
+  },
+  {
+   "kind": "provisional-candidate",
+   "productionApproved": false,
+   "set": "exact",
+   "birth": {
+    "date": "1988-08-11",
+    "time": "21:55",
+    "latitude": 1.3521,
+    "longitude": 103.8198
+   },
+   "ascendant": "Pisces",
+   "domain": "education",
+   "original": {
+    "verdict": "Challenging",
+    "confidence": "Medium"
+   },
+   "proposed": {
+    "verdict": "Mixed",
+    "confidence": "Low"
+   },
+   "change": {
+    "verdict": true,
+    "confidence": true,
+    "towards": "more-favourable"
+   },
+   "treatments": [
+    {
+     "policyId": "own-house-lord-not-malefic-occupant",
+     "shadowRole": "provisional-candidate",
+     "classicalStatus": "provisional",
+     "evidenceId": "education:d1:moon-in-the-5th:moon:5",
+     "from": "negative",
+     "to": "neutral",
+     "factIds": [
+      "planet.house:Moon",
+      "house.lord:5"
+     ],
+     "ruleIds": [
+      "house.occupant.malefic",
+      "house.lord-placement.own-house"
+     ],
+     "explanation": "Moon occupies the 5th house, which it rules: the own-house rule (education:d1:5th-lord-placement:moon:5) reads it as protecting the house, so the malefic-occupant strain is not counted."
+    }
+   ],
+   "remainingQuestions": [
+    "Which classification governs which reading (occupant effects, period results, remedies) is not encoded.",
+    "Whether combustion reduces a planet in exaltation, own sign or moolatrikona (and by how much) is not encoded.",
+    "Which classification governs which reading (occupant effects, period results, remedies) is not encoded.",
+    "Which classification governs which reading (occupant effects, period results, remedies) is not encoded."
+   ],
+   "uncertain": true
+  },
+  {
+   "kind": "provisional-candidate",
+   "productionApproved": false,
+   "set": "exact",
+   "birth": {
+    "date": "1988-08-11",
+    "time": "21:55",
+    "latitude": 1.3521,
+    "longitude": 103.8198
+   },
+   "ascendant": "Pisces",
+   "domain": "children",
+   "original": {
+    "verdict": "Challenging",
+    "confidence": "Medium"
+   },
+   "proposed": {
+    "verdict": "Mixed",
+    "confidence": "Low"
+   },
+   "change": {
+    "verdict": true,
+    "confidence": true,
+    "towards": "more-favourable"
+   },
+   "treatments": [
+    {
+     "policyId": "own-house-lord-not-malefic-occupant",
+     "shadowRole": "provisional-candidate",
+     "classicalStatus": "provisional",
+     "evidenceId": "children:d1:moon-in-the-5th:moon:5",
+     "from": "negative",
+     "to": "neutral",
+     "factIds": [
+      "planet.house:Moon",
+      "house.lord:5"
+     ],
+     "ruleIds": [
+      "house.occupant.malefic",
+      "house.lord-placement.own-house"
+     ],
+     "explanation": "Moon occupies the 5th house, which it rules: the own-house rule (children:d1:5th-lord-placement:moon:5) reads it as protecting the house, so the malefic-occupant strain is not counted."
+    }
+   ],
+   "remainingQuestions": [
+    "Which classification governs which reading (occupant effects, period results, remedies) is not encoded.",
+    "Whether combustion reduces a planet in exaltation, own sign or moolatrikona (and by how much) is not encoded."
+   ],
+   "uncertain": true
+  },
+  {
+   "kind": "provisional-candidate",
+   "productionApproved": false,
+   "set": "exact",
+   "birth": {
+    "date": "1963-01-24",
+    "time": "05:33",
+    "latitude": 51.5074,
+    "longitude": -0.1278
+   },
+   "ascendant": "Sagittarius",
+   "domain": "wealth",
+   "original": {
+    "verdict": "Mixed",
+    "confidence": "Low"
+   },
+   "proposed": {
+    "verdict": "Strong",
+    "confidence": "Medium"
+   },
+   "change": {
+    "verdict": true,
+    "confidence": true,
+    "towards": "more-favourable"
+   },
+   "treatments": [
+    {
+     "policyId": "own-house-lord-not-malefic-occupant",
+     "shadowRole": "provisional-candidate",
+     "classicalStatus": "provisional",
+     "evidenceId": "wealth:d1:saturn-in-the-2nd:saturn:2",
+     "from": "negative",
+     "to": "neutral",
+     "factIds": [
+      "planet.house:Saturn",
+      "house.lord:2"
+     ],
+     "ruleIds": [
+      "house.occupant.malefic",
+      "house.lord-placement.own-house"
+     ],
+     "explanation": "Saturn occupies the 2nd house, which it rules: the own-house rule (wealth:d1:2nd-lord-placement:saturn:2) reads it as protecting the house, so the malefic-occupant strain is not counted."
+    }
+   ],
+   "remainingQuestions": [
+    "Which reading of planet.house:Sun governs wealth — house.occupant.malefic or yoga.domain — is not encoded.",
+    "Which reading of planet.house:Saturn governs wealth — house.occupant.malefic or yoga.domain — is not encoded.",
+    "Which classification governs which reading (occupant effects, period results, remedies) is not encoded.",
+    "Which classification governs which reading (occupant effects, period results, remedies) is not encoded.",
+    "Whether combustion reduces a planet in exaltation, own sign or moolatrikona (and by how much) is not encoded.",
+    "Whether a debilitated or combust participant weakens or cancels the yoga is not encoded."
+   ],
+   "uncertain": true
+  },
+  {
+   "kind": "provisional-candidate",
+   "productionApproved": false,
+   "set": "exact",
+   "birth": {
+    "date": "1980-10-21",
+    "time": "21:40",
+    "latitude": -33.8688,
+    "longitude": 151.2093
+   },
+   "ascendant": "Taurus",
+   "domain": "relationships",
+   "original": {
+    "verdict": "Challenging",
+    "confidence": "Medium"
+   },
+   "proposed": {
+    "verdict": "Mixed",
+    "confidence": "Low"
+   },
+   "change": {
+    "verdict": true,
+    "confidence": true,
+    "towards": "more-favourable"
+   },
+   "treatments": [
+    {
+     "policyId": "own-house-lord-not-malefic-occupant",
+     "shadowRole": "provisional-candidate",
+     "classicalStatus": "provisional",
+     "evidenceId": "relationships:d1:mars-in-the-7th:mars:7",
+     "from": "negative",
+     "to": "neutral",
+     "factIds": [
+      "planet.house:Mars",
+      "house.lord:7"
+     ],
+     "ruleIds": [
+      "house.occupant.malefic",
+      "house.lord-placement.own-house"
+     ],
+     "explanation": "Mars occupies the 7th house, which it rules: the own-house rule (relationships:d1:7th-lord-placement:mars:7) reads it as protecting the house, so the malefic-occupant strain is not counted."
+    }
+   ],
+   "remainingQuestions": [
+    "Which classification governs which reading (occupant effects, period results, remedies) is not encoded."
+   ],
+   "uncertain": true
+  },
+  {
+   "kind": "provisional-candidate",
+   "productionApproved": false,
+   "set": "exact",
+   "birth": {
+    "date": "1974-02-07",
+    "time": "09:24",
+    "latitude": 13.0827,
+    "longitude": 80.2707
+   },
+   "ascendant": "Pisces",
+   "domain": "children",
+   "original": {
+    "verdict": "Mixed",
+    "confidence": "Low"
+   },
+   "proposed": {
+    "verdict": "Strong",
+    "confidence": "Medium"
+   },
+   "change": {
+    "verdict": true,
+    "confidence": true,
+    "towards": "more-favourable"
+   },
+   "treatments": [
+    {
+     "policyId": "own-house-lord-not-malefic-occupant",
+     "shadowRole": "provisional-candidate",
+     "classicalStatus": "provisional",
+     "evidenceId": "children:d1:moon-in-the-5th:moon:5",
+     "from": "negative",
+     "to": "neutral",
+     "factIds": [
+      "planet.house:Moon",
+      "house.lord:5"
+     ],
+     "ruleIds": [
+      "house.occupant.malefic",
+      "house.lord-placement.own-house"
+     ],
+     "explanation": "Moon occupies the 5th house, which it rules: the own-house rule (children:d1:5th-lord-placement:moon:5) reads it as protecting the house, so the malefic-occupant strain is not counted."
+    }
+   ],
+   "remainingQuestions": [
+    "Which classification governs which reading (occupant effects, period results, remedies) is not encoded.",
+    "Which classification governs which reading (occupant effects, period results, remedies) is not encoded."
+   ],
+   "uncertain": true
+  },
+  {
+   "kind": "provisional-candidate",
+   "productionApproved": false,
+   "set": "exact",
+   "birth": {
+    "date": "1997-10-25",
+    "time": "16:37",
+    "latitude": 13.0827,
+    "longitude": 80.2707
+   },
+   "ascendant": "Pisces",
+   "domain": "spirituality",
+   "original": {
+    "verdict": "Mixed",
+    "confidence": "Low"
+   },
+   "proposed": {
+    "verdict": "Strong",
+    "confidence": "Medium"
+   },
+   "change": {
+    "verdict": true,
+    "confidence": true,
+    "towards": "more-favourable"
+   },
+   "treatments": [
+    {
+     "policyId": "own-house-lord-not-malefic-occupant",
+     "shadowRole": "provisional-candidate",
+     "classicalStatus": "provisional",
+     "evidenceId": "spirituality:d1:mars-in-the-9th:mars:9",
+     "from": "negative",
+     "to": "neutral",
+     "factIds": [
+      "planet.house:Mars",
+      "house.lord:9"
+     ],
+     "ruleIds": [
+      "house.occupant.malefic",
+      "house.lord-placement.own-house"
+     ],
+     "explanation": "Mars occupies the 9th house, which it rules: the own-house rule (spirituality:d1:9th-lord-placement:mars:9) reads it as protecting the house, so the malefic-occupant strain is not counted."
+    }
+   ],
+   "remainingQuestions": [
+    "Which reading of planet.house:Mars governs spirituality — house.lord-placement.own-house or house.aspect.saturn-mars — is not encoded.",
+    "Which classification governs which reading (occupant effects, period results, remedies) is not encoded.",
+    "Which classification governs which reading (occupant effects, period results, remedies) is not encoded."
+   ],
+   "uncertain": true
+  },
+  {
+   "kind": "provisional-candidate",
+   "productionApproved": false,
+   "set": "exact",
+   "birth": {
+    "date": "1975-06-26",
+    "time": "10:57",
+    "latitude": 19.076,
+    "longitude": 72.8777
+   },
+   "ascendant": "Leo",
+   "domain": "foreign",
+   "original": {
+    "verdict": "Mixed",
+    "confidence": "Low"
+   },
+   "proposed": {
+    "verdict": "Strong",
+    "confidence": "Medium"
+   },
+   "change": {
+    "verdict": true,
+    "confidence": true,
+    "towards": "more-favourable"
+   },
+   "treatments": [
+    {
+     "policyId": "own-house-lord-not-malefic-occupant",
+     "shadowRole": "provisional-candidate",
+     "classicalStatus": "provisional",
+     "evidenceId": "foreign:d1:mars-in-the-9th:mars:9",
+     "from": "negative",
+     "to": "neutral",
+     "factIds": [
+      "planet.house:Mars",
+      "house.lord:9"
+     ],
+     "ruleIds": [
+      "house.occupant.malefic",
+      "house.lord-placement.own-house"
+     ],
+     "explanation": "Mars occupies the 9th house, which it rules: the own-house rule (foreign:d1:9th-lord-placement:mars:9) reads it as protecting the house, so the malefic-occupant strain is not counted."
+    }
+   ],
+   "remainingQuestions": [
+    "Which reading of planet.house:Mars governs foreign — house.aspect.saturn-mars or house.lord-placement.own-house — is not encoded.",
+    "Which classification governs which reading (occupant effects, period results, remedies) is not encoded."
+   ],
+   "uncertain": true
+  },
+  {
+   "kind": "provisional-candidate",
+   "productionApproved": false,
+   "set": "exact",
+   "birth": {
+    "date": "1975-06-26",
+    "time": "10:57",
+    "latitude": 19.076,
+    "longitude": 72.8777
+   },
+   "ascendant": "Leo",
+   "domain": "spirituality",
+   "original": {
+    "verdict": "Mixed",
+    "confidence": "Low"
+   },
+   "proposed": {
+    "verdict": "Strong",
+    "confidence": "Medium"
+   },
+   "change": {
+    "verdict": true,
+    "confidence": true,
+    "towards": "more-favourable"
+   },
+   "treatments": [
+    {
+     "policyId": "own-house-lord-not-malefic-occupant",
+     "shadowRole": "provisional-candidate",
+     "classicalStatus": "provisional",
+     "evidenceId": "spirituality:d1:mars-in-the-9th:mars:9",
+     "from": "negative",
+     "to": "neutral",
+     "factIds": [
+      "planet.house:Mars",
+      "house.lord:9"
+     ],
+     "ruleIds": [
+      "house.occupant.malefic",
+      "house.lord-placement.own-house"
+     ],
+     "explanation": "Mars occupies the 9th house, which it rules: the own-house rule (spirituality:d1:9th-lord-placement:mars:9) reads it as protecting the house, so the malefic-occupant strain is not counted."
+    }
+   ],
+   "remainingQuestions": [
+    "Which reading of planet.house:Mars governs spirituality — house.lord-placement.own-house or house.aspect.saturn-mars — is not encoded.",
+    "Which classification governs which reading (occupant effects, period results, remedies) is not encoded."
+   ],
+   "uncertain": true
+  },
+  {
+   "kind": "provisional-candidate",
+   "productionApproved": false,
+   "set": "exact",
+   "birth": {
+    "date": "1993-08-06",
+    "time": "04:19",
+    "latitude": 13.0827,
+    "longitude": 80.2707
+   },
+   "ascendant": "Gemini",
+   "domain": "spirituality",
+   "original": {
+    "verdict": "Mixed",
+    "confidence": "Low"
+   },
+   "proposed": {
+    "verdict": "Strong",
+    "confidence": "Medium"
+   },
+   "change": {
+    "verdict": true,
+    "confidence": true,
+    "towards": "more-favourable"
+   },
+   "treatments": [
+    {
+     "policyId": "own-house-lord-not-malefic-occupant",
+     "shadowRole": "provisional-candidate",
+     "classicalStatus": "provisional",
+     "evidenceId": "spirituality:d1:saturn-in-the-9th:saturn:9",
+     "from": "negative",
+     "to": "neutral",
+     "factIds": [
+      "planet.house:Saturn",
+      "house.lord:9"
+     ],
+     "ruleIds": [
+      "house.occupant.malefic",
+      "house.lord-placement.own-house"
+     ],
+     "explanation": "Saturn occupies the 9th house, which it rules: the own-house rule (spirituality:d1:9th-lord-placement:saturn:9) reads it as protecting the house, so the malefic-occupant strain is not counted."
+    }
+   ],
+   "remainingQuestions": [],
+   "uncertain": false
+  },
+  {
+   "kind": "provisional-candidate",
+   "productionApproved": false,
+   "set": "exact",
+   "birth": {
+    "date": "1945-01-28",
+    "time": "10:46",
+    "latitude": 51.5074,
+    "longitude": -0.1278
+   },
+   "ascendant": "Pisces",
+   "domain": "children",
+   "original": {
+    "verdict": "Mixed",
+    "confidence": "Low"
+   },
+   "proposed": {
+    "verdict": "Strong",
+    "confidence": "Medium"
+   },
+   "change": {
+    "verdict": true,
+    "confidence": true,
+    "towards": "more-favourable"
+   },
+   "treatments": [
+    {
+     "policyId": "own-house-lord-not-malefic-occupant",
+     "shadowRole": "provisional-candidate",
+     "classicalStatus": "provisional",
+     "evidenceId": "children:d1:moon-in-the-5th:moon:5",
+     "from": "negative",
+     "to": "neutral",
+     "factIds": [
+      "planet.house:Moon",
+      "house.lord:5"
+     ],
+     "ruleIds": [
+      "house.occupant.malefic",
+      "house.lord-placement.own-house"
+     ],
+     "explanation": "Moon occupies the 5th house, which it rules: the own-house rule (children:d1:5th-lord-placement:moon:5) reads it as protecting the house, so the malefic-occupant strain is not counted."
+    }
+   ],
+   "remainingQuestions": [
+    "Which classification governs which reading (occupant effects, period results, remedies) is not encoded.",
+    "Which classification governs which reading (occupant effects, period results, remedies) is not encoded."
+   ],
+   "uncertain": true
+  },
+  {
+   "kind": "provisional-candidate",
+   "productionApproved": false,
+   "set": "exact",
+   "birth": {
+    "date": "1942-01-02",
+    "time": "09:05",
+    "latitude": -33.8688,
+    "longitude": 151.2093
+   },
+   "ascendant": "Capricorn",
+   "domain": "property",
+   "original": {
+    "verdict": "Strong",
+    "confidence": "High"
+   },
+   "proposed": {
+    "verdict": "Very Strong",
+    "confidence": "High"
+   },
+   "change": {
+    "verdict": true,
+    "confidence": false,
+    "towards": "more-favourable"
+   },
+   "treatments": [
+    {
+     "policyId": "own-house-lord-not-malefic-occupant",
+     "shadowRole": "provisional-candidate",
+     "classicalStatus": "provisional",
+     "evidenceId": "property:d1:mars-in-the-4th:mars:4",
+     "from": "negative",
+     "to": "neutral",
+     "factIds": [
+      "planet.house:Mars",
+      "house.lord:4"
+     ],
+     "ruleIds": [
+      "house.occupant.malefic",
+      "house.lord-placement.own-house"
+     ],
+     "explanation": "Mars occupies the 4th house, which it rules: the own-house rule (property:d1:4th-lord-placement:mars:4) reads it as protecting the house, so the malefic-occupant strain is not counted."
+    }
+   ],
+   "remainingQuestions": [
+    "Which reading of planet.house:Mars governs property — house.occupant.malefic or yoga.domain — is not encoded.",
+    "Which classification governs which reading (occupant effects, period results, remedies) is not encoded."
+   ],
+   "uncertain": true
+  },
+  {
+   "kind": "provisional-candidate",
+   "productionApproved": false,
+   "set": "exact",
+   "birth": {
+    "date": "1942-01-02",
+    "time": "09:05",
+    "latitude": -33.8688,
+    "longitude": 151.2093
+   },
+   "ascendant": "Capricorn",
+   "domain": "education",
+   "original": {
+    "verdict": "Strong",
+    "confidence": "Medium"
+   },
+   "proposed": {
+    "verdict": "Strong",
+    "confidence": "High"
+   },
+   "change": {
+    "verdict": false,
+    "confidence": true,
+    "towards": "same-verdict"
+   },
+   "treatments": [
+    {
+     "policyId": "own-house-lord-not-malefic-occupant",
+     "shadowRole": "provisional-candidate",
+     "classicalStatus": "provisional",
+     "evidenceId": "education:d1:mars-in-the-4th:mars:4",
+     "from": "negative",
+     "to": "neutral",
+     "factIds": [
+      "planet.house:Mars",
+      "house.lord:4"
+     ],
+     "ruleIds": [
+      "house.occupant.malefic",
+      "house.lord-placement.own-house"
+     ],
+     "explanation": "Mars occupies the 4th house, which it rules: the own-house rule (education:d1:4th-lord-placement:mars:4) reads it as protecting the house, so the malefic-occupant strain is not counted."
+    }
+   ],
+   "remainingQuestions": [
+    "Which classification governs which reading (occupant effects, period results, remedies) is not encoded.",
+    "Which classification governs which reading (occupant effects, period results, remedies) is not encoded.",
+    "Whether a debilitated or combust participant weakens or cancels the yoga is not encoded."
+   ],
+   "uncertain": true
+  },
+  {
+   "kind": "provisional-candidate",
+   "productionApproved": false,
+   "set": "exact",
+   "birth": {
+    "date": "1989-02-08",
+    "time": "14:47",
+    "latitude": -33.8688,
+    "longitude": 151.2093
+   },
+   "ascendant": "Taurus",
+   "domain": "foreign",
+   "original": {
+    "verdict": "Mixed",
+    "confidence": "Low"
+   },
+   "proposed": {
+    "verdict": "Strong",
+    "confidence": "Medium"
+   },
+   "change": {
+    "verdict": true,
+    "confidence": true,
+    "towards": "more-favourable"
+   },
+   "treatments": [
+    {
+     "policyId": "own-house-lord-not-malefic-occupant",
+     "shadowRole": "provisional-candidate",
+     "classicalStatus": "provisional",
+     "evidenceId": "foreign:d1:mars-in-the-12th:mars:12",
+     "from": "negative",
+     "to": "neutral",
+     "factIds": [
+      "planet.house:Mars",
+      "house.lord:12"
+     ],
+     "ruleIds": [
+      "house.occupant.malefic",
+      "house.lord-placement.own-house"
+     ],
+     "explanation": "Mars occupies the 12th house, which it rules: the own-house rule (foreign:d1:12th-lord-placement:mars:12) reads it as protecting the house, so the malefic-occupant strain is not counted."
+    }
+   ],
+   "remainingQuestions": [
+    "Which classification governs which reading (occupant effects, period results, remedies) is not encoded.",
+    "Which classification governs which reading (occupant effects, period results, remedies) is not encoded."
+   ],
+   "uncertain": true
+  },
+  {
+   "kind": "provisional-candidate",
+   "productionApproved": false,
+   "set": "exact",
+   "birth": {
+    "date": "1989-02-08",
+    "time": "14:47",
+    "latitude": -33.8688,
+    "longitude": 151.2093
+   },
+   "ascendant": "Taurus",
+   "domain": "spirituality",
+   "original": {
+    "verdict": "Mixed",
+    "confidence": "Low"
+   },
+   "proposed": {
+    "verdict": "Strong",
+    "confidence": "Medium"
+   },
+   "change": {
+    "verdict": true,
+    "confidence": true,
+    "towards": "more-favourable"
+   },
+   "treatments": [
+    {
+     "policyId": "own-house-lord-not-malefic-occupant",
+     "shadowRole": "provisional-candidate",
+     "classicalStatus": "provisional",
+     "evidenceId": "spirituality:d1:mars-in-the-12th:mars:12",
+     "from": "negative",
+     "to": "neutral",
+     "factIds": [
+      "planet.house:Mars",
+      "house.lord:12"
+     ],
+     "ruleIds": [
+      "house.occupant.malefic",
+      "house.lord-placement.own-house"
+     ],
+     "explanation": "Mars occupies the 12th house, which it rules: the own-house rule (spirituality:d1:12th-lord-placement:mars:12) reads it as protecting the house, so the malefic-occupant strain is not counted."
+    }
+   ],
+   "remainingQuestions": [
+    "Which classification governs which reading (occupant effects, period results, remedies) is not encoded.",
+    "Which classification governs which reading (occupant effects, period results, remedies) is not encoded."
+   ],
+   "uncertain": true
+  },
+  {
+   "kind": "provisional-candidate",
+   "productionApproved": false,
+   "set": "exact",
+   "birth": {
+    "date": "1965-10-09",
+    "time": "00:02",
+    "latitude": 22.5726,
+    "longitude": 88.3639
+   },
+   "ascendant": "Cancer",
+   "domain": "education",
+   "original": {
+    "verdict": "Mixed",
+    "confidence": "Low"
+   },
+   "proposed": {
+    "verdict": "Strong",
+    "confidence": "Medium"
+   },
+   "change": {
+    "verdict": true,
+    "confidence": true,
+    "towards": "more-favourable"
+   },
+   "treatments": [
+    {
+     "policyId": "own-house-lord-not-malefic-occupant",
+     "shadowRole": "provisional-candidate",
+     "classicalStatus": "provisional",
+     "evidenceId": "education:d1:mars-in-the-5th:mars:5",
+     "from": "negative",
+     "to": "neutral",
+     "factIds": [
+      "planet.house:Mars",
+      "house.lord:5"
+     ],
+     "ruleIds": [
+      "house.occupant.malefic",
+      "house.lord-placement.own-house"
+     ],
+     "explanation": "Mars occupies the 5th house, which it rules: the own-house rule (education:d1:5th-lord-placement:mars:5) reads it as protecting the house, so the malefic-occupant strain is not counted."
+    }
+   ],
+   "remainingQuestions": [
+    "Which classification governs which reading (occupant effects, period results, remedies) is not encoded.",
+    "Which classification governs which reading (occupant effects, period results, remedies) is not encoded."
+   ],
+   "uncertain": true
+  },
+  {
+   "kind": "provisional-candidate",
+   "productionApproved": false,
+   "set": "exact",
+   "birth": {
+    "date": "2005-09-26",
+    "time": "16:56",
+    "latitude": 51.5074,
+    "longitude": -0.1278
+   },
+   "ascendant": "Capricorn",
+   "domain": "property",
+   "original": {
+    "verdict": "Strong",
+    "confidence": "High"
+   },
+   "proposed": {
+    "verdict": "Very Strong",
+    "confidence": "High"
+   },
+   "change": {
+    "verdict": true,
+    "confidence": false,
+    "towards": "more-favourable"
+   },
+   "treatments": [
+    {
+     "policyId": "own-house-lord-not-malefic-occupant",
+     "shadowRole": "provisional-candidate",
+     "classicalStatus": "provisional",
+     "evidenceId": "property:d1:mars-in-the-4th:mars:4",
+     "from": "negative",
+     "to": "neutral",
+     "factIds": [
+      "planet.house:Mars",
+      "house.lord:4"
+     ],
+     "ruleIds": [
+      "house.occupant.malefic",
+      "house.lord-placement.own-house"
+     ],
+     "explanation": "Mars occupies the 4th house, which it rules: the own-house rule (property:d1:4th-lord-placement:mars:4) reads it as protecting the house, so the malefic-occupant strain is not counted."
+    }
+   ],
+   "remainingQuestions": [
+    "Which reading of planet.house:Mars governs property — house.occupant.malefic or yoga.domain — is not encoded.",
+    "Which classification governs which reading (occupant effects, period results, remedies) is not encoded."
+   ],
+   "uncertain": true
+  },
+  {
+   "kind": "provisional-candidate",
+   "productionApproved": false,
+   "set": "exact",
+   "birth": {
+    "date": "1962-01-24",
+    "time": "04:42",
+    "latitude": -33.8688,
+    "longitude": 151.2093
+   },
+   "ascendant": "Capricorn",
+   "domain": "leadership",
+   "original": {
+    "verdict": "Strong",
+    "confidence": "Medium"
+   },
+   "proposed": {
+    "verdict": "Strong",
+    "confidence": "High"
+   },
+   "change": {
+    "verdict": false,
+    "confidence": true,
+    "towards": "same-verdict"
+   },
+   "treatments": [
+    {
+     "policyId": "own-house-lord-not-malefic-occupant",
+     "shadowRole": "provisional-candidate",
+     "classicalStatus": "provisional",
+     "evidenceId": "leadership:d1:saturn-in-the-1st:saturn:1",
+     "from": "negative",
+     "to": "neutral",
+     "factIds": [
+      "planet.house:Saturn",
+      "house.lord:1"
+     ],
+     "ruleIds": [
+      "house.occupant.malefic",
+      "house.lord-placement.own-house"
+     ],
+     "explanation": "Saturn occupies the 1st house, which it rules: the own-house rule (leadership:d1:1st-lord-placement:saturn:1) reads it as protecting the house, so the malefic-occupant strain is not counted."
+    }
+   ],
+   "remainingQuestions": [
+    "Which reading of planet.house:Saturn governs leadership — house.occupant.malefic or yoga.domain — is not encoded.",
+    "Which classification governs which reading (occupant effects, period results, remedies) is not encoded.",
+    "Which classification governs which reading (occupant effects, period results, remedies) is not encoded.",
+    "Whether combustion reduces a planet in exaltation, own sign or moolatrikona (and by how much) is not encoded.",
+    "Whether a debilitated or combust participant weakens or cancels the yoga is not encoded.",
+    "Whether a debilitated or combust participant weakens or cancels the yoga is not encoded.",
+    "Whether a debilitated or combust participant weakens or cancels the yoga is not encoded."
+   ],
+   "uncertain": true
+  },
+  {
+   "kind": "provisional-candidate",
+   "productionApproved": false,
+   "set": "exact",
+   "birth": {
+    "date": "1992-07-19",
+    "time": "17:14",
+    "latitude": 19.076,
+    "longitude": 72.8777
+   },
+   "ascendant": "Sagittarius",
+   "domain": "wealth",
+   "original": {
+    "verdict": "Challenging",
+    "confidence": "Medium"
+   },
+   "proposed": {
+    "verdict": "Mixed",
+    "confidence": "Low"
+   },
+   "change": {
+    "verdict": true,
+    "confidence": true,
+    "towards": "more-favourable"
+   },
+   "treatments": [
+    {
+     "policyId": "own-house-lord-not-malefic-occupant",
+     "shadowRole": "provisional-candidate",
+     "classicalStatus": "provisional",
+     "evidenceId": "wealth:d1:saturn-in-the-2nd:saturn:2",
+     "from": "negative",
+     "to": "neutral",
+     "factIds": [
+      "planet.house:Saturn",
+      "house.lord:2"
+     ],
+     "ruleIds": [
+      "house.occupant.malefic",
+      "house.lord-placement.own-house"
+     ],
+     "explanation": "Saturn occupies the 2nd house, which it rules: the own-house rule (wealth:d1:2nd-lord-placement:saturn:2) reads it as protecting the house, so the malefic-occupant strain is not counted."
+    }
+   ],
+   "remainingQuestions": [
+    "Which reading of planet.house:Venus governs wealth — house.lord-placement.dusthana or yoga.domain — is not encoded.",
+    "Which classification governs which reading (occupant effects, period results, remedies) is not encoded.",
+    "Which classification governs which reading (occupant effects, period results, remedies) is not encoded.",
+    "Whether a debilitated or combust participant weakens or cancels the yoga is not encoded."
+   ],
+   "uncertain": true
+  },
+  {
+   "kind": "provisional-candidate",
+   "productionApproved": false,
+   "set": "exact",
+   "birth": {
+    "date": "1964-04-21",
+    "time": "22:46",
+    "latitude": 26.9124,
+    "longitude": 75.7873
+   },
+   "ascendant": "Scorpio",
+   "domain": "education",
+   "original": {
+    "verdict": "Challenging",
+    "confidence": "Medium"
+   },
+   "proposed": {
+    "verdict": "Mixed",
+    "confidence": "Low"
+   },
+   "change": {
+    "verdict": true,
+    "confidence": true,
+    "towards": "more-favourable"
+   },
+   "treatments": [
+    {
+     "policyId": "own-house-lord-not-malefic-occupant",
+     "shadowRole": "provisional-candidate",
+     "classicalStatus": "provisional",
+     "evidenceId": "education:d1:saturn-in-the-4th:saturn:4",
+     "from": "negative",
+     "to": "neutral",
+     "factIds": [
+      "planet.house:Saturn",
+      "house.lord:4"
+     ],
+     "ruleIds": [
+      "house.occupant.malefic",
+      "house.lord-placement.own-house"
+     ],
+     "explanation": "Saturn occupies the 4th house, which it rules: the own-house rule (education:d1:4th-lord-placement:saturn:4) reads it as protecting the house, so the malefic-occupant strain is not counted."
+    }
+   ],
+   "remainingQuestions": [
+    "Which classification governs which reading (occupant effects, period results, remedies) is not encoded.",
+    "Whether a debilitated or combust participant weakens or cancels the yoga is not encoded."
+   ],
+   "uncertain": true
+  },
+  {
+   "kind": "provisional-candidate",
+   "productionApproved": false,
+   "set": "exact",
+   "birth": {
+    "date": "1952-09-28",
+    "time": "17:43",
+    "latitude": 1.3521,
+    "longitude": 103.8198
+   },
+   "ascendant": "Pisces",
+   "domain": "foreign",
+   "original": {
+    "verdict": "Mixed",
+    "confidence": "Low"
+   },
+   "proposed": {
+    "verdict": "Strong",
+    "confidence": "Medium"
+   },
+   "change": {
+    "verdict": true,
+    "confidence": true,
+    "towards": "more-favourable"
+   },
+   "treatments": [
+    {
+     "policyId": "own-house-lord-not-malefic-occupant",
+     "shadowRole": "provisional-candidate",
+     "classicalStatus": "provisional",
+     "evidenceId": "foreign:d1:mars-in-the-9th:mars:9",
+     "from": "negative",
+     "to": "neutral",
+     "factIds": [
+      "planet.house:Mars",
+      "house.lord:9"
+     ],
+     "ruleIds": [
+      "house.occupant.malefic",
+      "house.lord-placement.own-house"
+     ],
+     "explanation": "Mars occupies the 9th house, which it rules: the own-house rule (foreign:d1:9th-lord-placement:mars:9) reads it as protecting the house, so the malefic-occupant strain is not counted."
+    }
+   ],
+   "remainingQuestions": [
+    "Which reading of planet.house:Saturn governs foreign — house.lord-placement.kendra-trikona or house.aspect.saturn-mars — is not encoded.",
+    "Which reading of planet.house:Mars governs foreign — house.aspect.saturn-mars or house.lord-placement.own-house — is not encoded.",
+    "Which classification governs which reading (occupant effects, period results, remedies) is not encoded."
+   ],
+   "uncertain": true
+  },
+  {
+   "kind": "provisional-candidate",
+   "productionApproved": false,
+   "set": "exact",
+   "birth": {
+    "date": "1952-09-28",
+    "time": "17:43",
+    "latitude": 1.3521,
+    "longitude": 103.8198
+   },
+   "ascendant": "Pisces",
+   "domain": "spirituality",
+   "original": {
+    "verdict": "Mixed",
+    "confidence": "Low"
+   },
+   "proposed": {
+    "verdict": "Strong",
+    "confidence": "Medium"
+   },
+   "change": {
+    "verdict": true,
+    "confidence": true,
+    "towards": "more-favourable"
+   },
+   "treatments": [
+    {
+     "policyId": "own-house-lord-not-malefic-occupant",
+     "shadowRole": "provisional-candidate",
+     "classicalStatus": "provisional",
+     "evidenceId": "spirituality:d1:mars-in-the-9th:mars:9",
+     "from": "negative",
+     "to": "neutral",
+     "factIds": [
+      "planet.house:Mars",
+      "house.lord:9"
+     ],
+     "ruleIds": [
+      "house.occupant.malefic",
+      "house.lord-placement.own-house"
+     ],
+     "explanation": "Mars occupies the 9th house, which it rules: the own-house rule (spirituality:d1:9th-lord-placement:mars:9) reads it as protecting the house, so the malefic-occupant strain is not counted."
+    }
+   ],
+   "remainingQuestions": [
+    "Which reading of planet.house:Mars governs spirituality — house.lord-placement.own-house or house.aspect.saturn-mars — is not encoded.",
+    "Which reading of planet.house:Saturn governs spirituality — house.aspect.saturn-mars or house.lord-placement.kendra-trikona — is not encoded.",
+    "Which classification governs which reading (occupant effects, period results, remedies) is not encoded."
+   ],
+   "uncertain": true
+  },
+  {
+   "kind": "provisional-candidate",
+   "productionApproved": false,
+   "set": "exact",
+   "birth": {
+    "date": "1969-08-15",
+    "time": "01:23",
+    "latitude": 28.6139,
+    "longitude": 77.209
+   },
+   "ascendant": "Taurus",
+   "domain": "relationships",
+   "original": {
+    "verdict": "Mixed",
+    "confidence": "Low"
+   },
+   "proposed": {
+    "verdict": "Strong",
+    "confidence": "Medium"
+   },
+   "change": {
+    "verdict": true,
+    "confidence": true,
+    "towards": "more-favourable"
+   },
+   "treatments": [
+    {
+     "policyId": "own-house-lord-not-malefic-occupant",
+     "shadowRole": "provisional-candidate",
+     "classicalStatus": "provisional",
+     "evidenceId": "relationships:d1:mars-in-the-7th:mars:7",
+     "from": "negative",
+     "to": "neutral",
+     "factIds": [
+      "planet.house:Mars",
+      "house.lord:7"
+     ],
+     "ruleIds": [
+      "house.occupant.malefic",
+      "house.lord-placement.own-house"
+     ],
+     "explanation": "Mars occupies the 7th house, which it rules: the own-house rule (relationships:d1:7th-lord-placement:mars:7) reads it as protecting the house, so the malefic-occupant strain is not counted."
+    }
+   ],
+   "remainingQuestions": [],
+   "uncertain": false
+  },
+  {
+   "kind": "provisional-candidate",
+   "productionApproved": false,
+   "set": "exact",
+   "birth": {
+    "date": "1991-11-27",
+    "time": "13:22",
+    "latitude": -33.8688,
+    "longitude": 151.2093
+   },
+   "ascendant": "Aquarius",
+   "domain": "foreign",
+   "original": {
+    "verdict": "Challenging",
+    "confidence": "High"
+   },
+   "proposed": {
+    "verdict": "Challenging",
+    "confidence": "Medium"
+   },
+   "change": {
+    "verdict": false,
+    "confidence": true,
+    "towards": "same-verdict"
+   },
+   "treatments": [
+    {
+     "policyId": "own-house-lord-not-malefic-occupant",
+     "shadowRole": "provisional-candidate",
+     "classicalStatus": "provisional",
+     "evidenceId": "foreign:d1:saturn-in-the-12th:saturn:12",
+     "from": "negative",
+     "to": "neutral",
+     "factIds": [
+      "planet.house:Saturn",
+      "house.lord:12"
+     ],
+     "ruleIds": [
+      "house.occupant.malefic",
+      "house.lord-placement.own-house"
+     ],
+     "explanation": "Saturn occupies the 12th house, which it rules: the own-house rule (foreign:d1:12th-lord-placement:saturn:12) reads it as protecting the house, so the malefic-occupant strain is not counted."
+    }
+   ],
+   "remainingQuestions": [
+    "Which reading of planet.house:Saturn governs foreign — house.lord-placement.own-house or house.aspect.saturn-mars — is not encoded."
+   ],
+   "uncertain": true
+  },
+  {
+   "kind": "provisional-candidate",
+   "productionApproved": false,
+   "set": "exact",
+   "birth": {
+    "date": "1992-02-19",
+    "time": "03:34",
+    "latitude": 28.6139,
+    "longitude": 77.209
+   },
+   "ascendant": "Sagittarius",
+   "domain": "wealth",
+   "original": {
+    "verdict": "Strong",
+    "confidence": "High"
+   },
+   "proposed": {
+    "verdict": "Very Strong",
+    "confidence": "High"
+   },
+   "change": {
+    "verdict": true,
+    "confidence": false,
+    "towards": "more-favourable"
+   },
+   "treatments": [
+    {
+     "policyId": "own-house-lord-not-malefic-occupant",
+     "shadowRole": "provisional-candidate",
+     "classicalStatus": "provisional",
+     "evidenceId": "wealth:d1:saturn-in-the-2nd:saturn:2",
+     "from": "negative",
+     "to": "neutral",
+     "factIds": [
+      "planet.house:Saturn",
+      "house.lord:2"
+     ],
+     "ruleIds": [
+      "house.occupant.malefic",
+      "house.lord-placement.own-house"
+     ],
+     "explanation": "Saturn occupies the 2nd house, which it rules: the own-house rule (wealth:d1:2nd-lord-placement:saturn:2) reads it as protecting the house, so the malefic-occupant strain is not counted."
+    }
+   ],
+   "remainingQuestions": [
+    "Which reading of planet.house:Mars governs wealth — house.occupant.malefic or yoga.domain — is not encoded.",
+    "Which reading of planet.house:Saturn governs wealth — house.occupant.malefic or yoga.domain — is not encoded.",
+    "Which classification governs which reading (occupant effects, period results, remedies) is not encoded."
+   ],
+   "uncertain": true
+  },
+  {
+   "kind": "provisional-candidate",
+   "productionApproved": false,
+   "set": "exact",
+   "birth": {
+    "date": "1957-02-28",
+    "time": "10:34",
+    "latitude": 26.9124,
+    "longitude": 75.7873
+   },
+   "ascendant": "Aries",
+   "domain": "leadership",
+   "original": {
+    "verdict": "Strong",
+    "confidence": "High"
+   },
+   "proposed": {
+    "verdict": "Very Strong",
+    "confidence": "High"
+   },
+   "change": {
+    "verdict": true,
+    "confidence": false,
+    "towards": "more-favourable"
+   },
+   "treatments": [
+    {
+     "policyId": "own-house-lord-not-malefic-occupant",
+     "shadowRole": "provisional-candidate",
+     "classicalStatus": "provisional",
+     "evidenceId": "leadership:d1:mars-in-the-1st:mars:1",
+     "from": "negative",
+     "to": "neutral",
+     "factIds": [
+      "planet.house:Mars",
+      "house.lord:1"
+     ],
+     "ruleIds": [
+      "house.occupant.malefic",
+      "house.lord-placement.own-house"
+     ],
+     "explanation": "Mars occupies the 1st house, which it rules: the own-house rule (leadership:d1:1st-lord-placement:mars:1) reads it as protecting the house, so the malefic-occupant strain is not counted."
+    }
+   ],
+   "remainingQuestions": [
+    "Which reading of planet.house:Mars governs leadership — house.occupant.malefic or yoga.domain — is not encoded.",
+    "Which classification governs which reading (occupant effects, period results, remedies) is not encoded.",
+    "Which classification governs which reading (occupant effects, period results, remedies) is not encoded."
+   ],
+   "uncertain": true
+  },
+  {
+   "kind": "provisional-candidate",
+   "productionApproved": false,
+   "set": "exact",
+   "birth": {
+    "date": "1972-12-26",
+    "time": "20:14",
+    "latitude": 13.0827,
+    "longitude": 80.2707
+   },
+   "ascendant": "Cancer",
+   "domain": "education",
+   "original": {
+    "verdict": "Strong",
+    "confidence": "High"
+   },
+   "proposed": {
+    "verdict": "Very Strong",
+    "confidence": "High"
+   },
+   "change": {
+    "verdict": true,
+    "confidence": false,
+    "towards": "more-favourable"
+   },
+   "treatments": [
+    {
+     "policyId": "own-house-lord-not-malefic-occupant",
+     "shadowRole": "provisional-candidate",
+     "classicalStatus": "provisional",
+     "evidenceId": "education:d1:mars-in-the-5th:mars:5",
+     "from": "negative",
+     "to": "neutral",
+     "factIds": [
+      "planet.house:Mars",
+      "house.lord:5"
+     ],
+     "ruleIds": [
+      "house.occupant.malefic",
+      "house.lord-placement.own-house"
+     ],
+     "explanation": "Mars occupies the 5th house, which it rules: the own-house rule (education:d1:5th-lord-placement:mars:5) reads it as protecting the house, so the malefic-occupant strain is not counted."
+    }
+   ],
+   "remainingQuestions": [
+    "Which classification governs which reading (occupant effects, period results, remedies) is not encoded.",
+    "Which classification governs which reading (occupant effects, period results, remedies) is not encoded."
+   ],
+   "uncertain": true
+  },
+  {
+   "kind": "provisional-candidate",
+   "productionApproved": false,
+   "set": "exact",
+   "birth": {
+    "date": "1988-08-21",
+    "time": "00:47",
+    "latitude": 13.0827,
+    "longitude": 80.2707
+   },
+   "ascendant": "Taurus",
+   "domain": "property",
+   "original": {
+    "verdict": "Strong",
+    "confidence": "Medium"
+   },
+   "proposed": {
+    "verdict": "Strong",
+    "confidence": "High"
+   },
+   "change": {
+    "verdict": false,
+    "confidence": true,
+    "towards": "same-verdict"
+   },
+   "treatments": [
+    {
+     "policyId": "own-house-lord-not-malefic-occupant",
+     "shadowRole": "provisional-candidate",
+     "classicalStatus": "provisional",
+     "evidenceId": "property:d1:sun-in-the-4th:sun:4",
+     "from": "negative",
+     "to": "neutral",
+     "factIds": [
+      "planet.house:Sun",
+      "house.lord:4"
+     ],
+     "ruleIds": [
+      "house.occupant.malefic",
+      "house.lord-placement.own-house"
+     ],
+     "explanation": "Sun occupies the 4th house, which it rules: the own-house rule (property:d1:4th-lord-placement:sun:4) reads it as protecting the house, so the malefic-occupant strain is not counted."
+    }
+   ],
+   "remainingQuestions": [
+    "Whether Ketu in a kendra or trikona delivers well in its period while harming that house as a malefic occupant is not encoded."
+   ],
+   "uncertain": true
+  },
+  {
+   "kind": "provisional-candidate",
+   "productionApproved": false,
+   "set": "exact",
+   "birth": {
+    "date": "1963-09-15",
+    "time": "05:53",
+    "latitude": 28.6139,
+    "longitude": 77.209
+   },
+   "ascendant": "Leo",
+   "domain": "leadership",
+   "original": {
+    "verdict": "Strong",
+    "confidence": "Medium"
+   },
+   "proposed": {
+    "verdict": "Very Strong",
+    "confidence": "High"
+   },
+   "change": {
+    "verdict": true,
+    "confidence": true,
+    "towards": "more-favourable"
+   },
+   "treatments": [
+    {
+     "policyId": "own-house-lord-not-malefic-occupant",
+     "shadowRole": "provisional-candidate",
+     "classicalStatus": "provisional",
+     "evidenceId": "leadership:d1:sun-in-the-1st:sun:1",
+     "from": "negative",
+     "to": "neutral",
+     "factIds": [
+      "planet.house:Sun",
+      "house.lord:1"
+     ],
+     "ruleIds": [
+      "house.occupant.malefic",
+      "house.lord-placement.own-house"
+     ],
+     "explanation": "Sun occupies the 1st house, which it rules: the own-house rule (leadership:d1:1st-lord-placement:sun:1) reads it as protecting the house, so the malefic-occupant strain is not counted."
+    }
+   ],
+   "remainingQuestions": [
+    "Which classification governs which reading (occupant effects, period results, remedies) is not encoded."
+   ],
+   "uncertain": true
+  },
+  {
+   "kind": "provisional-candidate",
+   "productionApproved": false,
+   "set": "exact",
+   "birth": {
+    "date": "1997-08-21",
+    "time": "10:05",
+    "latitude": 19.076,
+    "longitude": 72.8777
+   },
+   "ascendant": "Virgo",
+   "domain": "foreign",
+   "original": {
+    "verdict": "Mixed",
+    "confidence": "Low"
+   },
+   "proposed": {
+    "verdict": "Strong",
+    "confidence": "Medium"
+   },
+   "change": {
+    "verdict": true,
+    "confidence": true,
+    "towards": "more-favourable"
+   },
+   "treatments": [
+    {
+     "policyId": "own-house-lord-not-malefic-occupant",
+     "shadowRole": "provisional-candidate",
+     "classicalStatus": "provisional",
+     "evidenceId": "foreign:d1:sun-in-the-12th:sun:12",
+     "from": "negative",
+     "to": "neutral",
+     "factIds": [
+      "planet.house:Sun",
+      "house.lord:12"
+     ],
+     "ruleIds": [
+      "house.occupant.malefic",
+      "house.lord-placement.own-house"
+     ],
+     "explanation": "Sun occupies the 12th house, which it rules: the own-house rule (foreign:d1:12th-lord-placement:sun:12) reads it as protecting the house, so the malefic-occupant strain is not counted."
+    }
+   ],
+   "remainingQuestions": [],
+   "uncertain": false
+  },
+  {
+   "kind": "provisional-candidate",
+   "productionApproved": false,
+   "set": "exact",
+   "birth": {
+    "date": "1973-09-13",
+    "time": "11:23",
+    "latitude": 51.5074,
+    "longitude": -0.1278
+   },
+   "ascendant": "Libra",
+   "domain": "relationships",
+   "original": {
+    "verdict": "Strong",
+    "confidence": "High"
+   },
+   "proposed": {
+    "verdict": "Very Strong",
+    "confidence": "High"
+   },
+   "change": {
+    "verdict": true,
+    "confidence": false,
+    "towards": "more-favourable"
+   },
+   "treatments": [
+    {
+     "policyId": "own-house-lord-not-malefic-occupant",
+     "shadowRole": "provisional-candidate",
+     "classicalStatus": "provisional",
+     "evidenceId": "relationships:d1:mars-in-the-7th:mars:7",
+     "from": "negative",
+     "to": "neutral",
+     "factIds": [
+      "planet.house:Mars",
+      "house.lord:7"
+     ],
+     "ruleIds": [
+      "house.occupant.malefic",
+      "house.lord-placement.own-house"
+     ],
+     "explanation": "Mars occupies the 7th house, which it rules: the own-house rule (relationships:d1:7th-lord-placement:mars:7) reads it as protecting the house, so the malefic-occupant strain is not counted."
+    }
+   ],
+   "remainingQuestions": [
+    "Whether combustion reduces a planet in exaltation, own sign or moolatrikona (and by how much) is not encoded."
+   ],
+   "uncertain": true
+  },
+  {
+   "kind": "provisional-candidate",
+   "productionApproved": false,
+   "set": "exact",
+   "birth": {
+    "date": "1944-12-11",
+    "time": "06:01",
+    "latitude": 40.7128,
+    "longitude": -74.006
+   },
+   "ascendant": "Libra",
+   "domain": "wealth",
+   "original": {
+    "verdict": "Strong",
+    "confidence": "High"
+   },
+   "proposed": {
+    "verdict": "Very Strong",
+    "confidence": "High"
+   },
+   "change": {
+    "verdict": true,
+    "confidence": false,
+    "towards": "more-favourable"
+   },
+   "treatments": [
+    {
+     "policyId": "own-house-lord-not-malefic-occupant",
+     "shadowRole": "provisional-candidate",
+     "classicalStatus": "provisional",
+     "evidenceId": "wealth:d1:mars-in-the-2nd:mars:2",
+     "from": "negative",
+     "to": "neutral",
+     "factIds": [
+      "planet.house:Mars",
+      "house.lord:2"
+     ],
+     "ruleIds": [
+      "house.occupant.malefic",
+      "house.lord-placement.own-house"
+     ],
+     "explanation": "Mars occupies the 2nd house, which it rules: the own-house rule (wealth:d1:2nd-lord-placement:mars:2) reads it as protecting the house, so the malefic-occupant strain is not counted."
+    }
+   ],
+   "remainingQuestions": [
+    "Which reading of planet.house:Sun governs wealth — house.occupant.malefic or yoga.domain — is not encoded.",
+    "Which reading of planet.house:Mars governs wealth — house.occupant.malefic or yoga.domain — is not encoded.",
+    "Whether combustion reduces a planet in exaltation, own sign or moolatrikona (and by how much) is not encoded.",
+    "Which classification governs which reading (occupant effects, period results, remedies) is not encoded.",
+    "Whether a debilitated or combust participant weakens or cancels the yoga is not encoded."
+   ],
+   "uncertain": true
+  },
+  {
+   "kind": "provisional-candidate",
+   "productionApproved": false,
+   "set": "exact",
+   "birth": {
+    "date": "1946-11-05",
+    "time": "02:20",
+    "latitude": 28.6139,
+    "longitude": 77.209
+   },
+   "ascendant": "Leo",
+   "domain": "education",
+   "original": {
+    "verdict": "Mixed",
+    "confidence": "Low"
+   },
+   "proposed": {
+    "verdict": "Strong",
+    "confidence": "Medium"
+   },
+   "change": {
+    "verdict": true,
+    "confidence": true,
+    "towards": "more-favourable"
+   },
+   "treatments": [
+    {
+     "policyId": "own-house-lord-not-malefic-occupant",
+     "shadowRole": "provisional-candidate",
+     "classicalStatus": "provisional",
+     "evidenceId": "education:d1:mars-in-the-4th:mars:4",
+     "from": "negative",
+     "to": "neutral",
+     "factIds": [
+      "planet.house:Mars",
+      "house.lord:4"
+     ],
+     "ruleIds": [
+      "house.occupant.malefic",
+      "house.lord-placement.own-house"
+     ],
+     "explanation": "Mars occupies the 4th house, which it rules: the own-house rule (education:d1:4th-lord-placement:mars:4) reads it as protecting the house, so the malefic-occupant strain is not counted."
+    }
+   ],
+   "remainingQuestions": [
+    "Which classification governs which reading (occupant effects, period results, remedies) is not encoded.",
+    "Whether combustion reduces a planet in exaltation, own sign or moolatrikona (and by how much) is not encoded."
+   ],
+   "uncertain": true
+  },
+  {
+   "kind": "provisional-candidate",
+   "productionApproved": false,
+   "set": "exact",
+   "birth": {
+    "date": "2005-01-20",
+    "time": "03:17",
+    "latitude": 13.0827,
+    "longitude": 80.2707
+   },
+   "ascendant": "Scorpio",
+   "domain": "leadership",
+   "original": {
+    "verdict": "Strong",
+    "confidence": "High"
+   },
+   "proposed": {
+    "verdict": "Very Strong",
+    "confidence": "High"
+   },
+   "change": {
+    "verdict": true,
+    "confidence": false,
+    "towards": "more-favourable"
+   },
+   "treatments": [
+    {
+     "policyId": "own-house-lord-not-malefic-occupant",
+     "shadowRole": "provisional-candidate",
+     "classicalStatus": "provisional",
+     "evidenceId": "leadership:d1:mars-in-the-1st:mars:1",
+     "from": "negative",
+     "to": "neutral",
+     "factIds": [
+      "planet.house:Mars",
+      "house.lord:1"
+     ],
+     "ruleIds": [
+      "house.occupant.malefic",
+      "house.lord-placement.own-house"
+     ],
+     "explanation": "Mars occupies the 1st house, which it rules: the own-house rule (leadership:d1:1st-lord-placement:mars:1) reads it as protecting the house, so the malefic-occupant strain is not counted."
+    }
+   ],
+   "remainingQuestions": [
+    "Which reading of planet.house:Mars governs leadership — house.occupant.malefic or yoga.domain — is not encoded."
+   ],
+   "uncertain": true
+  },
+  {
+   "kind": "provisional-candidate",
+   "productionApproved": false,
+   "set": "exact",
+   "birth": {
+    "date": "1965-01-06",
+    "time": "05:36",
+    "latitude": 26.9124,
+    "longitude": 75.7873
+   },
+   "ascendant": "Scorpio",
+   "domain": "property",
+   "original": {
+    "verdict": "Mixed",
+    "confidence": "Low"
+   },
+   "proposed": {
+    "verdict": "Insufficient evidence",
+    "confidence": "Low"
+   },
+   "change": {
+    "verdict": true,
+    "confidence": false,
+    "towards": "same-verdict"
+   },
+   "treatments": [
+    {
+     "policyId": "own-house-lord-not-malefic-occupant",
+     "shadowRole": "provisional-candidate",
+     "classicalStatus": "provisional",
+     "evidenceId": "property:d1:saturn-in-the-4th:saturn:4",
+     "from": "negative",
+     "to": "neutral",
+     "factIds": [
+      "planet.house:Saturn",
+      "house.lord:4"
+     ],
+     "ruleIds": [
+      "house.occupant.malefic",
+      "house.lord-placement.own-house"
+     ],
+     "explanation": "Saturn occupies the 4th house, which it rules: the own-house rule (property:d1:4th-lord-placement:saturn:4) reads it as protecting the house, so the malefic-occupant strain is not counted."
+    }
+   ],
+   "remainingQuestions": [],
+   "uncertain": false
+  },
+  {
+   "kind": "provisional-candidate",
+   "productionApproved": false,
+   "set": "exact",
+   "birth": {
+    "date": "1965-01-06",
+    "time": "05:36",
+    "latitude": 26.9124,
+    "longitude": 75.7873
+   },
+   "ascendant": "Scorpio",
+   "domain": "education",
+   "original": {
+    "verdict": "Mixed",
+    "confidence": "Low"
+   },
+   "proposed": {
+    "verdict": "Strong",
+    "confidence": "Medium"
+   },
+   "change": {
+    "verdict": true,
+    "confidence": true,
+    "towards": "more-favourable"
+   },
+   "treatments": [
+    {
+     "policyId": "own-house-lord-not-malefic-occupant",
+     "shadowRole": "provisional-candidate",
+     "classicalStatus": "provisional",
+     "evidenceId": "education:d1:saturn-in-the-4th:saturn:4",
+     "from": "negative",
+     "to": "neutral",
+     "factIds": [
+      "planet.house:Saturn",
+      "house.lord:4"
+     ],
+     "ruleIds": [
+      "house.occupant.malefic",
+      "house.lord-placement.own-house"
+     ],
+     "explanation": "Saturn occupies the 4th house, which it rules: the own-house rule (education:d1:4th-lord-placement:saturn:4) reads it as protecting the house, so the malefic-occupant strain is not counted."
+    }
+   ],
+   "remainingQuestions": [
+    "Which classification governs which reading (occupant effects, period results, remedies) is not encoded."
+   ],
+   "uncertain": true
+  },
+  {
+   "kind": "provisional-candidate",
+   "productionApproved": false,
+   "set": "exact",
+   "birth": {
+    "date": "1970-10-22",
+    "time": "17:23",
+    "latitude": 40.7128,
+    "longitude": -74.006
+   },
+   "ascendant": "Pisces",
+   "domain": "children",
+   "original": {
+    "verdict": "Strong",
+    "confidence": "High"
+   },
+   "proposed": {
+    "verdict": "Very Strong",
+    "confidence": "High"
+   },
+   "change": {
+    "verdict": true,
+    "confidence": false,
+    "towards": "more-favourable"
+   },
+   "treatments": [
+    {
+     "policyId": "own-house-lord-not-malefic-occupant",
+     "shadowRole": "provisional-candidate",
+     "classicalStatus": "provisional",
+     "evidenceId": "children:d1:moon-in-the-5th:moon:5",
+     "from": "negative",
+     "to": "neutral",
+     "factIds": [
+      "planet.house:Moon",
+      "house.lord:5"
+     ],
+     "ruleIds": [
+      "house.occupant.malefic",
+      "house.lord-placement.own-house"
+     ],
+     "explanation": "Moon occupies the 5th house, which it rules: the own-house rule (children:d1:5th-lord-placement:moon:5) reads it as protecting the house, so the malefic-occupant strain is not counted."
+    }
+   ],
+   "remainingQuestions": [
+    "Which classification governs which reading (occupant effects, period results, remedies) is not encoded."
+   ],
+   "uncertain": true
+  },
+  {
+   "kind": "provisional-candidate",
+   "productionApproved": false,
+   "set": "exact",
+   "birth": {
+    "date": "1988-01-28",
+    "time": "09:58",
+    "latitude": 19.076,
+    "longitude": 72.8777
+   },
+   "ascendant": "Pisces",
+   "domain": "spirituality",
+   "original": {
+    "verdict": "Strong",
+    "confidence": "High"
+   },
+   "proposed": {
+    "verdict": "Very Strong",
+    "confidence": "High"
+   },
+   "change": {
+    "verdict": true,
+    "confidence": false,
+    "towards": "more-favourable"
+   },
+   "treatments": [
+    {
+     "policyId": "own-house-lord-not-malefic-occupant",
+     "shadowRole": "provisional-candidate",
+     "classicalStatus": "provisional",
+     "evidenceId": "spirituality:d1:mars-in-the-9th:mars:9",
+     "from": "negative",
+     "to": "neutral",
+     "factIds": [
+      "planet.house:Mars",
+      "house.lord:9"
+     ],
+     "ruleIds": [
+      "house.occupant.malefic",
+      "house.lord-placement.own-house"
+     ],
+     "explanation": "Mars occupies the 9th house, which it rules: the own-house rule (spirituality:d1:9th-lord-placement:mars:9) reads it as protecting the house, so the malefic-occupant strain is not counted."
+    }
+   ],
+   "remainingQuestions": [
+    "Which reading of planet.house:Mars governs spirituality — house.lord-placement.own-house or house.aspect.saturn-mars — is not encoded.",
+    "Whether a lord's aspect on the house it rules protects that house rather than pressuring it is not encoded.",
+    "Which classification governs which reading (occupant effects, period results, remedies) is not encoded.",
+    "Which classification governs which reading (occupant effects, period results, remedies) is not encoded."
+   ],
+   "uncertain": true
+  },
+  {
+   "kind": "provisional-candidate",
+   "productionApproved": false,
+   "set": "exact",
+   "birth": {
+    "date": "1957-02-16",
+    "time": "09:43",
+    "latitude": 28.6139,
+    "longitude": 77.209
+   },
+   "ascendant": "Pisces",
+   "domain": "wealth",
+   "original": {
+    "verdict": "Strong",
+    "confidence": "High"
+   },
+   "proposed": {
+    "verdict": "Very Strong",
+    "confidence": "High"
+   },
+   "change": {
+    "verdict": true,
+    "confidence": false,
+    "towards": "more-favourable"
+   },
+   "treatments": [
+    {
+     "policyId": "own-house-lord-not-malefic-occupant",
+     "shadowRole": "provisional-candidate",
+     "classicalStatus": "provisional",
+     "evidenceId": "wealth:d1:mars-in-the-2nd:mars:2",
+     "from": "negative",
+     "to": "neutral",
+     "factIds": [
+      "planet.house:Mars",
+      "house.lord:2"
+     ],
+     "ruleIds": [
+      "house.occupant.malefic",
+      "house.lord-placement.own-house"
+     ],
+     "explanation": "Mars occupies the 2nd house, which it rules: the own-house rule (wealth:d1:2nd-lord-placement:mars:2) reads it as protecting the house, so the malefic-occupant strain is not counted."
+    }
+   ],
+   "remainingQuestions": [
+    "Which classification governs which reading (occupant effects, period results, remedies) is not encoded.",
+    "Which classification governs which reading (occupant effects, period results, remedies) is not encoded."
+   ],
+   "uncertain": true
+  },
+  {
+   "kind": "provisional-candidate",
+   "productionApproved": false,
+   "set": "exact",
+   "birth": {
+    "date": "2005-09-15",
+    "time": "15:10",
+    "latitude": 19.076,
+    "longitude": 72.8777
+   },
+   "ascendant": "Sagittarius",
+   "domain": "children",
+   "original": {
+    "verdict": "Mixed",
+    "confidence": "Low"
+   },
+   "proposed": {
+    "verdict": "Strong",
+    "confidence": "Medium"
+   },
+   "change": {
+    "verdict": true,
+    "confidence": true,
+    "towards": "more-favourable"
+   },
+   "treatments": [
+    {
+     "policyId": "own-house-lord-not-malefic-occupant",
+     "shadowRole": "provisional-candidate",
+     "classicalStatus": "provisional",
+     "evidenceId": "children:d1:mars-in-the-5th:mars:5",
+     "from": "negative",
+     "to": "neutral",
+     "factIds": [
+      "planet.house:Mars",
+      "house.lord:5"
+     ],
+     "ruleIds": [
+      "house.occupant.malefic",
+      "house.lord-placement.own-house"
+     ],
+     "explanation": "Mars occupies the 5th house, which it rules: the own-house rule (children:d1:5th-lord-placement:mars:5) reads it as protecting the house, so the malefic-occupant strain is not counted."
+    }
+   ],
+   "remainingQuestions": [],
+   "uncertain": false
+  },
+  {
+   "kind": "provisional-candidate",
+   "productionApproved": false,
+   "set": "exact",
+   "birth": {
+    "date": "2005-09-15",
+    "time": "15:10",
+    "latitude": 19.076,
+    "longitude": 72.8777
+   },
+   "ascendant": "Sagittarius",
+   "domain": "spirituality",
+   "original": {
+    "verdict": "Mixed",
+    "confidence": "Low"
+   },
+   "proposed": {
+    "verdict": "Strong",
+    "confidence": "Medium"
+   },
+   "change": {
+    "verdict": true,
+    "confidence": true,
+    "towards": "more-favourable"
+   },
+   "treatments": [
+    {
+     "policyId": "own-house-lord-not-malefic-occupant",
+     "shadowRole": "provisional-candidate",
+     "classicalStatus": "provisional",
+     "evidenceId": "spirituality:d1:sun-in-the-9th:sun:9",
+     "from": "negative",
+     "to": "neutral",
+     "factIds": [
+      "planet.house:Sun",
+      "house.lord:9"
+     ],
+     "ruleIds": [
+      "house.occupant.malefic",
+      "house.lord-placement.own-house"
+     ],
+     "explanation": "Sun occupies the 9th house, which it rules: the own-house rule (spirituality:d1:9th-lord-placement:sun:9) reads it as protecting the house, so the malefic-occupant strain is not counted."
+    }
+   ],
+   "remainingQuestions": [
+    "Whether a lord's aspect on the house it rules protects that house rather than pressuring it is not encoded.",
+    "Which classification governs which reading (occupant effects, period results, remedies) is not encoded."
+   ],
+   "uncertain": true
+  },
+  {
+   "kind": "provisional-candidate",
+   "productionApproved": false,
+   "set": "exact",
+   "birth": {
+    "date": "1995-09-04",
+    "time": "19:23",
+    "latitude": 51.5074,
+    "longitude": -0.1278
+   },
+   "ascendant": "Aquarius",
+   "domain": "relationships",
+   "original": {
+    "verdict": "Mixed",
+    "confidence": "Low"
+   },
+   "proposed": {
+    "verdict": "Strong",
+    "confidence": "Medium"
+   },
+   "change": {
+    "verdict": true,
+    "confidence": true,
+    "towards": "more-favourable"
+   },
+   "treatments": [
+    {
+     "policyId": "own-house-lord-not-malefic-occupant",
+     "shadowRole": "provisional-candidate",
+     "classicalStatus": "provisional",
+     "evidenceId": "relationships:d1:sun-in-the-7th:sun:7",
+     "from": "negative",
+     "to": "neutral",
+     "factIds": [
+      "planet.house:Sun",
+      "house.lord:7"
+     ],
+     "ruleIds": [
+      "house.occupant.malefic",
+      "house.lord-placement.own-house"
+     ],
+     "explanation": "Sun occupies the 7th house, which it rules: the own-house rule (relationships:d1:7th-lord-placement:sun:7) reads it as protecting the house, so the malefic-occupant strain is not counted."
+    }
+   ],
+   "remainingQuestions": [],
+   "uncertain": false
+  }
+ ],
+ "duplication": {
+  "exact": {
+   "1 exact duplicate directional evidence": 0,
+   "3 same reading under independent roles (lord of two houses, lord and karaka)": 1300,
+   "7 yoga formation vs participant condition": 834,
+   "4 eligibility or exclusion gates (not counted as shared)": 1061,
+   "5 derived dependency": 926,
+   "6 natal vs timing activation": 3055,
+   "2 different interpretations of the same calculated fact": 648
+  },
+  "approximate": {
+   "1 exact duplicate directional evidence": 0,
+   "4 eligibility or exclusion gates (not counted as shared)": 0,
+   "6 natal vs timing activation": 14
+  }
+ },
+ "adversarial": {
+  "strong but combust planet": {
+   "charts": 76,
+   "chartsWithCandidateChange": 11
+  },
+  "multiple yogas sharing a participant": {
+   "charts": 237,
+   "chartsWithCandidateChange": 26
+  },
+  "planet holding two roles in one area (two lordships, or lord and karaka)": {
+   "charts": 321,
+   "chartsWithCandidateChange": 40
+  },
+  "yogakaraka with challenging occupancy": {
+   "charts": 60,
+   "chartsWithCandidateChange": 12
+  },
+  "natal-negative, period-positive": {
+   "charts": 163,
+   "chartsWithCandidateChange": 29
+  },
+  "natal-positive, period-negative": {
+   "charts": 80,
+   "chartsWithCandidateChange": 8
+  },
+  "debilitated with Neecha Bhanga": {
+   "charts": 92,
+   "chartsWithCandidateChange": 12
+  },
+  "approximate birth time": {
+   "charts": 72,
+   "chartsWithCandidateChange": 0
+  }
+ },
+ "performance": {
+  "exact": {
+   "charts": 336,
+   "reasoningInput": {
+    "medianMs": 0.962,
+    "p95Ms": 1.76
+   },
+   "findingsAndRelationships": {
+    "medianMs": 3.257,
+    "p95Ms": 6.927
+   },
+   "reconciliation": {
+    "medianMs": 0.275,
+    "p95Ms": 0.495
+   },
+   "productionBuildInsightsForComparison": {
+    "medianMs": 0.568,
+    "p95Ms": 1.183
+   }
+  },
+  "approximate": {
+   "charts": 72,
+   "reasoningInput": {
+    "medianMs": 42.938,
+    "p95Ms": 55.536
+   },
+   "findingsAndRelationships": {
+    "medianMs": 7.7,
+    "p95Ms": 21.429
+   },
+   "reconciliation": {
+    "medianMs": 0.118,
+    "p95Ms": 0.208
+   },
+   "productionBuildInsightsForComparison": {
+    "medianMs": 41.218,
+    "p95Ms": 53.498
+   }
+  }
+ },
+ "functionalRoleReview": [
+  {
+   "ascendant": "Aries",
+   "planet": "Sun",
+   "owned": [
+    5
+   ],
+   "existing": "functional-benefic",
+   "proposed": "benefic",
+   "maraka": false
+  },
+  {
+   "ascendant": "Aries",
+   "planet": "Moon",
+   "owned": [
+    4
+   ],
+   "existing": "neutral",
+   "proposed": "neutral-kendradhipati",
+   "maraka": false
+  },
+  {
+   "ascendant": "Aries",
+   "planet": "Mars",
+   "owned": [
+    1,
+    8
+   ],
+   "existing": "mixed",
+   "proposed": "lagna-lord-benefic",
+   "maraka": false
+  },
+  {
+   "ascendant": "Aries",
+   "planet": "Mercury",
+   "owned": [
+    3,
+    6
+   ],
+   "existing": "functional-malefic",
+   "proposed": "malefic",
+   "maraka": false
+  },
+  {
+   "ascendant": "Aries",
+   "planet": "Jupiter",
+   "owned": [
+    9,
+    12
+   ],
+   "existing": "mixed",
+   "proposed": "benefic",
+   "maraka": false
+  },
+  {
+   "ascendant": "Aries",
+   "planet": "Venus",
+   "owned": [
+    2,
+    7
+   ],
+   "existing": "neutral",
+   "proposed": "neutral-kendradhipati",
+   "maraka": true
+  },
+  {
+   "ascendant": "Aries",
+   "planet": "Saturn",
+   "owned": [
+    10,
+    11
+   ],
+   "existing": "neutral",
+   "proposed": "malefic",
+   "maraka": false
+  },
+  {
+   "ascendant": "Taurus",
+   "planet": "Sun",
+   "owned": [
+    4
+   ],
+   "existing": "neutral",
+   "proposed": "neutral-kendradhipati",
+   "maraka": false
+  },
+  {
+   "ascendant": "Taurus",
+   "planet": "Moon",
+   "owned": [
+    3
+   ],
+   "existing": "neutral",
+   "proposed": "malefic",
+   "maraka": false
+  },
+  {
+   "ascendant": "Taurus",
+   "planet": "Mars",
+   "owned": [
+    7,
+    12
+   ],
+   "existing": "functional-malefic",
+   "proposed": "neutral-kendradhipati",
+   "maraka": true
+  },
+  {
+   "ascendant": "Taurus",
+   "planet": "Mercury",
+   "owned": [
+    2,
+    5
+   ],
+   "existing": "functional-benefic",
+   "proposed": "benefic",
+   "maraka": true
+  },
+  {
+   "ascendant": "Taurus",
+   "planet": "Jupiter",
+   "owned": [
+    8,
+    11
+   ],
+   "existing": "functional-malefic",
+   "proposed": "malefic",
+   "maraka": false
+  },
+  {
+   "ascendant": "Taurus",
+   "planet": "Venus",
+   "owned": [
+    1,
+    6
+   ],
+   "existing": "mixed",
+   "proposed": "lagna-lord-benefic",
+   "maraka": false
+  },
+  {
+   "ascendant": "Taurus",
+   "planet": "Saturn",
+   "owned": [
+    9,
+    10
+   ],
+   "existing": "yogakaraka",
+   "proposed": "yogakaraka",
+   "maraka": false
+  },
+  {
+   "ascendant": "Gemini",
+   "planet": "Sun",
+   "owned": [
+    3
+   ],
+   "existing": "neutral",
+   "proposed": "malefic",
+   "maraka": false
+  },
+  {
+   "ascendant": "Gemini",
+   "planet": "Moon",
+   "owned": [
+    2
+   ],
+   "existing": "neutral",
+   "proposed": "neutral-by-association",
+   "maraka": true
+  },
+  {
+   "ascendant": "Gemini",
+   "planet": "Mars",
+   "owned": [
+    6,
+    11
+   ],
+   "existing": "functional-malefic",
+   "proposed": "malefic",
+   "maraka": false
+  },
+  {
+   "ascendant": "Gemini",
+   "planet": "Mercury",
+   "owned": [
+    1,
+    4
+   ],
+   "existing": "yogakaraka",
+   "proposed": "lagna-lord-benefic",
+   "maraka": false
+  },
+  {
+   "ascendant": "Gemini",
+   "planet": "Jupiter",
+   "owned": [
+    7,
+    10
+   ],
+   "existing": "neutral",
+   "proposed": "neutral-kendradhipati",
+   "maraka": true
+  },
+  {
+   "ascendant": "Gemini",
+   "planet": "Venus",
+   "owned": [
+    5,
+    12
+   ],
+   "existing": "mixed",
+   "proposed": "benefic",
+   "maraka": false
+  },
+  {
+   "ascendant": "Gemini",
+   "planet": "Saturn",
+   "owned": [
+    8,
+    9
+   ],
+   "existing": "mixed",
+   "proposed": "mixed",
+   "maraka": false
+  },
+  {
+   "ascendant": "Cancer",
+   "planet": "Sun",
+   "owned": [
+    2
+   ],
+   "existing": "neutral",
+   "proposed": "neutral-by-association",
+   "maraka": true
+  },
+  {
+   "ascendant": "Cancer",
+   "planet": "Moon",
+   "owned": [
+    1
+   ],
+   "existing": "functional-benefic",
+   "proposed": "lagna-lord-benefic",
+   "maraka": false
+  },
+  {
+   "ascendant": "Cancer",
+   "planet": "Mars",
+   "owned": [
+    5,
+    10
+   ],
+   "existing": "yogakaraka",
+   "proposed": "yogakaraka",
+   "maraka": false
+  },
+  {
+   "ascendant": "Cancer",
+   "planet": "Mercury",
+   "owned": [
+    3,
+    12
+   ],
+   "existing": "functional-malefic",
+   "proposed": "malefic",
+   "maraka": false
+  },
+  {
+   "ascendant": "Cancer",
+   "planet": "Jupiter",
+   "owned": [
+    6,
+    9
+   ],
+   "existing": "mixed",
+   "proposed": "mixed",
+   "maraka": false
+  },
+  {
+   "ascendant": "Cancer",
+   "planet": "Venus",
+   "owned": [
+    4,
+    11
+   ],
+   "existing": "neutral",
+   "proposed": "malefic",
+   "maraka": false
+  },
+  {
+   "ascendant": "Cancer",
+   "planet": "Saturn",
+   "owned": [
+    7,
+    8
+   ],
+   "existing": "functional-malefic",
+   "proposed": "malefic",
+   "maraka": true
+  },
+  {
+   "ascendant": "Leo",
+   "planet": "Sun",
+   "owned": [
+    1
+   ],
+   "existing": "functional-benefic",
+   "proposed": "lagna-lord-benefic",
+   "maraka": false
+  },
+  {
+   "ascendant": "Leo",
+   "planet": "Moon",
+   "owned": [
+    12
+   ],
+   "existing": "functional-malefic",
+   "proposed": "neutral-by-association",
+   "maraka": false
+  },
+  {
+   "ascendant": "Leo",
+   "planet": "Mars",
+   "owned": [
+    4,
+    9
+   ],
+   "existing": "yogakaraka",
+   "proposed": "yogakaraka",
+   "maraka": false
+  },
+  {
+   "ascendant": "Leo",
+   "planet": "Mercury",
+   "owned": [
+    2,
+    11
+   ],
+   "existing": "neutral",
+   "proposed": "malefic",
+   "maraka": true
+  },
+  {
+   "ascendant": "Leo",
+   "planet": "Jupiter",
+   "owned": [
+    5,
+    8
+   ],
+   "existing": "mixed",
+   "proposed": "mixed",
+   "maraka": false
+  },
+  {
+   "ascendant": "Leo",
+   "planet": "Venus",
+   "owned": [
+    3,
+    10
+   ],
+   "existing": "neutral",
+   "proposed": "malefic",
+   "maraka": false
+  },
+  {
+   "ascendant": "Leo",
+   "planet": "Saturn",
+   "owned": [
+    6,
+    7
+   ],
+   "existing": "functional-malefic",
+   "proposed": "malefic",
+   "maraka": true
+  },
+  {
+   "ascendant": "Virgo",
+   "planet": "Sun",
+   "owned": [
+    12
+   ],
+   "existing": "functional-malefic",
+   "proposed": "neutral-by-association",
+   "maraka": false
+  },
+  {
+   "ascendant": "Virgo",
+   "planet": "Moon",
+   "owned": [
+    11
+   ],
+   "existing": "neutral",
+   "proposed": "malefic",
+   "maraka": false
+  },
+  {
+   "ascendant": "Virgo",
+   "planet": "Mars",
+   "owned": [
+    3,
+    8
+   ],
+   "existing": "functional-malefic",
+   "proposed": "malefic",
+   "maraka": false
+  },
+  {
+   "ascendant": "Virgo",
+   "planet": "Mercury",
+   "owned": [
+    1,
+    10
+   ],
+   "existing": "yogakaraka",
+   "proposed": "lagna-lord-benefic",
+   "maraka": false
+  },
+  {
+   "ascendant": "Virgo",
+   "planet": "Jupiter",
+   "owned": [
+    4,
+    7
+   ],
+   "existing": "neutral",
+   "proposed": "neutral-kendradhipati",
+   "maraka": true
+  },
+  {
+   "ascendant": "Virgo",
+   "planet": "Venus",
+   "owned": [
+    2,
+    9
+   ],
+   "existing": "functional-benefic",
+   "proposed": "benefic",
+   "maraka": true
+  },
+  {
+   "ascendant": "Virgo",
+   "planet": "Saturn",
+   "owned": [
+    5,
+    6
+   ],
+   "existing": "mixed",
+   "proposed": "mixed",
+   "maraka": false
+  },
+  {
+   "ascendant": "Libra",
+   "planet": "Sun",
+   "owned": [
+    11
+   ],
+   "existing": "neutral",
+   "proposed": "malefic",
+   "maraka": false
+  },
+  {
+   "ascendant": "Libra",
+   "planet": "Moon",
+   "owned": [
+    10
+   ],
+   "existing": "neutral",
+   "proposed": "neutral-kendradhipati",
+   "maraka": false
+  },
+  {
+   "ascendant": "Libra",
+   "planet": "Mars",
+   "owned": [
+    2,
+    7
+   ],
+   "existing": "neutral",
+   "proposed": "neutral-kendradhipati",
+   "maraka": true
+  },
+  {
+   "ascendant": "Libra",
+   "planet": "Mercury",
+   "owned": [
+    9,
+    12
+   ],
+   "existing": "mixed",
+   "proposed": "benefic",
+   "maraka": false
+  },
+  {
+   "ascendant": "Libra",
+   "planet": "Jupiter",
+   "owned": [
+    3,
+    6
+   ],
+   "existing": "functional-malefic",
+   "proposed": "malefic",
+   "maraka": false
+  },
+  {
+   "ascendant": "Libra",
+   "planet": "Venus",
+   "owned": [
+    1,
+    8
+   ],
+   "existing": "mixed",
+   "proposed": "lagna-lord-benefic",
+   "maraka": false
+  },
+  {
+   "ascendant": "Libra",
+   "planet": "Saturn",
+   "owned": [
+    4,
+    5
+   ],
+   "existing": "yogakaraka",
+   "proposed": "yogakaraka",
+   "maraka": false
+  },
+  {
+   "ascendant": "Scorpio",
+   "planet": "Sun",
+   "owned": [
+    10
+   ],
+   "existing": "neutral",
+   "proposed": "neutral-kendradhipati",
+   "maraka": false
+  },
+  {
+   "ascendant": "Scorpio",
+   "planet": "Moon",
+   "owned": [
+    9
+   ],
+   "existing": "functional-benefic",
+   "proposed": "benefic",
+   "maraka": false
+  },
+  {
+   "ascendant": "Scorpio",
+   "planet": "Mars",
+   "owned": [
+    1,
+    6
+   ],
+   "existing": "mixed",
+   "proposed": "lagna-lord-benefic",
+   "maraka": false
+  },
+  {
+   "ascendant": "Scorpio",
+   "planet": "Mercury",
+   "owned": [
+    8,
+    11
+   ],
+   "existing": "functional-malefic",
+   "proposed": "malefic",
+   "maraka": false
+  },
+  {
+   "ascendant": "Scorpio",
+   "planet": "Jupiter",
+   "owned": [
+    2,
+    5
+   ],
+   "existing": "functional-benefic",
+   "proposed": "benefic",
+   "maraka": true
+  },
+  {
+   "ascendant": "Scorpio",
+   "planet": "Venus",
+   "owned": [
+    7,
+    12
+   ],
+   "existing": "functional-malefic",
+   "proposed": "neutral-kendradhipati",
+   "maraka": true
+  },
+  {
+   "ascendant": "Scorpio",
+   "planet": "Saturn",
+   "owned": [
+    3,
+    4
+   ],
+   "existing": "neutral",
+   "proposed": "malefic",
+   "maraka": false
+  },
+  {
+   "ascendant": "Sagittarius",
+   "planet": "Sun",
+   "owned": [
+    9
+   ],
+   "existing": "functional-benefic",
+   "proposed": "benefic",
+   "maraka": false
+  },
+  {
+   "ascendant": "Sagittarius",
+   "planet": "Moon",
+   "owned": [
+    8
+   ],
+   "existing": "functional-malefic",
+   "proposed": "neutral-8th-exempt",
+   "maraka": false
+  },
+  {
+   "ascendant": "Sagittarius",
+   "planet": "Mars",
+   "owned": [
+    5,
+    12
+   ],
+   "existing": "mixed",
+   "proposed": "benefic",
+   "maraka": false
+  },
+  {
+   "ascendant": "Sagittarius",
+   "planet": "Mercury",
+   "owned": [
+    7,
+    10
+   ],
+   "existing": "neutral",
+   "proposed": "neutral-kendradhipati",
+   "maraka": true
+  },
+  {
+   "ascendant": "Sagittarius",
+   "planet": "Jupiter",
+   "owned": [
+    1,
+    4
+   ],
+   "existing": "yogakaraka",
+   "proposed": "lagna-lord-benefic",
+   "maraka": false
+  },
+  {
+   "ascendant": "Sagittarius",
+   "planet": "Venus",
+   "owned": [
+    6,
+    11
+   ],
+   "existing": "functional-malefic",
+   "proposed": "malefic",
+   "maraka": false
+  },
+  {
+   "ascendant": "Sagittarius",
+   "planet": "Saturn",
+   "owned": [
+    2,
+    3
+   ],
+   "existing": "neutral",
+   "proposed": "malefic",
+   "maraka": true
+  },
+  {
+   "ascendant": "Capricorn",
+   "planet": "Sun",
+   "owned": [
+    8
+   ],
+   "existing": "functional-malefic",
+   "proposed": "neutral-8th-exempt",
+   "maraka": false
+  },
+  {
+   "ascendant": "Capricorn",
+   "planet": "Moon",
+   "owned": [
+    7
+   ],
+   "existing": "neutral",
+   "proposed": "neutral-kendradhipati",
+   "maraka": true
+  },
+  {
+   "ascendant": "Capricorn",
+   "planet": "Mars",
+   "owned": [
+    4,
+    11
+   ],
+   "existing": "neutral",
+   "proposed": "malefic",
+   "maraka": false
+  },
+  {
+   "ascendant": "Capricorn",
+   "planet": "Mercury",
+   "owned": [
+    6,
+    9
+   ],
+   "existing": "mixed",
+   "proposed": "mixed",
+   "maraka": false
+  },
+  {
+   "ascendant": "Capricorn",
+   "planet": "Jupiter",
+   "owned": [
+    3,
+    12
+   ],
+   "existing": "functional-malefic",
+   "proposed": "malefic",
+   "maraka": false
+  },
+  {
+   "ascendant": "Capricorn",
+   "planet": "Venus",
+   "owned": [
+    5,
+    10
+   ],
+   "existing": "yogakaraka",
+   "proposed": "yogakaraka",
+   "maraka": false
+  },
+  {
+   "ascendant": "Capricorn",
+   "planet": "Saturn",
+   "owned": [
+    1,
+    2
+   ],
+   "existing": "functional-benefic",
+   "proposed": "lagna-lord-benefic",
+   "maraka": true
+  },
+  {
+   "ascendant": "Aquarius",
+   "planet": "Sun",
+   "owned": [
+    7
+   ],
+   "existing": "neutral",
+   "proposed": "neutral-kendradhipati",
+   "maraka": true
+  },
+  {
+   "ascendant": "Aquarius",
+   "planet": "Moon",
+   "owned": [
+    6
+   ],
+   "existing": "functional-malefic",
+   "proposed": "malefic",
+   "maraka": false
+  },
+  {
+   "ascendant": "Aquarius",
+   "planet": "Mars",
+   "owned": [
+    3,
+    10
+   ],
+   "existing": "neutral",
+   "proposed": "malefic",
+   "maraka": false
+  },
+  {
+   "ascendant": "Aquarius",
+   "planet": "Mercury",
+   "owned": [
+    5,
+    8
+   ],
+   "existing": "mixed",
+   "proposed": "mixed",
+   "maraka": false
+  },
+  {
+   "ascendant": "Aquarius",
+   "planet": "Jupiter",
+   "owned": [
+    2,
+    11
+   ],
+   "existing": "neutral",
+   "proposed": "malefic",
+   "maraka": true
+  },
+  {
+   "ascendant": "Aquarius",
+   "planet": "Venus",
+   "owned": [
+    4,
+    9
+   ],
+   "existing": "yogakaraka",
+   "proposed": "yogakaraka",
+   "maraka": false
+  },
+  {
+   "ascendant": "Aquarius",
+   "planet": "Saturn",
+   "owned": [
+    1,
+    12
+   ],
+   "existing": "mixed",
+   "proposed": "lagna-lord-benefic",
+   "maraka": false
+  },
+  {
+   "ascendant": "Pisces",
+   "planet": "Sun",
+   "owned": [
+    6
+   ],
+   "existing": "functional-malefic",
+   "proposed": "malefic",
+   "maraka": false
+  },
+  {
+   "ascendant": "Pisces",
+   "planet": "Moon",
+   "owned": [
+    5
+   ],
+   "existing": "functional-benefic",
+   "proposed": "benefic",
+   "maraka": false
+  },
+  {
+   "ascendant": "Pisces",
+   "planet": "Mars",
+   "owned": [
+    2,
+    9
+   ],
+   "existing": "functional-benefic",
+   "proposed": "benefic",
+   "maraka": true
+  },
+  {
+   "ascendant": "Pisces",
+   "planet": "Mercury",
+   "owned": [
+    4,
+    7
+   ],
+   "existing": "neutral",
+   "proposed": "neutral-kendradhipati",
+   "maraka": true
+  },
+  {
+   "ascendant": "Pisces",
+   "planet": "Jupiter",
+   "owned": [
+    1,
+    10
+   ],
+   "existing": "yogakaraka",
+   "proposed": "lagna-lord-benefic",
+   "maraka": false
+  },
+  {
+   "ascendant": "Pisces",
+   "planet": "Venus",
+   "owned": [
+    3,
+    8
+   ],
+   "existing": "functional-malefic",
+   "proposed": "malefic",
+   "maraka": false
+  },
+  {
+   "ascendant": "Pisces",
+   "planet": "Saturn",
+   "owned": [
+    11,
+    12
+   ],
+   "existing": "functional-malefic",
+   "proposed": "malefic",
+   "maraka": false
+  }
+ ],
+ "policies": [
+  {
+   "id": "own-house-lord-not-malefic-occupant",
+   "title": "A planet occupying the house it rules is not read as a malefic occupant of that house",
+   "area": "planetary-condition",
+   "technicalStatus": "validated",
+   "classicalStatus": "provisional",
+   "productionEligibility": "not-approved",
+   "shadowRole": "provisional-candidate",
+   "shadowRoleReason": "Technically validated and it resolves a contradiction between two registered engine rules on one fact and house; its classical support is secondary only.",
+   "activationRequires": "Primary-text validation (BPHS / Laghu Parashari) or qualified expert review, then an explicit production decision.",
+   "existingRule": "house.lord-placement.own-house reads the lord in its own house as protecting it (positive), while house.occupant.malefic reads the same planet in the same house as friction (negative): two registered rules make opposite claims from one fact about one house (121 incompatible claims on seed 99).",
+   "proposedInterpretation": "Where the occupant rules the house it occupies, the more specific own-house rule governs; the generic malefic-occupant item is treated as neutral (no harm counted). Its positive own-house item is unchanged and no new weight is added.",
+   "sources": [
+    {
+     "kind": "engine-rule",
+     "reference": "house.lord-placement.own-house: 'A house lord occupying its own house protects and strengthens that house.'"
+    },
+    {
+     "kind": "resolver-semantics",
+     "reference": "Rule specificity: a rule about the house's own lord is narrower than the generic natural-malefic rule for the same fact and house."
+    },
+    {
+     "kind": "secondary-commentary",
+     "reference": "BPHS-based commentary and a Tajika text (Hillaya Deepika) describe a house as strengthened by its own lord's presence or aspect; the 'even when malefic' case is not confirmed in a primary edition."
+    }
+   ],
+   "exceptions": [
+    "Applies only to the house the occupant rules; a malefic occupying another house of the area is unchanged.",
+    "Rahu and Ketu own no house and are never covered.",
+    "The upachaya branch (already positive) is unchanged."
+   ],
+   "affects": "verdicts",
+   "treatment": "neutralize-item",
+   "confidence": "medium",
+   "traditionsDisagree": false,
+   "requires": [
+    "house.lord",
+    "planet.house"
+   ]
+  },
+  {
+   "id": "lord-aspect-on-own-house",
+   "title": "Saturn's or Mars's aspect on a house it rules is not read as pressure",
+   "area": "planetary-condition",
+   "technicalStatus": "validated",
+   "classicalStatus": "provisional",
+   "productionEligibility": "not-approved",
+   "shadowRole": "what-if",
+   "shadowRoleReason": "Technically validated, but no registered engine rule contradicts the aspect rule; secondary support only.",
+   "activationRequires": "Primary-text validation (BPHS / Laghu Parashari) or qualified expert review, then an explicit production decision.",
+   "existingRule": "house.aspect.saturn-mars reads Saturn's or Mars's aspect on any non-upachaya house as pressure, including a house the aspecting planet rules.",
+   "proposedInterpretation": "Treat the aspect as neutral when the aspecting planet rules the aspected house (diagnostic what-if only).",
+   "sources": [
+    {
+     "kind": "secondary-commentary",
+     "reference": "Commentary on BPHS bhava strength names the strength of a house's own lord among its supports; a Tajika text holds a house strong when aspected by its own lord."
+    },
+    {
+     "kind": "tradition-unverified",
+     "reference": "Whether a natural malefic lord's aspect protects without also pressuring is not confirmed in a primary edition."
+    }
+   ],
+   "exceptions": [
+    "Only the house the aspecting planet rules."
+   ],
+   "affects": "verdicts",
+   "treatment": "neutralize-item",
+   "confidence": "medium",
+   "traditionsDisagree": true,
+   "requires": [
+    "house.lord",
+    "aspect",
+    "planet.house"
+   ]
+  },
+  {
+   "id": "planet-dignity-once-per-area",
+   "title": "One planet's dignity counted once per life area",
+   "area": "evidence-duplication",
+   "technicalStatus": "validated",
+   "classicalStatus": "provisional",
+   "productionEligibility": "not-approved",
+   "shadowRole": "what-if",
+   "shadowRoleReason": "Technically validated, but classically the house, its lord and its karaka are separate factors; whether one planet in two roles counts once is not settled.",
+   "activationRequires": "Primary-text validation (BPHS / Laghu Parashari) or qualified expert review, then an explicit production decision.",
+   "existingRule": "house.lord-dignity and karaka.dignity both apply dignityDirection to the same dignity fact; a planet that rules two houses of an area, or rules an area house and signifies the area, has that one reading counted two or three times.",
+   "proposedInterpretation": "Count the planet's dignity reading once per area (the strongest item), the rest neutral (diagnostic what-if only).",
+   "sources": [
+    {
+     "kind": "engine-rule",
+     "reference": "yoga.domain: 'One item per yoga name per domain: repeated formations confirm, they do not multiply.'"
+    },
+    {
+     "kind": "resolver-semantics",
+     "reference": "resolveDomain counts confirmations by independent source (confirmedBy), not by item."
+    },
+    {
+     "kind": "tradition-unverified",
+     "reference": "Bhava analysis judges the house, its lord and its karaka as separate factors; whether one planet holding two of these roles counts once or twice is not settled."
+    }
+   ],
+   "exceptions": [
+    "A period lord's condition (timing) is not a natal dignity reading and is never merged.",
+    "Different planets are never merged."
+   ],
+   "affects": "verdicts",
+   "treatment": "count-once",
+   "confidence": "medium",
+   "traditionsDisagree": true,
+   "requires": [
+    "dignity"
+   ]
+  },
+  {
+   "id": "combust-strong-dignity",
+   "title": "Combustion of a planet in exaltation, own sign or moolatrikona",
+   "area": "planetary-condition",
+   "technicalStatus": "not-implemented",
+   "classicalStatus": "unresolved",
+   "productionEligibility": "not-approved",
+   "shadowRole": "flag-only",
+   "shadowRoleReason": "No treatment is computable without a documented basis; flagged only.",
+   "activationRequires": "Primary-text validation (BPHS / Laghu Parashari) or qualified expert review, then an explicit production decision.",
+   "existingRule": "dignityDirection ignores combustion below a strong dignity (positive); planetCondition subtracts one for combustion (period capacity). The engine reads the same pair two ways.",
+   "proposedInterpretation": "None proposed: neither the size nor the direction of the effect has a documented basis.",
+   "sources": [
+    {
+     "kind": "tradition-unverified",
+     "reference": "Combustion is widely held to weaken a planet; how it interacts with exaltation or own sign is not settled across sources."
+    }
+   ],
+   "exceptions": [],
+   "affects": "verdicts",
+   "treatment": "none",
+   "confidence": "low",
+   "traditionsDisagree": true,
+   "requires": [
+    "dignity",
+    "combustion"
+   ]
+  },
+  {
+   "id": "neecha-bhanga-raja-yoga",
+   "title": "A cancelled debilitation: neutral strength, or a Raja Yoga",
+   "area": "yoga",
+   "technicalStatus": "not-implemented",
+   "classicalStatus": "unresolved",
+   "productionEligibility": "not-approved",
+   "shadowRole": "flag-only",
+   "shadowRoleReason": "No treatment is computable without a documented basis; flagged only.",
+   "activationRequires": "Primary-text validation (BPHS / Laghu Parashari) or qualified expert review, then an explicit production decision.",
+   "existingRule": "Lord/karaka dignity reads a cancelled debilitation as neutral; the Neecha Bhanga Raja Yoga item counts it as a strong positive yoga in career and leadership.",
+   "proposedInterpretation": "None proposed; the two readings answer different questions (strength restored vs yoga formed).",
+   "sources": [
+    {
+     "kind": "tradition-unverified",
+     "reference": "Texts differ on which cancellation conditions form a Raja Yoga and for which areas."
+    }
+   ],
+   "exceptions": [],
+   "affects": "verdicts",
+   "treatment": "none",
+   "confidence": "low",
+   "traditionsDisagree": true,
+   "requires": [
+    "dignity",
+    "neecha-bhanga"
+   ]
+  },
+  {
+   "id": "weak-yoga-participant",
+   "title": "A debilitated or combust participant and the yoga it forms",
+   "area": "yoga",
+   "technicalStatus": "not-implemented",
+   "classicalStatus": "unresolved",
+   "productionEligibility": "not-approved",
+   "shadowRole": "flag-only",
+   "shadowRoleReason": "No treatment is computable without a documented basis; flagged only.",
+   "activationRequires": "Primary-text validation (BPHS / Laghu Parashari) or qualified expert review, then an explicit production decision.",
+   "existingRule": "Yoga items do not read participant dignity or combustion (only dusthana placement weakens them).",
+   "proposedInterpretation": "None proposed: no documented rule says by how much a weak participant reduces a yoga.",
+   "sources": [
+    {
+     "kind": "tradition-unverified",
+     "reference": "Formation is not taken to guarantee results; the reduction for a weak participant is not quantified in a verified source."
+    }
+   ],
+   "exceptions": [],
+   "affects": "verdicts",
+   "treatment": "none",
+   "confidence": "low",
+   "traditionsDisagree": true,
+   "requires": [
+    "yoga",
+    "dignity",
+    "combustion"
+   ]
+  },
+  {
+   "id": "shared-period-direction",
+   "title": "One period capacity applied to every linked area",
+   "area": "dasha",
+   "technicalStatus": "not-implemented",
+   "classicalStatus": "unresolved",
+   "productionEligibility": "not-approved",
+   "shadowRole": "flag-only",
+   "shadowRoleReason": "No treatment is computable without a documented basis; flagged only.",
+   "activationRequires": "Primary-text validation (BPHS / Laghu Parashari) or qualified expert review, then an explicit production decision.",
+   "existingRule": "dasha.running-lord gives every linked area the same direction (planetCondition), whether the lord rules, occupies or signifies the area.",
+   "proposedInterpretation": "None proposed: an area-specific period rule would be a new formula.",
+   "sources": [
+    {
+     "kind": "tradition-unverified",
+     "reference": "Period results are classically read through the lord's houses, placement and dignity together; no verified area-by-area formula is encoded."
+    }
+   ],
+   "exceptions": [],
+   "affects": "verdicts",
+   "treatment": "none",
+   "confidence": "low",
+   "traditionsDisagree": true,
+   "requires": [
+    "dasha.running"
+   ]
+  },
+  {
+   "id": "rahu-ketu-kendra-trikona",
+   "title": "Rahu or Ketu in a kendra or trikona: malefic occupant vs well-placed period lord",
+   "area": "dasha",
+   "technicalStatus": "not-implemented",
+   "classicalStatus": "unresolved",
+   "productionEligibility": "not-approved",
+   "shadowRole": "flag-only",
+   "shadowRoleReason": "No treatment is computable without a documented basis; flagged only.",
+   "activationRequires": "Primary-text validation (BPHS / Laghu Parashari) or qualified expert review, then an explicit production decision.",
+   "existingRule": "The occupant rule reads Rahu/Ketu in a non-upachaya house as friction; planetCondition gives the period lord +1 for a kendra/trikona house.",
+   "proposedInterpretation": "None proposed; the natal and timing readings answer different questions and both are kept.",
+   "sources": [
+    {
+     "kind": "tradition-unverified",
+     "reference": "Commentaries credit nodes in kendras/trikonas with good period results in some traditions; not verified."
+    }
+   ],
+   "exceptions": [],
+   "affects": "verdicts",
+   "treatment": "none",
+   "confidence": "low",
+   "traditionsDisagree": true,
+   "requires": [
+    "planet.house",
+    "dasha.running"
+   ]
+  },
+  {
+   "id": "functional-roles-laghu-parashari",
+   "title": "Functional roles by lordship (yogakaraka, Lagna lord, 3/6/11, 8th, 2/12, Kendradhipati, maraka)",
+   "area": "functional-roles",
+   "technicalStatus": "validated",
+   "classicalStatus": "provisional",
+   "productionEligibility": "not-approved",
+   "shadowRole": "diagnostic",
+   "shadowRoleReason": "The review is computed and tested; no verdict uses functional role and remedies keep the existing logic.",
+   "activationRequires": "Primary-text validation (BPHS / Laghu Parashari) or qualified expert review, then an explicit production decision.",
+   "existingRule": "remedies.ts functionalRoles: trikona (1,5,9) vs dusthana (6,8,12) lordship; yogakaraka = first planet owning a trikona and a kendra (so a Lagna lord owning a kendra qualifies); 3rd/11th, Kendradhipati, Sun/Moon 8th exemption and marakas ignored.",
+   "proposedInterpretation": "Lagna lord benefic; yogakaraka only for a planet owning a kendra (4,7,10) and a trikona (5,9); 3rd/6th/11th lords malefic; 8th lord malefic except as Lagna lord or when the Sun or Moon; 2nd/12th lords neutral (by association); kendra-only lords neutral (Kendradhipati); 2nd/7th lords marakas. See functionalRoleReview().",
+   "sources": [
+    {
+     "kind": "secondary-commentary",
+     "reference": "Commentaries on Laghu Parashari (e.g. the O. P. Verma English commentary's sections on the 8th lord, Kendradhipatya dosha and the Sun and Moon as 8th lords): Sun and Moon exempt from the 8th-lordship blemish; Lagna lord exempt from Kendradhipati; 2nd/12th lords give results by their other sign and associations."
+    },
+    {
+     "kind": "tradition-unverified",
+     "reference": "The verses themselves were not checked in a primary edition."
+    }
+   ],
+   "exceptions": [
+    "Rahu and Ketu own no sign here.",
+    "Natural nature of the Moon depends on paksha; of Mercury on association."
+   ],
+   "affects": "remedies-only",
+   "treatment": "none",
+   "confidence": "medium",
+   "traditionsDisagree": true,
+   "requires": [
+    "house.lord"
+   ]
+  }
+ ]
+}
