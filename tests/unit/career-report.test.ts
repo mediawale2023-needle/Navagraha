@@ -245,6 +245,9 @@ describe('Career report generation (AI mocked): three parts, partial regeneratio
       expect(p).toMatch(/what does the chart show, why does it show this .* what does it mean for this person's working life/);
       expect(p).toMatch(/word range is a guide to depth, not a quota/);
       expect(p).toMatch(/Use only the birth details and calculated chart data below/);
+      expect(p).toMatch(/CAREER EVIDENCE as a closed fact list/);
+      expect(p).toMatch(/never calculate, infer, combine or "correct" a placement/);
+      expect(p).toMatch(/supporting indicator and one opposing or limiting indicator/);
       expect(p).toMatch(/Other parts, written separately, cover/);
       expect(p).not.toMatch(/include a gemstone/);
     }
@@ -289,9 +292,12 @@ describe('Career report generation (AI mocked): three parts, partial regeneratio
       for (const other of Object.keys(failing).filter((x) => x !== h)) expect(p).not.toContain(`- "${other}":`);
       expect(p).toContain(`- "${h}": `);
       expect(p).toMatch(/opposing or limiting indicators[\s\S]*practical conclusion/);
+      expect(p).toMatch(/every listed rejection reason as a mandatory checklist/);
+      expect(p).toMatch(/Remove any planet, sign, house, dignity, lordship, D10 placement or date that the evidence does not state/);
     }
     expect(retries.find((p) => headingsIn(p)[0] === 'Career Timeline (Dasha Periods)')).toMatch(/generic statement with no chart evidence/);
     expect(retries.find((p) => headingsIn(p)[0] === 'Dasamsa (D10) Analysis')).toMatch(/too short/);
+    expect(retries.find((p) => headingsIn(p)[0] === 'Dasamsa (D10) Analysis')).toMatch(/D10 Lagna depends on an accurate birth time/);
     // Each regeneration has the part's full output allowance.
     expect(ai.maxTokens.slice(3)).toEqual(retries.map(() => 4000));
     expect(content.sections.map((x: any) => x.heading)).toEqual(CAREER_SECTIONS.map((x) => x.heading));

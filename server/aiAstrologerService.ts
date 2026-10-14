@@ -573,7 +573,10 @@ const CAREER_WRITING = `HOW TO WRITE (the reader knows nothing about astrology):
 
 CHART RULES (these override any other instruction):
 - Build every claim on the CAREER EVIDENCE block, naming the facts you use. Where the evidence is mixed or missing, say so plainly.
+- Treat CAREER EVIDENCE as a closed fact list. Copy every planet's sign, house, dignity, lordship and D10 placement exactly from it; never calculate, infer, combine or "correct" a placement. If a placement is not stated there, omit it.
+- In every core section explicitly identify at least one supporting indicator and one opposing or limiting indicator from CAREER EVIDENCE before giving the practical conclusion. If the evidence provides no opposing indicator, say that limitation plainly instead of inventing one.
 - In any sentence that mentions a divisional chart, name the chart for every placement ("in the D1 ...", "in the D10 ..."). Never state a D10 degree.
+- In "Dasamsa (D10) Analysis", reproduce the CAREER EVIDENCE birth-time sensitivity accurately and explicitly say that the D10 Lagna depends on an accurate birth time; never omit this caveat.
 - Yogas: only those listed, each with its rule, how this chart meets it, its limits and its career link. Call a cancelled debilitation a Neecha Bhanga (cancelled debilitation), not a separate Raja Yoga.
 - Professional fields: discuss only those the evidence marks "well supported" or "mixed", with their facts; a "weakly supported" field only as less indicated.
 - Periods: the engine's dates only; describe tendencies, never guaranteed outcomes.
@@ -622,8 +625,11 @@ export function careerCorrectionNote(rejected: Array<{ heading: string; problems
   return `${correctionNote(rejected)}
 
 How to fix them — rewrite each listed section in full:
+- Treat every listed rejection reason as a mandatory checklist: make a specific correction for each one before returning the section.
 - Base every point on named chart evidence from the CAREER EVIDENCE (a planet with its sign, house, lordship or dignity, a D10 placement, the 10th house bindus, or a running period). Remove every generic statement, or rewrite it so the same sentence names the chart fact behind it.
-- Give the supporting indicators and the opposing or limiting indicators, and say what each means for work.
+- Copy placements exactly from CAREER EVIDENCE. Remove any planet, sign, house, dignity, lordship, D10 placement or date that the evidence does not state; never infer a replacement.
+- Explicitly label or clearly state the supporting indicators and the opposing or limiting indicators, and say what each means for work. If none is supplied, say so rather than inventing one.
+- For a rejected D10 caveat, explicitly state that the D10 Lagna depends on an accurate birth time and reproduce the sensitivity given in CAREER EVIDENCE.
 - End with a practical conclusion that follows from that evidence.
 - If a section was too short, add evidence the section has not used yet — never filler, repetition or general advice.
 - Keep every fact exactly as the evidence states it.`;
