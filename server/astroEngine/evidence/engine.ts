@@ -17,6 +17,8 @@ import { savReading, SAV_RULE } from '@shared/v3/ashtakavargaPolicy';
 import { signDignity } from '../dignity.js';
 import { rajaYogaUnions } from '../yogas.js';
 import { vimshottariDasha } from '../dasha.js';
+import { siderealPositions } from '../canonical/compute.js';
+import { wallClockOffsets } from '../birthResolver.js';
 import { birthDayStability, dignityStatementStable, yogaTimeStable, type BirthDayStability } from '../canonical/birthDay.js';
 import { fact } from '../reasoning/facts.js';
 import { attachEvidenceMetadata, type Dependency } from '../reasoning/evidenceMetadata.js';
@@ -534,35 +536,63 @@ export function runningPeriod(chart: CanonicalChart, asOf: Date): RunningPeriod 
   return { mahadasha: maha.lord, antardasha: antar?.lord ?? null, mahaStart: maha.start, mahaEnd: maha.end, antarStart: antar?.start, antarEnd: antar?.end };
 }
 
+const birthDateCache = new WeakMap<CanonicalChart, { dayStart: number; dayEnd: number } | null>();
+
+/**
+ * The first and last instant of the local birth date: the earliest instant at which the wall clock
+ * read 00:00:00 and the latest at which it read 23:59:59, among the offsets the resolver itself
+ * considers (a repeated hour gives two instants, a 48-hour date two days apart). A reading the clock
+ * skipped takes the widest of those offsets, so the interval can run long but never misses an
+ * instant of the date. Null when the zone cannot be read.
+ */
+export function localBirthDate(chart: CanonicalChart): { dayStart: number; dayEnd: number } | null {
+  if (birthDateCache.has(chart)) return birthDateCache.get(chart)!;
+  const { timezone, localDate, utcOffsetSeconds } = chart.birth;
+  const midnight = Date.parse(`${localDate}T00:00:00Z`);
+  const instants = (wallMs: number) => {
+    const { candidates, valid } = wallClockOffsets(wallMs, timezone);
+    return (valid.length ? valid : Array.from(new Set([utcOffsetSeconds, ...candidates]))).map((o) => wallMs - o * 1000);
+  };
+  let bounds: { dayStart: number; dayEnd: number } | null;
+  try {
+    bounds = { dayStart: Math.min(...instants(midnight)), dayEnd: Math.max(...instants(midnight + 86_399_000)) };
+  } catch {
+    bounds = null;
+  }
+  birthDateCache.set(chart, bounds);
+  return bounds;
+}
+
 /**
  * With an approximate birth time, is the period running on `asOf` the same for every
- * possible birth moment on the birth date? Moon longitude is advanced linearly at its
- * birth speed (error < 0.1° within a day) and the Vimshottari calendar recomputed.
+ * possible birth moment on the local birth date?
+ *
+ * The running period only moves forward as the birth moment moves later: a later birth puts the
+ * Moon further through its nakshatra, which advances the Vimshottari cycle by at least ~5 years per
+ * day (the Moon covers at least 11.7° a day and every nakshatra is worth at least 6 years), while
+ * one day spans at most ~23 years of the 120-year cycle. So the Mahadasha (and the Antardasha) is
+ * the same for every moment of the day exactly when it is the same at the day's first and last
+ * instant. Both ends use the Moon as Swiss Ephemeris gives it there, not an extrapolation from the
+ * placeholder time, so the answer does not depend on which placeholder was stored.
  */
 export function dashaTimingStable(chart: CanonicalChart, asOf: Date): { mahadasha: boolean; antardasha: boolean } {
   if (chart.birth.timeAccuracy !== 'approximate') return { mahadasha: true, antardasha: true };
-  const moon = chart.planets.find((p) => p.name === 'Moon')!;
-  const birthMs = Date.parse(chart.birth.birthUTC);
-  const [hh, mm, ss] = chart.birth.localTime.split(':').map(Number);
-  const sinceMidnightH = hh + mm / 60 + ss / 3600;
   const t = asOf.getTime();
-  const running = (deltaH: number) => {
-    const v = vimshottariDasha(moon.longitude + moon.speed * deltaH / 24, new Date(birthMs + deltaH * 3_600_000));
+  const running = (moonLongitude: number, birthMs: number) => {
+    const v = vimshottariDasha(moonLongitude, new Date(birthMs));
     const maha = v.mahadashas.find((m) => Date.parse(m.start) <= t && t < Date.parse(m.end));
     const antar = maha?.antardashas.find((a) => Date.parse(a.start) <= t && t < Date.parse(a.end));
     return { maha: maha?.lord ?? null, antar: antar?.lord ?? null };
   };
-  const nominal = running(0);
-  let mahadasha = true, antardasha = true;
-  // Every hour across the local birth date, plus its two ends.
-  const offsets = [-sinceMidnightH, 24 - sinceMidnightH - 1 / 3600];
-  for (let h = Math.ceil(-sinceMidnightH); h < 24 - sinceMidnightH; h++) offsets.push(h);
-  for (const d of offsets) {
-    const r = running(d);
-    if (r.maha !== nominal.maha) mahadasha = false;
-    if (r.maha !== nominal.maha || r.antar !== nominal.antar) antardasha = false;
-  }
-  return { mahadasha, antardasha };
+  const day = localBirthDate(chart);
+  if (!day) return { mahadasha: false, antardasha: false };
+  const moon = chart.planets.find((p) => p.name === 'Moon')!;
+  const nominal = running(moon.longitude, Date.parse(chart.birth.birthUTC));
+  const ends = [day.dayStart, day.dayEnd].map((ms) => running(siderealPositions(new Date(ms)).bodies.Moon.longitude, ms));
+  // The calendar lists one 120-year cycle, so asOf can fall outside it for part of the date (births
+  // about 100-120 years earlier): no period is then established, and none is vouched for.
+  const mahadasha = nominal.maha !== null && ends.every((e) => e.maha === nominal.maha);
+  return { mahadasha, antardasha: mahadasha && nominal.antar !== null && ends.every((e) => e.antar === nominal.antar) };
 }
 
 /** Timing evidence: how the running Mahadasha/Antardasha lords engage a domain as of `asOf`. */
