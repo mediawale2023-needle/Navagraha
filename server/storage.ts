@@ -2021,9 +2021,12 @@ export class DatabaseStorage implements IStorage {
         sql`coalesce(${reportOrders.subjectName}, '') = ${data.subjectName ?? ""}`,
       )).limit(1);
       if (inProgress) return { refused: "duplicate" as const, order: inProgress };
-      if (free) {
+            if (free) {
         const [{ n }] = await tx.select({ n: sql<number>`count(*)::int` }).from(reportOrders).where(and(
-          eq(reportOrders.userId, data.userId), sql`${reportOrders.chargedAmount} = 0`, sql`${reportOrders.createdAt} > now() - interval '1 day'`,
+          eq(reportOrders.userId, data.userId),
+          sql`${reportOrders.chargedAmount} = 0`,
+          sql`${reportOrders.createdAt} > now() - interval '1 day'`,
+          inArray(reportOrders.status, ["ready", "processing"]),
         ));
         if (n >= FREE_ACCESS_REPORTS_PER_DAY) return { refused: "free_daily_limit" as const };
       }
