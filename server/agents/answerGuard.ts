@@ -7,6 +7,7 @@
  */
 import { SIGN_NAMES, type CanonicalChart, type Graha } from '@shared/v3/canonical';
 import { NAKSHATRAS } from '../astroEngine/vedic.js';
+import { signDignity } from '../astroEngine/dignity.js';
 import { birthDayStability, yogaTimeStable } from '../astroEngine/canonical/birthDay.js';
 import { buildInsights } from '../astroEngine/evidence/insights.js';
 import { DOMAIN_LABELS, type LifeDomain, type Verdict } from '@shared/v3/evidence';
@@ -228,6 +229,14 @@ const matchesDate = (iso: string, c: Claim) => {
   return c.month === null ? year === c.year : Math.abs(year * 12 + month - (c.year * 12 + c.month)) <= 1;
 };
 
+// A sentence that names a divisional chart may state that chart's placements: a claim there is accepted when it is
+// true in the D1 chart or in the divisional chart it names, and rejected only when it is true in neither.
+const VARGA_NAMES: Array<[RegExp, keyof CanonicalChart['vargas']]> = [
+  [/\b(navamsa|navamsha|navansh|d-?9)\b/i, 'D9'], [/\b(dasamsa|dashamsha|dasamsha|d-?10)\b/i, 'D10'], [/\b(shashtiamsa|d-?60)\b/i, 'D60'],
+  [/\b(saptamsa|saptamsha|d-?7)\b/i, 'D7'], [/\b(drekkana|drekkan|d-?3)\b/i, 'D3'], [/\b(chaturthamsa|chaturthamsha|d-?4)\b/i, 'D4'], [/\b(dwadasamsa|dwadashamsha|d-?12)\b/i, 'D12'],
+];
+const vargasNamed = (s: string) => VARGA_NAMES.filter(([re]) => re.test(s)).map(([, d]) => d);
+
 // ── The validator ────────────────────────────────────────────────────────────
 
 export function validateAnswer(answer: string, ctx: GuardContext): string[] {
@@ -243,13 +252,15 @@ export function validateAnswer(answer: string, ctx: GuardContext): string[] {
 
   for (const s of sentences(answer)) {
     const transitSentence = TRANSIT_CONTEXT.test(s) && !/\b(birth|natal|born|chart)\b/i.test(s);
+    const vargas = approx ? [] : vargasNamed(s).filter((d) => chart.vargas[d]);
+    const inVarga = (g: Graha) => vargas.map((d) => chart.vargas[d].placements.find((p) => p.planet === g)!).filter(Boolean);
 
     // Planet in sign (natal). Transit sentences are about the sky today, not the chart.
     if (!transitSentence) {
       for (const m of Array.from(s.matchAll(new RegExp(`\\b${PLANET}\\b(?:['’]s)?\\s+(?:is\\s+|sits\\s+|placed\\s+|posited\\s+|located\\s+|was\\s+)?(?:in|into)\\s+(?:the\\s+sign\\s+(?:of\\s+)?)?${SIGN}\\b`, 'gi')))) {
         const g = planetOf(m[1]); const claimed = cap(m[2]);
         if (approx && !st.planets[g].sign) { if (!negatedBefore(s, m.index!)) issues.push(`${g}'s sign is uncertain: it changes during the birth date and the birth time is approximate`); continue; }
-        if (planet(g).sign !== claimed && !negatedBefore(s, m.index!)) issues.push(`${g} is in ${planet(g).sign}, not ${claimed}`);
+        if (planet(g).sign !== claimed && !inVarga(g).some((v) => v.sign === claimed) && !negatedBefore(s, m.index!)) issues.push(`${g} is in ${planet(g).sign}${vargas.length ? ` (${inVarga(g).map((v, i) => `${vargas[i]} ${v.sign}`).join(', ')})` : ''}, not ${claimed}`);
       }
     }
 
@@ -279,9 +290,9 @@ export function validateAnswer(answer: string, ctx: GuardContext): string[] {
     } else if (!transitSentence) {
       for (const m of houseMatches) {
         const g = planetOf(m[1]);
-        if (planet(g).house !== Number(m[2])) issues.push(`${g} is in the ${ORD(planet(g).house)} house, not the ${ORD(Number(m[2]))}`);
+        if (planet(g).house !== Number(m[2]) && !inVarga(g).some((v) => v.house === Number(m[2]))) issues.push(`${g} is in the ${ORD(planet(g).house)} house, not the ${ORD(Number(m[2]))}`);
       }
-      if (lagnaClaim && cap(lagnaClaim[1]) !== chart.ascendant.sign) issues.push(`the Lagna is ${chart.ascendant.sign}, not ${cap(lagnaClaim[1])}`);
+      if (lagnaClaim && cap(lagnaClaim[1]) !== chart.ascendant.sign && !vargas.some((d) => SIGN_NAMES[chart.vargas[d].ascendantSignIndex] === cap(lagnaClaim[1]))) issues.push(`the Lagna is ${chart.ascendant.sign}, not ${cap(lagnaClaim[1])}`);
     }
 
     // Nakshatra.
@@ -316,8 +327,11 @@ export function validateAnswer(answer: string, ctx: GuardContext): string[] {
         else if (what === 'debilitated') actual = dignity(g)?.dignity === 'Debilitated';
         else if (what === 'combust') actual = dignity(g)?.combust === true;
         else actual = dignity(g)?.dignity === 'Own sign' || dignity(g)?.dignity === 'Moolatrikona';
+        // In a sentence about a divisional chart, the planet's dignity by its sign there also counts.
+        const vargaDignity = (g === 'Rahu' || g === 'Ketu') ? [] : inVarga(g).map((v) => signDignity(g, v.signIndex));
+        const inVargaState = vargaDignity.map((d) => what === 'exalted' ? d === 'Exalted' : what === 'debilitated' ? d === 'Debilitated' : what === 'combust' || what === 'retrograde' ? null : d === 'Own sign');
         if (actual === null) { if (!negated) issues.push(`no ${what} status is calculated for ${g}`); }
-        else if (actual === negated) issues.push(`${g} is ${actual ? '' : 'not '}${what}`);
+        else if (actual === negated && !inVargaState.some((x) => x !== null && x !== negated)) issues.push(`${g} is ${actual ? '' : 'not '}${what}`);
       }
     }
 
