@@ -82,8 +82,9 @@ export function careerBrief(kundli: any, asOf = new Date()): CareerBrief | null 
   const cd = kundli?.chartData ?? {};
   const chart = cd.canonical as CanonicalChart | undefined;
   if (!isCurrentCanonicalChart(chart) || chart.birth.timeAccuracy !== 'exact') return null;
-  const houseLords: any[] = cd.bhava?.houseLords ?? [];
-  const aspects: any[] = cd.bhava?.aspects ?? [];
+  // Use one authority. Legacy projections may predate a canonical chart upgrade.
+  const houseLords = chart.houses;
+  const aspects = chart.aspects;
   const dig = new Map<string, any>((chart.strength.dignities as any[]).map((d) => [d.planet, d]));
   const planet = (g: string) => chart.planets.find((p) => p.name === g)!;
   const lordOf = (h: number) => houseLords.find((x) => x.house === h);
@@ -93,10 +94,10 @@ export function careerBrief(kundli: any, asOf = new Date()): CareerBrief | null 
   const d10Sign = (h: number) => (d10.ascendantSignIndex + h - 1) % 12;
   const sav: number[] = chart.strength.ashtakavarga.savByHouse;
   const today = asOf.toISOString().slice(0, 10);
-  const running = (x: any) => x?.startDate && x?.endDate && x.startDate <= today && today < x.endDate;
+  const running = (x: { start: string; end: string }) => x.start.slice(0, 10) <= today && today < x.end.slice(0, 10);
 
   const tenth = lordOf(10);
-  if (!tenth || !Array.isArray(kundli.dashas)) return null;
+  if (!tenth) return null;
   const tenthLord = tenth.lord as Graha;
   const occupants = (h: number) => chart.planets.filter((p) => p.house === h).map((p) => p.name);
   const aspecting10 = aspects.filter((a) => a.aspectsHouses?.includes(10)).map((a) => a.planet as string);
@@ -114,10 +115,11 @@ export function careerBrief(kundli: any, asOf = new Date()): CareerBrief | null 
   const sameSign = chart.planets.filter((p) => d10Of(p.name).signIndex === p.signIndex).map((p) => p.name);
   const window = d10LagnaWindow(chart);
 
-  const md = kundli.dashas.find(running);
-  const ad = md?.antardashas?.find(running);
-  const nextAds = (md?.antardashas ?? []).filter((a: any) => a.startDate > today);
-  const nextMd = kundli.dashas.find((d: any) => d.startDate >= (md?.endDate ?? '9999'));
+  const periods = chart.dashas.vimshottari.mahadashas;
+  const md = periods.find(running);
+  const ad = md?.antardashas.find(running);
+  const nextAds = (md?.antardashas ?? []).filter((x) => x.start.slice(0, 10) > today);
+  const nextMd = periods.find((x) => x.start >= (md?.end ?? '9999'));
 
   const yogaLines = chart.yogas.map((y) => yogaLine(y, chart, { tenthLord, d10LagnaLord, d10TenthLord, karakas, aspecting10, houseLords }));
 
@@ -169,28 +171,28 @@ export function careerBrief(kundli: any, asOf = new Date()): CareerBrief | null 
   L.push('', 'Professional fields (traditional significators and houses, tallied from the facts above; discuss "well supported" and "mixed" fields with these facts, and mention a "weakly supported" field only as less indicated, with its reason):');
   for (const r of fieldRows) L.push(`- ${r.label} [${r.rating}] — significators ${listOf(r.fd.planets)}, houses ${listOf(r.fd.houses.map(ord))}; for: ${r.plus.length ? r.plus.join('; ') : 'none'}; against: ${r.minus.length ? r.minus.join('; ') : 'none'}.`);
   L.push('', 'Vimshottari periods (engine dates; use no other dates):');
-  if (md) L.push(`- Current Mahadasha: ${describe(md.planet)}; runs ${md.startDate} to ${md.endDate}.`);
-  if (ad) L.push(`- Current Antardasha: ${ad.planet} (${ad.startDate} to ${ad.endDate}); ${ad.planet === md?.planet ? 'the same lord as the Mahadasha.' : describe(ad.planet) + '.'}`);
+  if (md) L.push(`- Current Mahadasha: ${describe(md.lord)}; runs ${md.start.slice(0, 10)} to ${md.end.slice(0, 10)}.`);
+  if (ad) L.push(`- Current Antardasha: ${ad.lord} (${ad.start.slice(0, 10)} to ${ad.end.slice(0, 10)}); ${ad.lord === md?.lord ? 'the same lord as the Mahadasha.' : describe(ad.lord) + '.'}`);
   if (!ad) L.push('- Current Antardasha: not available from the engine; do not name one.');
-  for (const a of nextAds.slice(0, 2)) L.push(`- Next Antardasha: ${a.planet} (${a.startDate} to ${a.endDate}); ${describe(a.planet)}.`);
-  if (nextMd) L.push(`- Next Mahadasha: ${nextMd.planet} (${nextMd.startDate} to ${nextMd.endDate}); ${describe(nextMd.planet)}.`);
+  for (const a of nextAds.slice(0, 2)) L.push(`- Next Antardasha: ${a.lord} (${a.start.slice(0, 10)} to ${a.end.slice(0, 10)}); ${describe(a.lord)}.`);
+  if (nextMd) L.push(`- Next Mahadasha: ${nextMd.lord} (${nextMd.start.slice(0, 10)} to ${nextMd.end.slice(0, 10)}); ${describe(nextMd.lord)}.`);
   L.push('', 'Yogas detected by the engine (name no other yoga; describe each with its rule, how it is met and its limits):');
   L.push(...(yogaLines.length ? yogaLines : ['- none']));
-  L.push('', 'Remedies: optional practices only; no gemstone; only for these planets, each with its reason from the facts above: ' + listOf(remedyPlanetsOf({ tenthLord, d10LagnaLord, d10TenthLord, md: md?.planet, ad: ad?.planet, karakas })) + '.');
+  L.push('', 'Remedies: optional practices only; no gemstone; only for these planets, each with its reason from the facts above: ' + listOf(remedyPlanetsOf({ tenthLord, d10LagnaLord, d10TenthLord, md: md?.lord, ad: ad?.lord, karakas })) + '.');
 
   return {
     text: L.join('\n'),
     facts: {
       tenthLord, tenthSign: tenth.sign, d10LagnaSign: SIGN_NAMES[d10.ascendantSignIndex], d10LagnaLord,
-      d10TenthSign: SIGN_NAMES[d10Sign(10)], d10TenthLord, mahadasha: md?.planet ?? null, antardasha: ad?.planet ?? null,
-      remedyPlanets: remedyPlanetsOf({ tenthLord, d10LagnaLord, d10TenthLord, md: md?.planet, ad: ad?.planet, karakas }),
+      d10TenthSign: SIGN_NAMES[d10Sign(10)], d10TenthLord, mahadasha: md?.lord ?? null, antardasha: ad?.lord ?? null,
+      remedyPlanets: remedyPlanetsOf({ tenthLord, d10LagnaLord, d10TenthLord, md: md?.lord, ad: ad?.lord, karakas }),
       yogaNames: chart.yogas.map((y) => y.name),
       yogaFamilies: chart.yogas.some((y) => y.category === 'Mahapurusha') ? ['Pancha Mahapurusha Yoga', 'Mahapurusha Yoga'] : [],
       fields: fieldRows.map((r) => ({ id: r.id, label: r.label, rating: r.rating })),
       careerYogas: chart.yogas.filter((_, i) => !/no direct link/.test(yogaLines[i])).map((y) => y.name),
-      nextAntardasha: nextAds[0]?.planet ?? null,
+      nextAntardasha: nextAds[0]?.lord ?? null,
       d10Sensitive: (window.earlier ?? 61) <= 10 || (window.later ?? 61) <= 10,
-      periodDates: [md?.startDate, md?.endDate, ad?.startDate, ad?.endDate, ...nextAds.slice(0, 2).flatMap((a: any) => [a.startDate, a.endDate]), nextMd?.startDate, nextMd?.endDate].filter(Boolean),
+      periodDates: [md?.start, md?.end, ad?.start, ad?.end, ...nextAds.slice(0, 2).flatMap((a) => [a.start, a.end]), nextMd?.start, nextMd?.end].filter(Boolean).map((x) => x!.slice(0, 10)),
     },
   };
 }

@@ -14,7 +14,7 @@ vi.mock('openai', () => ({
 import { getKundli } from '../../server/astroEngine';
 import { computeCanonicalChart } from '../../server/astroEngine/canonical/compute';
 import { resolveBirthWithCoordinates } from '../../server/astroEngine/birthResolver';
-import { careerCorrectionNote, generateReport } from '../../server/aiAstrologerService';
+import { careerCorrectionNote, generateReport, MAX_CAREER_REGENERATIONS } from '../../server/aiAstrologerService';
 import { CAREER_BATCHES, CAREER_SECTIONS, FIELDS, careerBrief, careerRemedies, careerReportProblems, careerSectionProblems, type CareerFacts } from '../../server/careerReport';
 
 const ASOF = new Date('2026-10-14T06:00:00Z');
@@ -110,6 +110,23 @@ describe('career evidence (deterministic)', () => {
   it('is not built for an approximate birth time', async () => {
     const a = await getKundli('1991-11-13', '12:30', 15.8497, 74.4977, { timeAccuracy: 'approximate' });
     expect(careerBrief(a)).toBeNull();
+  });
+
+  it('uses canonical D10 placements and dashas when legacy projections conflict', () => {
+    const stale = structuredClone(k);
+    const d10 = stale.chartData.canonical.vargas.D10.placements;
+    Object.assign(d10.find((p: any) => p.planet === 'Jupiter'), { sign: 'Leo', signIndex: 4 });
+    Object.assign(d10.find((p: any) => p.planet === 'Venus'), { sign: 'Virgo', signIndex: 5 });
+    stale.chartData.dasamsa = { planetaryPositions: [{ planet: 'Jupiter', sign: 'Capricorn', house: 1 }, { planet: 'Venus', sign: 'Leo', house: 2 }] };
+    stale.dashas = structuredClone(k.dashas);
+    const legacySaturn = stale.dashas.flatMap((m: any) => m.antardashas ?? []).find((a: any) => a.planet === 'Saturn');
+    if (legacySaturn) legacySaturn.startDate = '2029-01-01';
+    const b = careerBrief(stale, ASOF)!;
+    expect(b.text).toMatch(/Jupiter:.*in D10 Leo/);
+    expect(b.text).toMatch(/Venus:.*in D10 Virgo/);
+    expect(b.text).not.toContain('Jupiter: Capricorn, D10 1st house');
+    expect(b.text).toContain('Next Antardasha: Saturn (2027-01-21');
+    expect(b.text).not.toContain('Saturn (2029-01-01');
   });
 });
 
@@ -248,6 +265,7 @@ describe('Career report generation (AI mocked): three parts, partial regeneratio
       expect(p).toMatch(/CAREER EVIDENCE as a closed fact list/);
       expect(p).toMatch(/never calculate, infer, combine or "correct" a placement/);
       expect(p).toMatch(/supporting indicator and one opposing or limiting indicator/);
+      expect(p).toMatch(/Supporting indicators.*Opposing or limiting indicators.*Practical conclusion/);
       expect(p).toMatch(/Other parts, written separately, cover/);
       expect(p).not.toMatch(/include a gemstone/);
     }
@@ -307,6 +325,33 @@ describe('Career report generation (AI mocked): three parts, partial regeneratio
     ai.respond.mockImplementation((p) => goodReply(p, facts, (h) => (h === 'Career Yogas' || h === 'Job vs Business' ? 'Too short.' : undefined)));
     await expect(generateReport('career', k)).rejects.toThrow(/Career Yogas: too short.*Job vs Business: too short|Job vs Business: too short.*Career Yogas: too short/);
     expect(ai.respond).toHaveBeenCalledTimes(5);
+  });
+
+  it('targets the production placement, timing, field and balance failures in seven calls', async () => {
+    const prompts: string[] = [];
+    ai.respond.mockImplementation((p) => {
+      prompts.push(p);
+      if (prompts.length > 3) return goodReply(p, facts);
+      return goodReply(p, facts, (h) => {
+        if (h === 'Dasamsa (D10) Analysis') return `${careerBody(h, facts)} In the D10, Jupiter is in Leo and Venus is in Leo.`;
+        if (h === 'Suitable Professional Fields') return `${careerBody(h, facts)} Administration, government and institutional roles, business and entrepreneurship, finance and management, and communication and public-facing professions are recommended.`;
+        if (h === 'Career Timeline (Dasha Periods)') return `${careerBody(h, facts)} Saturn Antardasha begins in 2029.`;
+        if (h === 'Strengths, Challenges & Practical Guidance') return `Saturn in the 1st house shapes work. ${Array.from({ length: 45 }, (_, i) => `Jupiter house ${i} shapes a career factor.`).join(' ')}`;
+      });
+    });
+    await generateReport('career', k);
+    expect(ai.respond).toHaveBeenCalledTimes(7);
+    const retries = prompts.slice(3).join('\n');
+    expect(retries).toMatch(/Jupiter is in .*D10, not Leo/);
+    expect(retries).toMatch(/Saturn Antardasha begins in .*not 2029/);
+    expect(retries).toMatch(/without the chart facts|supports only weakly/);
+    expect(retries).toMatch(/weigh the indicators for and against/);
+  });
+
+  it('fails before section retries when a draft exceeds the regeneration cap', async () => {
+    ai.respond.mockImplementation((p) => goodReply(p, facts, () => 'Too short.'));
+    await expect(generateReport('career', k)).rejects.toThrow(`maximum ${MAX_CAREER_REGENERATIONS}`);
+    expect(ai.respond).toHaveBeenCalledTimes(3);
   });
 
   it('a repeated paragraph across parts regenerates only the later section', async () => {

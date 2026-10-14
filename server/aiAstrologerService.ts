@@ -590,11 +590,16 @@ async function careerBatch(batch: typeof CAREER_BATCHES[number], sections: typeo
     `"sections": [${sections.map((x) => `{"heading": "${x.heading}", "body": "..."}`).join(", ")}]`,
     opts.remedies ? `"remedies": ["3-5 optional practices (a mantra with its repetition count, a charity, or conduct), each for one planet named in the CAREER EVIDENCE Remedies line and stating its reason from the chart; no gemstone"]` : "",
   ].filter(Boolean).join(",\n  ");
+  const fieldContract = sections.some((x) => x.heading === "Suitable Professional Fields")
+    ? `\nFor "Suitable Professional Fields", recommend only fields marked "well supported" or "mixed" in CAREER EVIDENCE and name their supplied for/against facts. Fields marked "weakly supported" may appear only as less indicated, never as recommendations.`
+    : "";
   const prompt = `You are an experienced Vedic astrologer writing one part of a paid, personalised "Career & Profession Report". Other parts, written separately, cover ${others}; do not cover their content.
 
 ${CAREER_WRITING}
 
-${disciplineFor(kundli)}
+${disciplineFor(kundli)}${fieldContract}
+
+For every core section use this reasoning order: "Supporting indicators", "Opposing or limiting indicators", then "Practical conclusion". Do not reach the conclusion before both evidence sides are stated.
 
 Write these sections, in this order:
 ${sections.map((x) => `- "${x.heading}" (about ${x.words[0]}–${x.words[1]} words): ${x.brief}`).join("\n")}
@@ -635,12 +640,17 @@ How to fix them — rewrite each listed section in full:
 - Keep every fact exactly as the evidence states it.`;
 }
 
+/** A broadly invalid first draft is not worth one expensive call per section. */
+export const MAX_CAREER_REGENERATIONS = 5;
+
 async function generateCareerReport(kundli: Partial<Kundli>, asOf: Date): Promise<GeneratedReport> {
   const career = careerBrief(kundli, asOf);
   if (!career) throw new ReportGenerationError("the career evidence could not be read from this chart");
   // The career evidence (its period dates included) is part of the facts the guard checks claims against.
   const guard = reportGuard(kundli, undefined, career.text);
-  const chart = `${chartSummary(kundli)}${reportGroundingFor(kundli)}\n\n${career.text}`;
+  // The canonical Career brief is the sole prompt authority. Legacy summary projections can
+  // contain stale D10 placements or dashas after a stored chart has been upgraded.
+  const chart = career.text;
   const done = new Map<string, Section>();
   let summary = "";
   let remedies: string[] = [];
@@ -667,6 +677,10 @@ async function generateCareerReport(kundli: Partial<Kundli>, asOf: Date): Promis
 
   await Promise.all(CAREER_BATCHES.map((b) => run(b, b.sections, { summary: b.summary, remedies: b.remedies })));
   crossCheck();
+  const retryCount = CAREER_BATCHES.reduce((n, b) => n + b.sections.filter((x) => problems.has(x.heading)).length, problems.has("summary") ? 1 : 0);
+  if (retryCount > MAX_CAREER_REGENERATIONS) {
+    throw new ReportGenerationError(`report failed the quality check: ${retryCount} sections need regeneration (maximum ${MAX_CAREER_REGENERATIONS})`);
+  }
   // One regeneration per failed section (and summary), each call given only that section's own problems and the
   // part's full output allowance; passed sections are kept. Parts run in parallel, a part's sections one at a time.
   await Promise.all(CAREER_BATCHES.map(async (b) => {
