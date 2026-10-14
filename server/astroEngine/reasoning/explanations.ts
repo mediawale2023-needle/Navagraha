@@ -85,7 +85,7 @@ function planetExplanation(p: ContextPlanet, ctx: InterpretationContext): Planet
 
 const NON_CONTRIBUTION: Record<string, string> = {
   'common-experimental': 'It is a common combination, so it is shown for context but not counted in any assessment.',
-  cancelled: 'It is cancelled in this chart, so it does not count in any assessment.',
+  cancelled: 'Because it is cancelled, it does not count in any assessment.',
   'counted-under-another-formation': 'Another formation of the same yoga already counts in the same areas.',
   'not-usable': 'It depends on details the birth time cannot support, so it is not used.',
   'neutral-evidence': 'Its reading is neutral, so it does not weigh in any assessment.',
@@ -101,9 +101,12 @@ function yogaExplanation(y: ContextYoga): YogaExplanation {
     : '';
   return {
     id: y.id, name: y.name,
-    formation: y.cancelled ? `${y.name} is detected but cancelled in this chart.` : `${y.name} is formed by ${list([...y.participants])}.`,
+    // Formation, cancellation, contribution and effectiveness are each stated once, in that order.
+    formation: `${y.name} is formed${y.participants.length ? ` by ${list([...y.participants])}` : ''}${y.cancelled ? ', and a condition that cancels it is also present in this chart' : ''}.`,
     contribution: y.contributesTo.length ? `It counts toward your ${list(y.contributesTo.map(areaName))} assessment${y.contributesTo.length > 1 ? 's' : ''}.` : NON_CONTRIBUTION[y.nonContribution ?? 'no-area-mapped'],
-    effectiveness: `Whether it gives its full traditional result is not assessed: a formed yoga describes a potential, not a guarantee.${challenged}`,
+    effectiveness: y.cancelled
+      ? `Whether any of its traditional result remains is not assessed.${challenged}`
+      : `Whether it gives its full traditional result is not assessed: a formed yoga describes a potential, not a guarantee.${challenged}`,
     period,
   };
 }
@@ -114,11 +117,15 @@ function periodExplanation(p: ContextPeriod, ctx: InterpretationContext): Period
     return { id: p.id, level: p.level, lord: null, areas: [], text: `The current ${LEVEL[p.level]} cannot be named because the birth time is approximate: a different period could be running.` };
   }
   const areas = p.areas.map((d) => DOMAIN_LABELS[d]);
+  const linked = p.linkedAreas.map((d) => DOMAIN_LABELS[d]);
   const verdicts = ctx.areas.filter((a) => p.areas.includes(a.domain));
   const differ = new Set(verdicts.map((a) => a.verdict)).size > 1;
+  // Bearing on an area (a link) and counting in its assessment (a non-neutral reading) are different things.
   const touches = areas.length
     ? ` It bears on ${list(areas.map((x) => x.toLowerCase()))}. Navagraha uses this one reading of ${p.lord} as a single factor in each of these areas; it does not make them turn out alike. Each area's assessment weighs it with that area's own birth-chart factors${differ ? ` (${verdicts.map((a) => `${areaName(a.domain)}: ${a.verdict.toLowerCase()}`).join('; ')})` : ''}.`
-    : ` It is not linked to any of the life areas assessed here.`;
+    : linked.length
+      ? ` It bears on ${list(linked.map((x) => x.toLowerCase()))}. Because this reading is neutral, it counts neither for nor against ${linked.length > 1 ? 'any of these areas' : 'that area'}; ${linked.length > 1 ? "each area's" : "the area's"} assessment rests on its other factors.`
+      : ` It is not linked to any of the life areas assessed here.`;
   return {
     id: p.id, level: p.level, lord: p.lord, areas,
     text: `Your running ${p.lord} ${LEVEL[p.level]}: Navagraha reads ${p.lord}'s overall condition as ${tone(p.direction)}.${touches}${ctx.birthTime === 'approximate' ? ' Its dates are not given because the birth time is approximate.' : ''}`,

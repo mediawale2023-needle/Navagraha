@@ -12,7 +12,7 @@ Chart: 1984-02-20 23:07 at 19.076, 72.8777; Lagna Libra.
 **Existing verdict:** Very Strong (confidence High) — **unchanged with the flag on** (confidence changed: no).
 
 **Before (flag off) — what the Life areas card and evidence sheet show:**
-> Career reads as very strong: 6 supporting and 2 conflicting indicators. The strongest support is 10th house sarvashtakavarga (Ashtakavarga). The main counter-indication is 10th lord placement (D1).
+> Career reads as very strong: 6 supporting and 2 conflicting indicators. The strongest support is 10th house Sarvashtakavarga (Ashtakavarga). The main counter-indication is 10th lord placement (D1).
 > ✓ The 10th house (Cancer) has 33 bindus — above average.
 > ✓ Moon, lord of the 10th, is vargottama in Virgo.
 > ✓ Saturn is exalted in Libra.
@@ -20,7 +20,7 @@ Chart: 1984-02-20 23:07 at 19.076, 72.8777; Lagna Libra.
 > ✗ Sun is in an enemy's sign in Aquarius.
 
 **After (flag on) — "In plain words" at the top of the same sheet:**
-> Career reads as very strong: 6 supporting and 2 conflicting indicators. The strongest support is 10th house sarvashtakavarga (Ashtakavarga). The main counter-indication is 10th lord placement (D1). Confidence: high.
+> Career reads as very strong: 6 supporting and 2 conflicting indicators. The strongest support is 10th house Sarvashtakavarga (Ashtakavarga). The main counter-indication is 10th lord placement (D1). Confidence: high.
 > Supports: The 10th house (Cancer) has 33 bindus — above average.
 > Supports: Moon, lord of the 10th, is vargottama in Virgo.
 > Supports: Saturn is exalted in Libra.
@@ -39,7 +39,7 @@ Chart: 1984-02-20 23:07 at 19.076, 72.8777; Lagna Libra.
 **Existing verdict:** Mixed (confidence Low) — **unchanged with the flag on** (confidence changed: no).
 
 **Before (flag off) — what the Life areas card and evidence sheet show:**
-> Relationships reads as mixed: 3 supporting and 3 conflicting indicators. The strongest support is 7th lord placement (D1). The main counter-indication is 7th house sarvashtakavarga (Ashtakavarga).
+> Relationships reads as mixed: 3 supporting and 3 conflicting indicators. The strongest support is 7th lord placement (D1). The main counter-indication is 7th house Sarvashtakavarga (Ashtakavarga).
 > ✓ Mars, lord of the 7th house (Aries), sits in the 1st house, a kendra.
 > ✓ Jupiter (in the 3rd) aspects the 7th house.
 > ✓ Venus is in a friend's sign in Capricorn.
@@ -48,7 +48,7 @@ Chart: 1984-02-20 23:07 at 19.076, 72.8777; Lagna Libra.
 > ✗ Saturn (in the 1st) aspects the 7th house.
 
 **After (flag on) — "In plain words" at the top of the same sheet:**
-> Relationships reads as mixed: 3 supporting and 3 conflicting indicators. The strongest support is 7th lord placement (D1). The main counter-indication is 7th house sarvashtakavarga (Ashtakavarga). Confidence: low.
+> Relationships reads as mixed: 3 supporting and 3 conflicting indicators. The strongest support is 7th lord placement (D1). The main counter-indication is 7th house Sarvashtakavarga (Ashtakavarga). Confidence: low.
 > Supports: Mars, lord of the 7th house (Aries), sits in the 1st house, a kendra.
 > Supports: Jupiter (in the 3rd) aspects the 7th house.
 > Supports: Venus is in a friend's sign in Capricorn.
@@ -68,7 +68,7 @@ Chart: 1960-03-21 21:58 at 22.5726, 88.3639; Lagna Scorpio.
 **Existing verdict:** Strong (confidence Medium) — **unchanged with the flag on** (confidence changed: no).
 
 **Before (flag off) — what the Life areas card and evidence sheet show:**
-> Wealth reads as strong: 9 supporting and 2 conflicting indicators. The strongest support is jupiter in the 2nd (D1). The main counter-indication is moon in the 2nd (D1).
+> Wealth reads as strong: 9 supporting and 2 conflicting indicators. The strongest support is Jupiter in the 2nd (D1). The main counter-indication is Moon in the 2nd (D1).
 > ✓ Jupiter occupies the 2nd house (Sagittarius).
 > ✓ The 2nd house (Sagittarius) is ruled by Jupiter, which sits in the 2nd house itself.
 > ✓ Jupiter, lord of the 2nd house, is moolatrikona in Sagittarius.
@@ -76,7 +76,7 @@ Chart: 1960-03-21 21:58 at 22.5726, 88.3639; Lagna Scorpio.
 > ✗ Saturn occupies the 2nd house (Sagittarius).
 
 **After (flag on) — "In plain words" at the top of the same sheet:**
-> Wealth reads as strong: 9 supporting and 2 conflicting indicators. The strongest support is jupiter in the 2nd (D1). The main counter-indication is moon in the 2nd (D1). Confidence: medium.
+> Wealth reads as strong: 9 supporting and 2 conflicting indicators. The strongest support is Jupiter in the 2nd (D1). The main counter-indication is Moon in the 2nd (D1). Confidence: medium.
 > Supports: Jupiter occupies the 2nd house (Sagittarius).
 > Supports: The 2nd house (Sagittarius) is ruled by Jupiter, which sits in the 2nd house itself.
 > Supports: Jupiter, lord of the 2nd house, is moolatrikona in Sagittarius.
@@ -165,14 +165,14 @@ existing evidence packet (2612 characters before); the answer guard checks the r
 
 ```text
 INTERPRETATION CONTEXT (prepared from the same calculation and evidence; explain it, never extend it):
-- Career reads as very strong: 6 supporting and 2 conflicting indicators. The strongest support is 10th house sarvashtakavarga (Ashtakavarga). The main counter-indication is 10th lord placement (D1). Confidence: high.
+- Career reads as very strong: 6 supporting and 2 conflicting indicators. The strongest support is 10th house Sarvashtakavarga (Ashtakavarga). The main counter-indication is 10th lord placement (D1). Confidence: high.
   Period: Your running Saturn Mahadasha bears on career because Saturn is a natural significator of career. Navagraha reads Saturn's overall condition as supportive. This is one reading of the planet itself, used as a single factor wherever the period applies; it does not mean career will go the same way as the other areas this period touches.
   Yoga: Sasa Yoga is present and counts toward this assessment. A formed yoga describes a potential; whether it delivers in full is not assessed.
   Note: Supporting and challenging factors are both present. They describe different influences rather than cancelling each other out.
 - Your running Saturn Mahadasha: Navagraha reads Saturn's overall condition as supportive. It bears on career, leadership, property & home, education and children. Navagraha uses this one reading of Saturn as a single factor in each of these areas; it does not make them turn out alike. Each area's assessment weighs it with that area's own birth-chart factors (career: very strong; leadership: strong; property & home: strong; education: strong; children: strong).
-- Your running Mercury Antardasha: Navagraha reads Mercury's overall condition as neither clearly supportive nor challenging. It is not linked to any of the life areas assessed here.
+- Your running Mercury Antardasha: Navagraha reads Mercury's overall condition as neither clearly supportive nor challenging. It bears on property & home, foreign & travel, education and spirituality. Because this reading is neutral, it counts neither for nor against any of these areas; each area's assessment rests on its other factors.
 - Sasa Yoga is formed by Saturn. It counts toward your leadership and career assessments. Whether it gives its full traditional result is not assessed: a formed yoga describes a potential, not a guarantee. Saturn's Mahadasha is running now. That makes the yoga's planets active in timing; it does not show that the yoga will deliver.
-- Raja Yoga is formed by Venus and Mercury. It is a common combination, so it is shown for context but not counted in any assessment. Whether it gives its full traditional result is not assessed: a formed yoga describes a potential, not a guarantee. Mercury is in neutral sign but combust (too close to the Sun), which some astrologers take to weaken it; Navagraha does not judge by how much. Mercury's Antardasha is running now. That makes the yoga's planets active in timing; it does not show that the yoga will deliver.
+- Raja Yoga is formed by Venus and Mercury. It is a common combination, so it is shown for context but not counted in any assessment. Whether it gives its full traditional result is not assessed: a formed yoga describes a potential, not a guarantee. Mercury is in a neutral sign and combust (too close to the Sun), which some astrologers take to weaken it; Navagraha does not judge by how much. Mercury's Antardasha is running now. That makes the yoga's planets active in timing; it does not show that the yoga will deliver.
 - Raja Yoga is formed by Mars and Saturn. It is a common combination, so it is shown for context but not counted in any assessment. Whether it gives its full traditional result is not assessed: a formed yoga describes a potential, not a guarantee. Saturn's Mahadasha is running now. That makes the yoga's planets active in timing; it does not show that the yoga will deliver.
 - Dhana Yoga is formed by Mars and Saturn. It counts toward your wealth assessment. Whether it gives its full traditional result is not assessed: a formed yoga describes a potential, not a guarantee. Saturn's Mahadasha is running now. That makes the yoga's planets active in timing; it does not show that the yoga will deliver.
 - Also present (context only; formation is not a guaranteed result): Gajakesari Yoga.
@@ -190,16 +190,16 @@ Grounding rules:
 
 | Set | Measure | Median | p95 |
 |---|---|---|---|
-| exact | context + explanations build (ms, reusing the request's insights) | 5.33 | 9.44 |
-| approximate | context + explanations build (ms, reusing the request's insights) | 1.84 | 5.25 |
-| exact | Ask prompt addition, one area | 2956 chars ≈ 739 tokens | 4426 chars ≈ 1107 tokens |
-| approximate | Ask prompt addition, one area | 1447 chars ≈ 362 tokens | 2016 chars ≈ 504 tokens |
-| exact | report prompt addition, all areas | 12857 chars ≈ 3214 tokens | 15994 chars ≈ 3999 tokens |
-| approximate | report prompt addition, all areas | 4425 chars ≈ 1106 tokens | 5502 chars ≈ 1376 tokens |
-| exact | Complete Life Report, 11 batches, whole block in each (before) | 141427 chars ≈ 35357 tokens | 175934 chars ≈ 43984 tokens |
-| exact | Complete Life Report, 11 batches, each batch's own section (after) | 70643 chars ≈ 17661 tokens | 87353 chars ≈ 21838 tokens |
-| exact | Insights payload addition (bytes) | 23594 | 27554 |
-| approximate | Insights payload addition (bytes) | 9901 | 11658 |
+| exact | context + explanations build (ms, reusing the request's insights) | 4.87 | 8.04 |
+| approximate | context + explanations build (ms, reusing the request's insights) | 1.83 | 2.54 |
+| exact | Ask prompt addition, one area | 2998 chars ≈ 750 tokens | 4438 chars ≈ 1110 tokens |
+| approximate | Ask prompt addition, one area | 1459 chars ≈ 365 tokens | 2016 chars ≈ 504 tokens |
+| exact | report prompt addition, all areas | 12933 chars ≈ 3233 tokens | 15998 chars ≈ 4000 tokens |
+| approximate | report prompt addition, all areas | 4468 chars ≈ 1117 tokens | 5506 chars ≈ 1377 tokens |
+| exact | Complete Life Report, 11 batches, whole block in each (before) | 142263 chars ≈ 35566 tokens | 175978 chars ≈ 43995 tokens |
+| exact | Complete Life Report, 11 batches, each batch's own section (after) | 71132 chars ≈ 17783 tokens | 87401 chars ≈ 21850 tokens |
+| exact | Insights payload addition (bytes) | 23637 | 27559 |
+| approximate | Insights payload addition (bytes) | 9982 | 11662 |
 
 No additional AI call is made: the block is part of the existing single explainer call and report calls.
 Token counts are estimated at four characters per token. Generation latency of the live model was not measured here

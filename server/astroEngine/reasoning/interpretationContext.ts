@@ -92,7 +92,10 @@ export type ContextPeriod = Readonly<{
   sameLordAsMahadasha: boolean;
   /** The lord's one capacity reading, applied by the engine to every linked area. */
   direction: EvidenceDirection | null;
+  /** Areas where the period's evidence counts toward the verdict. */
   areas: readonly LifeDomain[];
+  /** Areas the period bears on (its evidence is shown there), whether or not it counts: a neutral reading counts nowhere. */
+  linkedAreas: readonly LifeDomain[];
 }>;
 
 export type InterpretationContext = Readonly<{
@@ -191,6 +194,11 @@ export function buildInterpretationContext(chart: CanonicalChart, asOf: Date, in
     id: p.id, level: p.level, status: p.status, lord: p.lord ?? null, sameLordAsMahadasha: !!p.sameLordAsMahadasha,
     direction: p.status === 'known' ? p.capacity!.direction : null,
     areas: areas.filter((a) => a.periods.some((x) => x.periodId === p.id)).map((a) => a.domain),
+    linkedAreas: p.status !== 'known' ? [] : LIFE_DOMAINS.filter((d) => {
+      const id = p.areas![d].periodEvidence?.id;
+      const res = byDomain.get(d)!;
+      return !!id && [...res.supporting, ...res.conflicting, ...res.neutral].some((e) => e.id === id);
+    }),
   }));
 
   const withheld = approximate ? ['the Ascendant (Lagna)', 'house positions and house lords', 'divisional charts and house bindus', 'house-based yogas', 'dasha dates'] : [];
