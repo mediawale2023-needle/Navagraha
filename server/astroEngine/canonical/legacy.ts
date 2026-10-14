@@ -25,10 +25,12 @@ export function legacyView(chart: CanonicalChart) {
   const ascEntry = { planet: 'Ascendant', sign: chart.ascendant.sign as string, degree: r2(chart.ascendant.degreeInSign), house: 1, isRetrograde: false };
   const houses = chart.houses.map((h) => ({ house: h.house, sign: h.sign as string, planets: h.occupants as string[] }));
 
+  // A varga without a degree function (D10, D60) has signs and houses only: no degree is stated, never a 0° placeholder.
   const vargaView = (d: keyof CanonicalChart['vargas'], degreeOf?: (l: number) => number) => {
     const v = chart.vargas[d];
+    const degree = (l: number) => (degreeOf ? { degree: r2(degreeOf(l)) } : {});
     const positions = v.placements.map((p) => ({
-      planet: p.planet as string, sign: p.sign as string, degree: degreeOf ? r2(degreeOf(lon[p.planet])) : 0, house: p.house,
+      planet: p.planet as string, sign: p.sign as string, ...degree(lon[p.planet]), house: p.house,
       isRetrograde: chart.planets.find((x) => x.name === p.planet)!.retrograde,
     }));
     return {
@@ -37,7 +39,7 @@ export function legacyView(chart: CanonicalChart) {
         return { house: i + 1, sign: SIGN_NAMES[s] as string, planets: positions.filter((p) => p.house === i + 1).map((p) => p.planet) };
       }),
       planetaryPositions: [
-        { planet: 'Ascendant', sign: SIGN_NAMES[v.ascendantSignIndex] as string, degree: degreeOf ? r2(degreeOf(ascLon)) : 0, house: 1, isRetrograde: false },
+        { planet: 'Ascendant', sign: SIGN_NAMES[v.ascendantSignIndex] as string, ...degree(ascLon), house: 1, isRetrograde: false },
         ...positions,
       ],
     };

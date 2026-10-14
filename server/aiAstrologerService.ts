@@ -16,6 +16,7 @@ import { createOpenAI } from "./ai/metering";
 import type { Kundli } from "@shared/schema";
 import { transitsForChart, transitSummary } from "./astroEngine/index.js";
 import { isCurrentCanonicalChart, type CanonicalChart, type Graha } from "@shared/v3/canonical";
+import { CAREER_BATCHES, CAREER_SECTIONS, careerBrief, careerRemedies, careerReportProblems, careerSectionProblems, type CareerBrief } from "./careerReport.js";
 import { birthDayStability, dignityStatementStable, yogaTimeStable, type BirthDayStability } from "./astroEngine/canonical/birthDay.js";
 import { buildInsights } from "./astroEngine/evidence/insights.js";
 import { reportGroundingFor, reportSectionGroundingFor } from "./userFacingReasoning.js";
@@ -435,7 +436,7 @@ function dedupeRemedies(list: string[]): string[] {
 }
 
 const REPORT_FOCUS: Record<string, { title: string; focus: string; sections: string[] }> = {
-  career:     { title: "Career & Profession Report", focus: "career path, ideal professions, job vs business, and timing of professional growth", sections: ["Career Overview", "Strengths & Ideal Fields", "Job vs Business", "Growth Timing & Dashas", "Challenges to Watch"] },
+  career:     { title: "Career & Profession Report", focus: "career path, ideal professions, job vs business, and timing of professional growth", sections: CAREER_SECTIONS.map((x) => x.heading) },
   marriage:   { title: "Marriage & Love Report", focus: "marriage timing, partner characteristics, married life, and relationship harmony", sections: ["Love & Marriage Overview", "Partner Traits", "Marriage Timing", "Married Life", "Harmony & Compatibility"] },
   finance:    { title: "Wealth & Finance Report", focus: "wealth houses, income sources, investments, savings and financial timing", sections: ["Financial Overview", "Income Sources", "Wealth Accumulation", "Favourable Investment Windows", "Money Management"] },
   year_ahead: { title: "Year Ahead Report", focus: "month-by-month predictions for the coming 12 months across career, money and relationships", sections: ["Year Overview", "Career & Work", "Money & Finance", "Relationships", "Best & Cautious Months"] },
@@ -531,6 +532,8 @@ export async function generateReport(
   const asOf = new Date();
   // A year-ahead reading names the months it covers; those years are facts, not inventions.
   const window = category === "year_ahead" ? reportWindow(asOf) : "";
+  // The Career Report is generated in parts on its own evidence (server/careerReport.ts).
+  if (category === "career") return generateCareerReport(kundli, asOf);
   const guard = reportGuard(kundli, undefined, window);
   const plan = sectionPlan(meta, isApproximate(kundli));
   const structured = deriveStructured(kundli);
@@ -556,6 +559,117 @@ export async function generateReport(
     correction = correctionNote(rejected);
   }
   throw new ReportGenerationError(`report failed the quality check: ${problems.join(" | ")}`);
+}
+
+// ─── Career & Profession Report (in parts) ─────────────────────────────────────
+
+const CAREER_WRITING = `HOW TO WRITE (the reader knows nothing about astrology):
+- Every important interpretation answers three questions in plain language: what does the chart show, why does it show this (the configuration and what it traditionally signifies), and what does it mean for this person's working life.
+- In each core section move from the configuration, to its traditional meaning, to why it matters for career, to the other indicators that support or contradict it, to a practical conclusion. Do not merely state conclusions.
+- Explain each Sanskrit or technical term in a few words the first time you use it (for example "the Lagna — the sign rising at the moment of birth"). Use only the terminology the reader needs.
+- Clear, natural, professional English, in paragraphs separated by a blank line. Each paragraph adds something new; never repeat an interpretation another section gives. No filler, no mystical exaggeration, no deterministic predictions ("will definitely"), no event dates.
+- Length follows the evidence: each section's word range is a guide to depth, not a quota. A shorter, specific section is better than a longer, repetitive one; never invent an interpretation to fill space.
+- Use only the birth details and calculated chart data below. Nothing else is known about this person: assume nothing about their occupation, history or circumstances.
+
+CHART RULES (these override any other instruction):
+- Build every claim on the CAREER EVIDENCE block, naming the facts you use. Where the evidence is mixed or missing, say so plainly.
+- In any sentence that mentions a divisional chart, name the chart for every placement ("in the D1 ...", "in the D10 ..."). Never state a D10 degree.
+- Yogas: only those listed, each with its rule, how this chart meets it, its limits and its career link. Call a cancelled debilitation a Neecha Bhanga (cancelled debilitation), not a separate Raja Yoga.
+- Professional fields: discuss only those the evidence marks "well supported" or "mixed", with their facts; a "weakly supported" field only as less indicated.
+- Periods: the engine's dates only; describe tendencies, never guaranteed outcomes.
+- No generic claim (leadership potential, hard work, networking, patience) unless the same sentence names the chart fact behind it.`;
+
+async function careerBatch(batch: typeof CAREER_BATCHES[number], sections: typeof CAREER_SECTIONS, chart: string, kundli: Partial<Kundli>, opts: { summary: boolean; remedies: boolean; correction?: string }): Promise<{ summary?: string; sections: unknown; remedies?: unknown }> {
+  const client = getClient();
+  const others = CAREER_SECTIONS.filter((x) => !batch.sections.includes(x)).map((x) => `"${x.heading}"`).join(", ");
+  const shape = [
+    opts.summary ? `"summary": "an overview of the whole career reading in 120-180 words, naming its two or three main chart reasons"` : "",
+    `"sections": [${sections.map((x) => `{"heading": "${x.heading}", "body": "..."}`).join(", ")}]`,
+    opts.remedies ? `"remedies": ["3-5 optional practices (a mantra with its repetition count, a charity, or conduct), each for one planet named in the CAREER EVIDENCE Remedies line and stating its reason from the chart; no gemstone"]` : "",
+  ].filter(Boolean).join(",\n  ");
+  const prompt = `You are an experienced Vedic astrologer writing one part of a paid, personalised "Career & Profession Report". Other parts, written separately, cover ${others}; do not cover their content.
+
+${CAREER_WRITING}
+
+${disciplineFor(kundli)}
+
+Write these sections, in this order:
+${sections.map((x) => `- "${x.heading}" (about ${x.words[0]}–${x.words[1]} words): ${x.brief}`).join("\n")}
+
+Return ONLY valid JSON:
+{
+  ${shape}
+}
+
+Birth chart:
+${chart}${opts.correction ? `\n\n${opts.correction}` : ""}`;
+  const resp = await client.chat.completions.create({
+    model: "gpt-4o",
+    messages: [{ role: "user", content: prompt }],
+    response_format: { type: "json_object" },
+    max_tokens: 4000,
+  });
+  return JSON.parse(resp.choices[0]?.message?.content || "{}");
+}
+
+/**
+ * The Career Report: three parts written in parallel on one deterministic evidence block; each section passes the
+ * shared guard and the career checks, the whole report is checked for repetition and contradictions, and only the
+ * failed sections of a part are regenerated, once. Anything still failing fails the order (refunded as before).
+ */
+async function generateCareerReport(kundli: Partial<Kundli>, asOf: Date): Promise<GeneratedReport> {
+  const career = careerBrief(kundli, asOf);
+  if (!career) throw new ReportGenerationError("the career evidence could not be read from this chart");
+  // The career evidence (its period dates included) is part of the facts the guard checks claims against.
+  const guard = reportGuard(kundli, undefined, career.text);
+  const chart = `${chartSummary(kundli)}${reportGroundingFor(kundli)}\n\n${career.text}`;
+  const done = new Map<string, Section>();
+  let summary = "";
+  let remedies: string[] = [];
+  const problems = new Map<string, string[]>();
+
+  const run = async (batch: typeof CAREER_BATCHES[number], sections: typeof CAREER_SECTIONS, opts: { summary: boolean; remedies: boolean; correction?: string }) => {
+    const out = await careerBatch(batch, sections, chart, kundli, opts).catch(() => ({ sections: [] } as { summary?: string; sections: unknown; remedies?: unknown }));
+    const checked = checkSections(sections.map((x) => x.heading), out.sections, guard);
+    for (const r of checked.rejected) problems.set(r.heading, r.problems);
+    for (const a of checked.accepted) {
+      const p = careerSectionProblems(a.heading, a.body, career.facts);
+      if (p.length) problems.set(a.heading, p); else { done.set(a.heading, a); problems.delete(a.heading); }
+    }
+    if (opts.summary) {
+      const text = typeof out.summary === "string" ? out.summary.trim() : "";
+      const p = [...textProblems(text, guard, MIN_SUMMARY_CHARS), ...careerSectionProblems("summary", text, career.facts)];
+      if (p.length) problems.set("summary", p); else { summary = text; problems.delete("summary"); }
+    }
+    if (opts.remedies && Array.isArray(out.remedies)) remedies = careerRemedies(checkedRemedies(out.remedies as string[], guard), career.facts);
+  };
+  const crossCheck = () => {
+    for (const [h, p] of Array.from(careerReportProblems(Array.from(done.values())))) { done.delete(h); problems.set(h, p); }
+  };
+
+  await Promise.all(CAREER_BATCHES.map((b) => run(b, b.sections, { summary: b.summary, remedies: b.remedies })));
+  crossCheck();
+  // One regeneration per part, for its failed sections only.
+  await Promise.all(CAREER_BATCHES.map((b) => {
+    const failed = b.sections.filter((x) => problems.has(x.heading));
+    const summaryFailed = b.summary && problems.has("summary");
+    if (!failed.length && !summaryFailed) return null;
+    const rejected = [...failed.map((x) => ({ heading: x.heading, problems: problems.get(x.heading)! })), ...(summaryFailed ? [{ heading: "summary", problems: problems.get("summary")! }] : [])];
+    return run(b, failed, { summary: summaryFailed, remedies: b.remedies && !remedies.length, correction: correctionNote(rejected) });
+  }));
+  crossCheck();
+  if (problems.size) {
+    throw new ReportGenerationError(`report failed the quality check: ${Array.from(problems).map(([h, p]) => `${h}: ${p.join("; ")}`).join(" | ")}`);
+  }
+  return {
+    title: REPORT_FOCUS.career.title,
+    summary,
+    sections: CAREER_SECTIONS.map((x) => done.get(x.heading)!),
+    // Only optional practices tied to a career planet; no gemstones and no birth-star remedies (not career-specific).
+    remedies: dedupeRemedies(remedies),
+    ...deriveStructured(kundli),
+    generatedAt: new Date().toISOString(),
+  };
 }
 
 // ─── Complete Life Report (premium, 50+ pages) ────────────────────────────────

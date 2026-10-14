@@ -43,7 +43,7 @@ import {
 import { computePrashna, PRASHNA_CATEGORIES } from "./astroEngine/prashna.js";
 import { CalculationError } from "./astroEngine/canonical/compute.js";
 import { exactTimeRequiredReason } from "./reportEligibility.js";
-import { upgradeLegacyKundli, chartVersionStatus, listedChart, withReconciledRemedies, withCurrentDoshaRules, withCurrentDignityRules, withApproximateTimeView } from "./astroEngine/canonical/upgrade.js";
+import { upgradeLegacyKundli, chartVersionStatus, listedChart, withReconciledRemedies, withCurrentDoshaRules, withCurrentDignityRules, withApproximateTimeView, withoutVargaDegreePlaceholders } from "./astroEngine/canonical/upgrade.js";
 import { buildInsights } from "./astroEngine/evidence/insights.js";
 import { explanationsFor } from "./userFacingReasoning.js";
 import { routeQuestion, buildEvidencePacket, answerSimple, answerWithoutChart, guardAnswer, packetSummary, limitedChartReply } from "./agents/askKundli.js";
@@ -334,7 +334,7 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
   const upgradesInFlight = new Map<string, Promise<Kundli>>();
   async function currentChart<T extends Kundli | null | undefined>(kundli: T): Promise<T> {
     if (!kundli?.id) return kundli;
-    if (isCurrentCanonicalChart((kundli.chartData as any)?.canonical)) return withApproximateTimeView(withReconciledRemedies(withCurrentDoshaRules(withCurrentDignityRules(kundli)))) as T;
+    if (isCurrentCanonicalChart((kundli.chartData as any)?.canonical)) return withApproximateTimeView(withoutVargaDegreePlaceholders(withReconciledRemedies(withCurrentDoshaRules(withCurrentDignityRules(kundli))))) as T;
     const id = kundli.id;
     let pending = upgradesInFlight.get(id);
     if (!pending) {

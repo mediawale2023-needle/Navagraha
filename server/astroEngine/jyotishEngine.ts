@@ -38,8 +38,8 @@ export interface JyotishChartData {
   ascendant: { sign: string; degree: number; siderealLon: number; nakshatra: string; nakshatraLord: string; pada: number };
   planets: JyotishPlanetEntry[];
   houses: Array<{ house: number; sign: string; planets: string[] }>;
-  navamsa: { houses: Array<{ house: number; sign: string; planets: string[] }>; planetaryPositions: Array<{ planet: string; sign: string; degree: number; house: number }> };
-  dasamsa: { houses: Array<{ house: number; sign: string; planets: string[] }>; planetaryPositions: Array<{ planet: string; sign: string; degree: number; house: number }> };
+  navamsa: { houses: Array<{ house: number; sign: string; planets: string[] }>; planetaryPositions: Array<{ planet: string; sign: string; degree?: number; house: number }> };
+  dasamsa: { houses: Array<{ house: number; sign: string; planets: string[] }>; planetaryPositions: Array<{ planet: string; sign: string; degree?: number; house: number }> };
   ashtakavarga: { ascSignIndex: number; bav: Record<string, number[]>; sav: number[]; savByHouse: number[] };
   dignities: ReturnType<typeof computeDignities>;
   bhava: ReturnType<typeof computeBhava>;
@@ -118,7 +118,8 @@ export function projectJyotishChart(canonical: CanonicalChart): JyotishChartSumm
 
   const vargaView = (d: 'D9' | 'D10', degreeOf?: (l: number) => number) => {
     const v = canonical.vargas[d];
-    const positions = v.placements.map((p) => ({ planet: p.planet as string, sign: p.sign as string, degree: degreeOf ? parseFloat(degreeOf(sidereal[p.planet]).toFixed(2)) : 0, house: p.house }));
+    // No degree function (D10): signs and houses only, never a 0° placeholder.
+    const positions = v.placements.map((p) => ({ planet: p.planet as string, sign: p.sign as string, ...(degreeOf ? { degree: parseFloat(degreeOf(sidereal[p.planet]).toFixed(2)) } : {}), house: p.house }));
     return {
       houses: Array.from({ length: 12 }, (_, i) => ({ house: i + 1, sign: SIGN_NAMES[(v.ascendantSignIndex + i) % 12] as string, planets: positions.filter((p) => p.house === i + 1).map((p) => p.planet) })),
       planetaryPositions: positions,
