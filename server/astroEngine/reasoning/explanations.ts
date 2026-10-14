@@ -14,6 +14,11 @@ const list = (xs: string[]) => (xs.length <= 1 ? xs.join('') : `${xs.slice(0, -1
 const areaName = (d: LifeDomain) => DOMAIN_LABELS[d].toLowerCase();
 const tone = (d: string | null) => (d === 'positive' ? 'supportive' : d === 'negative' ? 'challenging' : 'neither clearly supportive nor challenging');
 const LEVEL = { mahadasha: 'Mahadasha', antardasha: 'Antardasha' } as const;
+const SUPPORTED: readonly string[] = ['Exceptional', 'Very Strong', 'Strong'];
+const STRAINED: readonly string[] = ['Challenging', 'Very Challenging'];
+/** The period lord's reading points one way and the area's own verdict the other. */
+const opposes = (direction: string, verdict: string) =>
+  (direction === 'positive' && STRAINED.includes(verdict)) || (direction === 'negative' && SUPPORTED.includes(verdict));
 /** A dignity as a phrase ("in its own sign", "exalted"), from the engine's dignity label. */
 const DIGNITY_PHRASE: Record<string, string> = {
   Exalted: 'exalted', Debilitated: 'debilitated', Moolatrikona: 'in its moolatrikona sign', 'Own sign': 'in its own sign',
@@ -39,7 +44,7 @@ function areaExplanation(a: ContextArea, ctx: InterpretationContext): AreaExplan
   const challenges = a.challenging.slice(0, 3).map(factor);
   // Every running period that bears on the area (the Mahadasha and, when it differs, the Antardasha).
   const period = a.periods.length
-    ? a.periods.map((p) => `Your running ${p.lord} ${LEVEL[p.level]} bears on ${areaName(a.domain)} because ${periodLink(p, a.domain)}. Navagraha reads ${p.lord}'s overall condition as ${tone(p.direction)}; that one reading describes the period's general tone in every area it touches, not a separate forecast for ${areaName(a.domain)}.${p.natal === 'mixed' ? ` The birth chart's own factors about ${p.lord} in this area point the other way: the natal promise and the current period are different questions, so both are kept.` : ''}`).join(' ')
+    ? a.periods.map((p) => `Your running ${p.lord} ${LEVEL[p.level]} bears on ${areaName(a.domain)} because ${periodLink(p, a.domain)}. Navagraha reads ${p.lord}'s overall condition as ${tone(p.direction)}. This is one reading of the planet itself, used as a single factor wherever the period applies; it does not mean ${areaName(a.domain)} will go the same way as the other areas this period touches.${opposes(p.direction, a.verdict) ? ` Weighed with ${areaName(a.domain)}'s other factors, the assessment here is ${a.verdict.toLowerCase()}.` : ''}${p.natal === 'mixed' ? ` Some of the birth chart's own factors about ${p.lord} in this area point the other way: the natal promise and the current period are different questions, so both are kept.` : ''}`).join(' ')
     : null;
   const uncertainty: string[] = [];
   if (a.verdict === 'Insufficient evidence') uncertainty.push('There are too few reliable indicators to judge this area firmly.');
@@ -109,8 +114,10 @@ function periodExplanation(p: ContextPeriod, ctx: InterpretationContext): Period
     return { id: p.id, level: p.level, lord: null, areas: [], text: `The current ${LEVEL[p.level]} cannot be named because the birth time is approximate: a different period could be running.` };
   }
   const areas = p.areas.map((d) => DOMAIN_LABELS[d]);
+  const verdicts = ctx.areas.filter((a) => p.areas.includes(a.domain));
+  const differ = new Set(verdicts.map((a) => a.verdict)).size > 1;
   const touches = areas.length
-    ? ` It bears on ${list(areas.map((x) => x.toLowerCase()))}. The same reading of ${p.lord} applies to each of these; each area's own birth-chart factors still decide its assessment.`
+    ? ` It bears on ${list(areas.map((x) => x.toLowerCase()))}. Navagraha uses this one reading of ${p.lord} as a single factor in each of these areas; it does not make them turn out alike. Each area's assessment weighs it with that area's own birth-chart factors${differ ? ` (${verdicts.map((a) => `${areaName(a.domain)}: ${a.verdict.toLowerCase()}`).join('; ')})` : ''}.`
     : ` It is not linked to any of the life areas assessed here.`;
   return {
     id: p.id, level: p.level, lord: p.lord, areas,
@@ -145,10 +152,20 @@ export const GROUNDING_RULES = [
  * the yogas and any strong-but-challenged planet. No dates, no new claims. `evidenceLines: false` leaves out
  * the per-area evidence sentences for a prompt that already carries them.
  */
+const GROUNDING_HEADER = 'INTERPRETATION CONTEXT (prepared from the same calculation and evidence; explain it, never extend it):';
+const rulesLines = () => ['Grounding rules:', ...GROUNDING_RULES.map((r) => `  - ${r}`)];
+const yogaLine = (y: ChartExplanations['yogas'][number]) => `- ${y.formation} ${y.contribution} ${y.effectiveness}${y.period ? ` ${y.period}` : ''}`;
+const isStrongButChallenged = (p: ChartExplanations['planets'][number]) => p.points.some((x) => x.includes('is a real strength, yet'));
+/** A planet's line; the "strong yet challenging" note only stands beside a challenge it explains. */
+function planetLine(p: ChartExplanations['planets'][number], points: string[]): string {
+  const challengeShown = points.some((x) => / it (challenges|works both ways):/.test(x));
+  return `- ${p.summary} ${points.filter((x) => challengeShown || !x.includes('is a real strength, yet')).join(' ')}`;
+}
+
 export function groundingBlock(ex: ChartExplanations, focus: { domains?: LifeDomain[]; planets?: string[]; allYogas?: boolean; evidenceLines?: boolean } = {}): string {
   const areas = focus.domains?.length ? ex.areas.filter((a) => focus.domains!.includes(a.domain)) : ex.areas;
   const whole = !focus.domains?.length;
-  const lines: string[] = ['INTERPRETATION CONTEXT (prepared from the same calculation and evidence; explain it, never extend it):'];
+  const lines: string[] = [GROUNDING_HEADER];
   for (const a of areas) {
     lines.push(`- ${a.summary}`);
     // The Ask packet already lists each area's evidence lines, so it asks for them to be left out here.
@@ -164,19 +181,50 @@ export function groundingBlock(ex: ChartExplanations, focus: { domains?: LifeDom
   const areaLabels = areas.map((a) => a.label.toLowerCase());
   const relevant = (y: ChartExplanations['yogas'][number]) => whole || focus.allYogas || !!y.period
     || areaLabels.some((l) => y.contribution.includes(l)) || (focus.planets ?? []).some((p) => y.formation.includes(p));
-  for (const y of ex.yogas.filter(relevant)) lines.push(`- ${y.formation} ${y.contribution} ${y.effectiveness}${y.period ? ` ${y.period}` : ''}`);
+  for (const y of ex.yogas.filter(relevant)) lines.push(yogaLine(y));
   const others = Array.from(new Set(ex.yogas.filter((y) => !relevant(y)).map((y) => y.name)));
   if (others.length) lines.push(`- Also present (context only; formation is not a guaranteed result): ${others.join(', ')}.`);
   const touches = (p: ChartExplanations['planets'][number]) => whole || areaLabels.some((l) => p.points.some((x) => x.startsWith(`In ${l}`)));
-  const planets = ex.planets.filter((p) => (focus.planets ?? []).includes(p.planet) || (p.points.some((x) => x.includes('is a real strength, yet')) && touches(p)));
+  const planets = ex.planets.filter((p) => (focus.planets ?? []).includes(p.planet) || (isStrongButChallenged(p) && touches(p)));
   // A focused prompt keeps a planet's points about its own areas only.
   const inFocus = (x: string) => whole || !/^In [a-z&, ]+ it /.test(x) || areaLabels.some((l) => x.startsWith(`In ${l} `));
-  for (const p of planets) {
-    const kept = p.points.filter(inFocus);
-    // The "strong yet challenging" note only stands beside a challenge it explains.
-    const challengeShown = kept.some((x) => / it (challenges|works both ways):/.test(x));
-    lines.push(`- ${p.summary} ${kept.filter((x) => challengeShown || !x.includes('is a real strength, yet')).join(' ')}`);
+  for (const p of planets) lines.push(planetLine(p, p.points.filter(inFocus)));
+  lines.push(...rulesLines());
+  return lines.join('\n');
+}
+
+/**
+ * What one part of a long report needs from the explanations. The parts that read the life areas (the
+ * overview, the twelve houses, the life domains) take the whole block; the others take only their own
+ * evidence:
+ * - planets: the named planets in full, the yogas they form and their running periods;
+ * - yogas: every yoga (formation, contribution, and that effectiveness is not assessed);
+ * - periods: every running period and each area's reading of it;
+ * - remedies: the running periods and the strong-but-challenged planets;
+ * - rules: the grounding rules alone (the block holds nothing on doshas or transits).
+ */
+export type ReportSection =
+  | { kind: 'whole' } | { kind: 'planets'; planets: readonly string[] } | { kind: 'yogas' }
+  | { kind: 'periods' } | { kind: 'remedies' } | { kind: 'rules' };
+
+export function sectionGroundingBlock(ex: ChartExplanations, section: ReportSection): string {
+  if (section.kind === 'whole') return groundingBlock(ex);
+  const lines: string[] = [GROUNDING_HEADER];
+  const periods = ex.periods.map((p) => `- ${p.text}`);
+  if (section.kind === 'planets') {
+    const named = (s: string) => section.planets.some((p) => s.includes(p));
+    for (const p of ex.planets.filter((x) => section.planets.includes(x.planet))) lines.push(planetLine(p, p.points));
+    for (const y of ex.yogas.filter((y) => named(y.formation))) lines.push(yogaLine(y));
+    lines.push(...ex.periods.filter((p) => p.lord && section.planets.includes(p.lord)).map((p) => `- ${p.text}`));
+  } else if (section.kind === 'yogas') {
+    lines.push(...ex.yogas.map(yogaLine));
+  } else if (section.kind === 'periods') {
+    lines.push(...periods);
+    for (const a of ex.areas) if (a.period) lines.push(`- ${a.label}: ${a.period}`);
+  } else if (section.kind === 'remedies') {
+    lines.push(...periods);
+    for (const p of ex.planets.filter(isStrongButChallenged)) lines.push(planetLine(p, p.points));
   }
-  lines.push('Grounding rules:', ...GROUNDING_RULES.map((r) => `  - ${r}`));
+  lines.push(...rulesLines());
   return lines.join('\n');
 }

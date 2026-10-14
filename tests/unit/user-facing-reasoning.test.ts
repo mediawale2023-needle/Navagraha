@@ -9,7 +9,7 @@ import { buildInsights } from '../../server/astroEngine/evidence/insights';
 import { resolveBirthWithCoordinates } from '../../server/astroEngine/birthResolver';
 import { computeCanonicalChart } from '../../server/astroEngine/canonical/compute';
 import { buildInterpretationContext } from '../../server/astroEngine/reasoning/interpretationContext';
-import { buildExplanations, groundingBlock } from '../../server/astroEngine/reasoning/explanations';
+import { buildExplanations, groundingBlock, sectionGroundingBlock, type ReportSection } from '../../server/astroEngine/reasoning/explanations';
 import { reasoningInput } from '../../server/astroEngine/reasoning/index';
 import { planetaryReasoningFrom } from '../../server/astroEngine/reasoning/planetary';
 import { reconcileFrom } from '../../server/astroEngine/reasoning/reconciliation';
@@ -112,11 +112,29 @@ describe('consistency across Kundli, Insights, Ask and reports', () => {
       }
       // C/D. Natal promise vs period activation stay distinct.
       for (const a of ctx.areas) for (const p of a.periods) {
-        const text = ex.areas.find((x) => x.domain === a.domain)!.period!;
-        expect(text).toMatch(/not a separate forecast/);
+        // The area's period text has one passage per running period (Mahadasha, then Antardasha).
+        const level = p.level === 'mahadasha' ? 'Mahadasha' : 'Antardasha';
+        const text = ex.areas.find((x) => x.domain === a.domain)!.period!.split(/(?=Your running )/).find((x) => x.startsWith(`Your running ${p.lord} ${level}`))!;
+        expect(text, `${a.domain} ${p.lord} ${level}`).toBeDefined();
+        // The lord's one reading is not an outcome for the area; an area whose verdict points the
+        // other way says so, with its own (production) verdict.
+        expect(text).toMatch(/it does not mean [a-z &,]+ will go the same way as the other areas this period touches/);
+        const opposed = (p.direction === 'positive' && ['Challenging', 'Very Challenging'].includes(a.verdict))
+          || (p.direction === 'negative' && ['Exceptional', 'Very Strong', 'Strong'].includes(a.verdict));
+        if (opposed) { seen.add('G-opposed'); expect(text).toContain(`the assessment here is ${a.verdict.toLowerCase()}.`); }
+        else expect(text).not.toMatch(/the assessment here is/);
         if (p.natal === 'mixed') {
           seen.add(p.direction === 'negative' ? 'C' : 'D');
-          expect(text).toMatch(/natal promise and the current period are different questions/);
+          expect(text).toMatch(/Some of the birth chart's own factors about \w+ in this area point the other way: the natal promise and the current period are different questions/);
+        }
+      }
+      // The period's own line never implies its areas turn out alike, and lists their verdicts when they differ.
+      for (const p of ex.periods) if (p.lord && p.areas.length) {
+        expect(p.text).toMatch(/does not make them turn out alike/);
+        const verdicts = ctx.areas.filter((a) => p.areas.includes(a.label));
+        if (new Set(verdicts.map((a) => a.verdict)).size > 1) {
+          seen.add('G-differ');
+          for (const a of verdicts) expect(p.text).toContain(`${a.label.toLowerCase()}: ${a.verdict.toLowerCase()}`);
         }
       }
       // E. Supporting and challenging evidence stay separate and both are named.
@@ -125,7 +143,7 @@ describe('consistency across Kundli, Insights, Ask and reports', () => {
         expect(a.uncertainty.some((u) => u.includes('describe different influences rather than cancelling'))).toBe(true);
       }
     }
-    for (const k of ['A', 'B', 'C', 'D', 'E']) expect(seen, k).toContain(k);
+    for (const k of ['A', 'B', 'C', 'D', 'E', 'G-opposed', 'G-differ']) expect(seen, k).toContain(k);
   });
 
   it('G and H: no dates, no internal terms, no reconciliation proposal ever reaches a user', async () => {
@@ -201,7 +219,9 @@ describe('F. approximate birth time', () => {
         const ctx = buildInterpretationContext(c, asOf);
         const ex = buildExplanations(ctx);
         // groundingFor builds exactly this block from the same context (checked in the consistency tests).
-        return JSON.stringify({ ctx, ex, ask: groundingBlock(ex, { domains: route.domains, planets: route.planets, evidenceLines: false }) });
+        const sections = (['whole', 'yogas', 'periods', 'remedies', 'rules'] as const).map((kind) => sectionGroundingBlock(ex, { kind } as ReportSection))
+          .concat(sectionGroundingBlock(ex, { kind: 'planets', planets: ['Sun', 'Moon', 'Mars', 'Saturn', 'Rahu', 'Ketu'] }));
+        return JSON.stringify({ ctx, ex, ask: groundingBlock(ex, { domains: route.domains, planets: route.planets, evidenceLines: false }), sections });
       });
       for (const v of views) expect(v, input.date).toBe(views[0]);
     }

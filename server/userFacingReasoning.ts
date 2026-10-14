@@ -8,7 +8,7 @@ import type { KundliInsights, LifeDomain } from '@shared/v3/evidence';
 import type { ChartExplanations } from '@shared/v3/explanations';
 import { features } from './features';
 import { buildInterpretationContext } from './astroEngine/reasoning/interpretationContext.js';
-import { buildExplanations, groundingBlock } from './astroEngine/reasoning/explanations.js';
+import { buildExplanations, groundingBlock, sectionGroundingBlock, type ReportSection } from './astroEngine/reasoning/explanations.js';
 
 export const reasoningEnabled = (): boolean => features.userFacingReasoning();
 
@@ -35,4 +35,15 @@ export function reportGroundingFor(kundli: unknown, asOf = new Date()): string {
   const chart = (kundli as { chartData?: { canonical?: unknown } })?.chartData?.canonical;
   if (!reasoningEnabled() || !isCurrentCanonicalChart(chart)) return '';
   return groundingFor(chart as CanonicalChart, asOf);
+}
+
+/**
+ * Per-section report grounding for a stored chart: the explanations are built once and each section of a
+ * long report gets only the part it needs. Every section gets '' when off, not a V3 chart, or unavailable.
+ */
+export function reportSectionGroundingFor(kundli: unknown, asOf = new Date()): (section: ReportSection) => string {
+  const chart = (kundli as { chartData?: { canonical?: unknown } })?.chartData?.canonical;
+  if (!reasoningEnabled() || !isCurrentCanonicalChart(chart)) return () => '';
+  const ex = explanationsFor(chart as CanonicalChart, asOf);
+  return (section) => (ex ? `\n\n${sectionGroundingBlock(ex, section)}` : '');
 }

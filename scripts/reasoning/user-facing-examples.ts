@@ -14,7 +14,8 @@ import { resolveBirthWithCoordinates } from '../../server/astroEngine/birthResol
 import { computeCanonicalChart } from '../../server/astroEngine/canonical/compute';
 import { buildInsights } from '../../server/astroEngine/evidence/insights';
 import { buildInterpretationContext } from '../../server/astroEngine/reasoning/interpretationContext';
-import { buildExplanations, groundingBlock } from '../../server/astroEngine/reasoning/explanations';
+import { buildExplanations, groundingBlock, sectionGroundingBlock } from '../../server/astroEngine/reasoning/explanations';
+import { LIFE_REPORT_GROUNDING_PLAN } from '../../server/aiAstrologerService';
 import { buildEvidencePacket, routeQuestion } from '../../server/agents/askKundli';
 import type { CanonicalChart } from '../../shared/v3/canonical';
 import type { LifeDomain } from '../../shared/v3/evidence';
@@ -131,7 +132,7 @@ ${quote(cur.whyItMatters)}
 **After (flag on):**
 ${quote(pex.text)}
 
-**Facts:** \`${pex.id}\`. **Limits:** one reading of the period lord applies to every area it touches; it is not a separate forecast per area.
+**Facts:** \`${pex.id}\`. **Limits:** one reading of the period lord is a single factor in every area it touches; it does not make those areas turn out alike, and each area's verdict weighs it with that area's own factors.
 `);
 
   // 7. Approximate birth time.
@@ -170,19 +171,22 @@ ${block}
   // Performance.
   const time = (f: () => void) => { const t = performance.now(); f(); return performance.now() - t; };
   for (const { chart } of exact.slice(0, 30)) ctxOf(chart);
-  const perf: Record<string, { ctx: number[]; ask: number[]; report: number[]; payload: number[] }> = {};
+  const perf: Record<string, { ctx: number[]; ask: number[]; report: number[]; payload: number[]; lifeWhole: number[]; lifeSections: number[] }> = {};
   for (const [set, tag] of [[exact, 'exact'], [approx, 'approximate']] as const) {
-    const p = (perf[tag] = { ctx: [], ask: [], report: [], payload: [] });
+    const p = (perf[tag] = { ctx: [], ask: [], report: [], payload: [], lifeWhole: [], lifeSections: [] });
     for (const { chart } of set) {
       const ins = buildInsights(chart, asOf);
       p.ctx.push(time(() => buildExplanations(buildInterpretationContext(chart, asOf, ins))));
       const ex = buildExplanations(buildInterpretationContext(chart, asOf, ins));
       p.ask.push(groundingBlock(ex, { domains: ['career'], evidenceLines: false }).length + 2);
       p.report.push(groundingBlock(ex).length + 2);
+      // Complete Life Report: the whole block in every one of its batches, against each batch's own section.
+      p.lifeWhole.push(LIFE_REPORT_GROUNDING_PLAN.length * (groundingBlock(ex).length + 2));
+      p.lifeSections.push(LIFE_REPORT_GROUNDING_PLAN.reduce((n, b) => n + sectionGroundingBlock(ex, b.grounding).length + 2, 0));
       p.payload.push(JSON.stringify(ex).length);
     }
   }
-  const row = (tag: string, k: 'ctx' | 'ask' | 'report' | 'payload', unit: string, f = (n: number) => n.toFixed(2)) => `| ${tag} | ${unit} | ${f(pct(perf[tag][k], 0.5))} | ${f(pct(perf[tag][k], 0.95))} |`;
+  const row = (tag: string, k: 'ctx' | 'ask' | 'report' | 'payload' | 'lifeWhole' | 'lifeSections', unit: string, f = (n: number) => n.toFixed(2)) => `| ${tag} | ${unit} | ${f(pct(perf[tag][k], 0.5))} | ${f(pct(perf[tag][k], 0.95))} |`;
   const tok = (n: number) => `${n} chars ≈ ${Math.round(n / 4)} tokens`;
   out.push(`## Performance (seed 99, after warm-up)
 
@@ -194,6 +198,8 @@ ${row('exact', 'ask', 'Ask prompt addition, one area', tok)}
 ${row('approximate', 'ask', 'Ask prompt addition, one area', tok)}
 ${row('exact', 'report', 'report prompt addition, all areas', tok)}
 ${row('approximate', 'report', 'report prompt addition, all areas', tok)}
+${row('exact', 'lifeWhole', `Complete Life Report, ${LIFE_REPORT_GROUNDING_PLAN.length} batches, whole block in each (before)`, tok)}
+${row('exact', 'lifeSections', `Complete Life Report, ${LIFE_REPORT_GROUNDING_PLAN.length} batches, each batch's own section (after)`, tok)}
 ${row('exact', 'payload', 'Insights payload addition (bytes)', (n) => String(n))}
 ${row('approximate', 'payload', 'Insights payload addition (bytes)', (n) => String(n))}
 

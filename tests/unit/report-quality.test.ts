@@ -13,6 +13,8 @@ import { getKundli } from '../../server/astroEngine';
 import { generateReport, generateLifeReport, reportWindow, LIFE_REPORT_MIN_SECTIONS, LIFE_REPORT_SECTION_COUNT } from '../../server/aiAstrologerService';
 import { buildInsights } from '../../server/astroEngine/evidence/insights';
 import { ReportGenerationError, checkSections, textProblems, MIN_SECTION_CHARS } from '../../server/reportQuality';
+import { buildInterpretationContext } from '../../server/astroEngine/reasoning/interpretationContext';
+import { buildExplanations, groundingBlock, sectionGroundingBlock } from '../../server/astroEngine/reasoning/explanations';
 
 const NEUTRAL = 'This part of the reading draws together the tendencies shown by the calculated chart and turns them into practical, gentle guidance. It describes patterns rather than certainties, points to the periods the chart marks as supportive, and suggests steady habits that help in any season. Free will and effort matter as much as any configuration. ';
 const headingsIn = (prompt: string): string[] => {
@@ -188,6 +190,56 @@ describe('Complete Life Report', () => {
   it('fails closed without the AI service', async () => {
     vi.stubEnv('OPENAI_API_KEY', '');
     await expect(generateLifeReport(exact)).rejects.toBeInstanceOf(ReportGenerationError);
+  });
+});
+
+describe('complete life report: explanation context per batch (USER_FACING_REASONING_V1)', () => {
+  const HEADER = 'INTERPRETATION CONTEXT';
+  const promptsFor = async (flag: boolean) => {
+    vi.stubEnv('USER_FACING_REASONING_V1', flag ? 'true' : '');
+    const prompts: string[] = [];
+    ai.respond.mockImplementation((p) => { prompts.push(p); return reply(p); });
+    await generateLifeReport(exact);
+    return prompts;
+  };
+  const batch = (prompts: string[], focus: RegExp) => prompts.find((p) => focus.test(p))!;
+
+  it('off: no batch prompt carries any explanation context', async () => {
+    const prompts = await promptsFor(false);
+    expect(prompts).toHaveLength(11);
+    for (const p of prompts) expect(p).not.toContain(HEADER);
+  });
+
+  it('on: each batch gets the part of the explanations its sections read, and nothing it would not use', async () => {
+    const prompts = await promptsFor(true);
+    expect(prompts).toHaveLength(11);
+    const ex = buildExplanations(buildInterpretationContext(exact.chartData.canonical, new Date()));
+    const whole = groundingBlock(ex);
+    // The overview, the twelve houses and the life domains read every life area.
+    for (const f of [/core identity/, /houses 1 to 6/, /houses 7 to 12/, /major life domains/]) expect(batch(prompts, f)).toContain(whole);
+    // Planet batches: their planets in full, the yogas those planets form and their running periods.
+    for (const [f, planets] of [[/the Sun, Moon and Mars/, ['Sun', 'Moon', 'Mars']], [/Mercury, Jupiter and Venus/, ['Mercury', 'Jupiter', 'Venus']], [/Saturn, Rahu and Ketu/, ['Saturn', 'Rahu', 'Ketu']]] as const) {
+      const p = batch(prompts, f);
+      expect(p).toContain(sectionGroundingBlock(ex, { kind: 'planets', planets }));
+      for (const x of ex.planets) expect(p.includes(x.summary), x.planet).toBe((planets as readonly string[]).includes(x.planet));
+      for (const y of ex.yogas.filter((y) => planets.some((n) => y.formation.includes(n)))) expect(p).toContain(y.formation);
+      for (const per of ex.periods.filter((x) => x.lord && (planets as readonly string[]).includes(x.lord))) expect(p).toContain(per.text);
+    }
+    const yogas = batch(prompts, /the yogas \(planetary combinations\)/);
+    for (const y of ex.yogas) expect(yogas).toContain(`${y.formation} ${y.contribution} ${y.effectiveness}`);
+    const dasha = batch(prompts, /dasha life-map/);
+    for (const per of ex.periods) expect(dasha).toContain(per.text);
+    for (const a of ex.areas) if (a.period) expect(dasha).toContain(a.period);
+    const remedies = batch(prompts, /practical remedies/);
+    for (const per of ex.periods) expect(remedies).toContain(per.text);
+    // Doshas and transits: the block holds nothing on them, so the batch keeps only the grounding rules.
+    const doshas = batch(prompts, /doshas and afflictions/);
+    expect(doshas).toContain(sectionGroundingBlock(ex, { kind: 'rules' }));
+    expect(doshas).not.toContain('- Your running');
+    // Every batch keeps the grounding rules; together they carry far less than eleven copies of the whole block.
+    for (const p of prompts) expect(p).toContain('Grounding rules:');
+    const added = prompts.reduce((n, p) => n + (p.length - p.indexOf(HEADER)), 0);
+    expect(added).toBeLessThan(whole.length * 11 * 0.75);
   });
 });
 

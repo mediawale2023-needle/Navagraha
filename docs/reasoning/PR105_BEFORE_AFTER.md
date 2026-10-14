@@ -26,7 +26,7 @@ Chart: 1984-02-20 23:07 at 19.076, 72.8777; Lagna Libra.
 > Supports: Saturn is exalted in Libra.
 > Challenges: Moon, lord of the 10th house (Cancer), sits in the 12th house.
 > Challenges: Sun is in an enemy's sign in Aquarius.
-> Your running Saturn Mahadasha bears on career because Saturn is a natural significator of career. Navagraha reads Saturn's overall condition as supportive; that one reading describes the period's general tone in every area it touches, not a separate forecast for career.
+> Your running Saturn Mahadasha bears on career because Saturn is a natural significator of career. Navagraha reads Saturn's overall condition as supportive. This is one reading of the planet itself, used as a single factor wherever the period applies; it does not mean career will go the same way as the other areas this period touches.
 > Sasa Yoga is present and counts toward this assessment. A formed yoga describes a potential; whether it delivers in full is not assessed.
 > Supporting and challenging factors are both present. They describe different influences rather than cancelling each other out.
 
@@ -82,7 +82,7 @@ Chart: 1960-03-21 21:58 at 22.5726, 88.3639; Lagna Scorpio.
 > Supports: Jupiter, lord of the 2nd house, is moolatrikona in Sagittarius.
 > Challenges: Moon occupies the 2nd house (Sagittarius).
 > Challenges: Saturn occupies the 2nd house (Sagittarius).
-> Your running Venus Antardasha bears on wealth because Venus is a natural significator of wealth. Navagraha reads Venus's overall condition as supportive; that one reading describes the period's general tone in every area it touches, not a separate forecast for wealth.
+> Your running Venus Antardasha bears on wealth because Venus is a natural significator of wealth. Navagraha reads Venus's overall condition as supportive. This is one reading of the planet itself, used as a single factor wherever the period applies; it does not mean wealth will go the same way as the other areas this period touches.
 > Dhana Yoga is present and counts toward this assessment. A formed yoga describes a potential; whether it delivers in full is not assessed.
 > Supporting and challenging factors are both present. They describe different influences rather than cancelling each other out.
 > Astrologers weigh some of these factors differently, so treat the balance as an interpretation rather than a certainty.
@@ -134,9 +134,9 @@ Chart: 1984-02-20 23:07 at 19.076, 72.8777; Lagna Libra.
 > Saturn is a well-placed period lord in this chart, and it engages career, leadership, property & home, education, children (Saturn is a natural significator of career), so this 19.0-year mahadasha brings those areas forward.
 
 **After (flag on):**
-> Your running Saturn Mahadasha: Navagraha reads Saturn's overall condition as supportive. It bears on career, leadership, property & home, education and children. The same reading of Saturn applies to each of these; each area's own birth-chart factors still decide its assessment.
+> Your running Saturn Mahadasha: Navagraha reads Saturn's overall condition as supportive. It bears on career, leadership, property & home, education and children. Navagraha uses this one reading of Saturn as a single factor in each of these areas; it does not make them turn out alike. Each area's assessment weighs it with that area's own birth-chart factors (career: very strong; leadership: strong; property & home: strong; education: strong; children: strong).
 
-**Facts:** `period:mahadasha@2026-10-13T06:00:00.000Z`. **Limits:** one reading of the period lord applies to every area it touches; it is not a separate forecast per area.
+**Facts:** `period:mahadasha@2026-10-13T06:00:00.000Z`. **Limits:** one reading of the period lord is a single factor in every area it touches; it does not make those areas turn out alike, and each area's verdict weighs it with that area's own factors.
 
 ### 7. Approximate birth time
 Chart: 1960-03-21 (time unknown) at 22.5726, 88.3639; Lagna not used.
@@ -166,10 +166,10 @@ existing evidence packet (2612 characters before); the answer guard checks the r
 ```text
 INTERPRETATION CONTEXT (prepared from the same calculation and evidence; explain it, never extend it):
 - Career reads as very strong: 6 supporting and 2 conflicting indicators. The strongest support is 10th house sarvashtakavarga (Ashtakavarga). The main counter-indication is 10th lord placement (D1). Confidence: high.
-  Period: Your running Saturn Mahadasha bears on career because Saturn is a natural significator of career. Navagraha reads Saturn's overall condition as supportive; that one reading describes the period's general tone in every area it touches, not a separate forecast for career.
+  Period: Your running Saturn Mahadasha bears on career because Saturn is a natural significator of career. Navagraha reads Saturn's overall condition as supportive. This is one reading of the planet itself, used as a single factor wherever the period applies; it does not mean career will go the same way as the other areas this period touches.
   Yoga: Sasa Yoga is present and counts toward this assessment. A formed yoga describes a potential; whether it delivers in full is not assessed.
   Note: Supporting and challenging factors are both present. They describe different influences rather than cancelling each other out.
-- Your running Saturn Mahadasha: Navagraha reads Saturn's overall condition as supportive. It bears on career, leadership, property & home, education and children. The same reading of Saturn applies to each of these; each area's own birth-chart factors still decide its assessment.
+- Your running Saturn Mahadasha: Navagraha reads Saturn's overall condition as supportive. It bears on career, leadership, property & home, education and children. Navagraha uses this one reading of Saturn as a single factor in each of these areas; it does not make them turn out alike. Each area's assessment weighs it with that area's own birth-chart factors (career: very strong; leadership: strong; property & home: strong; education: strong; children: strong).
 - Your running Mercury Antardasha: Navagraha reads Mercury's overall condition as neither clearly supportive nor challenging. It is not linked to any of the life areas assessed here.
 - Sasa Yoga is formed by Saturn. It counts toward your leadership and career assessments. Whether it gives its full traditional result is not assessed: a formed yoga describes a potential, not a guarantee. Saturn's Mahadasha is running now. That makes the yoga's planets active in timing; it does not show that the yoga will deliver.
 - Raja Yoga is formed by Venus and Mercury. It is a common combination, so it is shown for context but not counted in any assessment. Whether it gives its full traditional result is not assessed: a formed yoga describes a potential, not a guarantee. Mercury is in neutral sign but combust (too close to the Sun), which some astrologers take to weaken it; Navagraha does not judge by how much. Mercury's Antardasha is running now. That makes the yoga's planets active in timing; it does not show that the yoga will deliver.
@@ -190,14 +190,16 @@ Grounding rules:
 
 | Set | Measure | Median | p95 |
 |---|---|---|---|
-| exact | context + explanations build (ms, reusing the request's insights) | 4.55 | 8.50 |
-| approximate | context + explanations build (ms, reusing the request's insights) | 1.61 | 4.32 |
-| exact | Ask prompt addition, one area | 2667 chars ≈ 667 tokens | 4033 chars ≈ 1008 tokens |
-| approximate | Ask prompt addition, one area | 1447 chars ≈ 362 tokens | 1871 chars ≈ 468 tokens |
-| exact | report prompt addition, all areas | 12144 chars ≈ 3036 tokens | 15094 chars ≈ 3774 tokens |
-| approximate | report prompt addition, all areas | 4425 chars ≈ 1106 tokens | 5381 chars ≈ 1345 tokens |
-| exact | Insights payload addition (bytes) | 22922 | 26579 |
-| approximate | Insights payload addition (bytes) | 9901 | 11605 |
+| exact | context + explanations build (ms, reusing the request's insights) | 5.33 | 9.44 |
+| approximate | context + explanations build (ms, reusing the request's insights) | 1.84 | 5.25 |
+| exact | Ask prompt addition, one area | 2956 chars ≈ 739 tokens | 4426 chars ≈ 1107 tokens |
+| approximate | Ask prompt addition, one area | 1447 chars ≈ 362 tokens | 2016 chars ≈ 504 tokens |
+| exact | report prompt addition, all areas | 12857 chars ≈ 3214 tokens | 15994 chars ≈ 3999 tokens |
+| approximate | report prompt addition, all areas | 4425 chars ≈ 1106 tokens | 5502 chars ≈ 1376 tokens |
+| exact | Complete Life Report, 11 batches, whole block in each (before) | 141427 chars ≈ 35357 tokens | 175934 chars ≈ 43984 tokens |
+| exact | Complete Life Report, 11 batches, each batch's own section (after) | 70643 chars ≈ 17661 tokens | 87353 chars ≈ 21838 tokens |
+| exact | Insights payload addition (bytes) | 23594 | 27554 |
+| approximate | Insights payload addition (bytes) | 9901 | 11658 |
 
 No additional AI call is made: the block is part of the existing single explainer call and report calls.
 Token counts are estimated at four characters per token. Generation latency of the live model was not measured here

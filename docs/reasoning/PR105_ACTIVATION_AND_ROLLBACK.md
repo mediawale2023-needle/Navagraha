@@ -26,8 +26,10 @@ surface falls back to the old behaviour (a one-line error with no chart details 
    approximate-time charts. The wording restates existing evidence but has not been astrologically validated.
 3. Check Ask answers on staging against the guard (no new guard rejections pattern), and generate one report
    of each offered type with an admin account (free access, no wallet movement).
-4. Watch AI spend: Ask adds roughly 370–690 input tokens per question and reports roughly 1,100–3,000 per call
-   (`docs/reasoning/PR105_BEFORE_AFTER.md`); the daily dollar budget still governs Ask.
+4. Watch AI spend: Ask adds roughly 360–740 input tokens per question, a standard report about 1,100–3,200 per call, and a
+   Complete Life Report about 16,400 over its 11 batches (each batch gets only its own section; about 32,900 with the
+   whole block in every batch) (`docs/reasoning/PR105_BEFORE_AFTER.md`); the daily dollar budget still governs Ask,
+   and paid report generation is not budgeted.
 5. Then enable in production by setting the variable and restarting.
 
 ## Rollback
