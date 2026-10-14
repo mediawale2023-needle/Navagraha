@@ -617,6 +617,16 @@ ${chart}${opts.correction ? `\n\n${opts.correction}` : ""}`;
  * shared guard and the career checks, the whole report is checked for repetition and contradictions, and only the
  * failed sections of a part are regenerated, once. Anything still failing fails the order (refunded as before).
  */
+/** The regeneration note for career sections: the listed problems, and how to fix generic or thin text without padding. */
+export function careerCorrectionNote(rejected: Array<{ heading: string; problems: string[] }>): string {
+  return `${correctionNote(rejected)}
+
+How to fix them — rewrite each listed section in full:
+- Remove every generic statement, or rewrite it so the same sentence names the chart fact behind it (a planet with its sign, house, lordship or dignity, a D10 placement, the 10th house bindus, or a running period from the CAREER EVIDENCE).
+- If a section was too short, add specific evidence from the CAREER EVIDENCE that the section has not used yet — supporting and contradicting indicators and what they mean for work — never filler, repetition or general advice.
+- Keep every fact exactly as the evidence states it.`;
+}
+
 async function generateCareerReport(kundli: Partial<Kundli>, asOf: Date): Promise<GeneratedReport> {
   const career = careerBrief(kundli, asOf);
   if (!career) throw new ReportGenerationError("the career evidence could not be read from this chart");
@@ -655,7 +665,7 @@ async function generateCareerReport(kundli: Partial<Kundli>, asOf: Date): Promis
     const summaryFailed = b.summary && problems.has("summary");
     if (!failed.length && !summaryFailed) return null;
     const rejected = [...failed.map((x) => ({ heading: x.heading, problems: problems.get(x.heading)! })), ...(summaryFailed ? [{ heading: "summary", problems: problems.get("summary")! }] : [])];
-    return run(b, failed, { summary: summaryFailed, remedies: b.remedies && !remedies.length, correction: correctionNote(rejected) });
+    return run(b, failed, { summary: summaryFailed, remedies: b.remedies && !remedies.length, correction: careerCorrectionNote(rejected) });
   }));
   crossCheck();
   if (problems.size) {

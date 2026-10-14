@@ -274,6 +274,7 @@ const CERTAINTY = /\b(?:will|shall)\s+(?:definitely\s+|certainly\s+|surely\s+|un
 const HEDGE = /\b(may|might|could|can|tends?|likely|possible|possibly|often|usually|if)\b/i;
 const MONTH_YEAR = /\b(January|February|March|April|May|June|July|August|September|October|November|December)\s+((?:19|20)\d{2})\b/g;
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+export const WORD_TOLERANCE = 0.1;
 const words = (t: string) => (t.match(/[A-Za-z0-9'’-]+/g) ?? []).length;
 const sentencesOf = (t: string) => t.split(/(?<=[.!?])\s+/).map((x) => x.trim()).filter(Boolean);
 const paragraphsOf = (t: string) => t.split(/\n\s*\n/).map((x) => x.trim()).filter((x) => words(x) >= 40);
@@ -287,8 +288,9 @@ export function careerSectionProblems(heading: string, body: string, f: CareerFa
   const n = words(body);
   // With no career-linked yoga the yoga section is a few sentences; its minimum must not invite padding.
   const noYogas = heading === 'Career Yogas' && !(f.careerYogas ?? []).length;
-  const min = noYogas ? 40 : def?.words[0] ?? 0;
-  if (def && n < min) out.push(`too short: ${n} words; explain the configuration, its meaning, its career relevance, the indicators for and against, and the conclusion (about ${min}–${def.words[1]} words, only as deep as the evidence supports)`);
+  // The prompt's word range is a target; a section up to 10% under its lower bound is accepted.
+  const min = noYogas ? 40 : Math.floor((def?.words[0] ?? 0) * (1 - WORD_TOLERANCE));
+  if (def && n < min) out.push(`too short: ${n} words; explain the configuration, its meaning, its career relevance, the indicators for and against, and the conclusion (about ${noYogas ? 40 : def.words[0]}–${def.words[1]} words, only as deep as the evidence supports)`);
   if (heading === 'Tenth House & Its Lord (D1)') {
     if (!has(/\b10th house\b|\btenth house\b/i)) out.push('must discuss the 10th house of the D1 chart');
     if (!has(word(f.tenthLord))) out.push(`must name the 10th lord, ${f.tenthLord}, and read its placement`);
