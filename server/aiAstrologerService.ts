@@ -461,6 +461,7 @@ const CAREER_RULES = `CAREER REPORT RULES (these override any other instruction)
 - Build every section on the CAREER EVIDENCE block below, naming the facts you use (house, lord, sign, D10 placement, period). Where the evidence is mixed or missing, say so plainly instead of filling the gap.
 - "Tenth House & Its Lord (D1)": the 10th house sign, its occupants and the planets aspecting it, the 10th lord's placement and dignity, and what they show together.
 - "Dasamsa (D10) Analysis": the D10 Lagna and its lord, the D10 10th house and its lord, the D1 10th lord's D10 placement, where D1 and D10 agree or disagree, and the birth-time sensitivity given. Never state a D10 degree.
+- In any sentence that mentions a divisional chart, name the chart for every placement you state ("in the D1 ...", "in the D10 ..."): each placement is checked against the chart it is written for.
 - "Job vs Business": compare the listed 6th, 7th and 10th house indicators; if they do not clearly favour one, say the chart is mixed.
 - "Growth Timing & Dashas": the running Mahadasha and Antardasha lords, their house lordships, D1 and D10 placements and their career implication, then the next periods — with the engine's dates only.
 - Yogas: only those listed, each with its rule, how this chart meets it, its limits and whether it links to career. Call a cancelled debilitation a Neecha Bhanga (cancelled debilitation), not a separate Raja Yoga. A yoga with no career link is not a career yoga.
