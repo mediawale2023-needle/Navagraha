@@ -15,7 +15,7 @@ import { getKundli } from '../../server/astroEngine';
 import { computeCanonicalChart } from '../../server/astroEngine/canonical/compute';
 import { resolveBirthWithCoordinates } from '../../server/astroEngine/birthResolver';
 import { careerCorrectionNote, generateReport, MAX_CAREER_REGENERATIONS } from '../../server/aiAstrologerService';
-import { CAREER_BATCHES, CAREER_SECTIONS, FIELDS, careerBrief, careerRemedies, careerReportProblems, careerSectionProblems, type CareerFacts } from '../../server/careerReport';
+import { CAREER_BATCHES, CAREER_SECTIONS, FIELDS, STRUCTURE_LABELS, careerBrief, careerDiagnostics, careerRuleCode, careerRemedies, careerReportProblems, careerSectionProblems, type CareerFacts } from '../../server/careerReport';
 
 const ASOF = new Date('2026-10-14T06:00:00Z');
 // The production report's birth details: 13 Nov 1991, 12:30 IST, Belagavi.
@@ -204,6 +204,79 @@ describe('word-count tolerance (production failure: 287, 292 and 234 words again
   });
 });
 
+describe('PR #113 production failure: the prompt\'s structure labels and the validator agree', () => {
+  const lines = (n: number, tag: string) => Array.from({ length: n }, (_, i) => `The 10th lord ${facts.tenthLord} sits with the D10 Lagna ${facts.d10LagnaSign} ruled by ${facts.d10LagnaLord} and the D10 10th lord ${facts.d10TenthLord} ${tag}${i}${u()}.`).join(' ');
+  // Only the labels carry the weighing and the conclusion: no "however", "but", "overall", "so" elsewhere.
+  const labelled = (h: string) => `${STRUCTURE_LABELS[0]}: ${lines(12, 'a')} Mahadasha ${facts.mahadasha} Antardasha ${facts.antardasha} next ${facts.nextAntardasha} birth time 6th house 7th house 10th house.\n\n${STRUCTURE_LABELS[1]}: ${lines(10, 'b')}\n\n${STRUCTURE_LABELS[2]}: ${lines(6, 'c')}`;
+  const WEIGH = /must weigh the indicators/;
+
+  it('the prompt asks for exactly these labels', async () => {
+    const prompts: string[] = [];
+    ai.respond.mockImplementation((p) => { prompts.push(p); return goodReply(p, facts); });
+    await generateReport('career', k);
+    expect(prompts[0]).toContain(`"${STRUCTURE_LABELS[0]}", "${STRUCTURE_LABELS[1]}", then "${STRUCTURE_LABELS[2]}"`);
+  });
+
+  it('a core section written with the exact labels passes the for/against/conclusion rule, in all nine core sections', () => {
+    const core = CAREER_SECTIONS.filter((x) => x.core);
+    expect(core).toHaveLength(9);
+    for (const s of core) expect(careerSectionProblems(s.heading, labelled(s.heading), facts).filter((p) => WEIGH.test(p)), s.heading).toEqual([]);
+  });
+
+  it('the rule still rejects a section with no opposing side or no conclusion', () => {
+    const noOpposing = labelled('x').replace(`${STRUCTURE_LABELS[1]}:`, 'Further:');
+    const noConclusion = labelled('x').replace(`${STRUCTURE_LABELS[2]}:`, 'Further:');
+    for (const body of [noOpposing, noConclusion]) expect(careerSectionProblems('Job vs Business', body, facts)).toContainEqual(expect.stringMatching(WEIGH));
+  });
+});
+
+describe('career evidence states the D1 foundations from the canonical chart', () => {
+  it('D1 Lagna and its lord, Moon, Rahu and Ketu — matching the canonical placements, for several charts', async () => {
+    for (const [d, t, lat, lng] of [['1991-11-13', '12:30', 15.8497, 74.4977], ['1968-03-02', '04:15', 40.7128, -74.006], ['2001-07-21', '19:40', -33.8688, 151.2093]] as const) {
+      const kk: any = await getKundli(d, t, lat, lng);
+      const c = kk.chartData.canonical;
+      const text = careerBrief(kk, ASOF)!.text;
+      const lord = ['Mars', 'Venus', 'Mercury', 'Moon', 'Sun', 'Mercury', 'Venus', 'Mars', 'Jupiter', 'Saturn', 'Saturn', 'Jupiter'][c.ascendant.signIndex];
+      const lp = c.planets.find((p: any) => p.name === lord);
+      expect(text).toContain(`- D1 Lagna (the rising sign): ${c.ascendant.sign}; its lord ${lord}: ${lp.sign}, `);
+      for (const g of ['Moon', 'Rahu', 'Ketu']) {
+        const p = c.planets.find((x: any) => x.name === g);
+        const d10 = c.vargas.D10.placements.find((x: any) => x.planet === g);
+        expect(text).toMatch(new RegExp(`^- ${g}: ${p.sign}, ${p.house}(?:st|nd|rd|th) house.*; in D10 ${d10.sign}, D10 ${d10.house}(?:st|nd|rd|th) house`, 'm'));
+      }
+    }
+  });
+
+  it('the production chart: Capricorn Lagna ruled by Saturn, Moon in Capricorn in the 1st', () => {
+    const text = careerBrief(k, ASOF)!.text;
+    expect(text).toMatch(/D1 Lagna \(the rising sign\): Capricorn; its lord Saturn: Capricorn, 1st house/);
+    expect(text).toMatch(/^- Moon: Capricorn, 1st house/m);
+  });
+});
+
+describe('diagnostic rule codes', () => {
+  it('map each validation problem to its rule and never carry quoted text', () => {
+    const cases: Array<[string, string]> = [
+      ['too short: 120 words; explain …', 'too-short'], ['too short (40 characters)', 'too-short'], ['missing', 'missing'],
+      ['must weigh the indicators for and against and end with a practical conclusion, not only state conclusions', 'for-against-conclusion'],
+      ['generic statement with no chart evidence: "Sanket has great potential"', 'generic-statement'],
+      ['mostly generic text: most sentences cite no chart fact', 'mostly-generic'],
+      ['repeats a sentence already used in "Career Yogas": "x y z"', 'repeated-sentence'],
+      ['a paragraph largely repeats one in "Job vs Business"; each section must add new information', 'repeated-paragraph'],
+      ['uses Lagna without explaining it on first use; the reader is not an astrologer', 'unexplained-term'],
+      ['names Gaja Kesari Yoga, which the engine did not detect', 'undetected-yoga'],
+      ['names March 2031, which is not a period date from the engine', 'non-engine-date'],
+      ['must say that the D10 Lagna depends on an accurate birth time (it changes within minutes)', 'd10-birth-time-caveat'],
+      ['must name the D10 Lagna, Pisces', 'required-evidence'],
+      ['Venus is in Virgo, not Leo', 'chart-accuracy'],
+      ['not generated: AI provider error 429', 'not-generated'],
+    ];
+    for (const [p, code] of cases) expect(careerRuleCode(p), p).toBe(code);
+    const d = careerDiagnostics(new Map([['Career Yogas', ['generic statement with no chart evidence: "Sanket has great potential"', 'too short: 100 words']], ['summary', ['too short (0 characters)']]]));
+    expect(d).toBe('Career Yogas: generic-statement, too-short | summary: too-short');
+  });
+});
+
 describe('whole-report checks', () => {
   const sections = () => CAREER_SECTIONS.map((x) => ({ heading: x.heading, body: careerBody(x.heading, facts) }));
   it('pass a report whose sections each add new information', () => {
@@ -346,6 +419,22 @@ describe('Career report generation (AI mocked): three parts, partial regeneratio
     expect(retries).toMatch(/Saturn Antardasha begins in .*not 2029/);
     expect(retries).toMatch(/without the chart facts|supports only weakly/);
     expect(retries).toMatch(/weigh the indicators for and against/);
+  });
+
+  it('a cap failure names each rejected section with rule codes only, in the error and one log line', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    ai.respond.mockImplementation((p) => goodReply(p, facts, (h) => (h === 'Birth Chart Overview' ? undefined : 'Too short.')));
+    const err: any = await generateReport('career', k).catch((e) => e);
+    expect(ai.respond).toHaveBeenCalledTimes(3);
+    for (const h of CAREER_SECTIONS.filter((x) => x.core).map((x) => x.heading)) expect(err.message).toContain(`${h}: too-short`);
+    expect(err.message).toMatch(new RegExp(`9 sections need regeneration \\(maximum ${MAX_CAREER_REGENERATIONS}\\): `));
+    const logged = warn.mock.calls.map((c) => String(c[0])).filter((x) => x.startsWith('[reports] career quality'));
+    expect(logged).toHaveLength(1);
+    // No report text, birth details or name: section names and codes only.
+    for (const text of [logged[0], err.message]) {
+      expect(text).not.toMatch(/"|1991|12:30|Belagavi|\bS\b/);
+    }
+    warn.mockRestore();
   });
 
   it('fails before section retries when a draft exceeds the regeneration cap', async () => {

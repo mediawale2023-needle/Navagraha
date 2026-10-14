@@ -125,6 +125,10 @@ export function careerBrief(kundli: any, asOf = new Date()): CareerBrief | null 
 
   const L: string[] = [];
   L.push('CAREER EVIDENCE (deterministic, from the calculation engine; build every career claim on these facts and name them):');
+  const lagnaLord = SIGN_LORDS[chart.ascendant.signIndex];
+  L.push('', 'D1 — foundations (the rising sign and the planets the career sections do not otherwise list):');
+  L.push(`- D1 Lagna (the rising sign): ${chart.ascendant.sign}; its lord ${describe(lagnaLord)}.`);
+  for (const g of ['Moon', 'Rahu', 'Ketu'] as const) L.push(`- ${describe(g)}.`);
   L.push('', 'D1 — the 10th house of career:');
   L.push(`- 10th house: ${tenth.sign}; its lord ${describe(tenthLord)}.`);
   L.push(`- Planets in the 10th: ${occupants(10).length ? occupants(10).map(describe).join(' | ') : 'none'}.`);
@@ -270,8 +274,11 @@ const GENERIC = /\b(leadership (?:potential|qualities|capabilities|roles?)|hard 
 const ANCHOR = /\b(Sun|Moon|Mars|Mercury|Jupiter|Venus|Saturn|Rahu|Ketu|lord|house|D1|D10|Dasamsa|Lagna|Ascendant|Mahadasha|Antardasha|dasha|bindus?|Aries|Taurus|Gemini|Cancer|Leo|Virgo|Libra|Scorpio|Sagittarius|Capricorn|Aquarius|Pisces|yoga|kendra|trikona|dusthana|significator|karaka|10th|tenth|chart)\b/i;
 const YOGA_NAME = /\b((?:[A-Z][a-z]+[ -])*[A-Z][a-z]+) Yoga\b/g;
 const NOT_A_NAME = new Set(['This', 'The', 'That', 'A', 'An', 'Such', 'Each', 'Every', 'Any', 'No', 'These', 'Those', 'Its', 'Your', 'One', 'Another', 'Which', 'What', 'Both']);
-const CONTRAST = /\b(however|but|although|though|whereas|while|on the other hand|offset\w*|temper\w*|counter\w*|against|tension|mixed|contrast\w*|weaker|limits?|qualif\w*)\b/i;
-const CONCLUSION = /\b(overall|taken together|on balance|in practice|this means|this suggests|so\b|therefore|the upshot|in short|practically|for your work|professionally)\b/i;
+// The generation prompt asks for the labels "Supporting indicators", "Opposing or limiting indicators" and
+// "Practical conclusion"; those labels must satisfy this rule on their own.
+export const STRUCTURE_LABELS = ['Supporting indicators', 'Opposing or limiting indicators', 'Practical conclusion'] as const;
+const CONTRAST = /\b(however|but|although|though|whereas|while|on the other hand|offset\w*|temper\w*|counter\w*|against|tension|mixed|contrast\w*|weaker|limits?|limiting|limitations?|opposing|qualif\w*)\b/i;
+const CONCLUSION = /\b(overall|taken together|on balance|in practice|this means|this suggests|so\b|therefore|the upshot|in short|practically|practical conclusion|in conclusion|for your work|professionally)\b/i;
 const CERTAINTY = /\b(?:will|shall)\s+(?:definitely\s+|certainly\s+|surely\s+|undoubtedly\s+)?(?:get|receive|achieve|be promoted|land|start|launch|become|earn|succeed|win|reach)\b/i;
 const HEDGE = /\b(may|might|could|can|tends?|likely|possible|possibly|often|usually|if)\b/i;
 const MONTH_YEAR = /\b(January|February|March|April|May|June|July|August|September|October|November|December)\s+((?:19|20)\d{2})\b/g;
@@ -351,6 +358,27 @@ export function careerSectionProblems(heading: string, body: string, f: CareerFa
     if (!knownYogas.some((k) => k === name || k.endsWith(` ${name}`))) out.push(`names ${ws.join(' ')} Yoga, which the engine did not detect`);
   }
   return Array.from(new Set(out));
+}
+
+// Short codes for diagnostics: the rule a problem comes from, never the quoted report text.
+const RULE_CODES: Array<[RegExp, string]> = [
+  [/^not generated:/, 'not-generated'], [/^missing$/, 'missing'], [/^too short/, 'too-short'],
+  [/^must weigh the indicators/, 'for-against-conclusion'], [/^mostly generic text/, 'mostly-generic'],
+  [/^generic statement/, 'generic-statement'], [/^states a D10 degree/, 'd10-degree'], [/^states an outcome as certain/, 'certainty'],
+  [/^names .+ which is not a period date/, 'non-engine-date'], [/^names .+ Yoga, which the engine did not detect/, 'undetected-yoga'],
+  [/^recommends .+ supports only weakly/, 'weak-field-recommended'], [/^names .+ without the chart facts/, 'field-without-facts'],
+  [/^must evaluate the supported fields/, 'supported-fields-missing'], [/^must say that the D10 Lagna depends/, 'd10-birth-time-caveat'],
+  [/^must (?:discuss|name|read|compare|say|explain)/, 'required-evidence'], [/^repeats a sentence/, 'repeated-sentence'],
+  [/^a paragraph largely repeats/, 'repeated-paragraph'], [/^contradicts the Job vs Business/, 'job-business-contradiction'],
+  [/^uses .+ without explaining it/, 'unexplained-term'],
+];
+/** The rule a validation problem comes from; problems from the shared chart guard are 'chart-accuracy'. */
+export function careerRuleCode(problem: string): string {
+  return RULE_CODES.find(([re]) => re.test(problem))?.[1] ?? 'chart-accuracy';
+}
+/** "Heading: code, code | …" — section names and rule codes only, safe to log and to store. */
+export function careerDiagnostics(problems: Map<string, string[]>): string {
+  return Array.from(problems).map(([h, ps]) => `${h}: ${Array.from(new Set(ps.map(careerRuleCode))).join(', ')}`).join(' | ');
 }
 
 const TERMS: Array<[string, RegExp]> = [
