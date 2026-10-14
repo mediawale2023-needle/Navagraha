@@ -5,10 +5,10 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-const ai = vi.hoisted(() => ({ respond: vi.fn<(prompt: string) => string>() }));
+const ai = vi.hoisted(() => ({ respond: vi.fn<(prompt: string) => string>(), maxTokens: [] as number[] }));
 vi.mock('openai', () => ({
   default: class {
-    chat = { completions: { create: async ({ messages }: any) => ({ choices: [{ message: { content: ai.respond(messages[0].content) } }] }) } };
+    chat = { completions: { create: async ({ messages, max_tokens }: any) => { ai.maxTokens.push(max_tokens); return { choices: [{ message: { content: ai.respond(messages[0].content) } }] }; } } };
   },
 }));
 import { getKundli } from '../../server/astroEngine';
@@ -59,6 +59,7 @@ let k: any; let facts: CareerFacts;
 beforeEach(async () => {
   vi.stubEnv('OPENAI_API_KEY', 'test-key');
   ai.respond.mockReset();
+  ai.maxTokens.length = 0;
   k = await sanket();
   facts = careerBrief(k, new Date())!.facts;
 });
@@ -180,7 +181,9 @@ describe('word-count tolerance (production failure: 287, 292 and 234 words again
     const note = careerCorrectionNote([{ heading: 'Career Timeline (Dasha Periods)', problems: ['too short: 250 words', 'generic statement with no chart evidence: "x"'] }]);
     expect(note).toContain('"Career Timeline (Dasha Periods)": too short: 250 words; generic statement with no chart evidence');
     expect(note).toMatch(/Remove every generic statement, or rewrite it so the same sentence names the chart fact/);
-    expect(note).toMatch(/add specific evidence from the CAREER EVIDENCE .* never filler/);
+    expect(note).toMatch(/supporting indicators and the opposing or limiting indicators/);
+    expect(note).toMatch(/End with a practical conclusion/);
+    expect(note).toMatch(/add evidence the section has not used yet — never filler/);
   });
 });
 
@@ -267,6 +270,39 @@ describe('Career report generation (AI mocked): three parts, partial regeneratio
     expect(content.sections).toHaveLength(CAREER_SECTIONS.length);
   });
 
+  it('regenerates each failed section on its own call with only its own problems; passed sections are kept', async () => {
+    const failing: Record<string, string> = {
+      'Dasamsa (D10) Analysis': 'The D10 matters.',
+      'Career Timeline (Dasha Periods)': `${careerBody('Career Timeline (Dasha Periods)', facts)}\n\nThis period brings great potential for growth.`,
+      'Strengths, Challenges & Practical Guidance': 'Short.',
+    };
+    const prompts: string[] = [];
+    ai.respond.mockImplementation((p) => {
+      prompts.push(p);
+      return goodReply(p, facts, (h) => (prompts.length <= 3 ? failing[h] : undefined));
+    });
+    const content: any = await generateReport('career', k);
+    const retries = prompts.slice(3);
+    expect(retries.map(headingsIn).sort()).toEqual(Object.keys(failing).map((h) => [h]).sort());
+    for (const p of retries) {
+      const [h] = headingsIn(p);
+      for (const other of Object.keys(failing).filter((x) => x !== h)) expect(p).not.toContain(`- "${other}":`);
+      expect(p).toContain(`- "${h}": `);
+      expect(p).toMatch(/opposing or limiting indicators[\s\S]*practical conclusion/);
+    }
+    expect(retries.find((p) => headingsIn(p)[0] === 'Career Timeline (Dasha Periods)')).toMatch(/generic statement with no chart evidence/);
+    expect(retries.find((p) => headingsIn(p)[0] === 'Dasamsa (D10) Analysis')).toMatch(/too short/);
+    // Each regeneration has the part's full output allowance.
+    expect(ai.maxTokens.slice(3)).toEqual(retries.map(() => 4000));
+    expect(content.sections.map((x: any) => x.heading)).toEqual(CAREER_SECTIONS.map((x) => x.heading));
+  });
+
+  it('a section still failing after its own regeneration fails the order; others are regenerated once each', async () => {
+    ai.respond.mockImplementation((p) => goodReply(p, facts, (h) => (h === 'Career Yogas' || h === 'Job vs Business' ? 'Too short.' : undefined)));
+    await expect(generateReport('career', k)).rejects.toThrow(/Career Yogas: too short.*Job vs Business: too short|Job vs Business: too short.*Career Yogas: too short/);
+    expect(ai.respond).toHaveBeenCalledTimes(5);
+  });
+
   it('a repeated paragraph across parts regenerates only the later section', async () => {
     const prompts: string[] = [];
     const copied = careerBody('Tenth House & Its Lord (D1)', facts).split('\n\n')[1];
@@ -289,11 +325,13 @@ describe('Career report generation (AI mocked): three parts, partial regeneratio
     expect(ai.respond).toHaveBeenCalledTimes(4);
   });
 
-  it('a part that returns invalid JSON is regenerated once', async () => {
+  it('a part that returns invalid JSON is regenerated once, section by section', async () => {
     let bad = true;
     ai.respond.mockImplementation((p) => { if (bad && headingsIn(p).includes('Job vs Business')) { bad = false; return 'not json'; } return goodReply(p, facts); });
     const content: any = await generateReport('career', k);
-    expect(ai.respond).toHaveBeenCalledTimes(4);
+    // Three first-pass parts, then one call for each of the failed part's three sections.
+    expect(ai.respond).toHaveBeenCalledTimes(6);
+    expect(ai.respond.mock.calls.slice(3).map(([p]) => headingsIn(p))).toEqual(CAREER_BATCHES.find((b) => b.id === 'decisions')!.sections.map((x) => [x.heading]));
     expect(content.sections.find((s: any) => s.heading === 'Job vs Business')).toBeTruthy();
   });
 

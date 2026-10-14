@@ -581,7 +581,7 @@ CHART RULES (these override any other instruction):
 
 async function careerBatch(batch: typeof CAREER_BATCHES[number], sections: typeof CAREER_SECTIONS, chart: string, kundli: Partial<Kundli>, opts: { summary: boolean; remedies: boolean; correction?: string }): Promise<{ summary?: string; sections: unknown; remedies?: unknown }> {
   const client = getClient();
-  const others = CAREER_SECTIONS.filter((x) => !batch.sections.includes(x)).map((x) => `"${x.heading}"`).join(", ");
+  const others = CAREER_SECTIONS.filter((x) => !sections.includes(x)).map((x) => `"${x.heading}"`).join(", ");
   const shape = [
     opts.summary ? `"summary": "an overview of the whole career reading in 120-180 words, naming its two or three main chart reasons"` : "",
     `"sections": [${sections.map((x) => `{"heading": "${x.heading}", "body": "..."}`).join(", ")}]`,
@@ -622,8 +622,10 @@ export function careerCorrectionNote(rejected: Array<{ heading: string; problems
   return `${correctionNote(rejected)}
 
 How to fix them — rewrite each listed section in full:
-- Remove every generic statement, or rewrite it so the same sentence names the chart fact behind it (a planet with its sign, house, lordship or dignity, a D10 placement, the 10th house bindus, or a running period from the CAREER EVIDENCE).
-- If a section was too short, add specific evidence from the CAREER EVIDENCE that the section has not used yet — supporting and contradicting indicators and what they mean for work — never filler, repetition or general advice.
+- Base every point on named chart evidence from the CAREER EVIDENCE (a planet with its sign, house, lordship or dignity, a D10 placement, the 10th house bindus, or a running period). Remove every generic statement, or rewrite it so the same sentence names the chart fact behind it.
+- Give the supporting indicators and the opposing or limiting indicators, and say what each means for work.
+- End with a practical conclusion that follows from that evidence.
+- If a section was too short, add evidence the section has not used yet — never filler, repetition or general advice.
 - Keep every fact exactly as the evidence states it.`;
 }
 
@@ -659,13 +661,18 @@ async function generateCareerReport(kundli: Partial<Kundli>, asOf: Date): Promis
 
   await Promise.all(CAREER_BATCHES.map((b) => run(b, b.sections, { summary: b.summary, remedies: b.remedies })));
   crossCheck();
-  // One regeneration per part, for its failed sections only.
-  await Promise.all(CAREER_BATCHES.map((b) => {
+  // One regeneration per failed section (and summary), each call given only that section's own problems and the
+  // part's full output allowance; passed sections are kept. Parts run in parallel, a part's sections one at a time.
+  await Promise.all(CAREER_BATCHES.map(async (b) => {
     const failed = b.sections.filter((x) => problems.has(x.heading));
-    const summaryFailed = b.summary && problems.has("summary");
-    if (!failed.length && !summaryFailed) return null;
-    const rejected = [...failed.map((x) => ({ heading: x.heading, problems: problems.get(x.heading)! })), ...(summaryFailed ? [{ heading: "summary", problems: problems.get("summary")! }] : [])];
-    return run(b, failed, { summary: summaryFailed, remedies: b.remedies && !remedies.length, correction: careerCorrectionNote(rejected) });
+    let wantRemedies = b.remedies && !remedies.length && failed.length > 0;
+    for (const x of failed) {
+      await run(b, [x], { summary: false, remedies: wantRemedies, correction: careerCorrectionNote([{ heading: x.heading, problems: problems.get(x.heading)! }]) });
+      wantRemedies = wantRemedies && !remedies.length;
+    }
+    if (b.summary && problems.has("summary")) {
+      await run(b, [], { summary: true, remedies: false, correction: careerCorrectionNote([{ heading: "summary", problems: problems.get("summary")! }]) });
+    }
   }));
   crossCheck();
   if (problems.size) {
