@@ -14,7 +14,7 @@ vi.mock('openai', () => ({
 import { getKundli } from '../../server/astroEngine';
 import { computeCanonicalChart } from '../../server/astroEngine/canonical/compute';
 import { resolveBirthWithCoordinates } from '../../server/astroEngine/birthResolver';
-import { generateReport } from '../../server/aiAstrologerService';
+import { careerCorrectionNote, generateReport } from '../../server/aiAstrologerService';
 import { CAREER_BATCHES, CAREER_SECTIONS, FIELDS, careerBrief, careerRemedies, careerReportProblems, careerSectionProblems, type CareerFacts } from '../../server/careerReport';
 
 const ASOF = new Date('2026-10-14T06:00:00Z');
@@ -149,6 +149,38 @@ describe('career section checks', () => {
     expect(one('You have leadership potential.')).toEqual([expect.stringMatching(/generic statement/)]);
     const generic = Array.from({ length: 40 }, (_, i) => `Good things come to those who wait ${u()} and stay ${u()} positive ${i}.`).join(' ');
     expect(careerSectionProblems('Strengths, Challenges & Practical Guidance', generic, facts)).toEqual(expect.arrayContaining([expect.stringMatching(/mostly generic text/)]));
+  });
+});
+
+describe('word-count tolerance (production failure: 287, 292 and 234 words against minimums of 300, 300 and 250)', () => {
+  const count = (t: string) => (t.match(/[A-Za-z0-9'’-]+/g) ?? []).length;
+  // The section's own required evidence, padded with unique filler to exactly n words.
+  const sized = (h: string, n: number) => {
+    const body = careerBody(h, facts).split(/(?<=\.)\s+/);
+    while (count(body.join(' ')) > n) body.pop();
+    let out = body.join(' ');
+    while (count(out) < n) out += ` w${u()}`;
+    return out.trim();
+  };
+  it('accepts a section up to 10% under its lower target, and rejects one further under', () => {
+    for (const [h, n] of [['Dasamsa (D10) Analysis', 287], ['Career Timeline (Dasha Periods)', 292], ['Strengths, Challenges & Practical Guidance', 234], ['Dasamsa (D10) Analysis', 270]] as const) {
+      const body = sized(h, n);
+      expect(count(body)).toBe(n);
+      expect(careerSectionProblems(h, body, facts).filter((p) => /too short/.test(p)), `${h} ${n}`).toEqual([]);
+    }
+    for (const [h, n] of [['Dasamsa (D10) Analysis', 269], ['Strengths, Challenges & Practical Guidance', 224]] as const) {
+      expect(careerSectionProblems(h, sized(h, n), facts)).toContainEqual(expect.stringMatching(new RegExp(`too short: ${n} words.*about ${CAREER_SECTIONS.find((x) => x.heading === h)!.words[0]}–`)));
+    }
+  });
+  it('generic statements are still rejected within the tolerance', () => {
+    const body = `${sized('Career Timeline (Dasha Periods)', 292)}\n\nThis period brings great potential for growth.`;
+    expect(careerSectionProblems('Career Timeline (Dasha Periods)', body, facts)).toContainEqual(expect.stringMatching(/generic statement with no chart evidence/));
+  });
+  it('the regeneration note lists the problems and asks for chart evidence in place of generic or thin text', () => {
+    const note = careerCorrectionNote([{ heading: 'Career Timeline (Dasha Periods)', problems: ['too short: 250 words', 'generic statement with no chart evidence: "x"'] }]);
+    expect(note).toContain('"Career Timeline (Dasha Periods)": too short: 250 words; generic statement with no chart evidence');
+    expect(note).toMatch(/Remove every generic statement, or rewrite it so the same sentence names the chart fact/);
+    expect(note).toMatch(/add specific evidence from the CAREER EVIDENCE .* never filler/);
   });
 });
 
