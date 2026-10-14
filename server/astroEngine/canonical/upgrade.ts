@@ -195,6 +195,23 @@ export function withCurrentDoshaRules<T extends Pick<Kundli, 'chartData' | 'dosh
 }
 
 /**
+ * Drops the 0° placeholder that V3 charts saved before this fix carry for every D10 and D60 placement: the engine
+ * calculates those vargas' signs and houses only (legacyView never had a degree function for them), so a stored
+ * degree there is never a calculated value. Signs and houses are untouched. Read-only and idempotent.
+ */
+export function withoutVargaDegreePlaceholders<T extends Pick<Kundli, 'chartData'>>(kundli: T): T {
+  const cd = (kundli.chartData ?? {}) as Record<string, any>;
+  if (!isCurrentCanonicalChart(cd.canonical)) return kundli;
+  const strip = (v: any) => {
+    if (!Array.isArray(v?.planetaryPositions) || !v.planetaryPositions.some((p: any) => p && 'degree' in p)) return v;
+    return { ...v, planetaryPositions: v.planetaryPositions.map(({ degree: _placeholder, ...p }: any) => p) };
+  };
+  const dasamsa = strip(cd.dasamsa), shashtiamsa = strip(cd.shashtiamsa);
+  if (dasamsa === cd.dasamsa && shashtiamsa === cd.shashtiamsa) return kundli;
+  return { ...kundli, chartData: { ...cd, ...(cd.dasamsa ? { dasamsa } : {}), ...(cd.shashtiamsa ? { shashtiamsa } : {}) } };
+}
+
+/**
  * Adds `chartData.timeStability` to an approximate-time V3 chart: which planetary facts hold across
  * the whole birth date, so the client never states one that the unknown time could change.
  * Derived on read, never stored; exact-time and non-V3 charts are returned unchanged.

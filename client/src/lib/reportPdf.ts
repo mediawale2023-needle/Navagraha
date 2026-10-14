@@ -151,7 +151,8 @@ export async function downloadReportPdf(content: ReportContent) {
   if (content.chartData?.dasamsa?.planetaryPositions?.length) {
     heading("Dasamsa Chart (D10 — Career)");
     ensure(96);
-    drawChart(doc, content.chartData.dasamsa, (PW - 90) / 2, y, 90);
+    // The engine calculates D10 signs and houses only; any degree a stored report carries is a 0° placeholder.
+    drawChart(doc, content.chartData.dasamsa, (PW - 90) / 2, y, 90, { degrees: false });
     y += 96;
   }
 
@@ -231,6 +232,17 @@ export async function downloadReportPdf(content: ReportContent) {
   doc.save(`${safe || "astrology-report"}.pdf`);
 }
 
+/**
+ * A planet's label in a PDF chart: its abbreviation, then the degree only when the chart states degrees and the
+ * placement carries a calculated number (a calculated 0° is shown as 0°), then R when retrograde. A missing degree
+ * is left out, never printed as "—°" or 0°.
+ */
+export function chartPlacementLabel(p: ChartPlanetPos, opts: { degrees: boolean }): string {
+  const abbr = PLANET_ABBR[p.planet] || (p.planet === "Ascendant" ? "Asc" : p.planet.slice(0, 2));
+  const degree = opts.degrees && typeof p.degree === "number" && Number.isFinite(p.degree) ? `-${p.degree}°` : "";
+  return `${abbr}${degree}${p.isRetrograde ? "R" : ""}`;
+}
+
 // Reproduces the on-screen NorthIndianChartEnhanced layout exactly: a square
 // with the inner diamond (side midpoints) plus both corner diagonals, rashi
 // numbers per house, and planet labels grouped by house.
@@ -240,6 +252,7 @@ function drawChart(
   x0: number,
   y0: number,
   side: number,
+  opts: { degrees: boolean } = { degrees: true },
 ) {
   const S = 400;
   const mid = S / 2;
@@ -289,7 +302,7 @@ function drawChart(
     const startY = sy(t.py) - ((planets.length - 1) * lineH) / 2;
     planets.forEach((p, i) => {
       const abbr = PLANET_ABBR[p.planet] || (p.planet === "Ascendant" ? "Asc" : p.planet.slice(0, 2));
-      const label = `${abbr}-${p.degree ?? "—"}°${p.isRetrograde ? "R" : ""}`;
+      const label = chartPlacementLabel(p, { degrees: opts.degrees });
       doc.setTextColor(...hexToRgb(PLANET_COLORS[abbr] || "#1A1A2E"));
       doc.text(label, sx(t.px), startY + i * lineH, { align: "center" });
     });
