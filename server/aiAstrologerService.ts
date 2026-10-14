@@ -18,6 +18,8 @@ import { transitsForChart, transitSummary } from "./astroEngine/index.js";
 import { isCurrentCanonicalChart, type CanonicalChart, type Graha } from "@shared/v3/canonical";
 import { birthDayStability, dignityStatementStable, yogaTimeStable, type BirthDayStability } from "./astroEngine/canonical/birthDay.js";
 import { buildInsights } from "./astroEngine/evidence/insights.js";
+import { reportGroundingFor, reportSectionGroundingFor } from "./userFacingReasoning.js";
+import type { ReportSection } from "./astroEngine/reasoning/explanations.js";
 import {
   ReportGenerationError, checkSections, correctionNote, textProblems, MIN_SUMMARY_CHARS, type ReportGuard, type Section,
 } from "./reportQuality.js";
@@ -472,7 +474,7 @@ Return ONLY valid JSON with this exact shape:
 }
 
 Birth chart:
-${chartSummary(kundli)}${correction ? `\n\n${correction}` : ""}`;
+${chartSummary(kundli)}${reportGroundingFor(kundli)}${correction ? `\n\n${correction}` : ""}`;
 
   const response = await client.chat.completions.create({
     model: "gpt-4o",
@@ -560,18 +562,19 @@ export async function generateReport(
 
 // Each batch is one focused gpt-4o call; run in parallel they assemble into a 46-section
 // report grounded in the actual chart. Health and longevity are deliberately not predicted.
-const LIFE_REPORT_BATCHES: { focus: string; sections: string[] }[] = [
-  { focus: "the native's core identity and nature", sections: ["Executive Summary", "Personality & Temperament", "Mind & Emotional Nature", "Core Strengths & Talents", "Challenges & Karmic Lessons"] },
-  { focus: "the Sun, Moon and Mars in this chart (placement, dignity, aspects, effects)", sections: ["Sun — Soul, Ego & Authority", "Moon — Mind, Emotions & Mother", "Mars — Energy, Courage & Drive"] },
-  { focus: "Mercury, Jupiter and Venus (placement, dignity, aspects, effects)", sections: ["Mercury — Intellect & Communication", "Jupiter — Wisdom, Fortune & Dharma", "Venus — Love, Beauty & Comforts"] },
-  { focus: "Saturn, Rahu and Ketu (placement, dignity, aspects, effects)", sections: ["Saturn — Discipline, Karma & Delay", "Rahu — Ambition, Illusion & Obsession", "Ketu — Detachment & Liberation"] },
-  { focus: "houses 1 to 6 of the chart, with their lords and occupants", sections: ["1st House — Self, Body & Vitality", "2nd House — Wealth, Speech & Family", "3rd House — Courage, Siblings & Effort", "4th House — Home, Mother & Happiness", "5th House — Intelligence, Children & Romance", "6th House — Service, Debts & Competition"] },
-  { focus: "houses 7 to 12 of the chart, with their lords and occupants", sections: ["7th House — Marriage & Partnerships", "8th House — Secrets, Research & Transformation", "9th House — Fortune, Father & Dharma", "10th House — Career, Status & Karma", "11th House — Gains, Networks & Desires", "12th House — Loss, Expenses, Foreign & Moksha"] },
-  { focus: "the yogas (planetary combinations) present in this chart and their results", sections: ["Raja Yogas & Power Combinations", "Dhana Yogas (Wealth)", "Other Significant Yogas"] },
-  { focus: "doshas and afflictions, including the current Saturn transit (Sade Sati / Dhaiya)", sections: ["Mangal Dosha (Manglik) Analysis", "Kaal Sarp & Pitru Dosha", "Sade Sati & Saturn's Current Influence"] },
-  { focus: "the major life domains based on the relevant houses, lords and dashas", sections: ["Career & Profession", "Wealth & Financial Outlook", "Marriage & Relationships", "Education & Learning", "Spirituality & Life Purpose"] },
-  { focus: "the Vimshottari dasha life-map — predictions for the major planetary periods, anchored to today's date", sections: ["Dasha Life-Map Overview", "Current Mahadasha — Detailed Forecast", "Next Mahadasha — What to Expect", "Long-Term Dasha Outlook"] },
-  { focus: "personalised, practical remedies for this specific chart", sections: ["Gemstone Recommendations", "Mantras & Japa", "Charity, Fasting & Rituals", "Lifestyle & Conduct", "Lucky Factors (colours, numbers, days)"] },
+// Each batch gets only the explanation context its sections read (USER_FACING_REASONING_V1; '' when off).
+const LIFE_REPORT_BATCHES: { focus: string; grounding: ReportSection; sections: string[] }[] = [
+  { focus: "the native's core identity and nature", grounding: { kind: "whole" }, sections: ["Executive Summary", "Personality & Temperament", "Mind & Emotional Nature", "Core Strengths & Talents", "Challenges & Karmic Lessons"] },
+  { focus: "the Sun, Moon and Mars in this chart (placement, dignity, aspects, effects)", grounding: { kind: "planets", planets: ["Sun", "Moon", "Mars"] }, sections: ["Sun — Soul, Ego & Authority", "Moon — Mind, Emotions & Mother", "Mars — Energy, Courage & Drive"] },
+  { focus: "Mercury, Jupiter and Venus (placement, dignity, aspects, effects)", grounding: { kind: "planets", planets: ["Mercury", "Jupiter", "Venus"] }, sections: ["Mercury — Intellect & Communication", "Jupiter — Wisdom, Fortune & Dharma", "Venus — Love, Beauty & Comforts"] },
+  { focus: "Saturn, Rahu and Ketu (placement, dignity, aspects, effects)", grounding: { kind: "planets", planets: ["Saturn", "Rahu", "Ketu"] }, sections: ["Saturn — Discipline, Karma & Delay", "Rahu — Ambition, Illusion & Obsession", "Ketu — Detachment & Liberation"] },
+  { focus: "houses 1 to 6 of the chart, with their lords and occupants", grounding: { kind: "whole" }, sections: ["1st House — Self, Body & Vitality", "2nd House — Wealth, Speech & Family", "3rd House — Courage, Siblings & Effort", "4th House — Home, Mother & Happiness", "5th House — Intelligence, Children & Romance", "6th House — Service, Debts & Competition"] },
+  { focus: "houses 7 to 12 of the chart, with their lords and occupants", grounding: { kind: "whole" }, sections: ["7th House — Marriage & Partnerships", "8th House — Secrets, Research & Transformation", "9th House — Fortune, Father & Dharma", "10th House — Career, Status & Karma", "11th House — Gains, Networks & Desires", "12th House — Loss, Expenses, Foreign & Moksha"] },
+  { focus: "the yogas (planetary combinations) present in this chart and their results", grounding: { kind: "yogas" }, sections: ["Raja Yogas & Power Combinations", "Dhana Yogas (Wealth)", "Other Significant Yogas"] },
+  { focus: "doshas and afflictions, including the current Saturn transit (Sade Sati / Dhaiya)", grounding: { kind: "rules" }, sections: ["Mangal Dosha (Manglik) Analysis", "Kaal Sarp & Pitru Dosha", "Sade Sati & Saturn's Current Influence"] },
+  { focus: "the major life domains based on the relevant houses, lords and dashas", grounding: { kind: "whole" }, sections: ["Career & Profession", "Wealth & Financial Outlook", "Marriage & Relationships", "Education & Learning", "Spirituality & Life Purpose"] },
+  { focus: "the Vimshottari dasha life-map — predictions for the major planetary periods, anchored to today's date", grounding: { kind: "periods" }, sections: ["Dasha Life-Map Overview", "Current Mahadasha — Detailed Forecast", "Next Mahadasha — What to Expect", "Long-Term Dasha Outlook"] },
+  { focus: "personalised, practical remedies for this specific chart", grounding: { kind: "remedies" }, sections: ["Gemstone Recommendations", "Mantras & Japa", "Charity, Fasting & Rituals", "Lifestyle & Conduct", "Lucky Factors (colours, numbers, days)"] },
 ];
 
 async function generateLifeBatch(
@@ -610,6 +613,8 @@ async function checkedLifeBatch(batch: { focus: string; sections: string[] }, ch
   return batch.sections.flatMap((h) => byHeading.get(h) ?? []);
 }
 
+/** Which part of the explanation context each Life Report batch receives (measurement and tests). */
+export const LIFE_REPORT_GROUNDING_PLAN = LIFE_REPORT_BATCHES.map((b) => ({ focus: b.focus, grounding: b.grounding }));
 export const LIFE_REPORT_SECTION_COUNT = LIFE_REPORT_BATCHES.reduce((n, b) => n + b.sections.length, 0);
 /** Fewer sections than this and the report is not delivered (the order is refunded). */
 export const LIFE_REPORT_MIN_SECTIONS = Math.ceil(LIFE_REPORT_SECTION_COUNT * 0.9);
@@ -623,9 +628,12 @@ export async function generateLifeReport(kundli: Partial<Kundli>): Promise<Gener
     ? "\n\n" + transitSummary(transitsForChart(canonical, (kundli as any).chartData?.ashtakavarga?.sav))
     : "";
   const guard = reportGuard(kundli, transit);
-  const chart = chartSummary(kundli);
+  // USER_FACING_REASONING_V1 adds the shared explanation context to the prompt only ('' when off), each batch
+  // its own part of it; the guard's facts are unchanged.
+  const chartFacts = chartSummary(kundli);
+  const grounding = reportSectionGroundingFor(kundli);
 
-  const results = await Promise.all(LIFE_REPORT_BATCHES.map((batch) => checkedLifeBatch(batch, chart, transit, guard)));
+  const results = await Promise.all(LIFE_REPORT_BATCHES.map((batch) => checkedLifeBatch(batch, chartFacts + grounding(batch.grounding), transit, guard)));
   const sections = results.flat();
   if (sections.length < LIFE_REPORT_MIN_SECTIONS) {
     throw new ReportGenerationError(`only ${sections.length} of ${LIFE_REPORT_SECTION_COUNT} sections passed the quality check (minimum ${LIFE_REPORT_MIN_SECTIONS})`);

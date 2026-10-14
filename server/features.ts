@@ -44,4 +44,10 @@ export const features = {
   askPacks: () => on('FEATURE_ASK_PACKS'),
   /** Release B report prices (server/reportPricing.ts). Off: the catalogue's stored prices apply. */
   releaseBPricing: () => on('FEATURE_RELEASE_B_PRICING'),
+  /**
+   * Plain-language chart explanations from the canonical interpretation context (server/userFacingReasoning.ts):
+   * an `explanations` field on Insights, and a grounding block in Ask and paid-report prompts. Off: payloads and
+   * prompts are exactly as before. Verdicts, evidence, prices and eligibility are the same either way.
+   */
+  userFacingReasoning: () => on('USER_FACING_REASONING_V1'),
 };

@@ -45,6 +45,7 @@ import { CalculationError } from "./astroEngine/canonical/compute.js";
 import { exactTimeRequiredReason } from "./reportEligibility.js";
 import { upgradeLegacyKundli, chartVersionStatus, listedChart, withReconciledRemedies, withCurrentDoshaRules, withCurrentDignityRules, withApproximateTimeView } from "./astroEngine/canonical/upgrade.js";
 import { buildInsights } from "./astroEngine/evidence/insights.js";
+import { explanationsFor } from "./userFacingReasoning.js";
 import { routeQuestion, buildEvidencePacket, answerSimple, answerWithoutChart, guardAnswer, packetSummary, limitedChartReply } from "./agents/askKundli.js";
 import { canonicalChartSchema, isCurrentCanonicalChart } from "@shared/v3/canonical";
 import {
@@ -459,7 +460,10 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
       if (!isCurrentCanonicalChart(canonical)) {
         return res.status(409).json({ message: chartVersionStatus(kundli).notes[0] ?? 'This chart needs to be recreated with the V3 engine.', chartStatus: chartVersionStatus(kundli) });
       }
-      res.json({ ...buildInsights(canonical), chartStatus: chartVersionStatus(kundli) });
+      const insights = buildInsights(canonical);
+      // USER_FACING_REASONING_V1: an additive `explanations` field; absent when off.
+      const explanations = explanationsFor(canonical, new Date(insights.asOf), insights);
+      res.json({ ...insights, ...(explanations ? { explanations } : {}), chartStatus: chartVersionStatus(kundli) });
     } catch (err) {
       console.error('Insights error:', err);
       res.status(500).json({ message: "Failed to compute insights" });
@@ -472,7 +476,9 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
     try {
       const canonical = canonicalChartSchema.safeParse(req.body?.canonical);
       if (!canonical.success) return res.status(400).json({ message: 'A valid V3 canonical chart is required' });
-      res.json(buildInsights(canonical.data));
+      const insights = buildInsights(canonical.data);
+      const explanations = explanationsFor(canonical.data, new Date(insights.asOf), insights);
+      res.json(explanations ? { ...insights, explanations } : insights);
     } catch (err) {
       console.error('Guest insights error:', err);
       res.status(500).json({ message: "Failed to compute insights" });

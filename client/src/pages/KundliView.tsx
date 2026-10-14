@@ -35,6 +35,7 @@ import { SIGN_HI } from '@/lib/jyotishNames';
 import type { ChartLabels } from '@/lib/rashiChart';
 import { AIInsightSheet, type InsightSubject } from '@/components/AIInsightSheet';
 import { ChartGlance } from '@/components/v3/ChartGlance';
+import { ChartReadingNotes } from '@/components/v3/PlainExplanation';
 import { selectRunningPeriods, monthYear } from '@/lib/runningPeriods';
 import type { KundliInsights, EvidenceItem } from '@shared/v3/evidence';
 import type { CanonicalChart } from '@shared/v3/canonical';
@@ -434,6 +435,7 @@ export default function KundliView() {
                 )}
                 <ChartGlance domains={insights.domains} onWhy={(d) => { setSheetSubject({ kind: 'domain', resolution: d }); setAiSheetOpen(true); }} />
                 <p className="text-caption text-ink-muted">{insights.notes[insights.notes.length - 1]}</p>
+                {insights.explanations && <ChartReadingNotes explanations={insights.explanations} />}
               </section>
             ) : (
               <p className="text-sm text-ink-muted" role="status">{canonical ? 'Reading the evidence for each life area…' : 'This chart predates the V3 engine; open it again after it has been recalculated.'}</p>
@@ -751,6 +753,7 @@ export default function KundliView() {
         onOpenChange={setAiSheetOpen}
         subject={sheetSubject}
         onAskQuestion={askAbout}
+        explanations={insights?.explanations ?? null}
       />
     </div>
   );

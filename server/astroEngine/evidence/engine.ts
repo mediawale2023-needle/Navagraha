@@ -563,6 +563,10 @@ export function localBirthDate(chart: CanonicalChart): { dayStart: number; dayEn
   return bounds;
 }
 
+// Pure in (chart, instant) and called for every life area, so each answer is kept per chart object
+// (as birthDayStability is); the chart is never mutated after it is built.
+const timingCache = new WeakMap<CanonicalChart, Map<number, { mahadasha: boolean; antardasha: boolean }>>();
+
 /**
  * With an approximate birth time, is the period running on `asOf` the same for every
  * possible birth moment on the local birth date?
@@ -577,6 +581,16 @@ export function localBirthDate(chart: CanonicalChart): { dayStart: number; dayEn
  */
 export function dashaTimingStable(chart: CanonicalChart, asOf: Date): { mahadasha: boolean; antardasha: boolean } {
   if (chart.birth.timeAccuracy !== 'approximate') return { mahadasha: true, antardasha: true };
+  let perChart = timingCache.get(chart);
+  if (!perChart) timingCache.set(chart, (perChart = new Map()));
+  const hit = perChart.get(asOf.getTime());
+  if (hit) return { ...hit };
+  const result = computeDashaTimingStable(chart, asOf);
+  perChart.set(asOf.getTime(), result);
+  return { ...result };
+}
+
+function computeDashaTimingStable(chart: CanonicalChart, asOf: Date): { mahadasha: boolean; antardasha: boolean } {
   const t = asOf.getTime();
   const running = (moonLongitude: number, birthMs: number) => {
     const v = vimshottariDasha(moonLongitude, new Date(birthMs));

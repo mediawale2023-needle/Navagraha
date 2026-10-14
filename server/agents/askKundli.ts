@@ -21,6 +21,7 @@ import { buildTimeline } from '../astroEngine/evidence/timeline.js';
 import { runningPeriod, dashaTimingStable } from '../astroEngine/evidence/engine.js';
 import { validateAnswer, type GuardContext } from './answerGuard.js';
 import { birthDayStability, dignityStatementStable } from '../astroEngine/canonical/birthDay.js';
+import { groundingFor } from '../userFacingReasoning.js';
 
 // ─── Question router (deterministic) ─────────────────────────────────────────
 
@@ -126,7 +127,9 @@ export function buildEvidencePacket(chart: CanonicalChart, route: Route, asOf = 
     transits ? `\nCURRENT TRANSITS:\n${transits}` : '',
     route.planets.length ? `\nQUESTION FOCUSES ON: ${route.planets.join(', ')}` : '',
     ...(chart.uncertainty.notes.length ? ['', 'UNCERTAINTY:', ...chart.uncertainty.notes.map((n) => `  - ${n}`)] : []),
-  ].filter((l) => l !== '').join('\n');
+  ].filter((l) => l !== '').join('\n')
+    // USER_FACING_REASONING_V1: the shared explanation context for these areas ('' when off, so the packet is unchanged).
+    + groundingFor(chart, asOf, { domains, planets: route.planets, allYogas: route.intent === 'overview', evidenceLines: false });
   const guard: GuardContext = {
     chart, packetText: text, asOf, transits,
     running: rp ? { mahadasha: rp.mahadasha, antardasha: rp.antardasha } : null,
