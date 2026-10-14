@@ -49,8 +49,8 @@ describe('standard reports', () => {
 
   it('deliver every planned section when the draft passes', async () => {
     ai.respond.mockImplementation((p) => reply(p));
-    const content: any = await generateReport('career', exact);
-    expect(content.sections.map((s: any) => s.heading)).toEqual(['Birth Chart Overview', 'Key Planetary Influences', 'Career Overview', 'Strengths & Ideal Fields', 'Job vs Business', 'Growth Timing & Dashas', 'Challenges to Watch', 'Dasha Periods & Timing']);
+    const content: any = await generateReport('marriage', exact);
+    expect(content.sections.map((s: any) => s.heading)).toEqual(['Birth Chart Overview', 'Key Planetary Influences', 'Love & Marriage Overview', 'Partner Traits', 'Marriage Timing', 'Married Life', 'Harmony & Compatibility', 'Dasha Periods & Timing']);
     expect(content.birthDetails.ascendant).toBe(exact.ascendant);
     expect(content.dashaTimeline.length).toBeGreaterThan(0);
     expect(content.disclosure).toBeUndefined();
@@ -59,17 +59,17 @@ describe('standard reports', () => {
 
   it('regenerate once with the problems listed when a section is thin, then deliver', async () => {
     ai.respond
-      .mockImplementationOnce((p) => reply(p, (h) => (h === 'Job vs Business' ? 'Short.' : NEUTRAL)))
-      .mockImplementationOnce((p) => { expect(p).toMatch(/"Job vs Business": too short/); return reply(p); });
-    const content: any = await generateReport('career', exact);
+      .mockImplementationOnce((p) => reply(p, (h) => (h === 'Married Life' ? 'Short.' : NEUTRAL)))
+      .mockImplementationOnce((p) => { expect(p).toMatch(/"Married Life": too short/); return reply(p); });
+    const content: any = await generateReport('marriage', exact);
     expect(content.sections).toHaveLength(8);
     expect(ai.respond).toHaveBeenCalledTimes(2);
   });
 
   it('fail when the model keeps contradicting the chart', async () => {
     const wrong = ['Aries', 'Taurus'].find((s) => s !== exact.ascendant)!;
-    ai.respond.mockImplementation((p) => reply(p, (h) => (h === 'Career Overview' ? `Your Lagna is ${wrong}. ${NEUTRAL}` : NEUTRAL)));
-    await expect(generateReport('career', exact)).rejects.toThrow(/Lagna is/);
+    ai.respond.mockImplementation((p) => reply(p, (h) => (h === 'Love & Marriage Overview' ? `Your Lagna is ${wrong}. ${NEUTRAL}` : NEUTRAL)));
+    await expect(generateReport('marriage', exact)).rejects.toThrow(/Lagna is/);
     expect(ai.respond).toHaveBeenCalledTimes(2);
   });
 
@@ -121,7 +121,7 @@ describe('standard reports', () => {
   it('an exact-time report keeps its timing section and exact-data brief', async () => {
     let prompt = '';
     ai.respond.mockImplementation((p) => { prompt ||= p; return reply(p); });
-    const content: any = await generateReport('career', exact);
+    const content: any = await generateReport('marriage', exact);
     expect(content.sections.map((s: any) => s.heading)).toContain('Dasha Periods & Timing');
     expect(prompt).toMatch(/Use the EXACT planetary positions/);
   });

@@ -16,6 +16,7 @@ import { createOpenAI } from "./ai/metering";
 import type { Kundli } from "@shared/schema";
 import { transitsForChart, transitSummary } from "./astroEngine/index.js";
 import { isCurrentCanonicalChart, type CanonicalChart, type Graha } from "@shared/v3/canonical";
+import { careerBrief, careerRemedies, careerSectionProblems, type CareerBrief } from "./careerReport.js";
 import { birthDayStability, dignityStatementStable, yogaTimeStable, type BirthDayStability } from "./astroEngine/canonical/birthDay.js";
 import { buildInsights } from "./astroEngine/evidence/insights.js";
 import { reportGroundingFor, reportSectionGroundingFor } from "./userFacingReasoning.js";
@@ -435,7 +436,7 @@ function dedupeRemedies(list: string[]): string[] {
 }
 
 const REPORT_FOCUS: Record<string, { title: string; focus: string; sections: string[] }> = {
-  career:     { title: "Career & Profession Report", focus: "career path, ideal professions, job vs business, and timing of professional growth", sections: ["Career Overview", "Strengths & Ideal Fields", "Job vs Business", "Growth Timing & Dashas", "Challenges to Watch"] },
+  career:     { title: "Career & Profession Report", focus: "career path, ideal professions, job vs business, and timing of professional growth", sections: ["Tenth House & Its Lord (D1)", "Dasamsa (D10) Analysis", "Strengths & Ideal Fields", "Job vs Business", "Growth Timing & Dashas", "Challenges to Watch"] },
   marriage:   { title: "Marriage & Love Report", focus: "marriage timing, partner characteristics, married life, and relationship harmony", sections: ["Love & Marriage Overview", "Partner Traits", "Marriage Timing", "Married Life", "Harmony & Compatibility"] },
   finance:    { title: "Wealth & Finance Report", focus: "wealth houses, income sources, investments, savings and financial timing", sections: ["Financial Overview", "Income Sources", "Wealth Accumulation", "Favourable Investment Windows", "Money Management"] },
   year_ahead: { title: "Year Ahead Report", focus: "month-by-month predictions for the coming 12 months across career, money and relationships", sections: ["Year Overview", "Career & Work", "Money & Finance", "Relationships", "Best & Cautious Months"] },
@@ -455,7 +456,18 @@ function sectionPlan(meta: ReportMeta, approximate = false): string[] {
 const EXACT_TIME_BRIEF = "Use the EXACT planetary positions, houses and Vimshottari dasha timeline below. Reference specific planets, signs, houses and dasha periods by name throughout your analysis. Avoid generic statements that could apply to anyone.";
 const APPROXIMATE_TIME_BRIEF = "The birth time is APPROXIMATE: the person could have been born at any time on this date. Build the reading only on what the facts below list as holding for the whole day: planet signs and dignities, the Moon sign and nakshatra when they are given, the sign-based yogas listed and the planets' natural significations. Never mention the Lagna, houses or house lords, divisional charts, Ashtakavarga bindus, planet degrees, nakshatra padas, Neecha Bhanga or any dasha date, and make no timing prediction. Say once, plainly, that the exact birth time would add the house-based and timing detail. Reference the planets and signs by name; avoid generic statements that could apply to anyone.";
 
-async function aiNarrative(meta: ReportMeta, kundli: Partial<Kundli>, correction = ""): Promise<ReportNarrative> {
+// Career reports build on the deterministic career evidence (server/careerReport.ts), not on the model's reading of the chart.
+const CAREER_RULES = `CAREER REPORT RULES (these override any other instruction):
+- Build every section on the CAREER EVIDENCE block below, naming the facts you use (house, lord, sign, D10 placement, period). Where the evidence is mixed or missing, say so plainly instead of filling the gap.
+- "Tenth House & Its Lord (D1)": the 10th house sign, its occupants and the planets aspecting it, the 10th lord's placement and dignity, and what they show together.
+- "Dasamsa (D10) Analysis": the D10 Lagna and its lord, the D10 10th house and its lord, the D1 10th lord's D10 placement, where D1 and D10 agree or disagree, and the birth-time sensitivity given. Never state a D10 degree.
+- "Job vs Business": compare the listed 6th, 7th and 10th house indicators; if they do not clearly favour one, say the chart is mixed.
+- "Growth Timing & Dashas": the running Mahadasha and Antardasha lords, their house lordships, D1 and D10 placements and their career implication, then the next periods — with the engine's dates only.
+- Yogas: only those listed, each with its rule, how this chart meets it, its limits and whether it links to career. Call a cancelled debilitation a Neecha Bhanga (cancelled debilitation), not a separate Raja Yoga. A yoga with no career link is not a career yoga.
+- No generic claim (leadership potential, hard work, networking, many opportunities) unless the same sentence names the chart fact behind it.
+- Remedies: ignore the gemstones in the functional remedy list. Give only optional practices (mantra, charity, conduct) for the planets named in the evidence block's Remedies line, each with its chart reason; never a gemstone.`;
+
+async function aiNarrative(meta: ReportMeta, kundli: Partial<Kundli>, correction = "", career: CareerBrief | null = null): Promise<ReportNarrative> {
   const client = getClient();
   const approximate = isApproximate(kundli);
   const plan = sectionPlan(meta, approximate);
@@ -463,18 +475,18 @@ async function aiNarrative(meta: ReportMeta, kundli: Partial<Kundli>, correction
 
 ${approximate ? APPROXIMATE_TIME_BRIEF : EXACT_TIME_BRIEF}
 
-${disciplineFor(kundli)}
+${disciplineFor(kundli)}${career ? `\n\n${CAREER_RULES}` : ""}
 
 Return ONLY valid JSON with this exact shape:
 {
   "title": "${meta.title}",
   "summary": "a rich, personalised overview of 5-7 sentences",
   "sections": [${plan.map((s) => `{"heading": "${s}", "body": "3-5 detailed, specific paragraphs that reference the actual chart"}`).join(", ")}],
-  "remedies": ["6-8 specific, practical Vedic remedies — ${approximate ? "a mantra with its repetition count, a charity/daan, a fasting day and a deity to worship where relevant; no gemstone, because the planets' lordships depend on the unknown Lagna" : "include a gemstone, a mantra with its repetition count, a charity/daan, a fasting day, and a deity to worship where relevant"}"]
+  "remedies": [${career ? `"3-5 optional practices (a mantra with its repetition count, a charity, or conduct), each for one planet named in the CAREER EVIDENCE Remedies line and stating its reason from the chart; no gemstone"` : `"6-8 specific, practical Vedic remedies — ${approximate ? "a mantra with its repetition count, a charity/daan, a fasting day and a deity to worship where relevant; no gemstone, because the planets' lordships depend on the unknown Lagna" : "include a gemstone, a mantra with its repetition count, a charity/daan, a fasting day, and a deity to worship where relevant"}"`}]
 }
 
 Birth chart:
-${chartSummary(kundli)}${reportGroundingFor(kundli)}${correction ? `\n\n${correction}` : ""}`;
+${chartSummary(kundli)}${reportGroundingFor(kundli)}${career ? `\n\n${career.text}` : ""}${correction ? `\n\n${correction}` : ""}`;
 
   const response = await client.chat.completions.create({
     model: "gpt-4o",
@@ -531,15 +543,22 @@ export async function generateReport(
   const asOf = new Date();
   // A year-ahead reading names the months it covers; those years are facts, not inventions.
   const window = category === "year_ahead" ? reportWindow(asOf) : "";
-  const guard = reportGuard(kundli, undefined, window);
+  const career = category === "career" ? careerBrief(kundli, asOf) : null;
+  if (category === "career" && !career) throw new ReportGenerationError("the career evidence could not be read from this chart");
+  // The career evidence (its period dates included) is part of the facts the guard checks claims against.
+  const guard = reportGuard(kundli, undefined, [window, career?.text].filter(Boolean).join("\n"));
   const plan = sectionPlan(meta, isApproximate(kundli));
   const structured = deriveStructured(kundli);
 
   let correction = "";
   let problems: string[] = [];
   for (let attempt = 0; attempt < 2; attempt++) {
-    const narrative = await aiNarrative(meta, kundli, [window, correction].filter(Boolean).join("\n\n"));
-    const { accepted, rejected } = checkSections(plan, narrative.sections, guard);
+    const narrative = await aiNarrative(meta, kundli, [window, correction].filter(Boolean).join("\n\n"), career);
+    const checked = checkSections(plan, narrative.sections, guard);
+    const accepted = career ? checked.accepted.filter((x) => !careerSectionProblems(x.heading, x.body, career.facts).length) : checked.accepted;
+    const rejected = career
+      ? [...checked.rejected, ...checked.accepted.map((x) => ({ heading: x.heading, problems: careerSectionProblems(x.heading, x.body, career.facts) })).filter((x) => x.problems.length)]
+      : checked.rejected;
     const summaryProblems = textProblems(narrative.summary || "", guard, MIN_SUMMARY_CHARS);
     if (summaryProblems.length) rejected.push({ heading: "summary", problems: summaryProblems });
     if (!rejected.length) {
@@ -547,7 +566,10 @@ export async function generateReport(
         title: narrative.title || meta.title,
         summary: narrative.summary.trim(),
         sections: accepted,
-        remedies: dedupeRemedies([...checkedRemedies(narrative.remedies || [], guard), ...extractChartRemedies(kundli)]),
+        // Career: only optional practices tied to a career planet; no gemstones, and no birth-star remedies (not career-specific).
+        remedies: career
+          ? dedupeRemedies(careerRemedies(checkedRemedies(narrative.remedies || [], guard), career.facts))
+          : dedupeRemedies([...checkedRemedies(narrative.remedies || [], guard), ...extractChartRemedies(kundli)]),
         ...structured,
         generatedAt: new Date().toISOString(),
       };
