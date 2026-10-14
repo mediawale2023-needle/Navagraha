@@ -34,6 +34,11 @@ const byWeight = (a: EvidenceItem, b: EvidenceItem) => WEIGHT[b.strength] - WEIG
 
 const independent = (xs: EvidenceItem[]) => sources(xs.filter((e) => e.strength !== 'weak'));
 
+/** A factor inside a sentence: planet, yoga, dosha and karaka names keep their capitals; only the generic "Running …" factor starts lower case. */
+function factorPhrase(factor: string): string {
+  return factor.startsWith('Running ') ? `r${factor.slice(1)}` : factor;
+}
+
 export function resolveDomain(domain: LifeDomain, evidence: EvidenceItem[], opts: { approximate: boolean }): DomainResolution {
   const usable = evidence.filter((e) => e.usable);
   const excluded = evidence.filter((e) => !e.usable);
@@ -84,8 +89,8 @@ export function resolveDomain(domain: LifeDomain, evidence: EvidenceItem[], opts
     ? `${label}: there is not enough reliable evidence in this chart to give a reading${opts.approximate ? ' with an approximate birth time' : ''}.`
     : [
       `${label} reads as ${verdict.toLowerCase()}: ${supporting.length} supporting and ${conflicting.length} conflicting indicator${conflicting.length === 1 ? '' : 's'}.`,
-      lead ? `The strongest support is ${lead.factor.toLowerCase()} (${lead.source}).` : '',
-      counter ? `The main counter-indication is ${counter.factor.toLowerCase()} (${counter.source}).` : '',
+      lead ? `The strongest support is ${factorPhrase(lead.factor)} (${lead.source}).` : '',
+      counter ? `The main counter-indication is ${factorPhrase(counter.factor)} (${counter.source}).` : '',
     ].filter(Boolean).join(' ');
 
   return { domain, label, verdict, confidence, supporting, conflicting, neutral, excluded, experimental, confirmedBy, contradictedBy, conclusion, notes };

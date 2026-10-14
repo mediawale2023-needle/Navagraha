@@ -114,6 +114,8 @@ class Collector {
   }
 }
 
+const SIGN_PLACEMENT: Record<string, string> = { "Friend's sign": "in a friend's sign", "Enemy's sign": "in an enemy's sign", 'Neutral sign': 'in a neutral sign' };
+
 export function dignityDirection(d?: { dignity: string; combust: boolean; neechaBhanga?: boolean }): { direction: EvidenceDirection; strength: EvidenceStrength; text: string } | null {
   if (!d) return null;
   if (STRONG_DIGNITIES.includes(d.dignity)) return { direction: 'positive', strength: d.dignity === 'Exalted' ? 'strong' : 'moderate', text: d.dignity.toLowerCase() };
@@ -122,9 +124,10 @@ export function dignityDirection(d?: { dignity: string; combust: boolean; neecha
       ? { direction: 'neutral', strength: 'moderate', text: 'debilitated, with the debilitation cancelled (Neecha Bhanga)' }
       : { direction: 'negative', strength: 'strong', text: 'debilitated' };
   }
-  if (d.combust) return { direction: 'negative', strength: 'moderate', text: `in ${d.dignity.toLowerCase()} but combust (too close to the Sun)` };
-  if (d.dignity === "Friend's sign") return { direction: 'positive', strength: 'weak', text: "in a friend's sign" };
-  if (d.dignity === "Enemy's sign") return { direction: 'negative', strength: 'weak', text: "in an enemy's sign" };
+  // "but" only where the sign favours the planet; an enemy's or neutral sign is no contrast to combustion.
+  if (d.combust) return { direction: 'negative', strength: 'moderate', text: `${SIGN_PLACEMENT[d.dignity] ?? `in ${d.dignity.toLowerCase()}`} ${d.dignity === "Friend's sign" ? 'but' : 'and'} combust (too close to the Sun)` };
+  if (d.dignity === "Friend's sign") return { direction: 'positive', strength: 'weak', text: SIGN_PLACEMENT[d.dignity] };
+  if (d.dignity === "Enemy's sign") return { direction: 'negative', strength: 'weak', text: SIGN_PLACEMENT[d.dignity] };
   return null;
 }
 

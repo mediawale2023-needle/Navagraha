@@ -103,7 +103,8 @@ describe('consistency across Kundli, Insights, Ask and reports', () => {
       // B. Formation is never a guaranteed result.
       for (const y of ex.yogas) {
         seen.add('B');
-        expect(y.effectiveness).toMatch(/is not assessed: a formed yoga describes a potential, not a guarantee/);
+        const cancelled = ctx.yogas.find((x) => x.id === y.id)!.cancelled;
+        expect(y.effectiveness).toMatch(cancelled ? /^Whether any of its traditional result remains is not assessed\./ : /is not assessed: a formed yoga describes a potential, not a guarantee/);
         if (y.period) expect(y.period).toMatch(/does not show that the yoga will deliver/);
       }
       // No sentence promises an outcome: every "will"/"guarantee" is negated in its own sentence.
