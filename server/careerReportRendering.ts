@@ -154,11 +154,49 @@ const fiveDraftSchema = z.object({ supporting: fiveBlock, limiting: fiveBlock, c
 /** Paths and codes only, never the model's text: safe for logs and an order's failure reason. */
 export const schemaIssues = (error: z.ZodError) => error.issues.slice(0, 6).map((i) => `${i.path.join('.') || '(root)'} ${i.code}`).join(', ');
 
+const SENTENCES = /(?<=[.!?])\s+/;
+const FIELD_CONTEXT = /\b(recommend\w*|suitab\w*|suited|pursue|ideal|roles?|professions?|fields?)\b/i;
+const namesField = (text: string, field: (typeof FIELDS)[keyof typeof FIELDS]) => text.split(SENTENCES).some((s) => (field.words.test(s) || s.toLowerCase().includes(field.label.toLowerCase())) && FIELD_CONTEXT.test(s));
+const yearsOf = (f: { text: string }) => (f.text.match(/\b(?:19|20|21)\d{2}\b/g) ?? []).map(Number);
+
+/**
+ * Citations are application-owned, like contexts: the model reliably names the planets, periods and
+ * fields its section's facts support but not which block cites them. For anything a block names
+ * without citing, the section's own verified fact is attached, and every check below then runs
+ * against it. Nothing outside the section is attached, so a planet, field, date or year the section
+ * has no fact for is still rejected; a conclusion draws only on facts already weighed above.
+ */
+export function resolveCitations(packet: CareerPacket, draft: CareerDraft): void {
+  const resolve = (b: CareerDraft['supporting'], pool: CareerPacket['facts']) => {
+    const cited = () => b.factIds.map((id) => pool.find((f) => f.id === id) ?? packet.facts.find((f) => f.id === id)).filter(Boolean) as CareerPacket['facts'];
+    const attach = (facts: CareerPacket['facts']) => { for (const f of facts) if (!b.factIds.includes(f.id)) b.factIds.push(f.id); };
+    for (const planet of GRAHAS) {
+      const named = new RegExp(`\\b${planet}\\b`, 'i');
+      if (!named.test(b.text)) continue;
+      const own = pool.filter((f) => f.id.endsWith(`.planet.${planet}`) || f.id.startsWith(`Vimshottari.Mahadasha.${planet}.`) || f.id.startsWith(`Vimshottari.Antardasha.${planet}.`));
+      const placed = new RegExp(`\\b${planet}\\b[^.!?]{0,40}\\b(?:in|occupies)\\s+(?:the sign of\\s+)?(?:${SIGN_NAMES.join('|')})\\b`, 'i').test(b.text);
+      if (placed && !cited().some((f) => f.id.endsWith(`.planet.${planet}`))) attach(own.filter((f) => f.id.endsWith(`.planet.${planet}`)));
+      if (!cited().some((f) => named.test(f.text))) attach(own.length ? own : pool.filter((f) => named.test(f.text)));
+    }
+    for (const [id, field] of Object.entries(FIELDS)) if (namesField(b.text, field)) attach(pool.filter((f) => f.id === `D1.D10.field.${id}`));
+    for (const date of b.text.match(/\d{4}-\d{2}-\d{2}/g) ?? []) if (!cited().some((f) => f.text.includes(date))) attach(pool.filter((f) => f.text.includes(date)));
+    for (const year of (b.text.match(/\b(?:19|20|21)\d{2}\b/g) ?? []).map(Number)) {
+      const covers = (f: { text: string }) => { const ys = yearsOf(f); return ys.includes(year) || (f.text.includes('→') && ys.length >= 2 && ys[0] <= year && year <= ys[ys.length - 1]); };
+      if (!cited().some(covers)) attach(pool.filter((f) => f.contexts.includes('Vimshottari') && covers(f)));
+    }
+  };
+  resolve(draft.supporting, packet.facts);
+  resolve(draft.limiting, packet.facts);
+  const argued = new Set([...draft.supporting.factIds, ...draft.limiting.factIds]);
+  resolve(draft.conclusion, packet.facts.filter((f) => argued.has(f.id)));
+}
+
 export function validateFiveCareerDraft(packet: CareerPacket, input: unknown, evidence: CareerEvidenceSet): { draft?: CareerDraft; problems: string[] } {
   const parsed = fiveDraftSchema.safeParse(input);
   if (!parsed.success) return { problems: [`schema: return supporting, limiting and conclusion, each with factIds (strings) and text (${schemaIssues(parsed.error)})`] };
   const draft: CareerDraft = parsed.data;
   const problems: string[] = [];
+  if ([draft.supporting, draft.limiting, draft.conclusion].every((b) => b.factIds.every((id) => packet.facts.some((f) => f.id === id)))) resolveCitations(packet, draft);
   const placement = new RegExp(`\\b(${GRAHAS.join('|')})\\b\\s*,?\\s*(?:(?:is|was)\\s+)?(?:(?:placed|posited|located|situated)\\s+)?(?:in|occupies|sits in)\\s+(?:the sign of\\s+)?(${SIGN_NAMES.join('|')})\\b`, 'gi');
   for (const [kind, b] of Object.entries(draft)) {
     const refs = b.factIds.map((id) => packet.facts.find((f) => f.id === id));
@@ -182,7 +220,7 @@ export function validateFiveCareerDraft(packet: CareerPacket, input: unknown, ev
       return sentence;
     }).join(' ');
     for (const planet of GRAHAS) if (new RegExp(`\\b${planet}\\b`, 'i').test(b.text) && !refs.some((f) => new RegExp(`\\b${planet}\\b`, 'i').test(f!.text))) problems.push(`${kind}: ${planet} assertion is not supported by cited evidence`);
-    for (const [id, field] of Object.entries(FIELDS)) if (b.text.split(/(?<=[.!?])\s+/).some((s) => (field.words.test(s) || s.toLowerCase().includes(field.label.toLowerCase())) && /\b(recommend\w*|suitab\w*|suited|pursue|ideal|roles?|professions?|fields?)\b/i.test(s))) {
+    for (const [id, field] of Object.entries(FIELDS)) if (namesField(b.text, field)) {
       const assessment = refs.find((f) => f!.id === `D1.D10.field.${id}`);
       // Employment/trade comparison is permitted with the service/trade-house evidence.
       if (id === 'business' && refs.some((f) => f!.id === 'D1.house.7')) continue;
@@ -222,7 +260,7 @@ export function fiveCareerPrompt(evidence: CareerEvidenceSet, packets: CareerPac
     : 'Choose workStyle (employment, entrepreneurship or mixed) from the employment-versus-business evidence; the other sections will be written to agree with it.';
   return `Write the requested section of a five-section Career & Profession Report using ONLY the verified facts below. The other sections (${others}) are written separately: do not repeat their analysis. Return JSON exactly in this shape (no other keys): {"workStyle":"employment|entrepreneurship|mixed","sections":[{"id":<section id>,"draft":{"supporting":{"factIds":["<id>"],"text":"<prose>"},"limiting":{"factIds":["<id>"],"text":"<prose>"},"conclusion":{"factIds":["<id>"],"text":"<prose>"}}}]}.
 ${workStyle}
-Length: 270-330 words of interpretation in total; supporting at least 90 words, limiting at least 90 words, conclusion at least 80 words. Every block has factIds (a non-empty array of id strings from FACTS) and text (one string). Cite only ids listed in FACTS. A conclusion may cite only facts already cited in the supporting or limiting block. Name a planet in a block only when a fact cited in that same block mentions it: if you discuss a planet, add the fact id that mentions it to that block's factIds. A stated sign placement must cite that planet's D1.planet or D10.planet fact in the same block. Write a year or date only when a cited fact states it or it lies inside a period a cited fact states. Name or weigh a professional field (administration, government or institutions, entrepreneurship, advisory, consulting or teaching, finance or banking, communication, media, sales or marketing) only in a block that cites that field's D1.D10.field assessment; employment versus business may instead cite D1.house.7. With workStyle "mixed", never say that employment or business alone is favoured, recommended or better suited. Never write that something will or shall happen. Chart contexts and technical definitions are rendered by the application. Natural astrological terminology is allowed; every assertion must agree with the cited facts. Never calculate or alter astrology. Weak fields are less indicated, not recommended. Recognise conflicting indicators rather than manufacture certainty. Do not infer the customer's actual job or history. No gemstones or unsupported remedies. Explain why the particular evidence matters, not generic motivational advice. Dates describe periods, not promised promotion or job-change events.
+Length: 270-330 words of interpretation in total; supporting at least 90 words, limiting at least 90 words, conclusion at least 80 words. Every block has factIds (a non-empty array of id strings from FACTS) and text (one string). Cite only ids listed in FACTS. A conclusion may cite only facts already cited in the supporting or limiting block. Cite the facts each block relies on; when a block names a planet, period, year or field without citing its fact, the application attaches this section's matching fact and checks the statement against it. Never mention a planet, period, year, date or field that no fact in FACTS supports: such a statement is rejected. A sign placement must agree with that planet's D1.planet or D10.planet fact. A year must be stated in a fact or lie inside a period a fact states. ${packets.some((p) => p.facts.some((f) => f.id.startsWith('D1.D10.field.'))) ? "Name or weigh a professional field (administration, government or institutions, entrepreneurship, advisory, consulting or teaching, finance or banking, communication, media, sales or marketing) only when FACTS include that field's D1.D10.field assessment; employment versus business may instead rest on D1.house.7." : 'This section has no field assessments: do not name professional fields, occupations or roles (administration, government, institutions, business, entrepreneurship, advisory, consulting, teaching, finance, banking, management, communication, media, sales, marketing); describe working conditions and qualities instead. Career Overview and Personalised Guidance compare fields.'} With workStyle "mixed", never say that employment or business alone is favoured, recommended or better suited. Never write that something will or shall happen. Chart contexts and technical definitions are rendered by the application. Natural astrological terminology is allowed; every assertion must agree with the cited facts. Never calculate or alter astrology. Weak fields are less indicated, not recommended. Recognise conflicting indicators rather than manufacture certainty. Do not infer the customer's actual job or history. No gemstones or unsupported remedies. Explain why the particular evidence matters, not generic motivational advice. Dates describe periods, not promised promotion or job-change events.
 FACTS\n${JSON.stringify(facts)}\nSECTIONS\n${JSON.stringify(packets.map((p) => ({ id: p.id, heading: p.heading, factIds: p.facts.map((f) => f.id), requirements: p.permittedInterpretations, indicators: p.indicators })))}${context.reasons ? `\nCORRECTION\n${JSON.stringify(context.reasons)}\nYour previous draft of this section was rejected for these problems. Rewrite the section so that none of them recurs.` : ''}`;
 }
 

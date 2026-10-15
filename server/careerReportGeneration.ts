@@ -7,10 +7,12 @@ import { fiveCareerPrompt, draftProse, renderCareerSection, careerMetadata, care
 export const CAREER_BUDGET_MICRO_USD = 250_000;
 export const CAREER_DEADLINE_MS = 6 * 60_000;
 export const MAX_CAREER_CORRECTIONS = 2;
-/** Per section: about 330 words of prose plus the JSON and its citations. */
-export const CAREER_OUTPUT_TOKENS = 1400;
+/** Per section: about 330 words plus JSON and citations used ~530 tokens live; 1200 keeps seven worst-case reservations under $0.25. */
+export const CAREER_OUTPUT_TOKENS = 1200;
 export type CareerUsage = { prompt_tokens: number; completion_tokens: number };
 export interface CareerCompletion { choices: Array<{ finish_reason?: string | null; message: { content?: string | null } }>; usage?: CareerUsage | null }
+/** Evaluation only (synthetic charts): the order path never passes `onSection`, so model text is never logged. */
+export interface CareerSectionAttempt { heading: string; correcting: boolean; accepted: boolean; problems: string[]; content: string | null }
 export type CareerRequester = (prompt: string, options: { signal: AbortSignal; maxTokens: number }) => Promise<CareerCompletion>;
 
 /** One shared ledger per report; reserve() has no await, making admission atomic across workers. */
@@ -61,7 +63,7 @@ const envelope = z.object({
     .transform(({ id, draft, ...rest }) => ({ id, draft: draft ?? ('supporting' in rest || 'limiting' in rest || 'conclusion' in rest ? rest : undefined) }))).max(5),
 });
 
-export async function generateDeterministicCareer(kundli: unknown, asOf: Date, request: CareerRequester, options: { ledger?: CareerSpending; onMetrics?: (m: { calls: number; corrections: number; costMicroUsd: number; firstPassAccepted: number }) => void } = {}) {
+export async function generateDeterministicCareer(kundli: unknown, asOf: Date, request: CareerRequester, options: { ledger?: CareerSpending; onMetrics?: (m: { calls: number; corrections: number; costMicroUsd: number; firstPassAccepted: number }) => void; onSection?: (attempt: CareerSectionAttempt) => void } = {}) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), CAREER_DEADLINE_MS);
   const ledger = options.ledger ?? new CareerSpending();
@@ -71,30 +73,32 @@ export async function generateDeterministicCareer(kundli: unknown, asOf: Date, r
   let workStyle: 'employment' | 'entrepreneurship' | 'mixed' | undefined;
   try {
     const evidence = buildFiveCareerEvidence(kundli, asOf);
-    const reject = (packet: CareerPacket, problems: string[]) => {
+    const reject = (packet: CareerPacket, problems: string[], content: string | null = null, correcting = false) => {
       errors.set(packet.id, problems); accepted.delete(packet.id);
+      options.onSection?.({ heading: packet.heading, correcting, accepted: false, problems, content });
       if (process.env.NAVAGRAHA_CAREER_EVAL_DIAGNOSTICS === '1') console.error('[career-eval]', JSON.stringify({ section: packet.heading, problems }));
     };
     // One section per request. A bad response costs only its own section, which the
     // correction allowance can redo; a transport failure still ends the report.
     const run = async (packet: CareerPacket, correcting = false) => {
       if (controller.signal.aborted) throw new ReportGenerationError('Career deadline exceeded');
-      const prompt = fiveCareerPrompt(evidence, [packet], { workStyle, reasons: correcting ? [{ id: packet.id, problems: errors.get(packet.id)! }] : undefined });
+      const prompt = fiveCareerPrompt(evidence, [packet], { workStyle, reasons: correcting ? [{ id: packet.id, problems: errors.get(packet.id)!.slice(0, 8).map((p) => p.slice(0, 200)) }] : undefined });
       const ticket = ledger.reserve(prompt, CAREER_OUTPUT_TOKENS);
       let result: CareerCompletion;
       try { result = await boundedRequest(request, prompt, controller.signal, CAREER_OUTPUT_TOKENS); }
       catch { ledger.settle(ticket); throw new ReportGenerationError(controller.signal.aborted ? 'Career deadline exceeded' : 'Career transport failed; reservation retained'); }
       ledger.settle(ticket, result.usage);
-      if (result.choices[0]?.finish_reason !== 'stop') return reject(packet, ['incomplete-response: output truncated or refused']);
+      const content = result.choices[0]?.message.content ?? null;
+      if (result.choices[0]?.finish_reason !== 'stop') return reject(packet, ['incomplete-response: output truncated or refused'], content, correcting);
       let raw: unknown;
       try { raw = JSON.parse(result.choices[0]?.message.content ?? ''); }
-      catch { return reject(packet, ['invalid-json']); }
+      catch { return reject(packet, ['invalid-json'], content, correcting); }
       const parsed = envelope.safeParse(raw);
-      if (!parsed.success) return reject(packet, [`malformed output (${schemaIssues(parsed.error)})`]);
-      if (workStyle && workStyle !== parsed.data.workStyle) return reject(packet, [`changed the established work-style conclusion (${workStyle})`]);
+      if (!parsed.success) return reject(packet, [`malformed output (${schemaIssues(parsed.error)})`], content, correcting);
+      if (workStyle && workStyle !== parsed.data.workStyle) return reject(packet, [`changed the established work-style conclusion (${workStyle})`], content, correcting);
       workStyle = parsed.data.workStyle;
       const ids = parsed.data.sections.map((s) => s.id);
-      if (new Set(ids).size !== ids.length || ids.some((id) => id !== packet.id)) return reject(packet, ['duplicate or unexpected section id']);
+      if (new Set(ids).size !== ids.length || ids.some((id) => id !== packet.id)) return reject(packet, ['duplicate or unexpected section id'], content, correcting);
       const checked = validateFiveCareerDraft(packet, parsed.data.sections[0]?.draft, evidence);
       if (checked.draft) {
         const text = draftProse(checked.draft);
@@ -102,8 +106,8 @@ export async function generateDeterministicCareer(kundli: unknown, asOf: Date, r
         const business = /\b(?:favou?rs?|recommend\w*|better suited to)\s+(?:independent\s+)?(?:business|entrepreneurship|self-employment)\b/i.test(text);
         if ((workStyle === 'employment' && business) || (workStyle === 'entrepreneurship' && job) || (workStyle === 'mixed' && (job !== business))) checked.problems.push('contradicts the common employment-versus-business conclusion');
       }
-      if (checked.problems.length) reject(packet, checked.problems);
-      else { accepted.set(packet.id, checked.draft!); errors.delete(packet.id); }
+      if (checked.problems.length) reject(packet, checked.problems, content, correcting);
+      else { accepted.set(packet.id, checked.draft!); errors.delete(packet.id); options.onSection?.({ heading: packet.heading, correcting, accepted: true, problems: [], content }); }
     };
     // Rule messages name chart facts and field paths, never the model's prose.
     const failureSummary = () => Array.from(errors).map(([id, problems]) => `${evidence.packets[id].heading}: ${problems.slice(0, 3).map((p) => p.slice(0, 160)).join('; ')}`).join(' | ');

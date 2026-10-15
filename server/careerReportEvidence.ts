@@ -36,7 +36,8 @@ export function buildFiveCareerEvidence(kundli: unknown, asOf: Date): CareerEvid
     { id: `Vimshottari.Mahadasha.${m.lord}.${m.start}`, contexts: ['Vimshottari'] as CareerContext[], text: `${m.lord} Mahadasha: ${m.start.slice(0, 10)} → ${m.end.slice(0, 10)} (UTC boundaries).`, value: m },
     ...m.antardashas.filter((a) => Date.parse(a.end) > +asOf && Date.parse(a.start) < +end).map((a) => ({ id: `Vimshottari.Antardasha.${a.lord}.${a.start}`, contexts: ['Vimshottari'] as CareerContext[], text: `${a.lord} Antardasha within ${m.lord} Mahadasha: ${a.start.slice(0, 10)} → ${a.end.slice(0, 10)} (UTC boundaries).`, value: a })),
   ]);
-  const groups = [[0, 1, 7, 9], [8], [0, 1, 2, 3, 4, 5], [8], [6, 9]];
+  // Career Overview names a direction, so it carries the field assessments as well as Guidance.
+  const groups = [[0, 1, 6, 7, 9], [8], [0, 1, 2, 3, 4, 5], [8], [6, 9]];
   const purposes = [
     'Explain professional tendencies, strengths, direction, employment versus entrepreneurship and workplace challenges. Keep the shared workStyle conclusion coherent.',
     // No window dates here: a date the model reads outside the facts is one the guard must refuse.

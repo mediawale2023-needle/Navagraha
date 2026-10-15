@@ -4,6 +4,7 @@ import { buildFiveCareerEvidence, FIVE_CAREER_HEADINGS, type CareerPacket } from
 import { validateFiveCareerDraft, renderCareerSection, fiveCareerPrompt, careerDraftSchema } from '../../server/careerReportRendering';
 import { ASOF, fixtureChart } from '../fixtures/career-chart';
 import { CAREER_PROSE } from '../fixtures/career-prose';
+import { FIELDS } from '../../server/careerReport';
 import { computeCanonicalChart } from '../../server/astroEngine/canonical/compute';
 import { resolveBirthWithCoordinates } from '../../server/astroEngine/birthResolver';
 
@@ -79,8 +80,8 @@ describe('five-section Career pipeline: one request per section', () => {
     const c = validateFiveCareerDraft(p, d, e); expect(c.problems).toEqual([]);
     expect(renderCareerSection(p, c.draft!)).toContain('trikona: a trinal house');
   });
-  it('rejects career recommendations without their field evidence', () => {
-    const e = buildFiveCareerEvidence(fixtureChart(), ASOF); const p = e.packets[0]; const d = draft(p);
+  it('rejects career recommendations in a section without field assessments', () => {
+    const e = buildFiveCareerEvidence(fixtureChart(), ASOF); const p = e.packets[2]; const d = draft(p);
     d.conclusion.text += ' Finance roles are ideal for your career.';
     expect(validateFiveCareerDraft(p, d, e).problems.join(' ')).toContain('verified field assessment');
   });
@@ -155,6 +156,20 @@ describe('five-section Career pipeline: one request per section', () => {
   it('uses explicit output limits and disables hidden SDK retries', async () => {
     const create = vi.fn(async () => ({})); await careerRequester({ chat: { completions: { create } } } as any)('prompt', { signal: new AbortController().signal, maxTokens: CAREER_OUTPUT_TOKENS });
     expect(create.mock.calls[0][0].max_tokens).toBe(CAREER_OUTPUT_TOKENS); expect(create.mock.calls[0][1]).toMatchObject({ maxRetries: 0, timeout: 120000 });
+  });
+});
+
+describe('five-section Career: evaluation hook', () => {
+  it('reports every section attempt with its text and problems; the order path never passes the hook', async () => {
+    const attempts: any[] = [];
+    const request = perSection(responder(), (s, attempt) => { if (s.id === 3 && attempt === 1) s.draft = {}; });
+    await generateDeterministicCareer(fixtureChart(), ASOF, request, { onSection: (a) => attempts.push(a) });
+    expect(attempts).toHaveLength(6);
+    const rejected = attempts.find((a) => !a.accepted)!;
+    expect(rejected).toMatchObject({ heading: 'Current Career Situation', correcting: false }); expect(rejected.problems[0]).toMatch(/^schema/); expect(rejected.content).toContain('"id":3');
+    expect(attempts.at(-1)).toMatchObject({ heading: 'Current Career Situation', correcting: true, accepted: true });
+    const { readFileSync } = await import('node:fs');
+    expect(readFileSync(new URL('../../server/aiAstrologerService.ts', import.meta.url), 'utf8')).not.toMatch(/onSection/);
   });
 });
 
@@ -276,13 +291,14 @@ describe('five-section Career: realistic model response shapes', () => {
       for (const block of ['supporting', 'limiting', 'conclusion']) expect(prompt).toContain(`"${block}":{"factIds":["<id>"],"text":"<prose>"}`);
       expect(prompt).not.toContain('{...}');
       expect(prompt).toMatch(/supporting at least 90 words, limiting at least 90 words, conclusion at least 80 words/);
-      expect(prompt).toMatch(/only in a block that cites that field's D1\.D10\.field assessment/); expect(prompt).toMatch(/workStyle "mixed", never say/);
-      expect(prompt).toMatch(/add the fact id that mentions it to that block's factIds/);
+      const fields = p.facts.some((f) => f.id.startsWith('D1.D10.field.'));
+      expect(prompt).toMatch(fields ? /only when FACTS include that field's D1\.D10\.field assessment/ : /This section has no field assessments: do not name professional fields/);
+      expect(prompt).toMatch(/workStyle "mixed", never say/); expect(prompt).toMatch(/Never mention a planet, period, year, date or field that no fact in FACTS supports/);
     }
   });
   // Each rule the prompt states is one the validator enforces; a section that breaks it is rejected.
   it.each([
-    ['a field named outside its assessment', 0, (d: any) => { d.conclusion.text += ' Consulting roles are suitable here.'; }, /verified field assessment/],
+    ['a field named in a section without field assessments', 3, (d: any) => { d.conclusion.text += ' Consulting roles are suitable here.'; }, /verified field assessment/],
     ['a planet not in any cited fact', 1, (d: any, p: CareerPacket) => {
       const fact = p.facts.find((f) => f.contexts.includes('Vimshottari'))!;
       const absent = ['Sun', 'Moon', 'Mars', 'Mercury', 'Jupiter', 'Venus', 'Saturn'].find((g) => !fact.text.includes(g))!;
@@ -305,31 +321,36 @@ describe('five-section Career: the live evaluation failure patterns', () => {
   const setup = (id: number) => { const e = buildFiveCareerEvidence(delhi(), ASOF); const p = e.packets[id]; return { e, p, d: draft(p) }; };
   const factId = (p: CareerPacket, prefix: string) => p.facts.find((f) => f.id.startsWith(prefix))!.id;
 
-  it('Periods: Saturn named in a block that does not cite a Saturn fact is rejected; citing it is accepted', () => {
+  const absentPlanet = (p: CareerPacket) => ['Sun', 'Moon', 'Mars', 'Mercury', 'Jupiter', 'Venus', 'Saturn', 'Rahu', 'Ketu'].find((g) => !p.facts.some((f) => new RegExp(`\\b${g}\\b`).test(f.text)))!;
+
+  it('Periods: Saturn named without its fact cited gets the section\'s Saturn facts attached; a planet the section has no fact for is still rejected', () => {
     const { e, p, d } = setup(1);
     const venus = factId(p, 'Vimshottari.Mahadasha.Venus');
     d.supporting.factIds = [venus]; d.supporting.text += ' Saturn tests the structure of this phase.';
-    expect(validateFiveCareerDraft(p, d, e).problems.join(' ')).toMatch(/Saturn assertion is not supported by cited evidence/);
-    d.supporting.factIds = [venus, 'D1.planet.Saturn'];
-    expect(validateFiveCareerDraft(p, d, e).problems).toEqual([]);
+    const checked = validateFiveCareerDraft(p, d, e);
+    expect(checked.problems).toEqual([]);
+    expect(checked.draft!.supporting.factIds).toEqual(expect.arrayContaining([venus, 'D1.planet.Saturn', 'D10.planet.Saturn', factId(p, 'Vimshottari.Antardasha.Saturn')]));
+    const other = setup(1); const absent = absentPlanet(other.p);
+    other.d.supporting.text += ` ${absent} tests the structure of this phase.`;
+    expect(validateFiveCareerDraft(other.p, other.d, other.e).problems.join(' ')).toMatch(new RegExp(`${absent} assertion is not supported by cited evidence`));
   });
-  it('Periods: a Saturn placement needs that planet\'s fact in the same block, and must match it', () => {
+  it('Periods: an uncited Saturn placement is checked against the attached Saturn facts and rejected when wrong', () => {
     const { e, p, d } = setup(1);
     d.supporting.factIds = [factId(p, 'Vimshottari.Antardasha.Saturn')]; d.supporting.text += ' Saturn is in Scorpio.';
-    expect(validateFiveCareerDraft(p, d, e).problems.join(' ')).toMatch(/placement needs a cited fact for Saturn/);
-    d.supporting.factIds.push('D1.planet.Saturn');
-    expect(validateFiveCareerDraft(p, d, e).problems).toEqual([]);
-    d.supporting.text = d.supporting.text.replace('Saturn is in Scorpio.', 'Saturn is in Aries.');
-    expect(validateFiveCareerDraft(p, d, e).problems.join(' ')).toMatch(/incorrect placement for Saturn/);
+    const ok = validateFiveCareerDraft(p, d, e);
+    expect(ok.problems).toEqual([]); expect(ok.draft!.supporting.text).toContain('in D1, Saturn is in Scorpio');
+    const wrong = setup(1); wrong.d.supporting.factIds = [factId(wrong.p, 'Vimshottari.Antardasha.Saturn')]; wrong.d.supporting.text += ' Saturn is in Aries.';
+    expect(validateFiveCareerDraft(wrong.p, wrong.d, wrong.e).problems.join(' ')).toMatch(/incorrect placement for Saturn/);
   });
-  it('Periods: a year inside a cited, calculated period is accepted; without that period cited it is still refused', () => {
+  it('Periods: a year inside a calculated period of the section is accepted with that period attached; a year outside every period is refused', () => {
     const { e, p, d } = setup(1);
     const mercury = factId(p, 'Vimshottari.Antardasha.Mercury');
     expect(p.facts.find((f) => f.id === mercury)!.text).toContain('2029-09-19 → 2032-07-20');
-    d.supporting.factIds = [mercury, 'D1.planet.Mercury']; d.supporting.text += ' The Mercury Antardasha shifts the emphasis in 2030.';
-    expect(validateFiveCareerDraft(p, d, e).problems).toEqual([]);
-    d.supporting.factIds = [factId(p, 'Vimshottari.Antardasha.Saturn'), 'D1.planet.Mercury'];
-    expect(validateFiveCareerDraft(p, d, e).problems.join(' ')).toMatch(/the year 2030 is not in the calculated timing/);
+    d.supporting.factIds = [factId(p, 'Vimshottari.Antardasha.Saturn')]; d.supporting.text += ' The emphasis shifts again in 2030 and in 2032.';
+    const checked = validateFiveCareerDraft(p, d, e);
+    expect(checked.problems).toEqual([]); expect(checked.draft!.supporting.factIds).toContain(mercury);
+    const late = setup(1); late.d.supporting.text += ' Another change follows in 2045.';
+    expect(validateFiveCareerDraft(late.p, late.d, late.e).problems.join(' ')).toMatch(/the year 2045 is not in the calculated timing/);
   });
   it('Periods: the prompt states no date that is not in a fact (the old review-window end, 2030-10-15, was one)', () => {
     const { e, p } = setup(1); const prompt = fiveCareerPrompt(e, [p], { workStyle: 'mixed' });
@@ -337,12 +358,34 @@ describe('five-section Career: the live evaluation failure patterns', () => {
     for (const date of prompt.match(/\d{4}-\d{2}-\d{2}/g) ?? []) expect(factDates.has(date)).toBe(true);
     expect(prompt).not.toMatch(/review window/);
   });
-  it('Your Birth Chart: the Moon named without citing D1.planet.Moon in that block is rejected; citing it is accepted', () => {
+  it('Your Birth Chart: the Moon named without D1.planet.Moon cited gets it attached; a field name there is still rejected', () => {
     const { e, p, d } = setup(2);
     d.limiting.factIds = ['D1.house.10']; d.limiting.text += ' The Moon colours how pressure at work is felt.';
-    expect(validateFiveCareerDraft(p, d, e).problems.join(' ')).toMatch(/Moon assertion is not supported by cited evidence/);
-    d.limiting.factIds.push('D1.planet.Moon');
-    expect(validateFiveCareerDraft(p, d, e).problems).toEqual([]);
+    const checked = validateFiveCareerDraft(p, d, e);
+    expect(checked.problems).toEqual([]); expect(checked.draft!.limiting.factIds).toContain('D1.planet.Moon');
+    const field = setup(2); field.d.supporting.text += ' Communication roles suit this chart.';
+    expect(validateFiveCareerDraft(field.p, field.d, field.e).problems.join(' ')).toMatch(/Communication and public-facing professions needs its verified field assessment/);
+  });
+  it('Career Overview and Personalised Guidance: a field named without its assessment cited gets it attached, and the weak-field rule still applies', () => {
+    for (const id of [0, 4]) {
+      const { e, p } = setup(id);
+      for (const f of p.facts.filter((x) => x.id.startsWith('D1.D10.field.'))) {
+        const field = f.value as { id: keyof typeof FIELDS; label: string; rating: string }; const d = draft(p);
+        d.limiting.factIds = [p.facts.find((x) => !x.id.startsWith('D1.D10.field.'))!.id];
+        d.limiting.text += ` ${field.label} roles are worth considering here.`;
+        const checked = validateFiveCareerDraft(p, d, e);
+        if (field.rating === 'weakly supported') expect(checked.problems.join(' ')).toMatch(/weak field must not be recommended/);
+        else { expect(checked.problems).toEqual([]); expect(checked.draft!.limiting.factIds).toContain(f.id); }
+      }
+    }
+  });
+  it('a conclusion draws only on facts already weighed above: it gets nothing attached from elsewhere in the section', () => {
+    const { e, p, d } = setup(1);
+    const venus = factId(p, 'Vimshottari.Mahadasha.Venus');
+    d.supporting.factIds = [venus]; d.limiting.factIds = [venus]; d.conclusion.factIds = [venus];
+    d.supporting.text = d.supporting.text.replace(/\b(Saturn|Mercury)\b/g, 'the period'); d.limiting.text = d.limiting.text.replace(/\b(Saturn|Mercury)\b/g, 'the period');
+    d.conclusion.text += ' Saturn tests the structure of this phase.';
+    expect(validateFiveCareerDraft(p, d, e).problems.join(' ')).toMatch(/conclusion: Saturn assertion is not supported by cited evidence/);
   });
   it('Current Career Situation: a block under 45 words and a section under 225 words are still rejected', () => {
     const { e, p, d } = setup(3);
@@ -363,7 +406,7 @@ describe('five-section Career: the live evaluation failure patterns', () => {
     const e = buildFiveCareerEvidence(delhi(), ASOF); const ledger = new CareerSpending(); const metrics = vi.fn();
     const request = perSection(responder(e), (s, attempt) => {
       if (attempt > 1) return;
-      if (s.id === 1) { s.draft.supporting.factIds = [factId(e.packets[1], 'Vimshottari.Mahadasha.Venus')]; s.draft.supporting.text += ' Saturn tests the structure of this phase.'; }
+      if (s.id === 1) s.draft.supporting.text += ` ${absentPlanet(e.packets[1])} tests the structure of this phase.`;
       if (s.id === 3) s.draft.conclusion.text = words(30);
     });
     const report = await generateDeterministicCareer(delhi(), ASOF, request, { ledger, onMetrics: metrics });
