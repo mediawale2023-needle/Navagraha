@@ -7,7 +7,8 @@ import { fiveCareerPrompt, draftProse, renderCareerSection, careerMetadata, care
 export const CAREER_BUDGET_MICRO_USD = 250_000;
 export const CAREER_DEADLINE_MS = 6 * 60_000;
 export const MAX_CAREER_CORRECTIONS = 2;
-export const CAREER_OUTPUT_TOKENS = 6000;
+/** Per section: about 330 words of prose plus the JSON and its citations. */
+export const CAREER_OUTPUT_TOKENS = 1400;
 export type CareerUsage = { prompt_tokens: number; completion_tokens: number };
 export interface CareerCompletion { choices: Array<{ finish_reason?: string | null; message: { content?: string | null } }>; usage?: CareerUsage | null }
 export type CareerRequester = (prompt: string, options: { signal: AbortSignal; maxTokens: number }) => Promise<CareerCompletion>;
@@ -52,7 +53,7 @@ async function boundedRequest(request: CareerRequester, prompt: string, signal: 
   finally { signal.removeEventListener('abort', abort); }
 }
 
-// Echoed keys (e.g. a section heading) are dropped, not fatal: one coordinated call has no retry.
+// Echoed keys (e.g. a section heading) are dropped, not rejected.
 // A section may carry its blocks directly, mirroring the SECTIONS list the prompt shows.
 const envelope = z.object({
   workStyle: z.preprocess((v) => (typeof v === 'string' ? v.trim().toLowerCase() : v), z.enum(['employment', 'entrepreneurship', 'mixed'])),
@@ -70,44 +71,39 @@ export async function generateDeterministicCareer(kundli: unknown, asOf: Date, r
   let workStyle: 'employment' | 'entrepreneurship' | 'mixed' | undefined;
   try {
     const evidence = buildFiveCareerEvidence(kundli, asOf);
-    const run = async (packets: CareerPacket[], correcting = false) => {
+    const reject = (packet: CareerPacket, problems: string[]) => {
+      errors.set(packet.id, problems); accepted.delete(packet.id);
+      if (process.env.NAVAGRAHA_CAREER_EVAL_DIAGNOSTICS === '1') console.error('[career-eval]', JSON.stringify({ section: packet.heading, problems }));
+    };
+    // One section per request. A bad response costs only its own section, which the
+    // correction allowance can redo; a transport failure still ends the report.
+    const run = async (packet: CareerPacket, correcting = false) => {
       if (controller.signal.aborted) throw new ReportGenerationError('Career deadline exceeded');
-      const prompt = fiveCareerPrompt(evidence, packets, correcting ? { workStyle: workStyle!, reasons: packets.map((p) => ({ id: p.id, problems: errors.get(p.id)! })) } : undefined);
-      const maxTokens = correcting ? 1800 : CAREER_OUTPUT_TOKENS;
-      const ticket = ledger.reserve(prompt, maxTokens);
+      const prompt = fiveCareerPrompt(evidence, [packet], { workStyle, reasons: correcting ? [{ id: packet.id, problems: errors.get(packet.id)! }] : undefined });
+      const ticket = ledger.reserve(prompt, CAREER_OUTPUT_TOKENS);
       let result: CareerCompletion;
-      try { result = await boundedRequest(request, prompt, controller.signal, maxTokens); }
+      try { result = await boundedRequest(request, prompt, controller.signal, CAREER_OUTPUT_TOKENS); }
       catch { ledger.settle(ticket); throw new ReportGenerationError(controller.signal.aborted ? 'Career deadline exceeded' : 'Career transport failed; reservation retained'); }
       ledger.settle(ticket, result.usage);
-      if (result.choices[0]?.finish_reason !== 'stop') throw new ReportGenerationError('Career quality check: incomplete or refused response');
+      if (result.choices[0]?.finish_reason !== 'stop') return reject(packet, ['incomplete-response: output truncated or refused']);
       let raw: unknown;
       try { raw = JSON.parse(result.choices[0]?.message.content ?? ''); }
-      catch { throw new ReportGenerationError('Career quality check: invalid JSON'); }
+      catch { return reject(packet, ['invalid-json']); }
       const parsed = envelope.safeParse(raw);
-      if (!parsed.success) throw new ReportGenerationError(`Career quality check: malformed coordinated output (${schemaIssues(parsed.error)})`);
-      if (workStyle && workStyle !== parsed.data.workStyle) throw new ReportGenerationError('Career correction changed the common work-style conclusion');
+      if (!parsed.success) return reject(packet, [`malformed output (${schemaIssues(parsed.error)})`]);
+      if (workStyle && workStyle !== parsed.data.workStyle) return reject(packet, [`changed the established work-style conclusion (${workStyle})`]);
       workStyle = parsed.data.workStyle;
       const ids = parsed.data.sections.map((s) => s.id);
-      if (new Set(ids).size !== ids.length || ids.some((id) => !packets.some((p) => p.id === id))) throw new ReportGenerationError('Career quality check: duplicate or unexpected section');
-      for (const packet of packets) {
-        const checked = validateFiveCareerDraft(packet, parsed.data.sections.find((s) => s.id === packet.id)?.draft, evidence);
-        if (checked.draft) {
-          const text = draftProse(checked.draft);
-          const job = /\b(?:favou?rs?|recommend\w*|better suited to)\s+(?:structured\s+|salaried\s+)?(?:employment|service|a job)\b/i.test(text);
-          const business = /\b(?:favou?rs?|recommend\w*|better suited to)\s+(?:independent\s+)?(?:business|entrepreneurship|self-employment)\b/i.test(text);
-          if ((workStyle === 'employment' && business) || (workStyle === 'entrepreneurship' && job) || (workStyle === 'mixed' && (job !== business))) checked.problems.push('contradicts the common employment-versus-business conclusion');
-        }
-        if (checked.problems.length) {
-          errors.set(packet.id, checked.problems);
-          if (process.env.NAVAGRAHA_CAREER_EVAL_DIAGNOSTICS === '1') {
-            console.error('[career-eval]', JSON.stringify({
-              section: packet.heading,
-              problems: checked.problems
-            }));
-          }
-        }
-        else { accepted.set(packet.id, checked.draft!); errors.delete(packet.id); }
+      if (new Set(ids).size !== ids.length || ids.some((id) => id !== packet.id)) return reject(packet, ['duplicate or unexpected section id']);
+      const checked = validateFiveCareerDraft(packet, parsed.data.sections[0]?.draft, evidence);
+      if (checked.draft) {
+        const text = draftProse(checked.draft);
+        const job = /\b(?:favou?rs?|recommend\w*|better suited to)\s+(?:structured\s+|salaried\s+)?(?:employment|service|a job)\b/i.test(text);
+        const business = /\b(?:favou?rs?|recommend\w*|better suited to)\s+(?:independent\s+)?(?:business|entrepreneurship|self-employment)\b/i.test(text);
+        if ((workStyle === 'employment' && business) || (workStyle === 'entrepreneurship' && job) || (workStyle === 'mixed' && (job !== business))) checked.problems.push('contradicts the common employment-versus-business conclusion');
       }
+      if (checked.problems.length) reject(packet, checked.problems);
+      else { accepted.set(packet.id, checked.draft!); errors.delete(packet.id); }
     };
     // Rule messages name chart facts and field paths, never the model's prose.
     const failureSummary = () => Array.from(errors).map(([id, problems]) => `${evidence.packets[id].heading}: ${problems.slice(0, 3).map((p) => p.slice(0, 160)).join('; ')}`).join(' | ');
@@ -124,10 +120,16 @@ export async function generateDeterministicCareer(kundli: unknown, asOf: Date, r
         }
       }
     };
-    await run(evidence.packets);
+    // Career Overview settles the work-style conclusion the other four sections are written to.
+    const [overview, ...rest] = evidence.packets;
+    await run(overview);
+    if (!workStyle) throw new ReportGenerationError(`Career quality check: Career Overview gave no usable work-style conclusion; no additional calls. ${failureSummary()}`);
+    await Promise.all(rest.map((packet) => run(packet)));
     crossCheck(); firstPassAccepted = accepted.size;
     if (errors.size > MAX_CAREER_CORRECTIONS) throw new ReportGenerationError(`Career quality check: systematic first-pass failure; no additional calls. ${failureSummary()}`);
-    for (const [id] of Array.from(errors)) { corrections++; await run([evidence.packets[id]], true); }
+    const rejected = Array.from(errors.keys());
+    corrections = rejected.length;
+    await Promise.all(rejected.map((id) => run(evidence.packets[id], true)));
     crossCheck();
     if (errors.size || accepted.size !== 5) throw new ReportGenerationError(`Career quality check: sections remain invalid after bounded correction. ${failureSummary()}`);
     if (controller.signal.aborted) throw new ReportGenerationError('Career deadline exceeded');

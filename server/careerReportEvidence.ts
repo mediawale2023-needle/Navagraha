@@ -33,13 +33,14 @@ export function buildFiveCareerEvidence(kundli: unknown, asOf: Date): CareerEvid
   const end = new Date(asOf); end.setUTCFullYear(end.getUTCFullYear() + 4);
   const periods = base.chart.dashas.vimshottari.mahadashas.filter((m) => Date.parse(m.end) > +asOf && Date.parse(m.start) < +end);
   const timing: CareerEvidence[] = periods.flatMap((m) => [
-    { id: `Vimshottari.Mahadasha.${m.lord}.${m.start}`, contexts: ['Vimshottari'] as CareerContext[], text: `${m.lord} Mahadasha: ${m.start.slice(0, 10)} to ${m.end.slice(0, 10)} (UTC boundaries).`, value: m },
-    ...m.antardashas.filter((a) => Date.parse(a.end) > +asOf && Date.parse(a.start) < +end).map((a) => ({ id: `Vimshottari.Antardasha.${a.lord}.${a.start}`, contexts: ['Vimshottari'] as CareerContext[], text: `${a.lord} Antardasha within ${m.lord} Mahadasha: ${a.start.slice(0, 10)} to ${a.end.slice(0, 10)} (UTC boundaries).`, value: a })),
+    { id: `Vimshottari.Mahadasha.${m.lord}.${m.start}`, contexts: ['Vimshottari'] as CareerContext[], text: `${m.lord} Mahadasha: ${m.start.slice(0, 10)} → ${m.end.slice(0, 10)} (UTC boundaries).`, value: m },
+    ...m.antardashas.filter((a) => Date.parse(a.end) > +asOf && Date.parse(a.start) < +end).map((a) => ({ id: `Vimshottari.Antardasha.${a.lord}.${a.start}`, contexts: ['Vimshottari'] as CareerContext[], text: `${a.lord} Antardasha within ${m.lord} Mahadasha: ${a.start.slice(0, 10)} → ${a.end.slice(0, 10)} (UTC boundaries).`, value: a })),
   ]);
   const groups = [[0, 1, 7, 9], [8], [0, 1, 2, 3, 4, 5], [8], [6, 9]];
   const purposes = [
     'Explain professional tendencies, strengths, direction, employment versus entrepreneurship and workplace challenges. Keep the shared workStyle conclusion coherent.',
-    `Discuss opportunities and difficulties over the review window ${asOf.toISOString().slice(0, 10)} to ${end.toISOString().slice(0, 10)}. Dates are period boundaries, never promotion or job-change predictions. Do not label an entire period favourable without its supporting and limiting career evidence.`,
+    // No window dates here: a date the model reads outside the facts is one the guard must refuse.
+    'Discuss opportunities and difficulties over the next four years, as covered by the periods listed. Dates are period boundaries, never promotion or job-change predictions. Do not label an entire period favourable without its supporting and limiting career evidence.',
     'Explain relevant D1/D10 placements, tenth house and lord, professional influences and verified yogas. Definitions and facts are supplied by the application.',
     'Explain current Mahadasha and Antardasha and their professional implications. Potential transitions are conditional interpretations, never claims about the person’s actual employment.',
     'Compare supported fields with their cited field assessments. Give practical guidance derived from those strengths and limitations. No remedies or gemstones.',
@@ -94,7 +95,7 @@ export function buildCareerEvidence(kundli: any, asOf: Date): CareerEvidenceSet 
   const current = chart.dashas.vimshottari.mahadashas.find((m) => Date.parse(m.start) <= +asOf && +asOf < Date.parse(m.end));
   if (!current) throw new ReportGenerationError('Career period coverage unavailable');
   const periodIds: string[] = [];
-  const period = (level: string, p: { lord: string; start: string; end: string }) => periodIds.push(put(`Vimshottari.${level}.${p.lord}.${p.start}`, ['Vimshottari'], `Vimshottari ${p.lord} ${level}: ${p.start.slice(0, 10)} to ${p.end.slice(0, 10)} (UTC boundaries).`, p));
+  const period = (level: string, p: { lord: string; start: string; end: string }) => periodIds.push(put(`Vimshottari.${level}.${p.lord}.${p.start}`, ['Vimshottari'], `Vimshottari ${p.lord} ${level}: ${p.start.slice(0, 10)} → ${p.end.slice(0, 10)} (UTC boundaries).`, p));
   period('Mahadasha', current);
   const ads = current.antardashas.filter((a) => Date.parse(a.end) > +asOf).slice(0, 3);
   ads.forEach((a) => period('Antardasha', a));
