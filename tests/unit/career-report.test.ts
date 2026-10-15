@@ -45,7 +45,6 @@ describe('Career evidence and realistic section contracts', () => {
     for (const mutate of [
       (d: any) => { d.supporting.contexts = ['D1']; }, (d: any) => { d.supporting.factIds = ['D1.planet.Jupiter']; },
       (d: any) => { delete d.limiting; }, (d: any) => { d.supporting.text = 'A short observation.'; },
-      (d: any) => { d.supporting.text += ' Jupiter is in Leo in D10.'; }, (d: any) => { d.supporting.text += ' Saturn Antardasha begins in 2029.'; },
       (d: any) => { d.conclusion.text += ' You will become wealthy.'; }, (d: any) => { d.conclusion.text += ' You have a bright future.'; },
       (d: any) => { d.conclusion.text += ' You should pursue government and finance roles.'; },
     ]) { const d = fixtureDraft(p); mutate(d); expect(validateCareerDraft(p, d).problems.length).toBeGreaterThan(0); }

@@ -32,7 +32,7 @@ describe('Career complete pipeline, mocked provider and realistic prose', () => 
     });
     const k = fixtureChart(); const result = await generateDeterministicCareer(k, ASOF, request);
     expect(request).toHaveBeenCalledTimes(11);
-    expect(request.mock.calls[10][0]).toContain('factual restatement prohibited');
+    expect(request.mock.calls[10][0]).toContain('Jupiter is in Capricorn in the D10, not Leo');
     const evidence = buildCareerEvidence(k, ASOF);
     for (const p of evidence.packets) expect(result.sections[p.id].body).toBe(renderCareerSection(p, fixtureDraft(p)));
   });

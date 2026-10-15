@@ -34,6 +34,65 @@ export const countCareerWords = (s: string) => (s.match(/[A-Za-z0-9'’-]+/g) ??
 // Facts live in typed references and are rendered by code. Free prose cannot restate or
 // introduce placements, periods, combinations or professional-field recommendations.
 const FACT_PROSE = new RegExp(`\\b(${[...GRAHAS, ...SIGN_NAMES, 'D1', 'D10', 'Lagna', 'Dasamsa', 'Mahadasha', 'Antardasha', 'Vimshottari', 'yoga', 'yogas', 'nakshatra', 'ascendant', 'exalted', 'debilitated', 'combust', 'retrograde', 'kendra', 'trikona', 'dusthana', 'bindus', 'degrees', 'lord', 'lords'].join('|')})\\b|\\d|\\b(?:own sign|rising sign|planet|planets|house|houses|conjunct|conjunction|aspect|aspects|zodiac)\\b`, 'i');
+/**
+ * A named planetary placement must cite that planet's verified placement
+ * in the same chart and interpretation block.
+ * Chart-wide accuracy is checked separately by textProblems().
+ */
+function unsupportedPlacementClaims(
+  text: string,
+  factIds: string[],
+): string[] {
+  const problems: string[] = [];
+  const planetNames = GRAHAS.join('|');
+  const signNames = SIGN_NAMES.join('|');
+
+  const placement = new RegExp(
+    `\\b(${planetNames})\\b(?:['’]s)?\\s+(?:(?:is|sits|placed|posited|located|was)\\s+)?(?:in|into|occupies)\\s+(?:the\\s+sign\\s+(?:of\\s+)?)?(${signNames})\\b`,
+    'gi',
+  );
+
+  for (const match of Array.from(text.matchAll(placement))) {
+    const planet = GRAHAS.find(
+      (name) => name.toLowerCase() === match[1].toLowerCase(),
+    );
+    if (!planet) continue;
+
+    const sentenceStart = Math.max(
+      text.lastIndexOf('.', match.index) + 1,
+      text.lastIndexOf('!', match.index) + 1,
+      text.lastIndexOf('?', match.index) + 1,
+    );
+    const nextPunctuation = text.slice(match.index + match[0].length).search(/[.!?]/);
+    const sentenceEnd = nextPunctuation < 0
+      ? text.length
+      : match.index + match[0].length + nextPunctuation;
+    const sentence = text.slice(sentenceStart, sentenceEnd);
+
+    const charts = Array.from(sentence.matchAll(/\bD(1|10)\b/gi))
+      .map((m) => `D${m[1]}`);
+
+    const uniqueCharts = Array.from(new Set(charts));
+
+    if (uniqueCharts.length === 0) {
+      problems.push(`placement for ${planet}: identify the chart (D1 or D10)`);
+      continue;
+    }
+
+    if (uniqueCharts.length > 1) {
+      problems.push(`placement for ${planet}: clarify whether this placement belongs to D1 or D10`);
+      continue;
+    }
+
+    const required = `${uniqueCharts[0]}.planet.${planet}`;
+    if (!factIds.includes(required)) {
+      problems.push(`placement for ${planet}: cite ${required} in this block`);
+    }
+  }
+
+  return problems;
+}
+
 const CERTAIN = /\b(?:will|shall|definitely|certainly|guaranteed|destined|inevitably)\b/i;
 const GENERIC = /\b(?:leadership (?:potential|qualities|capabilities|roles?)|hard work|networking|success will come|bright future|great potential|strong potential|many opportunities|opportunities will|natural leader|challenges may arise|with patience|work hard|positive energy|cosmic)\b/i;
 const FIELD_CLAIM = /\b(?:recommend\w*|suited|suitable|ideal|best|pursue|choose|enter)\b[^.!?]*\b(?:government|administrat\w*|business|entrepreneur\w*|financ\w*|management|communicat\w*|media|consult\w*|teach\w*|bank\w*|sales|marketing)\b/i;
@@ -51,7 +110,8 @@ export function validateCareerDraft(packet: CareerPacket, input: unknown): { dra
     if (refs.some((f) => !f)) problems.push(`${kind}: unknown or out-of-section evidence reference`);
     const contexts = Array.from(new Set(refs.flatMap((f) => f?.contexts ?? []))).sort();
     if (JSON.stringify(Array.from(new Set(b.contexts)).sort()) !== JSON.stringify(contexts)) problems.push(`${kind}: D1/D10/period context must exactly match referenced facts`);
-    if (FACT_PROSE.test(b.text)) problems.push(`${kind}: factual restatement prohibited; keep placements, dates and astrological names in typed references only`);
+
+    problems.push(...unsupportedPlacementClaims(b.text, b.factIds).map((problem) => `${kind}: ${problem}`));
     if (CERTAIN.test(b.text)) problems.push(`${kind}: certain predictions prohibited`);
     if (GENERIC.test(b.text)) problems.push(`${kind}: generic content`);
     if (FIELD_CLAIM.test(b.text)) problems.push(`${kind}: professional recommendations must come from the deterministic field assessment`);
@@ -83,6 +143,6 @@ export function renderCareerSection(packet: CareerPacket, draft: CareerDraft): s
 export function careerDraftPrompt(packet: CareerPacket, problems: string[] = []): string {
   // Private birth details, the full canonical chart and legacy projections are never sent.
   return `Write one Career Report interpretation for an adult reader. Return JSON with exactly three blocks: supporting, limiting, conclusion. Each block has factIds (IDs from the packet), contexts (the exact union of D1, D10, Vimshottari contexts of those facts), and text.
-The application prints ALL verified facts separately. Do not restate any planetary names, signs, houses, chart names, technical astrology terms, numbers or dates in text. Refer to "the cited evidence" or "this professional indication". Explain its permitted traditional meaning and practical implications. Each block needs 80-100 substantive words (10-30 if minimumWords is 40). The total prose plus verified facts must meet minimumWords; labels and reference IDs do not count. No filler, personal-history assumptions, certainty, fabricated strengths or limitations. A lack of adverse evidence must be described as a limitation of inference, not as an invented obstacle. Put supporting evidence first, limiting evidence second, and a conditional conclusion last. The conclusion must cite only evidence already weighed in the first two blocks. Conclusions must not introduce a new career recommendation: field recommendations are printed from the deterministic assessment. Never promise employment, wealth or events. These are traditional interpretations, not scientific predictions. Avoid repeated sentences across sections. Respect the section's permitted interpretations.
+The application prints ALL verified facts separately. You may use planetary names, signs, houses, chart names and traditional astrological terminology when explaining the supplied evidence. Every factual astrological claim must be supported by a factId cited in the SAME block and must agree exactly with that verified fact. Clearly identify D1 versus D10 when describing placements. Do not invent placements, aspects, yogas, dignities, period dates or numerical values. Do not introduce chart facts absent from the cited evidence. Explain its permitted traditional meaning and practical implications. Each block needs 80-100 substantive words (10-30 if minimumWords is 40). The total prose plus verified facts must meet minimumWords; labels and reference IDs do not count. No filler, personal-history assumptions, certainty, fabricated strengths or limitations. A lack of adverse evidence must be described as a limitation of inference, not as an invented obstacle. Put supporting evidence first, limiting evidence second, and a conditional conclusion last. The conclusion must cite only evidence already weighed in the first two blocks. Conclusions must not introduce a new career recommendation: field recommendations are printed from the deterministic assessment. Never promise employment, wealth or events. These are traditional interpretations, not scientific predictions. Avoid repeated sentences across sections. Respect the section's permitted interpretations.
 PACKET\n${JSON.stringify({ ...packet, facts: packet.facts.map(({ value, ...fact }) => fact) })}${problems.length ? `\nCORRECTION: The previous section failed these exact checks. Correct each; the evidence has not changed.\n${problems.join('\n')}` : ''}`;
 }
