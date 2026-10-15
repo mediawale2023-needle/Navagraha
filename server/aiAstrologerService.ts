@@ -16,7 +16,7 @@ import { createOpenAI } from "./ai/metering";
 import type { Kundli } from "@shared/schema";
 import { transitsForChart, transitSummary } from "./astroEngine/index.js";
 import { isCurrentCanonicalChart, type CanonicalChart, type Graha } from "@shared/v3/canonical";
-import { CAREER_BATCHES, CAREER_SECTIONS, careerBrief, careerRemedies, careerReportProblems, careerSectionProblems, type CareerBrief } from "./careerReport.js";
+import { CAREER_BATCHES, CAREER_SECTIONS, careerBrief, careerDiagnostics, careerRemedies, careerReportProblems, careerSectionProblems, type CareerBrief } from "./careerReport.js";
 import { birthDayStability, dignityStatementStable, yogaTimeStable, type BirthDayStability } from "./astroEngine/canonical/birthDay.js";
 import { buildInsights } from "./astroEngine/evidence/insights.js";
 import { reportGroundingFor, reportSectionGroundingFor } from "./userFacingReasoning.js";
@@ -575,6 +575,7 @@ CHART RULES (these override any other instruction):
 - Build every claim on the CAREER EVIDENCE block, naming the facts you use. Where the evidence is mixed or missing, say so plainly.
 - Treat CAREER EVIDENCE as a closed fact list. Copy every planet's sign, house, dignity, lordship and D10 placement exactly from it; never calculate, infer, combine or "correct" a placement. If a placement is not stated there, omit it.
 - In every core section explicitly identify at least one supporting indicator and one opposing or limiting indicator from CAREER EVIDENCE before giving the practical conclusion. If the evidence provides no opposing indicator, say that limitation plainly instead of inventing one.
+- Other parts are written at the same time and their wording is compared with yours: never use a stock or template sentence (for example a fixed line saying no opposing indicator was found). Word each statement for this section's own facts, naming the specific indicator or the specific gap.
 - In any sentence that mentions a divisional chart, name the chart for every placement ("in the D1 ...", "in the D10 ..."). Never state a D10 degree.
 - In "Dasamsa (D10) Analysis", reproduce the CAREER EVIDENCE birth-time sensitivity accurately and explicitly say that the D10 Lagna depends on an accurate birth time; never omit this caveat.
 - Yogas: only those listed, each with its rule, how this chart meets it, its limits and its career link. Call a cancelled debilitation a Neecha Bhanga (cancelled debilitation), not a separate Raja Yoga.
@@ -679,7 +680,9 @@ async function generateCareerReport(kundli: Partial<Kundli>, asOf: Date): Promis
   crossCheck();
   const retryCount = CAREER_BATCHES.reduce((n, b) => n + b.sections.filter((x) => problems.has(x.heading)).length, problems.has("summary") ? 1 : 0);
   if (retryCount > MAX_CAREER_REGENERATIONS) {
-    throw new ReportGenerationError(`report failed the quality check: ${retryCount} sections need regeneration (maximum ${MAX_CAREER_REGENERATIONS})`);
+    const diagnostics = careerDiagnostics(problems);
+    console.warn(`[reports] career quality (first pass): ${diagnostics}`);
+    throw new ReportGenerationError(`report failed the quality check: ${retryCount} sections need regeneration (maximum ${MAX_CAREER_REGENERATIONS}): ${diagnostics}`);
   }
   // One regeneration per failed section (and summary), each call given only that section's own problems and the
   // part's full output allowance; passed sections are kept. Parts run in parallel, a part's sections one at a time.
@@ -696,6 +699,7 @@ async function generateCareerReport(kundli: Partial<Kundli>, asOf: Date): Promis
   }));
   crossCheck();
   if (problems.size) {
+    console.warn(`[reports] career quality (after regeneration): ${careerDiagnostics(problems)}`);
     throw new ReportGenerationError(`report failed the quality check: ${Array.from(problems).map(([h, p]) => `${h}: ${p.join("; ")}`).join(" | ")}`);
   }
   return {
