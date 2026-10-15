@@ -1,0 +1,153 @@
+# Delhi: report annotated for review
+
+**[Chart fact]**: written by the application from the calculation. **[AI]**: written by gpt-4o and checked by the validators. Other text (headings, "What this means for you", next steps, glossary) is labelled where it occurs.
+
+## Summary (application)
+
+Weighing your 6th house of service and employment (Leo; 35 points, above average) against your 7th house of partnership and trade (Virgo; 21 points, below average), together with the business assessment (well supported), the chart supports a mix of employment and independent work rather than one alone. Four of the six professional fields assessed are well supported: business and entrepreneurship, finance and management, advisory and consulting roles and communication and public-facing professions. You are now in the Venus Mahadasha, the major period running from 19 September 2013 to 19 September 2033. Within it, you are now in the Saturn Antardasha (sub-period), which began on 20 July 2026 and runs until 19 September 2029. Dates describe calculated periods, not promised events. The D10 reading depends on an accurate birth time, and your actual skills, experience and circumstances should guide every decision.
+
+## Career Overview
+
+**[Chart fact]** Weighing your 6th house of service and employment (Leo; 35 points, above average) against your 7th house of partnership and trade (Virgo; 21 points, below average), together with the business assessment (well supported), the chart supports a mix of employment and independent work rather than one alone.
+
+**[AI]** You’re likely to thrive in a career that combines both structured employment and independent work. While you may find satisfaction in the stability and defined roles within a company, the entrepreneurial pathway offers you room for creativity and personal growth. Balancing both approaches can lead to a fulfilling and dynamic professional life.
+
+**[Chart fact]** Four of the six professional fields assessed are well supported: business and entrepreneurship, finance and management, advisory and consulting roles and communication and public-facing professions. Of these, business and entrepreneurship and finance and management have the most in their favour and the least against them. Personalised Guidance compares all six.
+
+**[AI]** Your chart indicates strong potential in areas like business, entrepreneurship, finance, management, advisory roles, and communication. Among these, business and finance stand out as particularly promising. These fields may offer opportunities that align well with your skills and ambitions, providing you with a broad canvas to explore and grow.
+
+**[Chart fact]** Of the planets that govern your career, the best placed is the Sun, a natural significator of career. It is in Pisces in your 1st house, where it is in a friendly sign. That is a moderate placement rather than a strong one: none of your career planets is in its own, Moolatrikona or exaltation sign.
+
+**[AI]** The Sun stands out as the best-placed planet for your career, suggesting that you can lean on your core identity, personal presence, and leadership qualities. While its placement isn't exceptionally strong, it supports you in stepping into roles that require confidence and a clear sense of direction.
+
+**[Chart fact]** The most challenged is Jupiter, the ruler of your 10th house of career, your Lagna and the D10 Lagna. It is in Capricorn in your 11th house, where it is debilitated (its weakest sign).
+
+**[AI]** Jupiter poses some challenges, especially as it governs your career-related areas. Its debilitation suggests you should be cautious in overestimating prospects or taking on too much too quickly. Attention to detail, setting clear boundaries, and seeking wise counsel can help mitigate its weaker influence.
+
+**[AI synthesis]** Your career is best approached with a balanced mix of employment and self-driven projects. Supported fields include business, finance, consulting, and communication. While the Sun offers you a moderate foundation for leadership and self-expression, Jupiter's challenged position indicates a need for prudence and seeking clarity in ventures. Focus on roles that allow you to exert personal influence while remaining open to collaboration and learning. This diverse approach can help you harness your full potential, creating a rewarding and evolving career path.
+
+**[Glossary, application]** Lagna: the rising sign at birth, the starting point of the chart. D10: the Dasamsa, a divisional chart traditionally read for profession. Moolatrikona: a sign where a planet is strong, close to its own sign. debilitated: in the sign where a planet is traditionally weakest.
+
+## Favourable & Difficult Periods
+
+**[Chart fact]** Venus Mahadasha (major period), 19 September 2013 to 19 September 2033 (running now). On balance this reads as a mixed period for career. In its favour, Venus is exalted in your birth chart and sits in your 1st house. Against it, Venus rules your 8th house and is in an enemy's sign in the D10.
+
+**[AI]** The Venus Mahadasha, running from 2013 through 2033, brings both opportunities and challenges. With Venus exalted in your birth chart's 1st house, there may be enhancements to your public image and personal appeal in your career. However, its rulership of the 8th house suggests potential disruptions and transformations. The difficulty in the D10 indicates that the professional benefits may come with fluctuations and instability, so it's wise to remain adaptable and open to change.
+
+**[Chart fact]** Saturn Antardasha (sub-period) (running now) within the Venus Mahadasha, 20 July 2026 to 19 September 2029. On balance this reads as a mainly demanding period for career. In its favour, Saturn rules your 11th house of gains. Against it, Saturn is in an enemy's sign, rules your 12th house and is in an enemy's sign in the D10.
+
+**[AI]** During the Saturn Antardasha from 2026 to 2029, your career might face significant challenges, requiring perseverance and discipline. While Saturn's connection to the 11th house of gains suggests potential rewards, its generally challenging placement may lead to obstacles and hidden expenses. Focus on meticulous planning and building resilience to navigate through this period effectively, being wary of overextending yourself.
+
+**[Chart fact]** Mercury Antardasha (sub-period) (still to come) within the Venus Mahadasha, 19 September 2029 to 20 July 2032. On balance this reads as a mixed period for career. In its favour, Mercury sits in your 1st house. Against it, Mercury falls in the D10's 8th house and is in an enemy's sign in the D10.
+
+**[AI]** From 2029 to 2032, the Mercury Antardasha offers a mixed picture for your career. Mercury in the 1st house can promote effective communication and intellectual growth, providing chances to showcase your skills. However, its difficult placement in the D10 chart means you should prepare for some unexpected shifts by sharpening your adaptability and problem-solving abilities. Balancing creativity with careful strategy will be essential.
+
+**[AI synthesis]** These upcoming periods suggest a career path that is both dynamic and occasionally unpredictable, balancing stability in employment with opportunities for independent ventures. The Venus Mahadasha supports self-expression and personal advancement, yet it requires resilience in the face of periodic transformations. The Saturn sub-period calls for focus and diligence to overcome potential obstacles, emphasizing long-term planning and disciplined efforts. As the Mercury sub-period approaches, you can leverage creativity and adaptability, despite possible challenges from sudden changes. Overall, success can come from a thoughtful blend of consistent employment and entrepreneurial pursuits, where adaptability, careful strategy, and responsiveness to changes will play key roles. Engaging in both structured roles and independent projects could provide the ideal mix for navigating this diverse and multifaceted journey.
+
+**[Glossary, application]** D10: the Dasamsa, a divisional chart traditionally read for profession. Mahadasha: a major planetary period in the Vimshottari system. Antardasha: a sub-period within a Mahadasha. exalted: in the sign where a planet is traditionally strongest.
+
+## Your Birth Chart
+
+**[Chart fact]** Your rising sign (Lagna) is Pisces. Its lord, Jupiter, also rules your 10th house of career, so how you present yourself and your career are governed by the same planet; its placement follows.
+
+**[AI]** With Pisces as your rising sign, governed by Jupiter along with your career, your approach to work may be compassionate and intuitive. This suggests a tendency to pursue goals aligned with your personal values and emotional fulfillment in professional settings.
+
+**[Chart fact]** Your 10th house, the house of career and public standing, is Sagittarius. No planet occupies it, and Rahu aspects it. Its Sarvashtakavarga score, a traditional tally of support, is 31 points (average).
+
+**[AI]** Your 10th house in Sagittarius, aspected by Rahu and with an average Sarvashtakavarga score, suggests a broad-minded but unconventional approach to career. You may seek knowledge and adventure in your work, although not always with consistent support or straightforward paths.
+
+**[Chart fact]** The lord of your 10th house, Jupiter, is in Capricorn in your 11th house, where it is debilitated (its weakest sign). In the D10 it is in Aquarius in the 3rd house.
+
+**[AI]** Jupiter, the lord of your career house, is debilitated in Capricorn, indicating challenges in leveraging your natural talents effectively in work. Its placement in the 11th house can suggest a focus on networking and achieving goals through group endeavors, though possibly with some difficulty. In the D10, its position in Aquarius highlights innovation in communication.
+
+**[Chart fact]** In the D10 (Dasamsa), the divisional chart read for profession, the rising sign is Sagittarius. Its lord is again Jupiter, your 10th lord, whose D10 placement is given above.
+
+**[AI]** Your professional life in the D10 chart is governed by Sagittarius rising and Jupiter again, reinforcing the connection between your personal growth and career. This indicates a focus on expansion and optimism in career choices, but requires careful planning to manage its challenges.
+
+**[Chart fact]** The D10's 10th house is Virgo, and its lord, Mercury, is in Cancer in the D10's 8th house. No planet occupies the D10's 10th house.
+
+**[AI]** Your career house in the D10 chart is Virgo, ruled by Mercury in Cancer in the 8th house. This suggests that your work life may involve deep investigative processes, transformation and possibly dealing with other people's resources. It involves a level of adaptation and managing change.
+
+**[Chart fact]** Saturn, a natural significator of work, duty and endurance, is in Scorpio in your 9th house, where it is in an enemy's sign and retrograde. In the D10 it is in Leo in the 9th house, in an enemy's sign.
+
+**[AI]** Saturn in Scorpio and retrograde in your 9th house emphasizes duty and perseverance in your quest for higher knowledge and ethical frameworks in career, though it may come with struggles. In the D10, Saturn in Leo in the 9th signifies a focus on leadership obstacles in educational or philosophical realms.
+
+**[Chart fact]** The Sun, a natural significator of authority and status, is in Pisces in your 1st house, where it is in a friendly sign. In the D10 it is in Capricorn in the 2nd house, in an enemy's sign.
+
+**[AI]** The Sun in Pisces in your 1st house hints at a compassionate and insightful approach to leadership. Although in the D10, placed unfavorably in Capricorn, this suggests challenges in achieving authority and recognition in your professional environment.
+
+**[Chart fact]** Budha-Aditya Yoga: The Sun and Mercury are together in your 1st house. It bears on your career because the Sun is a natural significator of career and Mercury rules the D10's 10th house.
+
+**[AI]** Budha-Aditya Yoga in your 1st house indicates an ability to communicate effectively, enhancing your creative problem-solving in career matters due to the Sun and Mercury's influence.
+
+**[Chart fact]** Neecha Bhanga (a cancelled debilitation): Mercury's debilitation in Pisces is cancelled, which softens that weakness. It bears on your career because Mercury rules the D10's 10th house.
+
+**[AI]** Neecha Bhanga indicates softened challenges where Mercury's earlier debilitation would have caused issues. This helps maintain tact in communication and decision-making in your career, crucial because Mercury governs the D10's 10th house.
+
+**[Chart fact]** Raja Yoga: Mercury and the Moon, the lords of your 4th house (angular) and 5th house (trinal), are together in your 1st house. It bears on your career because Mercury rules the D10's 10th house.
+
+**[AI]** Raja Yoga, formed by Mercury and the Moon, suggests potential for influence and success in your career through intellect and intuition. This is particularly significant because Mercury influences profession through the D10.
+
+**[Chart fact]** The D10 depends on an accurate birth time: its rising sign stays Sagittarius for a birth up to 1 minute earlier and 7 minutes later.
+
+**[AI synthesis]** Your birth chart indicates a complex relationship between personal values and professional pursuits. The emphasis on Jupiter, governing both your rising and career sign, points to a need for meaningful and expansive experiences in your career. Challenges, particularly relating to Jupiter’s debilitation and Saturn’s positioning, mean persistence and strategic planning are vital. With Pisces rising, you lean towards compassionate and value-driven work, while Rahu’s influence on the career house suggests innovation and risk-taking. In your professional life, you may find success through communication and adaptability, supported by significant yogas involving Mercury. Your career path involves navigating transformations and changes, leveraging both employment and independent work effectively.
+
+**[Glossary, application]** Lagna: the rising sign at birth, the starting point of the chart. D10: the Dasamsa, a divisional chart traditionally read for profession. Sarvashtakavarga: a traditional tally of support for each house (about 28 points is average). Neecha Bhanga: the cancellation of a debilitation, which softens the weakness. retrograde: apparently moving backwards as seen from Earth. debilitated: in the sign where a planet is traditionally weakest.
+
+## Current Career Situation
+
+**[Chart fact]** You are now in the Venus Mahadasha, the major period running from 19 September 2013 to 19 September 2033. Venus is in Pisces in your 1st house, where it is exalted (its strongest sign) and retrograde. It rules your 3rd and 8th houses. In the D10 it is in Leo in the 9th house, in an enemy's sign.
+
+**[AI]** During your Venus Mahadasha, which runs until 2033, your work can benefit from creativity, networking, and exploring new ideas. With Venus exalted in Pisces in your 1st house, you may find growth in both independent ventures and collaborations. Career opportunities may arise from communication and transformative fields, but its retrograde motion suggests revisiting past projects and being flexible to adapt. In your D10, Venus in the 9th house can indicate potential challenges in authority or educational roles, encouraging you to use diplomacy and creativity to navigate professional relationships.
+
+**[Chart fact]** Within it, you are now in the Saturn Antardasha (sub-period), which began on 20 July 2026 and runs until 19 September 2029. Saturn is in Scorpio in your 9th house, where it is in an enemy's sign and retrograde. It rules your 11th and 12th houses. In the D10 it is in Leo in the 9th house, in an enemy's sign.
+
+**[AI]** In your current Saturn Antardasha, which continues until September 2029, you may find your work life involving long-term planning and perseverance. Saturn in your 9th house introduces potential for international work or educational pursuits, but its challenging placement suggests obstacles or slow progress. Focusing on teamwork and patience will be important, particularly in industries related to shared resources or nonprofit work. Be prepared for responsibility with an emphasis on service.
+
+**[Chart fact]** The next sub-period, the Mercury Antardasha, begins on 19 September 2029.
+
+**[AI]** Starting in September 2029, your Mercury Antardasha will bring a shift. This sub-period may present opportunities in communication-focused roles or technology sectors. Be open to learning and embracing change, which can lead to growth and potentially new career paths.
+
+**[AI synthesis]** Your career right now is influenced by both creativity and the need to be adaptable. The ongoing Venus Mahadasha suggests your work may thrive where creativity is key and past projects can be revisited or refreshed. Independent work could be rewarding, yet collaborations also play a role, hinting at a versatile career path. The current Saturn Antardasha adds a layer of discipline and the necessity to work through obstacles, particularly if you're involved in fields that require meticulous planning or are community-oriented. Teamwork and service-oriented roles might be prominent until 2029. Looking ahead, the shift to Mercury's influence may open doors in communication or technology, encouraging you to be adaptable and ready for change. Together, these influences suggest a balance of employment and independent pursuits with flexibility and careful planning benefiting your career.
+
+**[Glossary, application]** D10: the Dasamsa, a divisional chart traditionally read for profession. Mahadasha: a major planetary period in the Vimshottari system. Antardasha: a sub-period within a Mahadasha. retrograde: apparently moving backwards as seen from Earth. exalted: in the sign where a planet is traditionally strongest.
+
+## Personalised Guidance
+
+**[Chart fact]** Administration: mixed. In its favour, your 6th house has 35 points of support (above average). The chart shows no specific obstacle to it.
+
+**[AI]** Your chart suggests that work in administration can be a viable path for you. With your 6th house showing strong support, attention to detail and a methodical approach may help you succeed. There's no specific barrier, meaning you have room to find your niche within administration.
+
+**[Chart fact]** Government and institutional roles: mixed. In its favour, Jupiter rules your 10th house and rules the D10 Lagna. Against it, Jupiter is debilitated.
+
+**[AI]** Careers in government or institutional roles could suit you, thanks to Jupiter's ruling influence on significant houses. However, its debilitation might sometimes make navigating the complexities of large organizations challenging. You may find opportunities but need to be cautious with bureaucracy.
+
+**[Chart fact]** Business and entrepreneurship: well supported. In its favour, Mercury rules the D10's 10th house, Mars is in its Moolatrikona sign, your 3rd house has 32 points of support (above average) and your 11th house has 46 points of support (well above average). Against it, your 7th house has only 21 points of support (below average).
+
+**[AI]** Business and entrepreneurship are promising for you. The strong support in entrepreneurship-related areas suggests that you have both the drive and potential networks needed. A weaker 7th house indicates that partnerships or alliances require careful navigation or solo ventures could be more stable.
+
+**[Chart fact]** Advisory and consulting roles: well supported. In its favour, Jupiter rules your 10th house and rules the D10 Lagna; and Mercury rules the D10's 10th house. Against it, Jupiter is debilitated.
+
+**[AI]** Advisory and consulting roles align well with your chart. Mercury and Jupiter's influences point to strong communication and strategic thinking skills that can be leveraged successfully, although Jupiter's debilitation may sometimes require extra diligence in maintaining credibility.
+
+**[Chart fact]** Finance and management: well supported. In its favour, Jupiter rules your 10th house and rules the D10 Lagna; Venus is exalted; Mercury rules the D10's 10th house; and your 11th house has 46 points of support (well above average). Against it, Jupiter is debilitated and your 2nd house has only 22 points of support (below average).
+
+**[AI]** The finance sector is encouraging for you, with exalted Venus supporting prosperity and creativity in financial management. You may excel in roles combining strategic insight with people management, but the weaker support for the 2nd house suggests you should focus on financial literacy.
+
+**[Chart fact]** Communication and public-facing professions: well supported. In its favour, Mercury rules the D10's 10th house, the Moon is in an angular house of the D10 (the 4th), Venus is exalted and your 3rd house has 32 points of support (above average). Against it, the Moon is combust and your 7th house has only 21 points of support (below average).
+
+**[AI]** Communication and public-facing roles are well supported, especially due to Mercury's and Venus's strengths, suggesting talents in messaging, storytelling, or media. While a combust Moon may sometimes challenge emotional expression, your strong 3rd house favors effective networking.
+
+**[Chart fact]** Planning dates: the Saturn Antardasha runs until 19 September 2029; the Mercury Antardasha runs from 19 September 2029 to 20 July 2032.
+
+**[AI synthesis]** Your chart suggests a multifaceted career path. Strengths in advisory, finance, and communication fields hint at success in roles that require strategic insight, financial acumen, or strong communication skills. Administration may be stable, but less standout. Business ventures align well, though take caution in partnerships unless well-established. Government roles are possible, but you might face challenges due to systemic complexities. Balancing employment with independent projects can match these diverse skills, allowing you to navigate various opportunities and build complementary experiences over time.
+
+**[AI next steps]**
+
+1. Explore entrepreneurial pursuits in industries you are passionate about. Your 11th house support suggests networking with potential mentors or partners may improve your ventures.
+2. Consider focusing on advisory roles within sectors where you can leverage your communication skills, like technology or healthcare consulting.
+3. Pursue further training in financial management or courses that enhance your economic acumen to strengthen your role in finance.
+4. Delve into roles that emphasize storytelling, such as public relations or media communications, utilizing your ability to craft compelling narratives effectively.
+5. Plan major career shifts or launching a business venture after September 2029, when the Mercury Antardasha can support communication-related ventures.
+
+**[Glossary, application]** Lagna: the rising sign at birth, the starting point of the chart. D10: the Dasamsa, a divisional chart traditionally read for profession. Antardasha: a sub-period within a Mahadasha. Moolatrikona: a sign where a planet is strong, close to its own sign. combust: too close to the Sun, which traditionally weakens a planet. debilitated: in the sign where a planet is traditionally weakest. exalted: in the sign where a planet is traditionally strongest.
