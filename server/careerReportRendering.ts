@@ -232,15 +232,17 @@ export function careerSectionPrompt(evidence: CareerReportFacts, section: Career
     wantsSynthesis && '"synthesis": "<text>"',
     wantsSteps && '"steps": [{"factIds": ["<id of a fact below>"], "text": "<one concrete action>"}]',
   ].filter(Boolean).join(', ');
-  return `You are writing part of "${section.heading}", one section of a personalised Career & Profession Report. The application has already written every chart fact below and shows each one to the reader; your explanation is printed directly after it.
+  return `You are writing part of "${section.heading}", one section of a personalised Career & Profession Report. Each chart fact below is shown to the reader, with your explanation printed right after it.
 Write warm, plain, specific English addressed to "you", for a reader who knows no astrology. Explain what each fact means for this person's work: the kind of work, environment or approach it points to, and its limits. Be concrete and practical; avoid stock phrases.
 Rules:
 - The fact is printed just before your text: do not repeat its placement, explain what it means. Add no chart facts. Name a planet, sign, house number, yoga, month or year only if the fact you are explaining states it (for the synthesis and steps: only if a fact in this section states it). Never mention degrees.
 - Describe tendencies, not certainties: use may, can, tends to. Never promise an outcome (success, promotion, wealth, status) and never write "will" about a result. No remedies, gemstones, mantras or rituals.
 - Describe a planet's strength only as its fact does: a planet in a friendly or neutral sign is moderate, not strong.
 - When you mention a house in a D10 fact, it is the D10's house; say "in your birth chart" if you mean the D1.
-- Avoid stock phrases such as "natural leader", "inspire others", "shine", "great candidate" or "unlock your potential"; say what this chart specifically suggests.
-- The report's conclusion on employment versus independent work is fixed: ${evidence.workStyleSentence}. Never contradict it.
+- No filler ("thrive", "dynamic", "harness your potential", "navigate challenges", "shine"): name a concrete kind of work, setting or action.
+- The report's conclusion on employment versus independent work is fixed: ${evidence.workStyleSentence}. Never contradict it. ${section.key === 'overview'
+    ? 'This section is the one place it is explained.'
+    : 'Career Overview explains it: do not restate it here.'}
 ${evidence.weakFields.length ? `- Never recommend these weakly supported fields: ${evidence.weakFields.map((id) => FIELDS[id].label.toLowerCase()).join('; ')}.\n` : ''}- ${section.purpose}
 - The other sections (${others}) are written separately; do not repeat them.
 Lengths: each explanation 1–3 sentences, 30–70 words${wantsSynthesis ? '; the synthesis 100–160 words, drawing the facts together into what they mean for you' : ''}${wantsSteps ? `; ${MIN_STEPS}–${MAX_STEPS} next steps, each one concrete action of 20–50 words citing the fact ids it rests on` : ''}.

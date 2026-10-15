@@ -269,6 +269,19 @@ describe('facts-first Career report: the db644dd review findings', () => {
   });
 });
 
+describe('facts-first Career report: the work style is explained once', () => {
+  it('only Career Overview is asked to explain it; every section is told never to contradict it', () => {
+    const e = facts();
+    for (const s of e.sections) {
+      const prompt = careerSectionPrompt(e, s);
+      expect(prompt).toContain(`fixed: ${e.workStyleSentence}. Never contradict it.`);
+      expect(prompt.includes('Career Overview explains it: do not restate it here.')).toBe(s.key !== 'overview');
+      expect(prompt.includes('This section is the one place it is explained.')).toBe(s.key === 'overview');
+      expect(prompt).toContain('"harness your potential"');
+    }
+  });
+});
+
 describe('facts-first Career report: fact wording from the review', () => {
   const e = facts(); const chartText = section(e, 'chart').facts.map((f) => f.text).join('\n');
   it('states a planet that rules the Lagna, the 10th and the D10 Lagna once', () => {
