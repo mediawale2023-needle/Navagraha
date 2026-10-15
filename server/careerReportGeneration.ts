@@ -7,8 +7,8 @@ import { fiveCareerPrompt, draftProse, renderCareerSection, careerMetadata, care
 export const CAREER_BUDGET_MICRO_USD = 250_000;
 export const CAREER_DEADLINE_MS = 6 * 60_000;
 export const MAX_CAREER_CORRECTIONS = 2;
-/** Per section: about 330 words plus JSON and citations used ~530 tokens live; 1200 keeps seven worst-case reservations under $0.25. */
-export const CAREER_OUTPUT_TOKENS = 1200;
+/** Per section: about 330 words plus JSON and citations used ~530 tokens live; 1100 keeps seven worst-case reservations near $0.24. */
+export const CAREER_OUTPUT_TOKENS = 1100;
 export type CareerUsage = { prompt_tokens: number; completion_tokens: number };
 export interface CareerCompletion { choices: Array<{ finish_reason?: string | null; message: { content?: string | null } }>; usage?: CareerUsage | null }
 /** Evaluation only (synthetic charts): the order path never passes `onSection`, so model text is never logged. */
@@ -82,7 +82,7 @@ export async function generateDeterministicCareer(kundli: unknown, asOf: Date, r
     // correction allowance can redo; a transport failure still ends the report.
     const run = async (packet: CareerPacket, correcting = false) => {
       if (controller.signal.aborted) throw new ReportGenerationError('Career deadline exceeded');
-      const prompt = fiveCareerPrompt(evidence, [packet], { workStyle, reasons: correcting ? [{ id: packet.id, problems: errors.get(packet.id)!.slice(0, 8).map((p) => p.slice(0, 200)) }] : undefined });
+      const prompt = fiveCareerPrompt(evidence, [packet], { workStyle, reasons: correcting ? [{ id: packet.id, problems: errors.get(packet.id)!.slice(0, 6).map((p) => p.slice(0, 160)) }] : undefined });
       const ticket = ledger.reserve(prompt, CAREER_OUTPUT_TOKENS);
       let result: CareerCompletion;
       try { result = await boundedRequest(request, prompt, controller.signal, CAREER_OUTPUT_TOKENS); }

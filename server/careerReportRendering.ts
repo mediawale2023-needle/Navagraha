@@ -188,7 +188,43 @@ export function resolveCitations(packet: CareerPacket, draft: CareerDraft): void
   resolve(draft.supporting, packet.facts);
   resolve(draft.limiting, packet.facts);
   const argued = new Set([...draft.supporting.factIds, ...draft.limiting.factIds]);
+  // A conclusion listing a fact it does not rely on loses that citation; if its text needs a fact
+  // not weighed above, nothing resolves it and the unsupported statement is rejected below.
+  const kept = draft.conclusion.factIds.filter((id) => argued.has(id));
+  if (kept.length) draft.conclusion.factIds = kept;
   resolve(draft.conclusion, packet.facts.filter((f) => argued.has(f.id)));
+}
+
+const ORDINALS = ['first', 'second', 'third', 'fourth', 'fifth', 'sixth', 'seventh', 'eighth', 'ninth', 'tenth', 'eleventh', 'twelfth'];
+const HOUSE = `(?:(\\d{1,2})(?:st|nd|rd|th)|(${ORDINALS.join('|')}))\\s+house`;
+/**
+ * A planet placed in a house ("Mars' placement in Moolatrikona and the 11th house", "Jupiter in the
+ * 11th house of D1") must match the calculated house in the chart named (D1 unless only D10 is).
+ * Rulership, aspect and bindu statements name a house without placing a planet in it.
+ */
+export function houseClaimProblems(text: string, evidence: CareerEvidenceSet): string[] {
+  const problems: string[] = [];
+  const planets = GRAHAS.join('|');
+  const claim = new RegExp(`\\b(${planets})\\b(?:['’]s?)?((?:(?!\\b(?:${planets})\\b)[^.!?;]){0,60}?)\\b(?:the\\s+)?(?:D(?:1|10)\\s+)?${HOUSE}`, 'gi');
+  for (const sentence of text.split(SENTENCES)) {
+    for (const m of Array.from(sentence.matchAll(claim))) {
+      const between = m[2];
+      if (!/\b(?:in|into|occup\w*|placed|placement|posited|position\w*|situated|located|sits?|resid\w*)\b/i.test(between)) continue;
+      if (/\b(?:rul\w*|lord\w*|own\w*|govern\w*|aspect\w*|influence\w*|over|from|bindus?|tally|sarva\w*|of the lord)\b/i.test(between)) continue;
+      const house = m[3] ? Number(m[3]) : ORDINALS.indexOf(m[4].toLowerCase()) + 1;
+      const planet = GRAHAS.find((g) => g.toLowerCase() === m[1].toLowerCase())!;
+      // The chart is the one named in the claim or right after the house ("11th house of the D1 chart"),
+      // else D1: a chart named for another planet in the same sentence does not scope this claim.
+      // A chart named earlier in the sentence ("In D10, Mercury is placed…") counts only when no other planet comes first.
+      const before = sentence.slice(0, m.index!);
+      const span = (new RegExp(`\\b(?:${planets})\\b`, 'i').test(before) ? '' : before) + sentence.slice(m.index!, m.index! + m[0].length + 25);
+      const charts = Array.from(new Set(Array.from(span.matchAll(/\bD(1|10)\b|\b(Dasamsa)\b/gi)).map((c) => (c[1] === '1' ? 'D1' : 'D10'))));
+      const scope = charts.length ? charts : ['D1'];
+      const actual = (c: string) => (c === 'D1' ? evidence.chart.planets.find((p) => p.name === planet)?.house : evidence.chart.vargas.D10.placements.find((p) => p.planet === planet)?.house);
+      if (!scope.some((c) => actual(c) === house)) problems.push(`${planet} is in house ${scope.map((c) => `${actual(c)} in ${c}`).join(' and ')}, not house ${house}`);
+    }
+  }
+  return problems;
 }
 
 export function validateFiveCareerDraft(packet: CareerPacket, input: unknown, evidence: CareerEvidenceSet): { draft?: CareerDraft; problems: string[] } {
@@ -212,13 +248,14 @@ export function validateFiveCareerDraft(packet: CareerPacket, input: unknown, ev
         if (!cited.length) { problems.push(`${kind}: placement needs a cited fact for ${m[1]}`); continue; }
         const matching = cited.filter((f) => (f!.value as any).sign?.toLowerCase() === m[2].toLowerCase());
         if (!matching.length) { problems.push(`${kind}: incorrect placement for ${m[1]}`); continue; }
-        if (!explicitChart) {
-          const contexts = Array.from(new Set(matching.flatMap((f) => f!.contexts)));
-          sentence = sentence.replace(m[0], `in ${contexts.join(' and ')}, ${m[1]} is in ${m[2]}`);
-        } else sentence = sentence.replace(m[0], `${m[1]} is in ${m[2]}`);
+        // The chart is added after the placement, leaving the model's wording intact: rewriting the
+        // clause garbled noun phrases ("the combust state of the Moon in Pisces").
+        if (!explicitChart) sentence = sentence.replace(m[0], `${m[0]} in ${Array.from(new Set(matching.flatMap((f) => f!.contexts))).join(' and ')}`);
       }
       return sentence;
     }).join(' ');
+    problems.push(...houseClaimProblems(b.text, evidence).map((p) => `${kind}: ${p}`));
+    if (/\bwork_?style\b/.test(b.text) || /\bworkStyle\b/i.test(b.text)) problems.push(`${kind}: internal term "workStyle" in the text; describe the employment-versus-business conclusion in plain words`);
     for (const planet of GRAHAS) if (new RegExp(`\\b${planet}\\b`, 'i').test(b.text) && !refs.some((f) => new RegExp(`\\b${planet}\\b`, 'i').test(f!.text))) problems.push(`${kind}: ${planet} assertion is not supported by cited evidence`);
     for (const [id, field] of Object.entries(FIELDS)) if (namesField(b.text, field)) {
       const assessment = refs.find((f) => f!.id === `D1.D10.field.${id}`);
@@ -243,6 +280,13 @@ export function validateFiveCareerDraft(packet: CareerPacket, input: unknown, ev
   }
   const argued = new Set([...draft.supporting.factIds, ...draft.limiting.factIds]);
   if (draft.conclusion.factIds.some((id) => !argued.has(id))) problems.push('conclusion introduces evidence not weighed above');
+  // The current-situation section exists to read the running periods; it must name each of them.
+  if (packet.heading === 'Current Career Situation') {
+    for (const f of packet.facts.filter((x) => x.contexts.includes('Vimshottari'))) {
+      const { lord } = f.value as { lord: string }; const level = f.id.split('.')[1];
+      if (!new RegExp(`\\b${lord}\\b[^.!?]{0,40}\\b${level}\\b|\\b${level}\\b[^.!?]{0,15}\\b${lord}\\b`, 'i').test(draftProse(draft))) problems.push(`name and interpret the running ${lord} ${level}`);
+    }
+  }
   if (countCareerWords(draftProse(draft)) < packet.minimumWords) problems.push(`too short: at least ${packet.minimumWords} words of substantive interpretation required`);
   return { draft, problems: Array.from(new Set(problems)) };
 }
@@ -260,7 +304,7 @@ export function fiveCareerPrompt(evidence: CareerEvidenceSet, packets: CareerPac
     : 'Choose workStyle (employment, entrepreneurship or mixed) from the employment-versus-business evidence; the other sections will be written to agree with it.';
   return `Write the requested section of a five-section Career & Profession Report using ONLY the verified facts below. The other sections (${others}) are written separately: do not repeat their analysis. Return JSON exactly in this shape (no other keys): {"workStyle":"employment|entrepreneurship|mixed","sections":[{"id":<section id>,"draft":{"supporting":{"factIds":["<id>"],"text":"<prose>"},"limiting":{"factIds":["<id>"],"text":"<prose>"},"conclusion":{"factIds":["<id>"],"text":"<prose>"}}}]}.
 ${workStyle}
-Length: 270-330 words of interpretation in total; supporting at least 90 words, limiting at least 90 words, conclusion at least 80 words. Every block has factIds (a non-empty array of id strings from FACTS) and text (one string). Cite only ids listed in FACTS. A conclusion may cite only facts already cited in the supporting or limiting block. Cite the facts each block relies on; when a block names a planet, period, year or field without citing its fact, the application attaches this section's matching fact and checks the statement against it. Never mention a planet, period, year, date or field that no fact in FACTS supports: such a statement is rejected. A sign placement must agree with that planet's D1.planet or D10.planet fact. A year must be stated in a fact or lie inside a period a fact states. ${packets.some((p) => p.facts.some((f) => f.id.startsWith('D1.D10.field.'))) ? "Name or weigh a professional field (administration, government or institutions, entrepreneurship, advisory, consulting or teaching, finance or banking, communication, media, sales or marketing) only when FACTS include that field's D1.D10.field assessment; employment versus business may instead rest on D1.house.7." : 'This section has no field assessments: do not name professional fields, occupations or roles (administration, government, institutions, business, entrepreneurship, advisory, consulting, teaching, finance, banking, management, communication, media, sales, marketing); describe working conditions and qualities instead. Career Overview and Personalised Guidance compare fields.'} With workStyle "mixed", never say that employment or business alone is favoured, recommended or better suited. Never write that something will or shall happen. Chart contexts and technical definitions are rendered by the application. Natural astrological terminology is allowed; every assertion must agree with the cited facts. Never calculate or alter astrology. Weak fields are less indicated, not recommended. Recognise conflicting indicators rather than manufacture certainty. Do not infer the customer's actual job or history. No gemstones or unsupported remedies. Explain why the particular evidence matters, not generic motivational advice. Dates describe periods, not promised promotion or job-change events.
+Length: 270-330 words of interpretation in total; supporting at least 90 words, limiting at least 90 words, conclusion at least 80 words. Every block has factIds (a non-empty array of id strings from FACTS) and text (one string). Cite only ids listed in FACTS. A conclusion may cite only facts already cited in the supporting or limiting block. Cite the facts each block relies on; when a block names a planet, period, year or field without citing its fact, the application attaches this section's matching fact and checks the statement against it. Never mention a planet, period, year, date or field that no fact in FACTS supports: such a statement is rejected. A sign placement must agree with that planet's D1.planet or D10.planet fact. A year must be stated in a fact or lie inside a period a fact states. ${packets.some((p) => p.facts.some((f) => f.id.startsWith('D1.D10.field.'))) ? "Name or weigh a professional field (administration, government or institutions, entrepreneurship, advisory, consulting or teaching, finance or banking, communication, media, sales or marketing) only when FACTS include that field's D1.D10.field assessment; employment versus business may instead rest on D1.house.7." : 'This section has no field assessments: do not name professional fields, occupations or roles (administration, government, institutions, business, entrepreneurship, advisory, consulting, teaching, finance, banking, management, communication, media, sales, marketing); describe working conditions and qualities instead. Career Overview and Personalised Guidance compare fields.'} With workStyle "mixed", never say that employment or business alone is favoured, recommended or better suited. Never write that something will or shall happen. Chart contexts and technical definitions are rendered by the application. Address the reader as "you". The JSON key workStyle is internal: never write the word workStyle, and do not repeat the label in every paragraph; say once, in plain words, whether employment, independent work or a mix is indicated. Natural astrological terminology is allowed; every assertion must agree with the cited facts; never place a planet in a house or sign that its fact does not state. Never calculate or alter astrology. Weak fields are less indicated, not recommended. Recognise conflicting indicators rather than manufacture certainty. Do not infer the customer's actual job or history. No gemstones or unsupported remedies. Explain why the particular evidence matters, not generic motivational advice. Dates describe periods, not promised promotion or job-change events.
 FACTS\n${JSON.stringify(facts)}\nSECTIONS\n${JSON.stringify(packets.map((p) => ({ id: p.id, heading: p.heading, factIds: p.facts.map((f) => f.id), requirements: p.permittedInterpretations, indicators: p.indicators })))}${context.reasons ? `\nCORRECTION\n${JSON.stringify(context.reasons)}\nYour previous draft of this section was rejected for these problems. Rewrite the section so that none of them recurs.` : ''}`;
 }
 

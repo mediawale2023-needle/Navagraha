@@ -34,7 +34,8 @@ const SIGN = `(${SIGN_NAMES.join('|')})`;
 const NAK = `(${NAKSHATRAS.map((n) => n.name.replace(' ', '[ -]?')).join('|')})`;
 const NEGATION = /\b(no|not|never|without|free (?:of|from)|absent|cancel+ed|isn['’]t|aren['’]t|doesn['’]t|don['’]t|does not|do not|lacks?|neither|nor|unknown|uncertain|cannot|can['’]t|unclear|not known)\b/i;
 const TRANSIT_CONTEXT = /\b(transit|transiting|gochar|currently|right now|these days|this year|today|at present)\b/i;
-const CURRENT = /\b(current(?:ly)?|running|now|present(?:ly)?|ongoing|you are (?:in|going through|under)|you['’]re (?:in|going through|under)|at the moment|these days)\b/i;
+// "present" only in its time sense: the verb ("could present challenges") says nothing about which period runs now.
+const CURRENT = /\b(current(?:ly)?|running|now|presently|at present|(?:the|this|your) present|present (?:period|phase|time|stage|cycle|dasha|mahadasha|antardasha|maha\s?dasha|antar\s?dasha|sub-?period|bhukti)|ongoing|you are (?:in|going through|under)|you['’]re (?:in|going through|under)|at the moment|these days)\b/i;
 
 function sentences(text: string): string[] {
   return text.replace(/\n+/g, '. ').split(/(?<=[.!?])\s+/).filter(Boolean);

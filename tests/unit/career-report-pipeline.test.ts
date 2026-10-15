@@ -1,10 +1,11 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { CareerSpending, CAREER_BUDGET_MICRO_USD, CAREER_DEADLINE_MS, CAREER_OUTPUT_TOKENS, careerRequester, generateDeterministicCareer, type CareerCompletion } from '../../server/careerReportGeneration';
 import { buildFiveCareerEvidence, FIVE_CAREER_HEADINGS, type CareerPacket } from '../../server/careerReportEvidence';
-import { validateFiveCareerDraft, renderCareerSection, fiveCareerPrompt, careerDraftSchema } from '../../server/careerReportRendering';
+import { validateFiveCareerDraft, renderCareerSection, fiveCareerPrompt, careerDraftSchema, houseClaimProblems } from '../../server/careerReportRendering';
 import { ASOF, fixtureChart } from '../fixtures/career-chart';
 import { CAREER_PROSE } from '../fixtures/career-prose';
 import { FIELDS } from '../../server/careerReport';
+import { LIVE_PERIODS_FIRST, LIVE_PERIODS_CORRECTION, LIVE_OVERVIEW, LIVE_CURRENT, LIVE_GUIDANCE, LIVE_BIRTH_CHART } from '../fixtures/career-live-d5705f6';
 import { computeCanonicalChart } from '../../server/astroEngine/canonical/compute';
 import { resolveBirthWithCoordinates } from '../../server/astroEngine/birthResolver';
 
@@ -16,6 +17,8 @@ import { fulfilReportOrder } from '../../server/reportOrders';
 function draft(p: CareerPacket) {
   const [a, b] = [[0, 7], [8, 4], [1, 3], [2, 9], [6, 5]][p.id];
   const blocks = ['supporting', 'limiting', 'conclusion'].map((_, i) => ({ factIds: p.facts.map((f) => f.id), contexts: Array.from(new Set(p.facts.flatMap((f) => f.contexts))), text: `${CAREER_PROSE[a][i]} ${CAREER_PROSE[b][i].split(/(?<=[.!?])\s+/)[0]}` }));
+  // Current Career Situation must name its running periods.
+  if (p.heading === 'Current Career Situation') blocks[0].text += ' ' + p.facts.filter((f) => f.contexts.includes('Vimshottari')).map((f) => `The running ${(f.value as any).lord} ${f.id.split('.')[1]} sets part of this timing context.`).join(' ');
   return { supporting: blocks[0], limiting: blocks[1], conclusion: blocks[2] };
 }
 const plan = (prompt: string): CareerPacket[] => JSON.parse(prompt.split('\nSECTIONS\n')[1].split('\nCORRECTION\n')[0]);
@@ -68,7 +71,7 @@ describe('five-section Career pipeline: one request per section', () => {
     const e = buildFiveCareerEvidence(fixtureChart(), ASOF); const p = e.packets[2]; const d = draft(p);
     d.supporting.text += ' Jupiter occupies Capricorn.';
     const checked = validateFiveCareerDraft(p, d, e);
-    expect(checked.problems).toEqual([]); expect(checked.draft!.supporting.text).toContain('in D10, Jupiter is in Capricorn');
+    expect(checked.problems).toEqual([]); expect(checked.draft!.supporting.text).toContain('Jupiter occupies Capricorn in D10');
   });
   it.each(['In D10 Jupiter is in Leo.', 'In D1 Venus is in Leo.', 'Lakshmi Yoga brings wealth.', 'Saturn Antardasha begins in 2029.', 'Saturn Antardasha begins on 2027-01-22.'])('rejects inaccurate assertion: %s', (claim) => {
     const e = buildFiveCareerEvidence(fixtureChart(), ASOF); const p = e.packets[claim.includes('Antardasha') ? 1 : 2]; const d = draft(p); d.supporting.text += ` ${claim}`;
@@ -338,7 +341,7 @@ describe('five-section Career: the live evaluation failure patterns', () => {
     const { e, p, d } = setup(1);
     d.supporting.factIds = [factId(p, 'Vimshottari.Antardasha.Saturn')]; d.supporting.text += ' Saturn is in Scorpio.';
     const ok = validateFiveCareerDraft(p, d, e);
-    expect(ok.problems).toEqual([]); expect(ok.draft!.supporting.text).toContain('in D1, Saturn is in Scorpio');
+    expect(ok.problems).toEqual([]); expect(ok.draft!.supporting.text).toContain('Saturn is in Scorpio in D1');
     const wrong = setup(1); wrong.d.supporting.factIds = [factId(wrong.p, 'Vimshottari.Antardasha.Saturn')]; wrong.d.supporting.text += ' Saturn is in Aries.';
     expect(validateFiveCareerDraft(wrong.p, wrong.d, wrong.e).problems.join(' ')).toMatch(/incorrect placement for Saturn/);
   });
@@ -391,7 +394,8 @@ describe('five-section Career: the live evaluation failure patterns', () => {
     const { e, p, d } = setup(3);
     d.conclusion.text = words(30);
     expect(validateFiveCareerDraft(p, d, e).problems.join(' ')).toMatch(/conclusion: incomplete interpretation/);
-    d.supporting.text = words(70); d.limiting.text = words(70); d.conclusion.text = words(70);
+    const naming = p.facts.filter((f) => f.contexts.includes('Vimshottari')).map((f) => `The running ${(f.value as any).lord} ${f.id.split('.')[1]} sets part of this timing context.`).join(' ');
+    d.supporting.text = `${words(60)} ${naming}`; d.limiting.text = words(70); d.conclusion.text = words(70);
     expect(validateFiveCareerDraft(p, d, e).problems.join(' ')).toMatch(/too short: at least 225 words/);
     d.conclusion.text = words(90);
     expect(validateFiveCareerDraft(p, d, e).problems).toEqual([]);
@@ -414,5 +418,82 @@ describe('five-section Career: the live evaluation failure patterns', () => {
     expect(idsOf(request).slice(5).flat().sort()).toEqual([1, 3]);
     expect(metrics).toHaveBeenCalledWith(expect.objectContaining({ calls: 7, corrections: 2, firstPassAccepted: 3 }));
     expect(ledger.spent).toBeLessThanOrEqual(CAREER_BUDGET_MICRO_USD);
+  });
+});
+
+// Live evaluation of d5705f6: 3/5 first pass, Your Birth Chart corrected, Favourable & Difficult
+// Periods rejected twice for reasons that were not about the chart. Replayed with the model's own text.
+describe('five-section Career: the d5705f6 live evaluation', () => {
+  const delhi = () => buildFiveCareerEvidence(fixtureChart('1985-03-22', '06:15', 28.6139, 77.209), ASOF);
+  const clone = <T,>(x: T): T => JSON.parse(JSON.stringify(x));
+  it('the Saturn Antardasha is the running period at the evaluation date (so Mercury is not)', () => {
+    const e = delhi(); const running = e.packets[3].facts.filter((f) => f.id.startsWith('Vimshottari.Antardasha.')).map((f) => f.id);
+    expect(running).toHaveLength(1); expect(running[0]).toMatch(/^Vimshottari\.Antardasha\.Saturn\./);
+  });
+  it('accepts the correction: "could present challenges" about the upcoming Mercury Antardasha is not a running-period claim', () => {
+    const e = delhi(); const checked = validateFiveCareerDraft(e.packets[1], clone(LIVE_PERIODS_CORRECTION), e);
+    expect(checked.problems).toEqual([]);
+  });
+  it('accepts the first pass: the conclusion loses the D10.planet.Venus citation it never used', () => {
+    const e = delhi(); const checked = validateFiveCareerDraft(e.packets[1], clone(LIVE_PERIODS_FIRST), e);
+    expect(checked.problems).toEqual([]);
+    expect(checked.draft!.conclusion.factIds).not.toContain('D10.planet.Venus');
+    expect(checked.draft!.conclusion.factIds).toEqual(expect.arrayContaining(['D1.planet.Venus', 'D1.planet.Mercury']));
+  });
+  it('still rejects a conclusion whose text relies only on facts not weighed above', () => {
+    const e = delhi(); const d = clone(LIVE_PERIODS_FIRST);
+    d.conclusion.factIds = ['D10.planet.Venus']; d.conclusion.text += ' In D10 Venus is in Leo.';
+    expect(validateFiveCareerDraft(e.packets[1], d, e).problems.join(' ')).toMatch(/conclusion introduces evidence not weighed above/);
+  });
+  it('still rejects a claim that the Mercury Antardasha is running now, however "present" is used', () => {
+    const e = delhi();
+    for (const claim of ['The present Mercury Antardasha brings change.', 'At present the Mercury Antardasha shapes your work.', 'The Mercury Antardasha is presently active.', 'You are currently in the Mercury Antardasha.']) {
+      const d = clone(LIVE_PERIODS_CORRECTION); d.limiting.text += ` ${claim}`;
+      expect(validateFiveCareerDraft(e.packets[1], d, e).problems.join(' ')).toMatch(/the running Antardasha is Saturn, not Mercury/);
+    }
+  });
+});
+
+// Review of the sections that d5705f6 accepted: defects the checks missed, replayed with the model's text.
+describe('five-section Career: review of the accepted d5705f6 sections', () => {
+  const delhi = () => buildFiveCareerEvidence(fixtureChart('1985-03-22', '06:15', 28.6139, 77.209), ASOF);
+  const clone = <T,>(x: T): T => JSON.parse(JSON.stringify(x));
+  const heading = (e: ReturnType<typeof delhi>, h: string) => e.packets.find((p) => p.heading === h)!;
+  it('rejects Personalised Guidance: Mars is in D1 house 2, not the 11th house, and "workStyle" is an internal term', () => {
+    const e = delhi(); const problems = validateFiveCareerDraft(heading(e, 'Personalised Guidance'), clone(LIVE_GUIDANCE), e).problems.join(' ');
+    expect(problems).toMatch(/Mars is in house 2 in D1, not house 11/); expect(problems).toMatch(/internal term "workStyle"/);
+  });
+  it('rejects Current Career Situation: it never names the running Saturn Antardasha', () => {
+    const e = delhi(); const problems = validateFiveCareerDraft(heading(e, 'Current Career Situation'), clone(LIVE_CURRENT), e).problems;
+    expect(problems).toEqual(['name and interpret the running Saturn Antardasha']);
+  });
+  it('accepts Your Birth Chart and keeps its Moon sentence readable', () => {
+    const e = delhi(); const c = validateFiveCareerDraft(heading(e, 'Your Birth Chart'), clone(LIVE_BIRTH_CHART), e);
+    expect(c.problems).toEqual([]);
+    expect(c.draft!.limiting.text).toContain('The combust state of the Moon in Pisces in D1 may hinder'); expect(c.draft!.limiting.text).not.toMatch(/the in D1/);
+  });
+  it('accepts Career Overview', () => {
+    const e = delhi(); expect(validateFiveCareerDraft(heading(e, 'Career Overview'), clone(LIVE_OVERVIEW), e).problems).toEqual([]);
+  });
+  it.each([
+    ["Mars' favourable placement in moolatrikona and the 11th house supports initiative.", /Mars is in house 2 in D1, not house 11/],
+    ['Jupiter sits in the tenth house.', /Jupiter is in house 11 in D1, not house 10/],
+    ['In D10, Mercury is placed in the 10th house.', /Mercury is in house 8 in D10, not house 10/],
+  ])('house placement is checked: %s', (text, problem) => { expect(houseClaimProblems(text, delhi()).join(' ')).toMatch(problem); });
+  it.each([
+    'The debilitated condition of Jupiter in the 11th house of the D1 chart limits gains.',
+    'Venus is exalted in Pisces in the first house in D1.',
+    'Saturn in Scorpio in the ninth house of D1 is retrograde.',
+    "Jupiter's rulership of both the D1 10th house and the D10 Lagna supports advisory work.",
+    "Mercury's influence over the D10 10th house shapes your work.",
+    'Rahu aspects the 10th house.',
+    'Mercury, the lord of the 10th house in D10, is in an enemy sign.',
+    'Mars and the 11th house bindus support initiative.',
+  ])('house statements that are true or are not placements pass: %s', (text) => { expect(houseClaimProblems(text, delhi())).toEqual([]); });
+  it('every section prompt asks for "you", forbids writing workStyle and forbids unstated house placements', () => {
+    const e = delhi();
+    for (const p of e.packets) { const prompt = fiveCareerPrompt(e, [p], { workStyle: 'mixed' }); expect(prompt).toMatch(/Address the reader as "you"/); expect(prompt).toMatch(/never write the word workStyle/); expect(prompt).toMatch(/never place a planet in a house or sign that its fact does not state/); }
+    expect(fiveCareerPrompt(e, [heading(e, 'Current Career Situation')])).toMatch(/Name and interpret both running periods/);
+    expect(fiveCareerPrompt(e, [heading(e, 'Career Overview')])).toMatch(/Name at most the two best-supported fields/);
   });
 });

@@ -39,12 +39,12 @@ export function buildFiveCareerEvidence(kundli: unknown, asOf: Date): CareerEvid
   // Career Overview names a direction, so it carries the field assessments as well as Guidance.
   const groups = [[0, 1, 6, 7, 9], [8], [0, 1, 2, 3, 4, 5], [8], [6, 9]];
   const purposes = [
-    'Explain professional tendencies, strengths, direction, employment versus entrepreneurship and workplace challenges. Keep the shared workStyle conclusion coherent.',
+    'Give the overall career direction: professional tendencies and strengths, employment versus entrepreneurship and workplace challenges. Name at most the two best-supported fields, in one or two sentences; the field-by-field comparison belongs to Personalised Guidance.',
     // No window dates here: a date the model reads outside the facts is one the guard must refuse.
     'Discuss opportunities and difficulties over the next four years, as covered by the periods listed. Dates are period boundaries, never promotion or job-change predictions. Do not label an entire period favourable without its supporting and limiting career evidence.',
     'Explain relevant D1/D10 placements, tenth house and lord, professional influences and verified yogas. Definitions and facts are supplied by the application.',
-    'Explain current Mahadasha and Antardasha and their professional implications. Potential transitions are conditional interpretations, never claims about the person’s actual employment.',
-    'Compare supported fields with their cited field assessments. Give practical guidance derived from those strengths and limitations. No remedies or gemstones.',
+    'Name and interpret both running periods, the current Mahadasha and the current Antardasha, and what each means for work now. Potential transitions are conditional interpretations, never claims about the person’s actual employment.',
+    'Compare the fields one by one using their assessments: why each is or is not indicated, and what limits it. Then give concrete, conditional next steps that follow from those strengths and limits (what to test or prefer first, what to watch). No remedies or gemstones.',
   ];
   const all = new Map(base.packets.flatMap((p) => p.facts).map((f) => [f.id, f]));
   // Period lords crossing the next Mahadasha must have both chart placements available.
