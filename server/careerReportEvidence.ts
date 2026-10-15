@@ -24,6 +24,45 @@ export interface CareerPacket {
 }
 export interface CareerEvidenceSet { chart: CanonicalChart; brief: CareerBrief; packets: CareerPacket[]; asOf: Date }
 
+export const FIVE_SECTION_MIN_WORDS = 225;
+export const FIVE_CAREER_HEADINGS = ['Career Overview', 'Favourable & Difficult Periods', 'Your Birth Chart', 'Current Career Situation', 'Personalised Guidance'] as const;
+
+/** Reuse the verified fact builder; editorial grouping does not calculate new astrology. */
+export function buildFiveCareerEvidence(kundli: unknown, asOf: Date): CareerEvidenceSet {
+  const base = buildCareerEvidence(kundli, asOf);
+  const end = new Date(asOf); end.setUTCFullYear(end.getUTCFullYear() + 4);
+  const periods = base.chart.dashas.vimshottari.mahadashas.filter((m) => Date.parse(m.end) > +asOf && Date.parse(m.start) < +end);
+  const timing: CareerEvidence[] = periods.flatMap((m) => [
+    { id: `Vimshottari.Mahadasha.${m.lord}.${m.start}`, contexts: ['Vimshottari'] as CareerContext[], text: `${m.lord} Mahadasha: ${m.start.slice(0, 10)} to ${m.end.slice(0, 10)} (UTC boundaries).`, value: m },
+    ...m.antardashas.filter((a) => Date.parse(a.end) > +asOf && Date.parse(a.start) < +end).map((a) => ({ id: `Vimshottari.Antardasha.${a.lord}.${a.start}`, contexts: ['Vimshottari'] as CareerContext[], text: `${a.lord} Antardasha within ${m.lord} Mahadasha: ${a.start.slice(0, 10)} to ${a.end.slice(0, 10)} (UTC boundaries).`, value: a })),
+  ]);
+  const groups = [[0, 1, 7, 9], [8], [0, 1, 2, 3, 4, 5], [8], [6, 9]];
+  const purposes = [
+    'Explain professional tendencies, strengths, direction, employment versus entrepreneurship and workplace challenges. Keep the shared workStyle conclusion coherent.',
+    `Discuss opportunities and difficulties over the review window ${asOf.toISOString().slice(0, 10)} to ${end.toISOString().slice(0, 10)}. Dates are period boundaries, never promotion or job-change predictions. Do not label an entire period favourable without its supporting and limiting career evidence.`,
+    'Explain relevant D1/D10 placements, tenth house and lord, professional influences and verified yogas. Definitions and facts are supplied by the application.',
+    'Explain current Mahadasha and Antardasha and their professional implications. Potential transitions are conditional interpretations, never claims about the person’s actual employment.',
+    'Compare supported fields with their cited field assessments. Give practical guidance derived from those strengths and limitations. No remedies or gemstones.',
+  ];
+  const all = new Map(base.packets.flatMap((p) => p.facts).map((f) => [f.id, f]));
+  // Period lords crossing the next Mahadasha must have both chart placements available.
+  for (const t of timing) {
+    const lord = (t.value as { lord: string }).lord;
+    for (const context of ['D1', 'D10'] as const) {
+      const p = context === 'D1' ? base.chart.planets.find((p) => p.name === lord)! : base.chart.vargas.D10.placements.find((p) => p.planet === lord)!;
+      const id = `${context}.planet.${lord}`;
+      if (!all.has(id)) all.set(id, { id, contexts: [context], text: `${context}: ${lord} is in ${p.sign}, house ${p.house}.`, value: p });
+    }
+  }
+  const packets = FIVE_CAREER_HEADINGS.map((heading, id): CareerPacket => {
+    let facts = Array.from(new Map(groups[id].flatMap((g) => base.packets[g].facts).map((f) => [f.id, f])).values());
+    if (id === 1) facts = [...timing, ...Array.from(new Set(timing.flatMap((f) => ['D1', 'D10'].map((c) => `${c}.planet.${(f.value as { lord: string }).lord}`)))).map((key) => all.get(key)!)];
+    if (id === 3) facts = facts.filter((f) => !f.contexts.includes('Vimshottari') || (Date.parse((f.value as any).start) <= +asOf && +asOf < Date.parse((f.value as any).end)));
+    return { id, heading, minimumWords: FIVE_SECTION_MIN_WORDS, facts, supporting: facts.map((f) => f.id), limiting: facts.map((f) => f.id), indicators: { supporting: groups[id].flatMap((g) => base.packets[g].indicators.supporting), limiting: groups[id].flatMap((g) => base.packets[g].indicators.limiting) }, permittedInterpretations: [purposes[id], 'Use supplied supporting and opposing facts. Where evidence is insufficient, state the limitation.'] };
+  });
+  return { ...base, packets };
+}
+
 /** Recompute with the SAME engine, never trust merely version-labelled stored projections. */
 export function buildCareerEvidence(kundli: any, asOf: Date): CareerEvidenceSet {
   const stored = kundli?.chartData?.canonical;

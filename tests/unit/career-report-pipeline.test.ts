@@ -1,131 +1,190 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { CareerSpending, CAREER_BUDGET_MICRO_USD, CAREER_DEADLINE_MS, careerRequester, generateDeterministicCareer, type CareerCompletion } from '../../server/careerReportGeneration';
-import { careerDraftPrompt, renderCareerSection } from '../../server/careerReportRendering';
-import { buildCareerEvidence, type CareerPacket } from '../../server/careerReportEvidence';
-import { ASOF, fixtureChart, fixtureDraft } from '../fixtures/career-chart';
+import { buildFiveCareerEvidence, FIVE_CAREER_HEADINGS, type CareerPacket } from '../../server/careerReportEvidence';
+import { validateFiveCareerDraft, renderCareerSection, fiveCareerPrompt } from '../../server/careerReportRendering';
+import { ASOF, fixtureChart } from '../fixtures/career-chart';
+import { CAREER_PROSE } from '../fixtures/career-prose';
+import { computeCanonicalChart } from '../../server/astroEngine/canonical/compute';
+import { resolveBirthWithCoordinates } from '../../server/astroEngine/birthResolver';
 
 const delivery = vi.hoisted(() => ({ setReportOrderContent: vi.fn(), failAndRefundReportOrder: vi.fn(), createNotification: vi.fn() }));
 vi.mock('../../server/storage', () => ({ storage: delivery }));
 vi.mock('../../server/pushService', () => ({ sendPushToUser: vi.fn() }));
 import { fulfilReportOrder } from '../../server/reportOrders';
 
-const packetOf = (p: string): CareerPacket => JSON.parse(p.split('PACKET\n')[1].split('\nCORRECTION:')[0]);
-const reply = (p: string): CareerCompletion => ({ choices: [{ finish_reason: 'stop', message: { content: JSON.stringify(fixtureDraft(packetOf(p))) } }], usage: { prompt_tokens: 1500, completion_tokens: 450 } });
+function draft(p: CareerPacket) {
+  const [a, b] = [[0, 7], [8, 4], [1, 3], [2, 9], [6, 5]][p.id];
+  const blocks = ['supporting', 'limiting', 'conclusion'].map((_, i) => ({ factIds: p.facts.map((f) => f.id), contexts: Array.from(new Set(p.facts.flatMap((f) => f.contexts))), text: `${CAREER_PROSE[a][i]} ${CAREER_PROSE[b][i].split(/(?<=[.!?])\s+/)[0]}` }));
+  return { supporting: blocks[0], limiting: blocks[1], conclusion: blocks[2] };
+}
+const plan = (prompt: string): CareerPacket[] => JSON.parse(prompt.split('\nSECTIONS\n')[1].split('\nCORRECTION\n')[0]);
+function responder(e = buildFiveCareerEvidence(fixtureChart(), ASOF)) {
+  return vi.fn(async (prompt: string): Promise<CareerCompletion> => ({ choices: [{ finish_reason: 'stop', message: { content: JSON.stringify({ workStyle: 'mixed', sections: plan(prompt).map((p) => ({ id: p.id, draft: draft(e.packets[p.id]) })) }) } }], usage: { prompt_tokens: 4500, completion_tokens: 4000 } }));
+}
 afterEach(() => { vi.useRealTimers(); vi.clearAllMocks(); });
 
-describe('Career complete pipeline, mocked provider and realistic prose', () => {
-  it.each([
-    ['1991-11-13', '12:30', 15.8497, 74.4977], ['1985-03-22', '06:15', 28.6139, 77.2090], ['2000-07-04', '18:45', 19.0760, 72.8777],
-  ] as const)('assembles all sections without any correction for %s', async (date, time, lat, lon) => {
-    const request = vi.fn(async (p: string) => reply(p)); const metrics = vi.fn();
-    const report = await generateDeterministicCareer(fixtureChart(date, time, lat, lon), ASOF, request, { onMetrics: metrics });
-    expect(report.sections).toHaveLength(10); expect(request).toHaveBeenCalledTimes(10);
-    expect(metrics).toHaveBeenCalledWith({ calls: 10, corrections: 0, costMicroUsd: 82_500, firstPassAccepted: 10 });
-    expect(report.generatedAt).toBe(ASOF.toISOString());
-    expect(report.sections[3].body).toContain('D10 Lagna depends on an accurate birth time');
+describe('coordinated five-section Career pipeline', () => {
+  it.each([['1991-11-13', '12:30', 15.8497, 74.4977], ['1985-03-22', '06:15', 28.6139, 77.209], ['2000-07-04', '18:45', 19.076, 72.8777]] as const)('delivers all five sections in one request for %s', async (date, time, lat, lon) => {
+    const k = fixtureChart(date, time, lat, lon); const request = responder(buildFiveCareerEvidence(k, ASOF)); const metrics = vi.fn();
+    const report = await generateDeterministicCareer(k, ASOF, request, { onMetrics: metrics });
+    expect(report.sections.map((s) => s.heading)).toEqual(FIVE_CAREER_HEADINGS);
+    expect(request).toHaveBeenCalledTimes(1);
+    expect(metrics).toHaveBeenCalledWith({ calls: 1, corrections: 0, costMicroUsd: 51_250, firstPassAccepted: 5 });
+    expect(report.sections[2].body).toContain('Lagna: the rising sign');
+    expect(report.sections[2].body).toContain('accurate birth time');
+    expect(report.dashaTimeline.length).toBeGreaterThan(0);
   });
-  it('corrects only one rejected section and preserves every passing byte', async () => {
-    const request = vi.fn(async (p: string) => {
-      const r = reply(p); if (packetOf(p).id === 3 && !p.includes('CORRECTION:')) {
-        const d = fixtureDraft(packetOf(p)); d.supporting.text += ' In D10 Jupiter is in Leo.'; r.choices[0].message.content = JSON.stringify(d);
-      } return r;
-    });
-    const k = fixtureChart(); const result = await generateDeterministicCareer(k, ASOF, request);
-    expect(request).toHaveBeenCalledTimes(11);
-    expect(request.mock.calls[10][0]).toContain('Jupiter is in Capricorn in the D10, not Leo');
-    const evidence = buildCareerEvidence(k, ASOF);
-    for (const p of evidence.packets) expect(result.sections[p.id].body).toBe(renderCareerSection(p, fixtureDraft(p)));
+  it('covers the next four years across a Mahadasha boundary using exact engine dates', () => {
+    const k = fixtureChart(); const e = buildFiveCareerEvidence(k, new Date('2039-01-01T00:00:00Z'));
+    const periods = e.packets[1].facts.filter((f) => f.contexts.includes('Vimshottari'));
+    expect(periods.some((p) => p.id.startsWith('Vimshottari.Mahadasha.Saturn'))).toBe(true);
+    const valid = new Set(k.chartData.canonical.dashas.vimshottari.mahadashas.flatMap((m) => [m.start, m.end, ...m.antardashas.flatMap((a) => [a.start, a.end])]));
+    for (const p of periods) { expect(valid.has((p.value as any).start)).toBe(true); expect(valid.has((p.value as any).end)).toBe(true); }
   });
-  it('renders metadata from canonical facts even when legacy tables disagree', async () => {
-    const k: any = fixtureChart();
-    k.chartData.planetaryPositions = [{ planet: 'Jupiter', sign: 'Capricorn' }];
-    k.dashas = [{ planet: 'Jupiter', startDate: '2029-01-01', endDate: '2040-12-03' }];
-    const report = await generateDeterministicCareer(k, ASOF, async (p) => reply(p));
-    expect(report.planetaryPositions.find((p) => p.planet === 'Jupiter')?.sign).toBe('Leo');
-    expect(report.dashaTimeline.find((p) => p.planet === 'Jupiter')?.startDate).toBe('2024-12-03');
-    expect(report.summary).toContain('D10 Lagna is Pisces');
+  it('accepts a naturally worded correct placement and adds the chart scope', () => {
+    const e = buildFiveCareerEvidence(fixtureChart(), ASOF); const p = e.packets[2]; const d = draft(p);
+    d.supporting.text += ' Jupiter occupies Capricorn.';
+    const checked = validateFiveCareerDraft(p, d, e);
+    expect(checked.problems).toEqual([]); expect(checked.draft!.supporting.text).toContain('in D10, Jupiter is in Capricorn');
   });
-  it('allows at most two targeted calls, even when both corrections fail', async () => {
-    const request = vi.fn(async (p: string) => { const r = reply(p); if ([3, 8].includes(packetOf(p).id)) r.choices[0].message.content = '{}'; return r; });
-    await expect(generateDeterministicCareer(fixtureChart(), ASOF, request)).rejects.toThrow(/quality failure/);
-    expect(request).toHaveBeenCalledTimes(12);
+  it.each(['In D10 Jupiter is in Leo.', 'In D1 Venus is in Leo.', 'Lakshmi Yoga brings wealth.', 'Saturn Antardasha begins in 2029.', 'Saturn Antardasha begins on 2027-01-22.'])('rejects inaccurate assertion: %s', (claim) => {
+    const e = buildFiveCareerEvidence(fixtureChart(), ASOF); const p = e.packets[claim.includes('Antardasha') ? 1 : 2]; const d = draft(p); d.supporting.text += ` ${claim}`;
+    expect(validateFiveCareerDraft(p, d, e).problems.length).toBeGreaterThan(0);
   });
-  it('reproduces eight first-pass failures and does not conceal them with retries', async () => {
-    const request = vi.fn(async (p: string) => { const r = reply(p); if (packetOf(p).id < 8) r.choices[0].message.content = '{}'; return r; });
-    await expect(generateDeterministicCareer(fixtureChart(), ASOF, request)).rejects.toThrow(/first pass rejected 8/);
-    expect(request).toHaveBeenCalledTimes(10);
+  it('allows technical terms and overlapping indicators; the application supplies definitions', () => {
+    const e = buildFiveCareerEvidence(fixtureChart(), ASOF); const p = e.packets[2]; const d = draft(p);
+    d.supporting.text += ' The Lagna and trikona terminology describes the verified configuration.';
+    const c = validateFiveCareerDraft(p, d, e); expect(c.problems).toEqual([]);
+    expect(renderCareerSection(p, c.draft!)).toContain('trikona: a trinal house');
   });
-  it.each(['length', 'content_filter', null])('classifies incomplete output (%s), then recovers only that section', async (reason) => {
-    const request = vi.fn(async (p: string) => { const r = reply(p); if (packetOf(p).id === 0 && !p.includes('CORRECTION:')) r.choices[0].finish_reason = reason; return r; });
-    await generateDeterministicCareer(fixtureChart(), ASOF, request);
-    expect(request).toHaveBeenCalledTimes(11); expect(request.mock.calls[10][0]).toContain('incomplete-response');
+  it('rejects career recommendations without their field evidence', () => {
+    const e = buildFiveCareerEvidence(fixtureChart(), ASOF); const p = e.packets[0]; const d = draft(p);
+    d.conclusion.text += ' Finance roles are ideal for your career.';
+    expect(validateFiveCareerDraft(p, d, e).problems.join(' ')).toContain('verified field assessment');
   });
-  it('recovers malformed JSON and a transport failure with at most two corrections', async () => {
-    const request = vi.fn(async (p: string) => {
-      if (!p.includes('CORRECTION:') && packetOf(p).id === 0) throw new Error('test connection failure');
-      const r = reply(p); if (!p.includes('CORRECTION:') && packetOf(p).id === 1) r.choices[0].message.content = '{'; return r;
-    });
-    await generateDeterministicCareer(fixtureChart(), ASOF, request);
-    expect(request).toHaveBeenCalledTimes(12);
+  it('corrects only a missing section and preserves all passing content', async () => {
+    const e = buildFiveCareerEvidence(fixtureChart(), ASOF); const base = responder(e); let calls = 0;
+    const request = vi.fn(async (p: string) => { const r = await base(p); if (++calls === 1) { const parsed = JSON.parse(r.choices[0].message.content!); parsed.sections.pop(); r.choices[0].message.content = JSON.stringify(parsed); } return r; });
+    const report = await generateDeterministicCareer(fixtureChart(), ASOF, request);
+    expect(request).toHaveBeenCalledTimes(2); expect(plan(request.mock.calls[1][0]).map((p) => p.id)).toEqual([4]);
+    for (const p of e.packets) expect(report.sections[p.id].body).toBe(renderCareerSection(p, draft(p)));
   });
-  it('does not persist repeated or otherwise invalid content', async () => {
-    const request = vi.fn(async (p: string) => { const r = reply(p); const d = fixtureDraft(packetOf(p)); d.limiting.text = d.supporting.text; r.choices[0].message.content = JSON.stringify(d); return r; });
-    delivery.failAndRefundReportOrder.mockResolvedValue({ refunded: 299 });
-    await fulfilReportOrder({ id: 'test-career', userId: 'test-only' } as any, 'Career', () => generateDeterministicCareer(fixtureChart(), ASOF, request));
-    expect(delivery.setReportOrderContent).not.toHaveBeenCalled(); expect(delivery.failAndRefundReportOrder).toHaveBeenCalledTimes(1);
+  it.each(['length', 'content_filter'])('fails closed on %s without expensive full-report regeneration', async (reason) => {
+    const base = responder(); const request = vi.fn(async (p: string) => { const r = await base(p); r.choices[0].finish_reason = reason; return r; });
+    await expect(generateDeterministicCareer(fixtureChart(), ASOF, request)).rejects.toThrow(/incomplete/); expect(request).toHaveBeenCalledTimes(1);
   });
-  it('passes the validated assembled report through the existing delivery path', async () => {
-    delivery.setReportOrderContent.mockResolvedValue({ id: 'test-career', status: 'ready' });
-    await fulfilReportOrder({ id: 'test-career', userId: 'test-only' } as any, 'Career', () => generateDeterministicCareer(fixtureChart(), ASOF, async (p) => reply(p)));
-    expect(delivery.setReportOrderContent).toHaveBeenCalledWith('test-career', expect.objectContaining({ sections: expect.arrayContaining([expect.objectContaining({ heading: 'Dasamsa (D10) Analysis' })]) }));
-    expect(delivery.failAndRefundReportOrder).not.toHaveBeenCalled();
+  it.each(['{', '{}'])('rejects malformed or incomplete output', async (content) => {
+    await expect(generateDeterministicCareer(fixtureChart(), ASOF, async () => ({ choices: [{ finish_reason: 'stop', message: { content } }] }))).rejects.toThrow(/quality check/);
   });
-  it('enforces six minutes and cancels even a provider adapter that never settles', async () => {
+  it('does not retry systematic failure', async () => {
+    const request = vi.fn(async () => ({ choices: [{ finish_reason: 'stop', message: { content: JSON.stringify({ workStyle: 'mixed', sections: [] }) } }] }));
+    await expect(generateDeterministicCareer(fixtureChart(), ASOF, request)).rejects.toThrow(/systematic/); expect(request).toHaveBeenCalledTimes(1);
+  });
+  it('enforces at most two correction calls', async () => {
+    const base = responder(); const request = vi.fn(async (p: string) => { const r = await base(p); const v = JSON.parse(r.choices[0].message.content!); for (const s of v.sections) if ([0, 4].includes(s.id)) s.draft = {}; r.choices[0].message.content = JSON.stringify(v); return r; });
+    await expect(generateDeterministicCareer(fixtureChart(), ASOF, request)).rejects.toThrow(/bounded correction/); expect(request).toHaveBeenCalledTimes(3);
+  });
+  it('rejects inconsistent work-style conclusions', async () => {
+    const base = responder(); const request = vi.fn(async (p: string) => { const r = await base(p); const v = JSON.parse(r.choices[0].message.content!); for (const s of v.sections) if (s.id === 0) s.draft.conclusion.text += ' This recommends employment.'; r.choices[0].message.content = JSON.stringify(v); return r; });
+    await expect(generateDeterministicCareer(fixtureChart(), ASOF, request)).rejects.toThrow(/bounded correction/);
+  });
+  it('preserves delivery compatibility and refunds only through the existing path', async () => {
+    delivery.setReportOrderContent.mockResolvedValue({ id: 'test-only' });
+    await fulfilReportOrder({ id: 'test-only', userId: 'test-user' } as any, 'Career', () => generateDeterministicCareer(fixtureChart(), ASOF, responder()));
+    expect(delivery.setReportOrderContent.mock.calls[0][1].sections).toHaveLength(5); expect(delivery.failAndRefundReportOrder).not.toHaveBeenCalled();
+  });
+  it('aborts at six minutes even if transport never settles', async () => {
     vi.useFakeTimers(); let signal: AbortSignal | undefined;
     const request = vi.fn((_p, o) => { signal = o.signal; return new Promise<CareerCompletion>(() => {}); });
-    const result = generateDeterministicCareer(fixtureChart(), ASOF, request);
-    const assertion = expect(result).rejects.toThrow(/deadline/);
-    await vi.advanceTimersByTimeAsync(CAREER_DEADLINE_MS); await assertion;
-    expect(signal?.aborted).toBe(true); expect(request).toHaveBeenCalledTimes(3);
+    const result = generateDeterministicCareer(fixtureChart(), ASOF, request); const assertion = expect(result).rejects.toThrow(/deadline/);
+    await vi.advanceTimersByTimeAsync(CAREER_DEADLINE_MS); await assertion; expect(signal?.aborted).toBe(true); expect(request).toHaveBeenCalledTimes(1);
   });
-  it('sets request-local transport retry and timeout options without changing shared clients', async () => {
-    const create = vi.fn(async () => reply(careerDraftPrompt(buildCareerEvidence(fixtureChart(), ASOF).packets[0])));
-    await careerRequester({ chat: { completions: { create } } } as any)('prompt', { signal: new AbortController().signal, maxTokens: 1400 });
-    expect(create.mock.calls[0][1]).toMatchObject({ maxRetries: 0, timeout: 60_000 });
+  it('reserves before dispatch, retains missing usage and refuses overspending', async () => {
+    const l = new CareerSpending(); const id = l.reserve('prompt', 6000); const reserved = l.reserved; l.settle(id); l.settle(id);
+    expect(l.spent).toBe(reserved); const request = vi.fn();
+    await expect(generateDeterministicCareer(fixtureChart(), ASOF, request, { ledger: new CareerSpending(1) })).rejects.toThrow(/ceiling/); expect(request).not.toHaveBeenCalled();
+    expect(() => new CareerSpending(250001)).toThrow();
+  });
+  it('does not oversubscribe concurrent reservations', async () => {
+    const l = new CareerSpending(125000); let sent = 0;
+    const results = await Promise.allSettled(Array.from({ length: 3 }, async () => { const id = l.reserve('prompt', 6000); sent++; await Promise.resolve(); l.settle(id, { prompt_tokens: 1, completion_tokens: 1 }); }));
+    expect(sent).toBe(2); expect(results.filter((r) => r.status === 'rejected')).toHaveLength(1);
+  });
+  it('uses explicit output limits and disables hidden SDK retries', async () => {
+    const create = vi.fn(async () => ({})); await careerRequester({ chat: { completions: { create } } } as any)('prompt', { signal: new AbortController().signal, maxTokens: 6000 });
+    expect(create.mock.calls[0][0].max_tokens).toBe(6000); expect(create.mock.calls[0][1]).toMatchObject({ maxRetries: 0, timeout: 120000 });
   });
 });
 
-describe('Concurrency-safe spending reservations', () => {
-  it('atomically reserves before dispatch; parallel requests cannot oversubscribe', async () => {
-    const ledger = new CareerSpending(30_000); let sent = 0;
-    const outcomes = await Promise.allSettled(Array.from({ length: 3 }, async () => { const id = ledger.reserve('test', 1400); sent++; await Promise.resolve(); ledger.settle(id, { prompt_tokens: 1, completion_tokens: 1 }); }));
-    expect(sent).toBe(2); expect(outcomes.filter((x) => x.status === 'rejected')).toHaveLength(1);
-    expect(ledger.reserved).toBe(0); expect(ledger.spent).toBe(26);
+const CHARTS = [['1991-11-13', '12:30', 15.8497, 74.4977], ['1985-03-22', '06:15', 28.6139, 77.209], ['2000-07-04', '18:45', 19.076, 72.8777]] as const;
+const edit = (base: ReturnType<typeof responder>, change: (v: any, call: number) => void) => {
+  let call = 0;
+  return vi.fn(async (p: string) => { const r = await base(p); const v = JSON.parse(r.choices[0].message.content!); change(v, ++call); r.choices[0].message.content = JSON.stringify(v); return r; });
+};
+
+describe('five-section Career: accuracy, recovery and limits', () => {
+  it.each(CHARTS)('renders only canonical D1/D10 placements and dasha boundaries for %s', async (date, time, lat, lon) => {
+    const k = fixtureChart(date, time, lat, lon); const c = k.chartData.canonical;
+    const report = await generateDeterministicCareer(k, ASOF, responder(buildFiveCareerEvidence(k, ASOF)));
+    const boundaries = new Set(c.dashas.vimshottari.mahadashas.flatMap((m) => [m.start, m.end, ...m.antardashas.flatMap((a) => [a.start, a.end])]).map((d) => d.slice(0, 10)));
+    let d1 = 0, d10 = 0;
+    for (const s of report.sections) {
+      expect(s.body).toMatch(/Supporting indicators[\s\S]*Opposing or limiting indicators[\s\S]*Practical conclusion/);
+      for (const m of Array.from(s.body.matchAll(/\bD1: (\w+) is in (\w+), house (\d+)/g))) { d1++; expect(c.planets.find((p) => p.name === m[1])).toMatchObject({ sign: m[2], house: +m[3] }); }
+      for (const m of Array.from(s.body.matchAll(/\bD10: (\w+) is in (\w+), house (\d+)/g))) { d10++; expect(c.vargas.D10.placements.find((p) => p.planet === m[1])).toMatchObject({ sign: m[2], house: +m[3] }); }
+      for (const d of s.body.match(/\d{4}-\d{2}-\d{2}/g) ?? []) expect(boundaries.has(d)).toBe(true);
+    }
+    expect(d1).toBeGreaterThan(0); expect(d10).toBeGreaterThan(0);
+    const birthChart = report.sections[2].body;
+    expect(birthChart).toContain(`D1 Lagna (the rising sign) is ${c.ascendant.sign}`);
+    expect(birthChart).toContain(`D1 house 10: ${c.houses[9].sign}`);
   });
-  it('retains maximum charge for unknown usage and settles known usage once', () => {
-    const ledger = new CareerSpending(); const id = ledger.reserve('uncertain', 1400); const reserved = ledger.reserved;
-    ledger.settle(id); ledger.settle(id, { prompt_tokens: 0, completion_tokens: 0 });
-    expect(ledger.spent).toBe(reserved); expect(ledger.reserved).toBe(0);
-  });
-  it('stops dispatch if actual usage exceeds the estimate instead of hiding the overrun', () => {
-    const ledger = new CareerSpending(); const id = ledger.reserve('test', 1400);
-    ledger.settle(id, { prompt_tokens: 100_000, completion_tokens: 1000 });
-    expect(ledger.spent).toBeGreaterThan(CAREER_BUDGET_MICRO_USD); expect(() => ledger.reserve('test', 1400)).toThrow(/ceiling/);
-  });
-  it('refuses oversized input before any provider request', async () => {
+  it('refuses an approximate birth time before any request', async () => {
+    const canonical = computeCanonicalChart(resolveBirthWithCoordinates({ date: '1991-11-13', time: '12:30', latitude: 15.8497, longitude: 74.4977, timeAccuracy: 'approximate' }));
     const request = vi.fn();
-    await expect(generateDeterministicCareer(fixtureChart(), ASOF, request, { ledger: new CareerSpending(1) })).rejects.toThrow(/ceiling/);
+    await expect(generateDeterministicCareer({ chartData: { canonical } }, ASOF, request)).rejects.toThrow(/exact birth time/);
     expect(request).not.toHaveBeenCalled();
   });
-  it('does not dispatch past $0.25 when every response lacks usage', async () => {
-    const ledger = new CareerSpending();
-    const request = vi.fn(async (p: string) => { const r = reply(p); delete r.usage; if ([3, 8].includes(packetOf(p).id)) r.choices[0].message.content = '{}'; return r; });
-    await expect(generateDeterministicCareer(fixtureChart(), ASOF, request, { ledger })).rejects.toThrow(/ceiling/);
-    expect(ledger.spent + ledger.reserved).toBeLessThanOrEqual(250_000);
-    expect(request.mock.calls.length).toBeLessThan(12);
+  it('corrects only a section rejected for an invented placement, sends its reasons, and keeps accepted sections byte-identical', async () => {
+    const e = buildFiveCareerEvidence(fixtureChart(), ASOF); const metrics = vi.fn();
+    const request = edit(responder(e), (v, call) => { if (call === 1) v.sections.find((s: any) => s.id === 2).draft.supporting.text += ' In D10 Jupiter is in Leo.'; });
+    const report = await generateDeterministicCareer(fixtureChart(), ASOF, request, { onMetrics: metrics });
+    expect(request).toHaveBeenCalledTimes(2);
+    const correction = request.mock.calls[1][0];
+    expect(plan(correction).map((p) => p.id)).toEqual([2]);
+    expect(correction).toContain('Jupiter is in Capricorn in the D10, not Leo'); expect(correction).toContain('"workStyle":"mixed"');
+    for (const p of e.packets) expect(report.sections[p.id].body).toBe(renderCareerSection(p, validateFiveCareerDraft(p, draft(p), e).draft!));
+    expect(report.sections[2].body).not.toContain('In D10 Jupiter is in Leo');
+    expect(metrics).toHaveBeenCalledWith(expect.objectContaining({ calls: 2, corrections: 1, firstPassAccepted: 4 }));
   });
-  it('rejects attempts to override the report ceiling', () => {
-    expect(() => new CareerSpending(250_001)).toThrow(/Invalid/);
-    expect(() => new CareerSpending(Infinity)).toThrow(/Invalid/);
+  it('tolerates echoed keys in the coordinated envelope', async () => {
+    const request = edit(responder(), (v) => { v.title = 'Career'; for (const s of v.sections) s.heading = FIVE_CAREER_HEADINGS[s.id]; });
+    const report = await generateDeterministicCareer(fixtureChart(), ASOF, request);
+    expect(report.sections).toHaveLength(5); expect(request).toHaveBeenCalledTimes(1);
+  });
+  it('fails when a correction changes the shared work-style conclusion', async () => {
+    const request = edit(responder(), (v, call) => { if (call === 1) v.sections.find((s: any) => s.id === 4).draft = {}; else v.workStyle = 'employment'; });
+    await expect(generateDeterministicCareer(fixtureChart(), ASOF, request)).rejects.toThrow(/work-style/); expect(request).toHaveBeenCalledTimes(2);
+  });
+  it('fails closed on a transport error and refunds through the existing delivery path', async () => {
+    const request = vi.fn(async () => { throw new Error('test connection failure'); });
+    delivery.failAndRefundReportOrder.mockResolvedValue({ refunded: 299 }); delivery.createNotification.mockResolvedValue({});
+    await fulfilReportOrder({ id: 'test-only', userId: 'test-user' } as any, 'Career', () => generateDeterministicCareer(fixtureChart(), ASOF, request));
+    expect(request).toHaveBeenCalledTimes(1);
+    expect(delivery.setReportOrderContent).not.toHaveBeenCalled(); expect(delivery.failAndRefundReportOrder).toHaveBeenCalledTimes(1);
+  });
+  it('does not persist a report whose sections remain invalid', async () => {
+    const request = edit(responder(), (v) => { v.sections.find((s: any) => s.id === 1).draft = {}; });
+    delivery.failAndRefundReportOrder.mockResolvedValue({ refunded: 299 }); delivery.createNotification.mockResolvedValue({});
+    await fulfilReportOrder({ id: 'test-only', userId: 'test-user' } as any, 'Career', () => generateDeterministicCareer(fixtureChart(), ASOF, request));
+    expect(delivery.setReportOrderContent).not.toHaveBeenCalled(); expect(delivery.failAndRefundReportOrder).toHaveBeenCalledTimes(1);
+  });
+  it.each(CHARTS)('fits the first pass and both corrections under $0.25 with no usage reported for %s', async (date, time, lat, lon) => {
+    const k = fixtureChart(date, time, lat, lon); const ledger = new CareerSpending();
+    const request = edit(responder(buildFiveCareerEvidence(k, ASOF)), (v, call) => { if (call === 1) for (const s of v.sections) if ([0, 4].includes(s.id)) s.draft = {}; });
+    const unreported = vi.fn(async (p: string, o: any) => { const r = await request(p, o); delete r.usage; return r; });
+    const report = await generateDeterministicCareer(k, ASOF, unreported, { ledger });
+    expect(report.sections).toHaveLength(5); expect(unreported).toHaveBeenCalledTimes(3);
+    expect(ledger.spent).toBeLessThanOrEqual(CAREER_BUDGET_MICRO_USD); expect(ledger.reserved).toBe(0);
   });
 });

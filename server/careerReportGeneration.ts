@@ -1,13 +1,13 @@
 import type OpenAI from 'openai';
-import { ReportGenerationError, textProblems } from './reportQuality';
-import { careerReportProblems } from './careerReport';
-import { buildCareerEvidence, type CareerPacket } from './careerReportEvidence';
-import { careerDraftPrompt, draftProse, renderCareerSection, careerMetadata, careerSummary, validateCareerDraft, type CareerDraft } from './careerReportRendering';
+import { z } from 'zod';
+import { ReportGenerationError } from './reportQuality';
+import { buildFiveCareerEvidence, type CareerPacket } from './careerReportEvidence';
+import { fiveCareerPrompt, draftProse, renderCareerSection, careerMetadata, careerSummary, validateFiveCareerDraft, type CareerDraft } from './careerReportRendering';
 
 export const CAREER_BUDGET_MICRO_USD = 250_000;
 export const CAREER_DEADLINE_MS = 6 * 60_000;
 export const MAX_CAREER_CORRECTIONS = 2;
-export const CAREER_OUTPUT_TOKENS = 1400;
+export const CAREER_OUTPUT_TOKENS = 6000;
 export type CareerUsage = { prompt_tokens: number; completion_tokens: number };
 export interface CareerCompletion { choices: Array<{ finish_reason?: string | null; message: { content?: string | null } }>; usage?: CareerUsage | null }
 export type CareerRequester = (prompt: string, options: { signal: AbortSignal; maxTokens: number }) => Promise<CareerCompletion>;
@@ -40,17 +40,20 @@ export class CareerSpending {
 }
 
 export function careerRequester(client: OpenAI): CareerRequester {
-  return (prompt, { signal, maxTokens }) => client.chat.completions.create({ model: 'gpt-4o', messages: [{ role: 'user', content: prompt }], response_format: { type: 'json_object' }, max_tokens: maxTokens }, { signal, maxRetries: 0, timeout: 60_000 });
+  return (prompt, { signal, maxTokens }) => client.chat.completions.create({ model: 'gpt-4o', messages: [{ role: 'user', content: prompt }], response_format: { type: 'json_object' }, max_tokens: maxTokens }, { signal, maxRetries: 0, timeout: 120_000 });
 }
 
 /** Abort even if a transport adapter ignores its signal; never leave the report pending forever. */
-async function boundedRequest(request: CareerRequester, prompt: string, signal: AbortSignal): Promise<CareerCompletion> {
+async function boundedRequest(request: CareerRequester, prompt: string, signal: AbortSignal, maxTokens: number): Promise<CareerCompletion> {
   if (signal.aborted) throw new ReportGenerationError('Career deadline exceeded');
   let abort!: () => void;
   const interrupted = new Promise<never>((_, reject) => { abort = () => reject(new ReportGenerationError('Career deadline exceeded')); signal.addEventListener('abort', abort, { once: true }); });
-  try { return await Promise.race([request(prompt, { signal, maxTokens: CAREER_OUTPUT_TOKENS }), interrupted]); }
+  try { return await Promise.race([request(prompt, { signal, maxTokens }), interrupted]); }
   finally { signal.removeEventListener('abort', abort); }
 }
+
+// Echoed keys (e.g. a section heading) are dropped, not fatal: one coordinated call has no retry.
+const envelope = z.object({ workStyle: z.enum(['employment', 'entrepreneurship', 'mixed']), sections: z.array(z.object({ id: z.number().int(), draft: z.unknown() })).max(5) });
 
 export async function generateDeterministicCareer(kundli: unknown, asOf: Date, request: CareerRequester, options: { ledger?: CareerSpending; onMetrics?: (m: { calls: number; corrections: number; costMicroUsd: number; firstPassAccepted: number }) => void } = {}) {
   const controller = new AbortController();
@@ -59,47 +62,61 @@ export async function generateDeterministicCareer(kundli: unknown, asOf: Date, r
   const accepted = new Map<number, CareerDraft>();
   const errors = new Map<number, string[]>();
   let corrections = 0, firstPassAccepted = 0;
+  let workStyle: 'employment' | 'entrepreneurship' | 'mixed' | undefined;
   try {
-    const evidence = buildCareerEvidence(kundli, asOf);
-    const run = async (packet: CareerPacket, correction: string[] = []) => {
+    const evidence = buildFiveCareerEvidence(kundli, asOf);
+    const run = async (packets: CareerPacket[], correcting = false) => {
       if (controller.signal.aborted) throw new ReportGenerationError('Career deadline exceeded');
-      const prompt = careerDraftPrompt(packet, correction);
-      const ticket = ledger.reserve(prompt, CAREER_OUTPUT_TOKENS);
+      const prompt = fiveCareerPrompt(evidence, packets, correcting ? { workStyle: workStyle!, reasons: packets.map((p) => ({ id: p.id, problems: errors.get(p.id)! })) } : undefined);
+      const maxTokens = correcting ? 1800 : CAREER_OUTPUT_TOKENS;
+      const ticket = ledger.reserve(prompt, maxTokens);
       let result: CareerCompletion;
-      try { result = await boundedRequest(request, prompt, controller.signal); }
-      catch (err) { ledger.settle(ticket); errors.set(packet.id, [controller.signal.aborted ? 'deadline' : 'transport-error']); return; }
+      try { result = await boundedRequest(request, prompt, controller.signal, maxTokens); }
+      catch { ledger.settle(ticket); throw new ReportGenerationError(controller.signal.aborted ? 'Career deadline exceeded' : 'Career transport failed; reservation retained'); }
       ledger.settle(ticket, result.usage);
-      if (result.choices[0]?.finish_reason !== 'stop') { errors.set(packet.id, ['incomplete-response: output truncated or refused']); return; }
-      let parsed: unknown;
-      try { parsed = JSON.parse(result.choices[0]?.message.content ?? ''); }
-      catch { errors.set(packet.id, ['invalid-json']); return; }
-      const checked = validateCareerDraft(packet, parsed);
-      if (checked.draft) checked.problems.push(...textProblems(draftProse(checked.draft), { chart: evidence.chart, factsText: packet.facts.map((f) => f.text).join('\n'), asOf: evidence.asOf }, 0));
-      if (checked.problems.length) errors.set(packet.id, checked.problems);
-      else { accepted.set(packet.id, checked.draft!); errors.delete(packet.id); }
-    };
-    let cursor = 0;
-    // Three workers share both the reservation ledger and cancellation signal.
-    await Promise.all(Array.from({ length: 3 }, async () => {
-      while (cursor < evidence.packets.length) { const packet = evidence.packets[cursor++]; await run(packet); }
-    }));
-    const crossCheck = () => {
-      const findings = careerReportProblems(evidence.packets.filter((p) => accepted.has(p.id)).map((p) => ({ heading: p.heading, body: draftProse(accepted.get(p.id)!) })));
-      for (const [heading, problems] of Array.from(findings)) {
-        const packet = evidence.packets.find((p) => p.heading === heading)!;
-        errors.set(packet.id, problems.map(() => 'cross-section-repetition-or-contradiction: explain this section without reusing earlier conclusions'));
-        accepted.delete(packet.id);
+      if (result.choices[0]?.finish_reason !== 'stop') throw new ReportGenerationError('Career quality check: incomplete or refused response');
+      let raw: unknown;
+      try { raw = JSON.parse(result.choices[0]?.message.content ?? ''); }
+      catch { throw new ReportGenerationError('Career quality check: invalid JSON'); }
+      const parsed = envelope.safeParse(raw);
+      if (!parsed.success) throw new ReportGenerationError('Career quality check: malformed coordinated output');
+      if (workStyle && workStyle !== parsed.data.workStyle) throw new ReportGenerationError('Career correction changed the common work-style conclusion');
+      workStyle = parsed.data.workStyle;
+      const ids = parsed.data.sections.map((s) => s.id);
+      if (new Set(ids).size !== ids.length || ids.some((id) => !packets.some((p) => p.id === id))) throw new ReportGenerationError('Career quality check: duplicate or unexpected section');
+      for (const packet of packets) {
+        const checked = validateFiveCareerDraft(packet, parsed.data.sections.find((s) => s.id === packet.id)?.draft, evidence);
+        if (checked.draft) {
+          const text = draftProse(checked.draft);
+          const job = /\b(?:favou?rs?|recommend\w*|better suited to)\s+(?:structured\s+|salaried\s+)?(?:employment|service|a job)\b/i.test(text);
+          const business = /\b(?:favou?rs?|recommend\w*|better suited to)\s+(?:independent\s+)?(?:business|entrepreneurship|self-employment)\b/i.test(text);
+          if ((workStyle === 'employment' && business) || (workStyle === 'entrepreneurship' && job) || (workStyle === 'mixed' && (job !== business))) checked.problems.push('contradicts the common employment-versus-business conclusion');
+        }
+        if (checked.problems.length) errors.set(packet.id, checked.problems);
+        else { accepted.set(packet.id, checked.draft!); errors.delete(packet.id); }
       }
     };
+    const crossCheck = () => {
+      const seen = new Set<string>();
+      // Shared indicators are legitimate; identical interpretation paragraphs add no value.
+      for (const packet of evidence.packets) {
+        const draft = accepted.get(packet.id);
+        if (!draft) continue;
+        for (const b of Object.values(draft)) {
+          const key = b.text.toLowerCase().replace(/\s+/g, ' ').trim();
+          if (seen.has(key)) { errors.set(packet.id, ['repeated interpretation paragraph']); accepted.delete(packet.id); }
+          else seen.add(key);
+        }
+      }
+    };
+    await run(evidence.packets);
     crossCheck(); firstPassAccepted = accepted.size;
-    // Broad systematic failure is explicit; do not hide it behind more calls.
-    if (errors.size > MAX_CAREER_CORRECTIONS) throw new ReportGenerationError(`Career quality check: first pass rejected ${errors.size} sections; correction allowance is ${MAX_CAREER_CORRECTIONS}; ${Array.from(errors).map(([id, reasons]) => `${evidence.packets[id].heading}: ${reasons.map((r) => r.split(':')[0]).join(', ')}`).join(' | ')}`);
-    for (const [id, problems] of Array.from(errors)) { corrections++; await run(evidence.packets[id], problems); }
+    if (errors.size > MAX_CAREER_CORRECTIONS) throw new ReportGenerationError('Career quality check: systematic first-pass failure; no additional calls');
+    for (const [id] of Array.from(errors)) { corrections++; await run([evidence.packets[id]], true); }
     crossCheck();
-    if (errors.size || accepted.size !== evidence.packets.length) throw new ReportGenerationError(`Career quality failure: ${Array.from(errors).map(([id, p]) => `${id}:${p.join('; ')}`).join(' | ')}`);
+    if (errors.size || accepted.size !== 5) throw new ReportGenerationError('Career quality check: sections remain invalid after bounded correction');
     if (controller.signal.aborted) throw new ReportGenerationError('Career deadline exceeded');
-    const sections = evidence.packets.map((p) => ({ heading: p.heading, body: renderCareerSection(p, accepted.get(p.id)!) }));
-    return { title: 'Career & Profession Report', summary: careerSummary(evidence), sections, remedies: [] as string[], ...careerMetadata(evidence, kundli), generatedAt: asOf.toISOString() };
+    return { title: 'Career & Profession Report', summary: careerSummary(evidence), sections: evidence.packets.map((p) => ({ heading: p.heading, body: renderCareerSection(p, accepted.get(p.id)!) })), remedies: [] as string[], ...careerMetadata(evidence, kundli), generatedAt: asOf.toISOString() };
   } finally {
     controller.abort(); clearTimeout(timer);
     options.onMetrics?.({ calls: ledger.calls, corrections, costMicroUsd: ledger.spent + ledger.reserved, firstPassAccepted });
