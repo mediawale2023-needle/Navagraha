@@ -34,7 +34,8 @@ const SIGN = `(${SIGN_NAMES.join('|')})`;
 const NAK = `(${NAKSHATRAS.map((n) => n.name.replace(' ', '[ -]?')).join('|')})`;
 const NEGATION = /\b(no|not|never|without|free (?:of|from)|absent|cancel+ed|isn['’]t|aren['’]t|doesn['’]t|don['’]t|does not|do not|lacks?|neither|nor|unknown|uncertain|cannot|can['’]t|unclear|not known)\b/i;
 const TRANSIT_CONTEXT = /\b(transit|transiting|gochar|currently|right now|these days|this year|today|at present)\b/i;
-const CURRENT = /\b(current(?:ly)?|running|now|present(?:ly)?|ongoing|you are (?:in|going through|under)|you['’]re (?:in|going through|under)|at the moment|these days)\b/i;
+// "present" only in its time sense: the verb ("could present challenges") says nothing about which period runs now.
+const CURRENT = /\b(current(?:ly)?|running|now|presently|at present|(?:the|this|your) present|present (?:period|phase|time|stage|cycle|dasha|mahadasha|antardasha|maha\s?dasha|antar\s?dasha|sub-?period|bhukti)|ongoing|you are (?:in|going through|under)|you['’]re (?:in|going through|under)|at the moment|these days)\b/i;
 
 function sentences(text: string): string[] {
   return text.replace(/\n+/g, '. ').split(/(?<=[.!?])\s+/).filter(Boolean);
@@ -288,7 +289,7 @@ export function validateAnswer(answer: string, ctx: GuardContext): string[] {
 
     // Planet in sign (natal). Transit sentences are about the sky today, not the chart.
     if (!transitSentence) {
-      for (const m of Array.from(s.matchAll(new RegExp(`\\b${PLANET}\\b(?:['’]s)?\\s+(?:is\\s+|sits\\s+|placed\\s+|posited\\s+|located\\s+|was\\s+)?(?:in|into)\\s+(?:the\\s+sign\\s+(?:of\\s+)?)?${SIGN}\\b`, 'gi')))) {
+      for (const m of Array.from(s.matchAll(new RegExp(`\\b${PLANET}\\b(?:['’]s)?\\s+(?:(?:is\\s+|sits\\s+|placed\\s+|posited\\s+|located\\s+|was\\s+)?(?:in|into)\\s+|occupies\\s+)(?:the\\s+sign\\s+(?:of\\s+)?)?${SIGN}\\b`, 'gi')))) {
         const g = planetOf(m[1]); const claimed = cap(m[2]);
         if (approx && !st.planets[g].sign) { if (!negatedBefore(s, m.index!)) issues.push(`${g}'s sign is uncertain: it changes during the birth date and the birth time is approximate`); continue; }
         if (negatedBefore(s, m.index!)) continue;
