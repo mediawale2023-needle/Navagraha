@@ -2,7 +2,7 @@ import type OpenAI from 'openai';
 import { z } from 'zod';
 import { ReportGenerationError } from './reportQuality';
 import { buildFiveCareerEvidence, type CareerPacket } from './careerReportEvidence';
-import { fiveCareerPrompt, draftProse, renderCareerSection, careerMetadata, careerSummary, validateFiveCareerDraft, type CareerDraft } from './careerReportRendering';
+import { fiveCareerPrompt, draftProse, renderCareerSection, careerMetadata, careerSummary, validateFiveCareerDraft, schemaIssues, type CareerDraft } from './careerReportRendering';
 
 export const CAREER_BUDGET_MICRO_USD = 250_000;
 export const CAREER_DEADLINE_MS = 6 * 60_000;
@@ -53,7 +53,12 @@ async function boundedRequest(request: CareerRequester, prompt: string, signal: 
 }
 
 // Echoed keys (e.g. a section heading) are dropped, not fatal: one coordinated call has no retry.
-const envelope = z.object({ workStyle: z.enum(['employment', 'entrepreneurship', 'mixed']), sections: z.array(z.object({ id: z.number().int(), draft: z.unknown() })).max(5) });
+// A section may carry its blocks directly, mirroring the SECTIONS list the prompt shows.
+const envelope = z.object({
+  workStyle: z.preprocess((v) => (typeof v === 'string' ? v.trim().toLowerCase() : v), z.enum(['employment', 'entrepreneurship', 'mixed'])),
+  sections: z.array(z.object({ id: z.union([z.number(), z.string().regex(/^\d+$/)]).pipe(z.coerce.number().int()), draft: z.unknown().optional() }).passthrough()
+    .transform(({ id, draft, ...rest }) => ({ id, draft: draft ?? ('supporting' in rest || 'limiting' in rest || 'conclusion' in rest ? rest : undefined) }))).max(5),
+});
 
 export async function generateDeterministicCareer(kundli: unknown, asOf: Date, request: CareerRequester, options: { ledger?: CareerSpending; onMetrics?: (m: { calls: number; corrections: number; costMicroUsd: number; firstPassAccepted: number }) => void } = {}) {
   const controller = new AbortController();
@@ -79,7 +84,7 @@ export async function generateDeterministicCareer(kundli: unknown, asOf: Date, r
       try { raw = JSON.parse(result.choices[0]?.message.content ?? ''); }
       catch { throw new ReportGenerationError('Career quality check: invalid JSON'); }
       const parsed = envelope.safeParse(raw);
-      if (!parsed.success) throw new ReportGenerationError('Career quality check: malformed coordinated output');
+      if (!parsed.success) throw new ReportGenerationError(`Career quality check: malformed coordinated output (${schemaIssues(parsed.error)})`);
       if (workStyle && workStyle !== parsed.data.workStyle) throw new ReportGenerationError('Career correction changed the common work-style conclusion');
       workStyle = parsed.data.workStyle;
       const ids = parsed.data.sections.map((s) => s.id);
@@ -92,10 +97,20 @@ export async function generateDeterministicCareer(kundli: unknown, asOf: Date, r
           const business = /\b(?:favou?rs?|recommend\w*|better suited to)\s+(?:independent\s+)?(?:business|entrepreneurship|self-employment)\b/i.test(text);
           if ((workStyle === 'employment' && business) || (workStyle === 'entrepreneurship' && job) || (workStyle === 'mixed' && (job !== business))) checked.problems.push('contradicts the common employment-versus-business conclusion');
         }
-        if (checked.problems.length) errors.set(packet.id, checked.problems);
+        if (checked.problems.length) {
+          errors.set(packet.id, checked.problems);
+          if (process.env.NAVAGRAHA_CAREER_EVAL_DIAGNOSTICS === '1') {
+            console.error('[career-eval]', JSON.stringify({
+              section: packet.heading,
+              problems: checked.problems
+            }));
+          }
+        }
         else { accepted.set(packet.id, checked.draft!); errors.delete(packet.id); }
       }
     };
+    // Rule messages name chart facts and field paths, never the model's prose.
+    const failureSummary = () => Array.from(errors).map(([id, problems]) => `${evidence.packets[id].heading}: ${problems.slice(0, 3).map((p) => p.slice(0, 160)).join('; ')}`).join(' | ');
     const crossCheck = () => {
       const seen = new Set<string>();
       // Shared indicators are legitimate; identical interpretation paragraphs add no value.
@@ -111,10 +126,10 @@ export async function generateDeterministicCareer(kundli: unknown, asOf: Date, r
     };
     await run(evidence.packets);
     crossCheck(); firstPassAccepted = accepted.size;
-    if (errors.size > MAX_CAREER_CORRECTIONS) throw new ReportGenerationError('Career quality check: systematic first-pass failure; no additional calls');
+    if (errors.size > MAX_CAREER_CORRECTIONS) throw new ReportGenerationError(`Career quality check: systematic first-pass failure; no additional calls. ${failureSummary()}`);
     for (const [id] of Array.from(errors)) { corrections++; await run([evidence.packets[id]], true); }
     crossCheck();
-    if (errors.size || accepted.size !== 5) throw new ReportGenerationError('Career quality check: sections remain invalid after bounded correction');
+    if (errors.size || accepted.size !== 5) throw new ReportGenerationError(`Career quality check: sections remain invalid after bounded correction. ${failureSummary()}`);
     if (controller.signal.aborted) throw new ReportGenerationError('Career deadline exceeded');
     return { title: 'Career & Profession Report', summary: careerSummary(evidence), sections: evidence.packets.map((p) => ({ heading: p.heading, body: renderCareerSection(p, accepted.get(p.id)!) })), remedies: [] as string[], ...careerMetadata(evidence, kundli), generatedAt: asOf.toISOString() };
   } finally {

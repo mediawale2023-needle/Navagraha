@@ -142,10 +142,22 @@ function definitionsFor(text: string): string {
 }
 
 /** Natural placements are scoped from cited facts, never by guessing a different sign. */
+// Contexts are derived from the cited facts below, so the model may omit them (the prompt says
+// the application renders them); keys the model echoes, such as a heading, are dropped unread.
+const fiveBlock = z.object({
+  factIds: z.array(z.string()).min(1).max(40),
+  contexts: z.unknown().optional(),
+  text: z.union([z.string(), z.array(z.string()).min(1).transform((paragraphs) => paragraphs.join(' '))]).pipe(z.string().min(1).max(6000)),
+}).transform(({ factIds, text }) => ({ factIds, text, contexts: [] as Array<'D1' | 'D10' | 'Vimshottari'> }));
+const fiveDraftSchema = z.object({ supporting: fiveBlock, limiting: fiveBlock, conclusion: fiveBlock });
+
+/** Paths and codes only, never the model's text: safe for logs and an order's failure reason. */
+export const schemaIssues = (error: z.ZodError) => error.issues.slice(0, 6).map((i) => `${i.path.join('.') || '(root)'} ${i.code}`).join(', ');
+
 export function validateFiveCareerDraft(packet: CareerPacket, input: unknown, evidence: CareerEvidenceSet): { draft?: CareerDraft; problems: string[] } {
-  const parsed = careerDraftSchema.safeParse(input);
-  if (!parsed.success) return { problems: ['schema: each section requires supporting, limiting and conclusion blocks with factIds, contexts and text'] };
-  const draft = parsed.data;
+  const parsed = fiveDraftSchema.safeParse(input);
+  if (!parsed.success) return { problems: [`schema: return supporting, limiting and conclusion, each with factIds (strings) and text (${schemaIssues(parsed.error)})`] };
+  const draft: CareerDraft = parsed.data;
   const problems: string[] = [];
   const placement = new RegExp(`\\b(${GRAHAS.join('|')})\\b\\s*,?\\s*(?:(?:is|was)\\s+)?(?:(?:placed|posited|located|situated)\\s+)?(?:in|occupies|sits in)\\s+(?:the sign of\\s+)?(${SIGN_NAMES.join('|')})\\b`, 'gi');
   for (const [kind, b] of Object.entries(draft)) {
@@ -199,8 +211,8 @@ export function validateFiveCareerDraft(packet: CareerPacket, input: unknown, ev
 
 export function fiveCareerPrompt(evidence: CareerEvidenceSet, packets: CareerPacket[], correction?: { workStyle: string; reasons: Array<{ id: number; problems: string[] }> }): string {
   const facts = Array.from(new Map(evidence.packets.flatMap((p) => p.facts).map(({ value, ...f }) => [f.id, f])).values());
-  return `Write a coherent five-section Career & Profession Report using ONLY this verified analysis. Return JSON: {"workStyle":"employment|entrepreneurship|mixed", "sections":[{"id":0,"draft":{"supporting":{"factIds":["..."],"contexts":["D1"],"text":"..."},"limiting":{...},"conclusion":{...}}}]}.
-Return exactly the requested section IDs. Each section needs 225-330 words of interpretation, divided into supporting indicators, limitations, and a practical conclusion. Cite appropriate factIds in each block. A conclusion may use only facts already weighed above. Contexts and technical definitions are rendered by the application. Natural astrological terminology is allowed; every assertion must agree with the cited facts. Prefer to leave literal placements/dates to the application's evidence panel. Never calculate or alter astrology. Field recommendations must cite their D1.D10.field assessment; weak fields are less indicated, not recommended. The service/trade comparison may cite D1.house.6 and D1.house.7. Use a consistent workStyle conclusion throughout. Recognise conflicting indicators rather than manufacture certainty. Do not infer the customer's actual job or history. No gemstones or unsupported remedies. Explain why the particular evidence matters, not generic motivational advice. Related sections may refer to the same indicators but should contribute different analysis. The application supplies definitions for Lagna, Mahadasha, Antardasha, trikona and other technical terms. Dates describe periods, not promised promotion or job-change events.
+  return `Write a coherent five-section Career & Profession Report using ONLY this verified analysis. Return JSON exactly in this shape (no other keys): {"workStyle":"employment|entrepreneurship|mixed","sections":[{"id":0,"draft":{"supporting":{"factIds":["<id>"],"text":"<prose>"},"limiting":{"factIds":["<id>"],"text":"<prose>"},"conclusion":{"factIds":["<id>"],"text":"<prose>"}}}]}.
+Every section's draft has all three blocks; every block has factIds (a non-empty array of id strings) and text (one string). Return exactly the requested section IDs. Each section needs 225-330 words of interpretation; each block at least 80 words. In each section cite only the factIds listed for that section under SECTIONS. A conclusion may cite only facts already cited in that section's supporting or limiting block. Name a planet in a block only when a fact cited in that block mentions it; a stated sign placement must cite that planet's D1.planet or D10.planet fact in the same block. Write a date only as it appears in a cited fact. Name or weigh a professional field (administration, government or institutions, entrepreneurship, advisory, consulting or teaching, finance or banking, communication, media, sales or marketing) only in a block that cites that field's D1.D10.field assessment; employment versus business may instead cite D1.house.7. With workStyle "mixed", never say that employment or business alone is favoured, recommended or better suited. Never write that something will or shall happen. Chart contexts and technical definitions are rendered by the application. Natural astrological terminology is allowed; every assertion must agree with the cited facts. Prefer to leave literal placements/dates to the application's evidence panel. Never calculate or alter astrology. Field recommendations must cite their D1.D10.field assessment; weak fields are less indicated, not recommended. The service/trade comparison may cite D1.house.6 and D1.house.7. Use a consistent workStyle conclusion throughout. Recognise conflicting indicators rather than manufacture certainty. Do not infer the customer's actual job or history. No gemstones or unsupported remedies. Explain why the particular evidence matters, not generic motivational advice. Related sections may refer to the same indicators but should contribute different analysis. The application supplies definitions for Lagna, Mahadasha, Antardasha, trikona and other technical terms. Dates describe periods, not promised promotion or job-change events.
 FACTS\n${JSON.stringify(facts)}\nSECTIONS\n${JSON.stringify(packets.map((p) => ({ id: p.id, heading: p.heading, factIds: p.facts.map((f) => f.id), requirements: p.permittedInterpretations, indicators: p.indicators })))}${correction ? `\nCORRECTION\n${JSON.stringify(correction)}\nKeep the established workStyle and correct only these rejected sections.` : ''}`;
 }
 

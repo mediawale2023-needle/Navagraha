@@ -23,4 +23,4 @@ async function main() {
   await writeFile(file, JSON.stringify(report, null, 2), { mode: 0o600 });
   console.info(`Validated report saved for human review: ${file}`);
 }
-main().catch(() => { console.error('Live evaluation failed. No order was created. Review the bounded metrics; production delivery remains unverified.'); process.exitCode = 1; });
+main().catch((error) => { console.error('Evaluation error:', error instanceof Error ? error.message : String(error)); console.error('Live evaluation failed. No order was created. Review the bounded metrics; production delivery remains unverified.'); process.exitCode = 1; });

@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { CareerSpending, CAREER_BUDGET_MICRO_USD, CAREER_DEADLINE_MS, careerRequester, generateDeterministicCareer, type CareerCompletion } from '../../server/careerReportGeneration';
 import { buildFiveCareerEvidence, FIVE_CAREER_HEADINGS, type CareerPacket } from '../../server/careerReportEvidence';
-import { validateFiveCareerDraft, renderCareerSection, fiveCareerPrompt } from '../../server/careerReportRendering';
+import { validateFiveCareerDraft, renderCareerSection, fiveCareerPrompt, careerDraftSchema } from '../../server/careerReportRendering';
 import { ASOF, fixtureChart } from '../fixtures/career-chart';
 import { CAREER_PROSE } from '../fixtures/career-prose';
 import { computeCanonicalChart } from '../../server/astroEngine/canonical/compute';
@@ -186,5 +186,87 @@ describe('five-section Career: accuracy, recovery and limits', () => {
     const report = await generateDeterministicCareer(k, ASOF, unreported, { ledger });
     expect(report.sections).toHaveLength(5); expect(unreported).toHaveBeenCalledTimes(3);
     expect(ledger.spent).toBeLessThanOrEqual(CAREER_BUDGET_MICRO_USD); expect(ledger.reserved).toBe(0);
+  });
+});
+
+// Shapes GPT-4o actually returns for this prompt, not the idealised mock: the prompt told it
+// that chart contexts are rendered by the application, and the SECTIONS list it reads has no
+// "draft" wrapper. Live evaluations rejected all five sections with a bare "schema" error.
+const omitContexts = (d: any) => { for (const k of ['supporting', 'limiting', 'conclusion']) delete d[k].contexts; return d; };
+describe('five-section Career: realistic model response shapes', () => {
+  it('reproduces the live failure: blocks without contexts were rejected by the strict schema', () => {
+    const e = buildFiveCareerEvidence(fixtureChart(), ASOF);
+    for (const p of e.packets) expect(careerDraftSchema.safeParse(omitContexts(draft(p))).success).toBe(false);
+  });
+  it.each(CHARTS)('accepts all five sections in one call when every block omits contexts (%s)', async (date, time, lat, lon) => {
+    const k = fixtureChart(date, time, lat, lon); const e = buildFiveCareerEvidence(k, ASOF); const metrics = vi.fn();
+    const request = edit(responder(e), (v) => { for (const s of v.sections) omitContexts(s.draft); });
+    const report = await generateDeterministicCareer(k, ASOF, request, { onMetrics: metrics });
+    expect(request).toHaveBeenCalledTimes(1);
+    expect(metrics).toHaveBeenCalledWith(expect.objectContaining({ calls: 1, corrections: 0, firstPassAccepted: 5 }));
+    // Contexts come from the cited facts, so the rendered sections are those of a fully specified reply.
+    for (const p of e.packets) expect(report.sections[p.id].body).toBe(renderCareerSection(p, validateFiveCareerDraft(p, draft(p), e).draft!));
+  });
+  it('accepts sections without the draft wrapper, echoed headings, string ids, a capitalised workStyle and paragraph arrays', async () => {
+    const e = buildFiveCareerEvidence(fixtureChart(), ASOF);
+    const request = edit(responder(e), (v) => {
+      v.workStyle = 'Mixed';
+      v.sections = v.sections.map((s: any) => ({ id: String(s.id), heading: FIVE_CAREER_HEADINGS[s.id], ...omitContexts(s.draft) }));
+      const b = v.sections[0].supporting; b.text = b.text.split(/(?<=\.)\s+/);
+    });
+    const report = await generateDeterministicCareer(fixtureChart(), ASOF, request);
+    expect(request).toHaveBeenCalledTimes(1); expect(report.sections.map((s) => s.heading)).toEqual(FIVE_CAREER_HEADINGS);
+  });
+  it('derives contexts from cited facts and ignores contexts the model claims', () => {
+    const e = buildFiveCareerEvidence(fixtureChart(), ASOF); const p = e.packets[0]; const d: any = draft(p);
+    d.supporting.factIds = ['D1.house.10']; d.supporting.contexts = ['D10', 'Vimshottari'];
+    expect(validateFiveCareerDraft(p, d, e).draft!.supporting.contexts).toEqual(['D1']);
+  });
+  it('keeps accuracy checks under the tolerant shape: an invented placement in a wrapper-less, context-free reply is corrected', async () => {
+    const e = buildFiveCareerEvidence(fixtureChart(), ASOF);
+    const request = edit(responder(e), (v, call) => {
+      v.sections = v.sections.map((s: any) => ({ id: s.id, ...omitContexts(s.draft) }));
+      if (call === 1) v.sections.find((s: any) => s.id === 2).supporting.text += ' In D10 Jupiter is in Leo.';
+    });
+    const report = await generateDeterministicCareer(fixtureChart(), ASOF, request);
+    expect(request).toHaveBeenCalledTimes(2); expect(request.mock.calls[1][0]).toContain('not Leo');
+    expect(report.sections[2].body).not.toContain('In D10 Jupiter is in Leo');
+  });
+  it('rejects a citation from another section and corrects only that section', async () => {
+    const e = buildFiveCareerEvidence(fixtureChart(), ASOF);
+    const foreign = e.packets[1].facts.find((f) => !e.packets[0].facts.some((g) => g.id === f.id))!.id;
+    const request = edit(responder(e), (v, call) => { if (call === 1) v.sections.find((s: any) => s.id === 0).draft.supporting.factIds.push(foreign); });
+    await generateDeterministicCareer(fixtureChart(), ASOF, request);
+    expect(request).toHaveBeenCalledTimes(2); expect(plan(request.mock.calls[1][0]).map((p) => p.id)).toEqual([0]);
+    expect(request.mock.calls[1][0]).toContain('unknown evidence reference');
+  });
+  it('names the failing field and section in the error, without the model text', async () => {
+    const secret = 'UNIQUE-MODEL-PROSE-MARKER';
+    const request = edit(responder(), (v) => { for (const s of v.sections) { s.draft.supporting = { factIds: s.draft.supporting.factIds, prose: secret }; } });
+    const failure = generateDeterministicCareer(fixtureChart(), ASOF, request);
+    await expect(failure).rejects.toThrow(/systematic first-pass failure.*Career Overview: schema: .*supporting\.text invalid_/);
+    await expect(failure).rejects.not.toThrow(new RegExp(secret));
+    expect(request).toHaveBeenCalledTimes(1);
+  });
+  it('states the full block shape and the enforced rules in the prompt', () => {
+    const e = buildFiveCareerEvidence(fixtureChart(), ASOF); const prompt = fiveCareerPrompt(e, e.packets);
+    for (const block of ['supporting', 'limiting', 'conclusion']) expect(prompt).toContain(`"${block}":{"factIds":["<id>"],"text":"<prose>"}`);
+    expect(prompt).not.toContain('{...}');
+    expect(prompt).toMatch(/each block at least 80 words/); expect(prompt).toMatch(/cite only the factIds listed for that section/);
+    expect(prompt).toMatch(/only in a block that cites that field's D1\.D10\.field assessment/); expect(prompt).toMatch(/workStyle "mixed", never say/);
+  });
+  // Each rule the prompt now states is one the validator enforces; a section that breaks it is rejected.
+  it.each([
+    ['a field named outside its assessment', 0, (d: any) => { d.conclusion.text += ' Consulting roles are suitable here.'; }, /verified field assessment/],
+    ['a planet not in any cited fact', 1, (d: any, p: CareerPacket) => {
+      const fact = p.facts.find((f) => f.contexts.includes('Vimshottari'))!;
+      const absent = ['Sun', 'Moon', 'Mars', 'Mercury', 'Jupiter', 'Venus', 'Saturn'].find((g) => !fact.text.includes(g))!;
+      d.supporting.factIds = [fact.id]; d.supporting.text += ` ${absent} adds polish to this period.`;
+    }, /not supported by cited evidence/],
+    ['a certain outcome', 3, (d: any) => { d.conclusion.text += ' You will get promoted.'; }, /certain outcome/],
+  ] as const)('the validator enforces the prompt rule: %s', (_name, id, change, problem) => {
+    const e = buildFiveCareerEvidence(fixtureChart(), ASOF); const p = e.packets[id]; const d = draft(p);
+    change(d as any, p);
+    expect(validateFiveCareerDraft(p, d, e).problems.join(' ')).toMatch(problem);
   });
 });
