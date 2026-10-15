@@ -50,6 +50,31 @@ describe('Career evidence and realistic section contracts', () => {
       (d: any) => { d.conclusion.text += ' You should pursue government and finance roles.'; },
     ]) { const d = fixtureDraft(p); mutate(d); expect(validateCareerDraft(p, d).problems.length).toBeGreaterThan(0); }
   });
+  it('accepts ordinary astrological terminology without inventing chart facts', () => {
+    const packet = buildCareerEvidence(fixtureChart(), ASOF).packets[3];
+    const draft = fixtureDraft(packet);
+
+    draft.supporting.text += ' The planetary influences described in the verified evidence can be interpreted as competing professional tendencies, rather than a fixed professional outcome.';
+
+    expect(validateCareerDraft(packet, draft).problems).toEqual([]);
+  });
+
+  it('accepts a correctly cited planetary placement in interpretation', () => {
+    const packet = buildCareerEvidence(fixtureChart(), ASOF).packets[3];
+    const draft = fixtureDraft(packet);
+
+    draft.supporting.factIds = [...new Set([...draft.supporting.factIds, 'D10.planet.Jupiter'])];
+    draft.supporting.contexts = [...new Set([
+      ...draft.supporting.factIds.flatMap(id =>
+        packet.facts.find(f => f.id === id)?.contexts ?? []
+      )
+    ])] as typeof draft.supporting.contexts;
+
+    draft.supporting.text += ' Jupiter occupies Capricorn in the D10 chart, which is relevant to interpreting professional responsibilities.';
+
+    expect(validateCareerDraft(packet, draft).problems).toEqual([]);
+  });
+
   it('preserves strict shared accuracy checks', () => {
     const e = buildCareerEvidence(fixtureChart(), ASOF);
     const ctx = { chart: e.chart, packetText: e.brief.text, running: { mahadasha: 'Jupiter' as const, antardasha: 'Jupiter' as const }, timing: { mahadashaReliable: true, antardashaReliable: true }, asOf: ASOF };
@@ -58,6 +83,20 @@ describe('Career evidence and realistic section contracts', () => {
     expect(validateAnswer('Saturn Antardasha begins in 2029.', ctx).join(' ')).toMatch(/not 2029/);
     expect(validateAnswer('Saturn Antardasha begins in 2027.', ctx)).toEqual([]);
   });
+  it('rejects incorrect D10 placements expressed using occupies', () => {
+    const e = buildCareerEvidence(fixtureChart(), ASOF);
+    const ctx = {
+      chart: e.chart,
+      packetText: e.brief.text,
+      running: { mahadasha: 'Jupiter' as const, antardasha: 'Jupiter' as const },
+      timing: { mahadashaReliable: true, antardashaReliable: true },
+      asOf: ASOF,
+    };
+
+    expect(validateAnswer('Jupiter occupies Leo in the D10 chart.', ctx).length).toBeGreaterThan(0);
+    expect(validateAnswer('Jupiter occupies Capricorn in the D10 chart.', ctx)).toEqual([]);
+  });
+
   it('resolves cancellation-name contradiction without authorising invented yogas', () => {
     const f = careerBrief(fixtureChart(), ASOF)!.facts;
     expect(careerSectionProblems('Career Yogas', 'Neecha Bhanga is a cancellation of debilitation.', { ...f, careerYogas: ['Neecha Bhanga Raja Yoga'] }).join(' ')).not.toContain('must explain Neecha');
