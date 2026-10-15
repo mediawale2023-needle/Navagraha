@@ -136,3 +136,14 @@ describe('approximate-time disclosure travels with every answer', () => {
     expect(packetSummary(packet).disclosure).toBeNull();
   });
 });
+
+describe('AI guard: "current" belongs to the period it describes', () => {
+  it('flags a non-running period called current, but not a later period named beside the current one', () => {
+    const rp = runningPeriod(chart, AS_OF)!;
+    const other = SEVEN.find((g) => g !== rp.antardasha && g !== rp.mahadasha)!;
+    expect(check(`You are currently in the ${other} Antardasha.`, packet).join(' ')).toMatch(/running Antardasha/);
+    expect(check(`At present, the ${other} Antardasha shapes your work.`, packet).join(' ')).toMatch(/running Antardasha/);
+    const beside = check(`Use the current ${rp.antardasha} Antardasha to prepare for the ${other} Antardasha that follows.`, packet);
+    expect(beside.join(' ')).not.toMatch(/running Antardasha/);
+  });
+});

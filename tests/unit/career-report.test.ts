@@ -24,7 +24,7 @@ describe('Career facts are written by code from the canonical chart', () => {
     }
     expect(d1).toBeGreaterThan(4); expect(d10).toBeGreaterThanOrEqual(3);
     expect(text).toContain(`Your 10th house, the house of career and public standing, is ${c.houses[9].sign}.`);
-    expect(text).toContain(`Its lord, ${['Sun', 'Moon'].includes(c.houses[9].lord) ? 'the ' : ''}${c.houses[9].lord}, is in ${c.planets.find((p) => p.name === c.houses[9].lord)!.sign} in your ${ORD(c.planets.find((p) => p.name === c.houses[9].lord)!.house)} house`);
+    expect(text).toContain(`The lord of your 10th house, ${['Sun', 'Moon'].includes(c.houses[9].lord) ? 'the ' : ''}${c.houses[9].lord}, is in ${c.planets.find((p) => p.name === c.houses[9].lord)!.sign} in your ${ORD(c.planets.find((p) => p.name === c.houses[9].lord)!.house)} house`);
     expect(text).toContain(`the rising sign is ${['Aries', 'Taurus', 'Gemini', 'Cancer', 'Leo', 'Virgo', 'Libra', 'Scorpio', 'Sagittarius', 'Capricorn', 'Aquarius', 'Pisces'][c.vargas.D10.ascendantSignIndex]}.`);
     // Every date is a Vimshottari boundary.
     const boundaries = new Set(c.dashas.vimshottari.mahadashas.flatMap((m) => [m.start, m.end, ...m.antardashas.flatMap((a) => [a.start, a.end])]).map(dateOf));

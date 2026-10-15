@@ -6,6 +6,7 @@
 import { z } from 'zod';
 import { GRAHAS, SIGN_NAMES } from '@shared/v3/canonical';
 import { FIELDS } from './careerReport';
+import { signDignity } from './astroEngine/dignity';
 import { textProblems } from './reportQuality';
 import { CAREER_HEADINGS, namesIn, type CareerFact, type CareerReportFacts, type CareerSectionFacts } from './careerReportEvidence';
 
@@ -51,33 +52,40 @@ export function parseSectionReply(content: string | null | undefined): { reply?:
 
 const ORDINALS = ['first', 'second', 'third', 'fourth', 'fifth', 'sixth', 'seventh', 'eighth', 'ninth', 'tenth', 'eleventh', 'twelfth'];
 const ord = (n: number) => `${n}${n === 1 ? 'st' : n === 2 ? 'nd' : n === 3 ? 'rd' : 'th'}`;
-const CERTAIN = /\b(?:will|shall)\s+(?:definitely\s+|certainly\s+|surely\s+)?(?:get|be promoted|earn|become|receive|succeed|achieve|land|win)\b|\bguarantee\w*\b|\bdestined\b/i;
+// A tendency may be stated; an outcome may not be promised. "will" is refused only before an outcome verb
+// ("will bring", "will favour", "will come to the fore") and not when hedged ("will likely bring");
+// "will need to", "will begin on" or "small steps will tell you more" pass.
+const OUTCOME = 'bring|favou?r|see|experience|come|lead|open|result|thrive|flourish|prosper|excel|succeed|achieve|get|become|earn|receive|land|win|rise|grow|gain|attract|enjoy|face|shine|be (?:successful|promoted|recogni[sz]ed|rewarded|prosperous)';
+const PROMISE = new RegExp(`\\bwill\\s+(?:(?:definitely|certainly|surely|soon)\\s+)?(?:${OUTCOME})\\b|\\b(?:shall|guarantee\\w*|ensures?|destined|is bound to|are bound to|certainly|definitely)\\b|\\b(?:brings?|promis\\w*|confers?|grants?)\\b[^.!?]{0,40}\\b(?:success|fame|wealth|prosperity|status)\\b|\\b(?:indicat\\w*|signal\\w*|mean\\w*)\\s+(?:a\\s+|an\\s+)?(?:favou?rable|strong|great|certain|assured)\\b[^.!?]{0,40}\\b(?:success|fame|wealth|prosperity|status)\\b`, 'i');
 const REMEDY = /\b(gemstones?|sapphire|ruby|emerald|pearl|coral|wear (?:a|an) \w+|mantras?|pujas?|poojas?|rituals?|fasting)\b/i;
 const INTERNAL = /\bwork_?style\b|\bfact ?ids?\b|\bJSON\b/i;
 const DEGREE = /\d\s*°|\bdegrees?\b/i;
-const FAVOUR = /\b(favou?rs?|better suited|best suited|recommend\w*|should (?:choose|pursue|aim for)|points? (?:clearly )?(?:to|towards))\b/i;
-const EMPLOYED = /\b(employment|a job|salaried|working for an organi[sz]ation)\b/i;
-const INDEPENDENT = /\b(self-employ\w*|independent work|working independently|your own (?:business|venture|firm|practice)|freelanc\w*)\b/i;
-const MIX = /\b(mix\w*|blend\w*|both|alongside|combin\w*|balanc\w*|as well as|hybrid)\b/i;
+// Preference between ways of working (not between fields: "business" as a field is not an arrangement).
+const FAVOUR = /\b(favou?rs?|better suited|best suited|recommend\w*|should (?:choose|pursue|aim for)|points? (?:clearly )?(?:to|towards)|more|better|best|mainly|primarily|chiefly|rather than|instead of)\b/i;
+const EMPLOYED = /\b(employment|employed roles?|a job|salaried|working for an organi[sz]ation|organisational settings?|organizational settings?)\b/i;
+const INDEPENDENT = /\b(self-employ\w*|self-directed|independent(?:,? \w+)? (?:work|settings?|roles?|ventures?|paths?|pursuits?|projects?|initiatives?)|working independently|working for yourself|your own (?:business|venture|firm|practice)|freelanc\w*)\b/i;
+const STOCK = /\b(natural leader|inspire others|great candidate|shine in your career|unlock (?:your )?(?:full )?potential|sky is the limit|carefully crafted|dynamic and fulfilling)\b/i;
+const STRONG_WORDS = '(?:strong|powerful|excellent|exceptional|well[- ]placed|dominant)';
+const MIX = /\b(mix\w*|blend\w*|both|alongside|combin\w*|balanc\w*|as well as|hybrid|between|either)\b/i;
 const RECOMMEND = /\b(recommend\w*|ideal|best|pursue|go for|well suited|strong choice|excellent choice|promising)\b/i;
 const QUALIFIED = /\b(not|less|weak\w*|limited|unlikely|caution|avoid|only if|secondary)\b/i;
 
 /** A planet placed in a house in prose must match the calculated house (the chart named in the claim, else D1). */
-export function houseClaimProblems(text: string, evidence: CareerReportFacts): string[] {
+export function houseClaimProblems(text: string, evidence: CareerReportFacts, defaultChart: 'D1' | 'D10' = 'D1'): string[] {
   const problems: string[] = [];
   const planets = GRAHAS.join('|');
   const claim = new RegExp(`\\b(${planets})\\b(?:['’]s?)?((?:(?!\\b(?:${planets})\\b)[^.!?;]){0,60}?)\\b(?:the\\s+)?(?:D(?:1|10)(?:['’]s)?\\s+)?(?:(\\d{1,2})(?:st|nd|rd|th)|(${ORDINALS.join('|')}))\\s+house`, 'gi');
   for (const sentence of text.split(SENTENCES)) {
     for (const m of Array.from(sentence.matchAll(claim))) {
       if (!/\b(?:in|into|occup\w*|placed|placement|posited|position\w*|situated|located|sits?|resid\w*|holding)\b/i.test(m[2])) continue;
-      if (/\b(?:rul\w*|lord\w*|own\w*|govern\w*|aspect\w*|influence\w*|over|from|points?|bindus?|score|tally)\b/i.test(m[2])) continue;
+      if (/\b(?:rul\w*|lord\w*|own\w*|govern\w*|roles?|aspect\w*|influence\w*|over|from|points?|bindus?|score|tally)\b/i.test(m[2])) continue;
       const house = m[3] ? Number(m[3]) : ORDINALS.indexOf(m[4].toLowerCase()) + 1;
       const planet = GRAHAS.find((g) => g.toLowerCase() === m[1].toLowerCase())!;
       // A chart named earlier in the sentence counts only when no other planet comes first.
       const before = sentence.slice(0, m.index!);
       const span = (new RegExp(`\\b(?:${planets})\\b`, 'i').test(before) ? '' : before) + sentence.slice(m.index!, m.index! + m[0].length + 25);
       const charts = Array.from(new Set(Array.from(span.matchAll(/\bD(1|10)\b|\b(Dasamsa)\b/gi)).map((c) => (c[1] === '1' ? 'D1' : 'D10'))));
-      const scope = charts.length ? charts : ['D1'];
+      const scope = charts.length ? charts : [defaultChart];
       const actual = (c: string) => (c === 'D1' ? evidence.chart.planets.find((p) => p.name === planet)?.house : evidence.chart.vargas.D10.placements.find((p) => p.planet === planet)?.house);
       if (!scope.some((c) => actual(c) === house)) problems.push(`${planet} is in house ${scope.map((c) => `${actual(c)} in ${c}`).join(' and ')}, not house ${house}`);
     }
@@ -105,9 +113,22 @@ export function slotProblems(text: string, kind: keyof typeof LENGTH, facts: Car
   for (const m of Array.from(text.matchAll(/\b(January|February|March|April|May|June|July|August|September|October|November|December)\s+(\d{4})\b/g))) if (!factText.includes(m[0])) problems.push(`mentions ${m[0]}, which these facts do not`);
   for (const m of Array.from(text.matchAll(/\b((?:[A-Z][a-z]+[ -])*[A-Z][a-z]+) Yoga\b/g))) if (!factText.includes(m[0]) && !/^(This|The|That|A|Each|Any|No|Its|Your|Such)\b/.test(m[1])) problems.push(`names ${m[0]}, which these facts do not`);
   if (DEGREE.test(text)) problems.push('states degrees, which the facts do not');
-  if (CERTAIN.test(text)) problems.push('promises an outcome');
+  if (PROMISE.test(text)) problems.push('states an outcome as certain; describe it as a tendency (may, can, tends to)');
   if (REMEDY.test(text)) problems.push('suggests a remedy');
   if (INTERNAL.test(text)) problems.push('uses an internal term');
+  if (STOCK.test(text)) problems.push(`uses a stock phrase ("${text.match(STOCK)![0]}"); say something specific to these facts`);
+  // Restating the fact: the fact is printed just before, so "Jupiter in Capricorn in your 11th house" adds nothing.
+  for (const m of Array.from(factText.matchAll(/\b(?:in )?(Aries|Taurus|Gemini|Cancer|Leo|Virgo|Libra|Scorpio|Sagittarius|Capricorn|Aquarius|Pisces) in (?:your|the D10's|the) (\d+\w\w) house/g))) {
+    if (new RegExp(`\\b${m[1]}\\b[^.!?]{0,15}\\b${m[2]}\\b`).test(text)) { problems.push(`restates the fact (${m[1]}, ${m[2]} house); explain what it means instead`); break; }
+  }
+  // Strength claims: a planet may be called strong only when its fact's chart gives it a strong dignity.
+  const d10 = facts.every((f) => f.chart === 'D10');
+  for (const g of GRAHAS) {
+    const claim = new RegExp(`\\b(?:the\\s+)?${g}(?:['’]s)?\\s+(?:${STRONG_WORDS}\\s+(?:position|placement|influence|presence)|is\\s+(?:very\\s+|particularly\\s+)?${STRONG_WORDS})|\\b${STRONG_WORDS}\\s+(?:the\\s+)?${g}\\b`, 'i');
+    if (!claim.test(text)) continue;
+    const dignity = d10 ? signDignity(g, evidence.chart.vargas.D10.placements.find((p) => p.planet === g)!.signIndex) : evidence.chart.strength.dignities.find((d) => d.planet === g)?.dignity;
+    if (!['Exalted', 'Moolatrikona', 'Own sign'].includes(dignity ?? '')) problems.push(`overstates ${g}'s strength (${(dignity ?? 'no special dignity').toLowerCase()} in the ${d10 ? 'D10' : 'birth chart'})`);
+  }
   for (const s of text.split(SENTENCES)) {
     if (FAVOUR.test(s) && !MIX.test(s)) {
       const job = EMPLOYED.test(s), own = INDEPENDENT.test(s);
@@ -115,8 +136,10 @@ export function slotProblems(text: string, kind: keyof typeof LENGTH, facts: Car
     }
     for (const id of evidence.weakFields) if (FIELDS[id].words.test(s) && RECOMMEND.test(s) && !QUALIFIED.test(s)) problems.push(`recommends ${FIELDS[id].label.toLowerCase()}, which is weakly supported`);
   }
-  problems.push(...houseClaimProblems(text, evidence));
-  problems.push(...textProblems(text, { chart: evidence.chart, factsText: factText, asOf: evidence.asOf }, 0));
+  problems.push(...houseClaimProblems(text, evidence, d10 ? 'D10' : 'D1'));
+  // The guard reads an unnamed chart as D1; explanations of D10 facts are about the D10 unless they say otherwise.
+  const scoped = d10 ? text.split(SENTENCES).map((x) => (/\bD1\b|\bD10\b|Dasamsa|birth chart|natal/i.test(x) ? x : `In the D10, ${x.charAt(0).toLowerCase()}${x.slice(1)}`)).join(' ') : text;
+  problems.push(...textProblems(scoped, { chart: evidence.chart, factsText: factText, asOf: evidence.asOf }, 0));
   return Array.from(new Set(problems));
 }
 
@@ -149,7 +172,12 @@ export function checkSectionReply(section: CareerSectionFacts, reply: SectionRep
       if (problems.length) dropped.set(stepId(i), problems); else good.push({ text: step.text.trim(), factIds: step.factIds });
     });
     good.forEach((s, i) => accepted.set(stepId(i), s));
-    if (good.length < MIN_STEPS) required.set('steps', [`${good.length} valid next steps; at least ${MIN_STEPS} required`, ...Array.from(dropped).filter(([id]) => id.startsWith('step.')).map(([id, p]) => `${id}: ${p[0]}`)]);
+    const strongFields = section.facts.filter((f) => f.id.startsWith('field.') && /: well supported\./.test(f.text)).map((f) => f.id);
+    const stepProblems = [
+      good.length < MIN_STEPS && `${good.length} valid next steps; at least ${MIN_STEPS} required`,
+      strongFields.length && !good.some((g) => g.factIds.some((id) => strongFields.includes(id))) && `no valid next step acts on a well-supported field (${strongFields.join(', ')})`,
+    ].filter(Boolean) as string[];
+    if (stepProblems.length) required.set('steps', [...stepProblems, ...Array.from(dropped).filter(([id]) => id.startsWith('step.')).map(([id, p]) => `${id}: ${p[0]}`)]);
   }
   return { accepted, required, dropped };
 }
@@ -172,8 +200,11 @@ export function careerSectionPrompt(evidence: CareerReportFacts, section: Career
   return `You are writing part of "${section.heading}", one section of a personalised Career & Profession Report. The application has already written every chart fact below and shows each one to the reader; your explanation is printed directly after it.
 Write warm, plain, specific English addressed to "you", for a reader who knows no astrology. Explain what each fact means for this person's work: the kind of work, environment or approach it points to, and its limits. Be concrete and practical; avoid stock phrases.
 Rules:
-- Do not restate the fact or add chart facts. Name a planet, sign, house number, yoga, month or year only if the fact you are explaining states it (for the synthesis and steps: only if a fact in this section states it). Never mention degrees.
-- Never write that something will happen or is guaranteed. No remedies, gemstones, mantras or rituals.
+- The fact is printed just before your text: do not repeat its placement, explain what it means. Add no chart facts. Name a planet, sign, house number, yoga, month or year only if the fact you are explaining states it (for the synthesis and steps: only if a fact in this section states it). Never mention degrees.
+- Describe tendencies, not certainties: use may, can, tends to. Never promise an outcome (success, promotion, wealth, status) and never write "will" about a result. No remedies, gemstones, mantras or rituals.
+- Describe a planet's strength only as its fact does: a planet in a friendly or neutral sign is moderate, not strong.
+- When you mention a house in a D10 fact, it is the D10's house; say "in your birth chart" if you mean the D1.
+- Avoid stock phrases such as "natural leader", "inspire others", "shine", "great candidate" or "unlock your potential"; say what this chart specifically suggests.
 - The report's conclusion on employment versus independent work is fixed: ${evidence.workStyleSentence}. Never contradict it.
 ${evidence.weakFields.length ? `- Never recommend these weakly supported fields: ${evidence.weakFields.map((id) => FIELDS[id].label.toLowerCase()).join('; ')}.\n` : ''}- ${section.purpose}
 - The other sections (${others}) are written separately; do not repeat them.

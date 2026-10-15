@@ -48,6 +48,33 @@ A sentence of eight or more words repeated anywhere in the report is removed fro
 - SDK retries are disabled.
 - The six-minute deadline aborts every request; two rounds of at most 120 seconds each fit well inside it.
 
+## Fixes from the first live report (db644dd)
+
+The first facts-first report passed (6 calls, $0.0377) and was reviewed in full. Every chart fact was correct; the review found these defects, now fixed and replayed with the model's own text in `tests/unit/career-report-pipeline.test.ts` (`tests/fixtures/career-live-db644dd.ts`):
+
+- **False rejections that dropped the two best next steps and forced a correction.**
+  - "Mercury's role in your D10's 10th house" is now read as lordship, not a placement.
+  - The shared guard's "current" applies only to the part of the sentence around its own period, from the previous period mention to the next. "Use the current Saturn Antardasha to prepare for the Mercury Antardasha" no longer claims Mercury runs now. This also applies to Ask.
+  - Explanations of D10 facts (tagged `chart: 'D10'`) are read in the D10 unless they name the D1, by the house check and by the guard.
+- **Fact wording.**
+  - "The lord of your 10th house, Jupiter, …" (it was "Its lord").
+  - A planet ruling the Lagna, the 10th and the D10 Lagna is described once.
+  - The overview acknowledges every well-supported field before naming the strongest two.
+  - When no career planet has a strong dignity, the best-placed one is called moderate.
+- **Strength.** A planet may be called strong only if its dignity, in the chart its fact is about, is exalted, own sign or Moolatrikona.
+- **Tendencies, not certainties.** These are refused:
+  - "will" before an outcome verb (bring, favour, come, succeed, …), unless hedged;
+  - "ensures", "guarantees" and similar;
+  - "indicates a favourable … success".
+
+  "You will need to", "will begin on" and "will likely" are accepted.
+- **Work style.** A preference for one arrangement ("more … in independent settings", "rather than employment") contradicts a mixed conclusion unless the sentence also speaks of a mix. Business as a field is not an arrangement.
+- **Usefulness.** At least one valid next step must act on a well-supported field, and a step that names a year must cite the planning dates.
+- **Filler.** These are refused:
+  - restating the placement just printed (sign and house);
+  - a short list of stock phrases ("natural leader", "inspire others", "great candidate", …).
+- **Distinct sections.** Each section's purpose states its one job and names what belongs to another section.
+
 ## Evaluation
 
 `npx tsx scripts/evaluate-career.ts --run` needs a dedicated non-production `NAVAGRAHA_CAREER_EVAL_API_KEY`. It writes one synthetic report (Delhi, 1985-03-22 06:15) under the same limits and saves the report and every section attempt (text, problems, dropped slots) to a private (0600) temporary file, also on failure. Only this script passes the `onSection` hook; the order path never logs model text.

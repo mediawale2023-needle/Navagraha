@@ -22,6 +22,8 @@ export interface CareerFact {
   required: boolean;
   /** False for facts shown without an explanation (caveats, planning dates). */
   explain: boolean;
+  /** A D10 fact: a house its explanation names is read in the D10 unless it says D1. */
+  chart?: 'D10';
 }
 export interface CareerSectionFacts {
   key: SectionKey;
@@ -132,11 +134,20 @@ export function buildCareerReportFacts(kundli: unknown, asOf: Date): CareerRepor
   const strongest = byRank[0], weakest = byRank[byRank.length - 1];
   const RATING_ORDER = { 'well supported': 0, mixed: 1, 'weakly supported': 2 } as const;
   const fieldsRanked = brief.fields.slice().sort((a, b) => RATING_ORDER[a.rating] - RATING_ORDER[b.rating] || (b.plus.length - b.minus.length) - (a.plus.length - a.minus.length));
+  const well = fieldsRanked.filter((f) => f.rating === 'well supported');
   const top = fieldsRanked.filter((f) => f.rating !== 'weakly supported').slice(0, 2);
+  const NUMBERS = ['No', 'One', 'Two', 'Three', 'Four', 'Five', 'Six'];
+  // Every well-supported field is acknowledged; the "strongest" are those with the most reasons for and fewest against.
+  const fieldsSentence = () => {
+    if (!top.length) return 'None of the six professional fields assessed is well supported in this chart; Personalised Guidance explains each one.';
+    if (well.length > 2) return `${NUMBERS[well.length]} of the six professional fields assessed are well supported: ${listOf(well.map((f) => f.label.toLowerCase()))}. Of these, ${listOf(well.slice(0, 2).map((f) => f.label.toLowerCase()))} have the most in their favour and the least against them. Personalised Guidance compares all six.`;
+    if (well.length) return `Of the six professional fields assessed, ${well.length === 2 ? `two are well supported: ${listOf(well.map((f) => f.label.toLowerCase()))}` : `one is well supported: ${well[0].label.toLowerCase()}`}. Personalised Guidance compares all six.`;
+    return `None of the six professional fields assessed is well supported; the best are ${listOf(top.map((f) => f.label.toLowerCase()))}, rated mixed. Personalised Guidance compares all six.`;
+  };
   const overview: CareerFact[] = [
     { id: 'overview.workStyle', required: true, explain: true, text: `Weighing your 6th house of service and employment (${savBrief(6)}) against your 7th house of partnership and trade (${savBrief(7)}), together with the business assessment (${business.rating}), ${workStyleSentence}.` },
-    { id: 'overview.fields', required: true, explain: true, text: top.length ? `Of the six professional fields assessed, the best supported ${top.length > 1 ? 'are' : 'is'} ${top.length > 1 && top[0].rating === top[1].rating ? `${listOf(top.map((f) => f.label.toLowerCase()))}, both rated ${top[0].rating}` : listOf(top.map((f) => `${f.label.toLowerCase()} (${f.rating})`))}. Personalised Guidance compares all six.` : 'None of the six professional fields assessed is well supported in this chart; Personalised Guidance explains each one.' },
-    { id: 'overview.strength', required: true, explain: true, text: `Of the planets that govern your career, the best placed is ${the(strongest)}, ${roles(strongest)}. It is ${condition(strongest)}.` },
+    { id: 'overview.fields', required: true, explain: true, text: fieldsSentence() },
+    { id: 'overview.strength', required: true, explain: true, text: `Of the planets that govern your career, the best placed is ${the(strongest)}, ${roles(strongest)}. It is ${condition(strongest)}.${STRONG.includes(dignity(strongest)?.dignity ?? '') ? '' : ' That is a moderate placement rather than a strong one: none of your career planets is in its own, Moolatrikona or exaltation sign.'}` },
   ];
   if (weakest !== strongest && rank(weakest) < rank(strongest)) overview.push({ id: 'overview.caution', required: true, explain: true, text: `The most challenged is ${the(weakest)}, ${roles(weakest)}. It is ${condition(weakest)}.` });
 
@@ -203,11 +214,18 @@ export function buildCareerReportFacts(kundli: unknown, asOf: Date): CareerRepor
     return [{ id: `chart.yoga.${i}`, required: false, explain: true, text: `${yogaName(y)}: ${cap(yogaConfiguration(y))}. It bears on your career because ${grouped(links)}.`, links: links.length }];
   }).sort((a, b) => b.links - a.links).slice(0, 4).sort((a, b) => Number(a.id.split('.')[2]) - Number(b.id.split('.')[2])).map(({ links: _links, ...f }) => f);
   const chartFacts: CareerFact[] = [
-    { id: 'chart.lagna', required: false, explain: true, text: `Your rising sign (Lagna) is ${chart.ascendant.sign}. Its lord, ${the(lagnaLord)}, is ${condition(lagnaLord)}.` },
+    // One planet's placement is stated once: a lord that rules several of these houses is described at the first.
+    { id: 'chart.lagna', required: false, explain: true, text: lagnaLord === tenthLord
+      ? `Your rising sign (Lagna) is ${chart.ascendant.sign}. Its lord, ${the(lagnaLord)}, also rules your 10th house of career, so how you present yourself and your career are governed by the same planet; its placement follows.`
+      : `Your rising sign (Lagna) is ${chart.ascendant.sign}. Its lord, ${the(lagnaLord)}, is ${condition(lagnaLord)}.` },
     { id: 'chart.tenth', required: true, explain: true, text: `Your 10th house, the house of career and public standing, is ${house(10).sign}. ${occ.length ? `${cap(listOf(occ.map(the)))} ${occ.length > 1 ? 'occupy' : 'occupies'} it` : 'No planet occupies it'}${aspecting10.length ? `, and ${listOf(aspecting10.map(the))} ${aspecting10.length > 1 ? 'aspect' : 'aspects'} it` : ''}. Its Sarvashtakavarga score, a traditional tally of support, is ${savText(10)}.` },
-    { id: 'chart.tenthLord', required: true, explain: true, text: `Its lord, ${the(tenthLord)}, is ${condition(tenthLord)}. In the D10 it is ${d10Condition(tenthLord).replace(/^in the D10 it is /, '')}.` },
-    { id: 'chart.d10Lagna', required: true, explain: true, text: `In the D10 (Dasamsa), the divisional chart read for profession, the rising sign is ${d10Lagna}. Its lord, ${the(d10LagnaLord)}, is in ${d10(d10LagnaLord).sign} in the D10's ${ord(d10(d10LagnaLord).house)} house.` },
-    { id: 'chart.d10Tenth', required: true, explain: true, text: `The D10's 10th house is ${brief.facts.d10TenthSign}, and its lord, ${the(d10TenthLord)}, is in ${d10(d10TenthLord).sign} in the D10's ${ord(d10(d10TenthLord).house)} house. ${d10TenthOcc.length ? `${cap(listOf(d10TenthOcc.map(the)))} ${d10TenthOcc.length > 1 ? 'occupy' : 'occupies'} the D10's 10th house.` : "No planet occupies the D10's 10th house."}` },
+    { id: 'chart.tenthLord', required: true, explain: true, text: `The lord of your 10th house, ${the(tenthLord)}, is ${condition(tenthLord)}. In the D10 it is ${d10Condition(tenthLord).replace(/^in the D10 it is /, '')}.` },
+    { id: 'chart.d10Lagna', required: true, explain: true, chart: 'D10', text: `In the D10 (Dasamsa), the divisional chart read for profession, the rising sign is ${d10Lagna}. ${d10LagnaLord === tenthLord
+      ? `Its lord is again ${the(d10LagnaLord)}, your 10th lord, whose D10 placement is given above.`
+      : `Its lord, ${the(d10LagnaLord)}, is in ${d10(d10LagnaLord).sign} in the D10's ${ord(d10(d10LagnaLord).house)} house.`}` },
+    { id: 'chart.d10Tenth', required: true, explain: true, chart: 'D10', text: `The D10's 10th house is ${brief.facts.d10TenthSign}, and its lord, ${the(d10TenthLord)}, ${d10TenthLord === tenthLord || d10TenthLord === d10LagnaLord
+      ? `is the planet described above, in the D10's ${ord(d10(d10TenthLord).house)} house`
+      : `is in ${d10(d10TenthLord).sign} in the D10's ${ord(d10(d10TenthLord).house)} house`}. ${d10TenthOcc.length ? `${cap(listOf(d10TenthOcc.map(the)))} ${d10TenthOcc.length > 1 ? 'occupy' : 'occupies'} the D10's 10th house.` : "No planet occupies the D10's 10th house."}` },
     ...karakas.filter((g) => ![tenthLord, d10LagnaLord, d10TenthLord].includes(g)).map((g) => ({ id: `chart.karaka.${g}`, required: false, explain: true, text: `${The(g)}, a natural significator of ${g === 'Saturn' ? 'work, duty and endurance' : 'authority and status'}, is ${condition(g)}. In the D10 it is ${d10Condition(g).replace(/^in the D10 it is /, '')}.` })),
     ...yogaFacts,
     { id: 'chart.caveat', required: false, explain: false, text: `The D10 depends on an accurate birth time: its rising sign stays ${d10Lagna} for a birth up to ${window.earlier ? `${window.earlier - 1} minute${window.earlier - 1 === 1 ? '' : 's'} earlier` : 'at least an hour earlier'} and ${window.later ? `${window.later - 1} minute${window.later - 1 === 1 ? '' : 's'} later` : 'at least an hour later'}.` },
@@ -249,13 +267,13 @@ export function buildCareerReportFacts(kundli: unknown, asOf: Date): CareerRepor
     { id: 'guidance.timing', required: false, explain: false, text: `Planning dates: ${planning.map((a) => `the ${a.lord} Antardasha runs ${Date.parse(a.start) <= +asOf ? 'until' : `from ${dateOf(a.start)} to`} ${dateOf(a.end)}`).join('; ')}.` },
   ];
 
-  const others = 'Personalised Guidance compares the fields one by one; Favourable & Difficult Periods covers timing';
+  // Each section has one job; what belongs to another is named so the model leaves it there.
   const sections: CareerSectionFacts[] = [
-    { key: 'overview', heading: CAREER_HEADINGS[0], steps: false, facts: overview, purpose: `Introduce this person's career direction: what the work-style conclusion, the strongest fields and the strongest and most challenged career planets mean in practice. ${others}; do not go field by field or through periods.` },
-    { key: 'periods', heading: CAREER_HEADINGS[1], steps: false, facts: periods, purpose: 'For each period, explain what kind of career activity suits it and what to watch, using the tone and reasons stated. Help the reader plan the next four years. Do not re-describe the planets beyond what the period facts say.' },
-    { key: 'chart', heading: CAREER_HEADINGS[2], steps: false, facts: chartFacts, purpose: 'Explain the career structure of the birth chart and the D10: the 10th house and its lord, the D10 and the career-linked combinations. Explain terms such as Lagna or D10 in passing. Do not discuss timing or recommend fields.' },
-    { key: 'current', heading: CAREER_HEADINGS[3], steps: false, facts: current, purpose: 'Explain how the running Mahadasha and Antardasha shape work now, through the houses their lords rule and occupy and their D10 placement. Do not recommend fields or repeat the four-year timeline.' },
-    { key: 'guidance', heading: CAREER_HEADINGS[4], steps: true, facts: guidance, purpose: 'Explain each field in practical terms: the kinds of work it covers, why this chart supports or limits it. Then give 3 to 5 concrete, conditional next steps, each resting on the facts it cites; use the planning dates for timing.' },
+    { key: 'overview', heading: CAREER_HEADINGS[0], steps: false, facts: overview, purpose: 'Job: the big picture in plain terms: how this person is likely to work best (the arrangement), which fields stand out, and the one planet to lean on and the one to manage. Leave to other sections: what each field involves (Personalised Guidance), timing (Favourable & Difficult Periods) and chart detail (Your Birth Chart).' },
+    { key: 'periods', heading: CAREER_HEADINGS[1], steps: false, facts: periods, purpose: 'Job: timing. For each period say what to do and when: push, consolidate, prepare or change, and what to watch, from the tone and reasons stated. Leave to other sections: the character of the running periods\' planets (Current Career Situation) and field choices (Personalised Guidance).' },
+    { key: 'chart', heading: CAREER_HEADINGS[2], steps: false, facts: chartFacts, purpose: 'Job: the structure behind the career: what the 10th house, its lord, the D10 and the combinations say about the kind of work and working style that suit this person. Explain terms such as Lagna or D10 in passing. Leave to other sections: timing and field recommendations.' },
+    { key: 'current', heading: CAREER_HEADINGS[3], steps: false, facts: current, purpose: 'Job: now. What the running Mahadasha and Antardasha mean for work at present, through the houses their lords rule and occupy and their D10 placement, and what changes at the next sub-period. Leave to other sections: the full four-year timeline and field choices.' },
+    { key: 'guidance', heading: CAREER_HEADINGS[4], steps: true, facts: guidance, purpose: 'Job: decisions. For each field say what kinds of work it covers and why this chart supports or limits it. Then give 3 to 5 concrete, conditional next steps, each resting on the facts it cites; at least one must act on a well-supported field, and a step that names a date or year must cite the planning dates.' },
   ];
   return { chart, brief, asOf: new Date(asOf), workStyle, workStyleSentence, weakFields: brief.fields.filter((f) => f.rating === 'weakly supported').map((f) => f.id), sections };
 }

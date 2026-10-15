@@ -464,11 +464,15 @@ export function validateAnswer(answer: string, ctx: GuardContext): string[] {
 
     // Running periods.
     const periodClaims = [
-      ...Array.from(s.matchAll(new RegExp(`\\b${PLANET}\\b(?:['’]s)?\\s*[- ]?\\s*(maha\\s?dasha|mahadasa|dasha|dasa|antar\\s?dasha|antardasa|bhukti|sub-?period)`, 'gi'))).map((m) => ({ index: m.index!, planet: m[1], level: m[2] })),
-      ...Array.from(s.matchAll(new RegExp(`\\b(maha\\s?dasha|dasha|antar\\s?dasha|bhukti)\\s+of\\s+${PLANET}\\b`, 'gi'))).map((m) => ({ index: m.index!, planet: m[2], level: m[1] })),
-    ];
-    for (const m of periodClaims) {
-      if (!CURRENT.test(s) || negatedBefore(s, m.index)) continue;
+      ...Array.from(s.matchAll(new RegExp(`\\b${PLANET}\\b(?:['’]s)?\\s*[- ]?\\s*(maha\\s?dasha|mahadasa|dasha|dasa|antar\\s?dasha|antardasa|bhukti|sub-?period)`, 'gi'))).map((m) => ({ index: m.index!, end: m.index! + m[0].length, planet: m[1], level: m[2] })),
+      ...Array.from(s.matchAll(new RegExp(`\\b(maha\\s?dasha|dasha|antar\\s?dasha|bhukti)\\s+of\\s+${PLANET}\\b`, 'gi'))).map((m) => ({ index: m.index!, end: m.index! + m[0].length, planet: m[2], level: m[1] })),
+    ].sort((a, b) => a.index - b.index);
+    for (let i = 0; i < periodClaims.length; i++) { const m = periodClaims[i];
+      // "current" belongs to the period it sits beside: in "use the current Saturn Antardasha to prepare for
+      // the Mercury Antardasha" only Saturn is claimed to run now. Each claim's span runs from the previous
+      // period mention to the next.
+      const span = s.slice(i ? periodClaims[i - 1].end : 0, periodClaims[i + 1]?.index ?? s.length);
+      if (!CURRENT.test(span) || negatedBefore(s, m.index)) continue;
       const g = planetOf(m.planet);
       const antar = /antar|bhukti|sub/i.test(m.level);
       if (!ctx.running) { issues.push('no running period is available for this chart'); continue; }

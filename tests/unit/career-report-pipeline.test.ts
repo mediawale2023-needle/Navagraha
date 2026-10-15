@@ -5,6 +5,7 @@ import { buildCareerReportFacts, CAREER_HEADINGS, type CareerReportFacts } from 
 import { careerSectionPrompt, slotProblems, checkSectionReply, parseSectionReply } from '../../server/careerReportRendering';
 import { ASOF, fixtureChart } from '../fixtures/career-chart';
 import { promptTarget, realisticRequester, replyFor } from '../fixtures/career-replies';
+import { LIVE } from '../fixtures/career-live-db644dd';
 
 const delivery = vi.hoisted(() => ({ setReportOrderContent: vi.fn(), failAndRefundReportOrder: vi.fn(), createNotification: vi.fn() }));
 vi.mock('../../server/storage', () => ({ storage: delivery }));
@@ -66,7 +67,7 @@ describe('facts-first Career report: the model cannot add chart facts', () => {
     ['chart.tenthLord', `${base} Jupiter sits at 12 degrees.`, /degrees/],
     ['chart.tenthLord', `${base} The 7th house adds partnership themes.`, /7th/],
     ['field.business', `${base} Mars' favourable placement in Moolatrikona and the 11th house gives drive.`, /Mars is in house 2 in D1, not house 11/],
-    ['overview.fields', `${base} You will be promoted within the year.`, /promises an outcome/],
+    ['overview.fields', `${base} You will be promoted within the year.`, /states an outcome as certain/],
     ['chart.tenthLord', `${base} Wearing a yellow sapphire would help.`, /suggests a remedy/],
     ['overview.workStyle', `${base} The chart favours employment over anything else.`, /contradicts the work-style conclusion/],
     ['overview.workStyle', `${base} Your workStyle is mixed.`, /internal term/],
@@ -204,5 +205,82 @@ describe('facts-first Career report: limits and delivery', () => {
     expect(attempts).toHaveLength(5); expect(attempts.every((a) => a.accepted && a.content)).toBe(true);
     expect(attempts.find((a) => a.heading === 'Your Birth Chart').dropped[0]).toMatch(/^chart.lagna: names Mars/);
     expect(readFileSync(new URL('../../server/aiAstrologerService.ts', import.meta.url), 'utf8')).not.toMatch(/onSection/);
+  });
+});
+
+// Replays of the db644dd live report (synthetic Delhi chart): what its review found, with the model's own text.
+describe('facts-first Career report: the db644dd review findings', () => {
+  const e = facts();
+  const check = (id: string, text: string) => slotProblems(text, 'explanation', [fact(e, id)], e);
+  const guidance = section(e, 'guidance');
+
+  it('false rejection fixed: "Mercury\'s role in your D10\'s 10th house" is lordship, not a placement', () => {
+    expect(check('chart.yoga.1', LIVE.budhaAditya)).toEqual([]);
+  });
+  it('false rejection fixed: "use the current Saturn Antardasha … the Mercury Antardasha in 2029" claims only Saturn is running', () => {
+    const [business, advisory] = LIVE.steps;
+    expect(slotProblems(business.text, 'step', business.factIds.map((id) => fact(e, id)), e)).toEqual([]);
+    // A step naming a year without citing the planning dates is still refused.
+    expect(slotProblems(advisory.text, 'step', advisory.factIds.map((id) => fact(e, id)), e).join(' ')).toMatch(/mentions 2029/);
+  });
+  it('false rejection fixed: a house named in a D10 explanation is read in the D10', () => {
+    const d10Fact = { id: 'chart.d10Lagna', required: true, explain: true, text: "In the D10 (Dasamsa), the divisional chart read for profession, the rising sign is Sagittarius. Its lord, Jupiter, is in Aquarius in the D10's 3rd house." };
+    expect(slotProblems(LIVE.d10LagnaFirst, 'explanation', [{ ...d10Fact, chart: 'D10' as const }], e)).toEqual([]);
+    expect(slotProblems(LIVE.d10LagnaFirst, 'explanation', [d10Fact], e).join(' ')).toMatch(/Jupiter is in house 11 in D1, not house 3/);
+    // An explicit D1 claim inside a D10 explanation is still checked against the D1.
+    expect(slotProblems('Jupiter in the 3rd house of your birth chart and D1 points to learning through effort in daily work and short projects.', 'explanation', [{ ...d10Fact, chart: 'D10' as const }], e).join(' ')).toMatch(/not house 3|not the 3rd/);
+  });
+  it('the 10th lord is named as such, so "the lord of your 10th house" is no longer refused', () => {
+    expect(fact(e, 'chart.tenthLord').text).toMatch(/^The lord of your 10th house, Jupiter, is in Capricorn in your 11th house/);
+    expect(check('chart.tenthLord', LIVE.tenthLordFirst).join(' ')).not.toMatch(/mentions the 10th/);
+  });
+  it('restating the fact just printed is refused; explaining it is not', () => {
+    expect(check('chart.tenthLord', LIVE.tenthLordDelivered).join(' ')).toMatch(/restates the fact \(Capricorn, 11th house\)/);
+    expect(check('chart.tenthLord', 'Its debilitation suggests you may need extra effort to gain recognition through networks and large teams, so build credibility through visible, well-documented results before seeking wider responsibility.')).toEqual([]);
+  });
+  it('never overstates strength: the Sun is only in a friendly sign; exalted Venus may be called strong', () => {
+    expect(check('overview.strength', LIVE.overviewStrength).join(' ')).toMatch(/overstates Sun's strength \(friend's sign in the birth chart\)/);
+    expect(fact(e, 'overview.strength').text).toContain('That is a moderate placement rather than a strong one');
+    expect(check('current.mahadasha', 'Venus is strong here, so work that relies on taste, presentation and relationships may come more easily during this long period than work that depends on rigid procedure.')).toEqual([]);
+  });
+  it('tendencies, not certainties: outcome promises are refused, ordinary "will" is not', () => {
+    expect(check('current.next', LIVE.currentNext).join(' ')).toMatch(/as certain/);
+    expect(check('chart.yoga.3', LIVE.rajaYoga).join(' ')).toMatch(/as certain/);
+    expect(check('overview.workStyle', LIVE.overviewSynthesis).join(' ')).toMatch(/as certain|stock phrase/);
+    for (const ok of ['You will need to plan the change carefully, building skills and savings first, so that the move rests on evidence rather than hope or pressure from others.',
+      'Small, steady experiments will tell you more than one bold leap, and this chart suits testing an idea alongside a stable base before committing fully to it.',
+      'This period will likely bring more structure to your work, which can feel slow but tends to reward patience, careful records and steady delivery over quick wins.']) {
+      expect(check('overview.workStyle', ok)).toEqual([]);
+    }
+  });
+  it('refuses generic stock phrases', () => {
+    expect(check('overview.strength', LIVE.overviewStrength).join(' ')).toMatch(/stock phrase/);
+  });
+  it('refuses drifting from the mixed work-style conclusion; field talk about business is not an arrangement', () => {
+    expect(slotProblems(LIVE.guidanceSynthesis, 'synthesis', guidance.facts, e).join(' ')).toMatch(/contradicts the work-style conclusion/);
+    expect(check('field.business', LIVE.businessField)).toEqual([]);
+    expect(check('field.finance', LIVE.financeField)).toEqual([]);
+  });
+  it('requires a next step that acts on a well-supported field', () => {
+    const only = { explanations: {}, synthesis: undefined, steps: LIVE.steps.filter((s) => s.factIds.every((id) => !['field.business', 'field.advisory', 'field.finance', 'field.communication'].includes(id))) } as any;
+    expect(checkSectionReply(guidance, only, e, ['steps']).required.get('steps')!.join(' ')).toMatch(/no valid next step acts on a well-supported field/);
+    expect(checkSectionReply(guidance, { explanations: {}, steps: LIVE.steps } as any, e, ['steps']).required.has('steps')).toBe(false);
+  });
+});
+
+describe('facts-first Career report: fact wording from the review', () => {
+  const e = facts(); const chartText = section(e, 'chart').facts.map((f) => f.text).join('\n');
+  it('states a planet that rules the Lagna, the 10th and the D10 Lagna once', () => {
+    expect(chartText.match(/is in Capricorn in your 11th house/g)).toHaveLength(1);
+    expect(fact(e, 'chart.lagna').text).toBe('Your rising sign (Lagna) is Pisces. Its lord, Jupiter, also rules your 10th house of career, so how you present yourself and your career are governed by the same planet; its placement follows.');
+    expect(fact(e, 'chart.d10Lagna').text).toContain('Its lord is again Jupiter, your 10th lord, whose D10 placement is given above.');
+    expect(chartText.match(/in Aquarius in the 3rd house/g)).toHaveLength(1);
+  });
+  it('acknowledges every well-supported field before naming the strongest', () => {
+    expect(fact(e, 'overview.fields').text).toBe('Four of the six professional fields assessed are well supported: business and entrepreneurship, finance and management, advisory and consulting roles and communication and public-facing professions. Of these, business and entrepreneurship and finance and management have the most in their favour and the least against them. Personalised Guidance compares all six.');
+  });
+  it('gives each section its own job and names what belongs elsewhere', () => {
+    for (const s of e.sections) expect(s.purpose).toMatch(/^Job: /);
+    expect(new Set(e.sections.map((s) => s.purpose)).size).toBe(5);
   });
 });
