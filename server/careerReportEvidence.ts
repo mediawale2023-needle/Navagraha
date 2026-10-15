@@ -179,9 +179,11 @@ export function buildCareerReportFacts(kundli: unknown, asOf: Date): CareerRepor
     const against = minus.length ? `Against it, ${the(g)} ${listOf(minus)}.` : '';
     return [`On balance this reads as a ${label} period for career.`, favour, against].filter(Boolean).join(' ');
   };
+  // The facts say which period runs now: left to infer it from dates, the model called a running period "upcoming".
+  const when = (p: { start: string; end: string }) => (Date.parse(p.start) <= +asOf && +asOf < Date.parse(p.end) ? ' (running now)' : Date.parse(p.start) > +asOf ? ' (still to come)' : '');
   const periods: CareerFact[] = chart.dashas.vimshottari.mahadashas.filter(overlaps).flatMap((m) => [
-    { id: `period.Mahadasha.${m.lord}.${m.start.slice(0, 10)}`, required: true, explain: true, text: `${m.lord} Mahadasha (major period), ${dateOf(m.start)} to ${dateOf(m.end)}. ${tone(m.lord as Graha)}` },
-    ...m.antardashas.filter(overlaps).map((a) => ({ id: `period.Antardasha.${a.lord}.${a.start.slice(0, 10)}`, required: true, explain: true, text: `${a.lord} Antardasha (sub-period) within the ${m.lord} Mahadasha, ${dateOf(a.start)} to ${dateOf(a.end)}. ${tone(a.lord as Graha)}` })),
+    { id: `period.Mahadasha.${m.lord}.${m.start.slice(0, 10)}`, required: true, explain: true, text: `${m.lord} Mahadasha (major period), ${dateOf(m.start)} to ${dateOf(m.end)}${when(m)}. ${tone(m.lord as Graha)}` },
+    ...m.antardashas.filter(overlaps).map((a) => ({ id: `period.Antardasha.${a.lord}.${a.start.slice(0, 10)}`, required: true, explain: true, text: `${a.lord} Antardasha (sub-period)${when(a)} within the ${m.lord} Mahadasha, ${dateOf(a.start)} to ${dateOf(a.end)}. ${tone(a.lord as Graha)}` })),
   ]);
 
   // ── Your Birth Chart ──
@@ -239,8 +241,8 @@ export function buildCareerReportFacts(kundli: unknown, asOf: Date): CareerRepor
   const nextAd = md.antardashas.find((a) => Date.parse(a.start) > +asOf) ?? chart.dashas.vimshottari.mahadashas.find((m) => m.start === md.end)?.antardashas[0];
   const lordText = (g: string) => `${The(g)} is ${condition(g)}.${rulesText(g) ? ` It ${rulesText(g)}.` : ''} In the D10 it is ${d10Condition(g).replace(/^in the D10 it is /, '')}.`;
   const current: CareerFact[] = [
-    { id: 'current.mahadasha', required: true, explain: true, text: `You are in the ${md.lord} Mahadasha, the major period running from ${dateOf(md.start)} to ${dateOf(md.end)}. ${lordText(md.lord)}` },
-    ...(ad ? [{ id: 'current.antardasha', required: true, explain: true, text: `Within it, the ${ad.lord} Antardasha (sub-period) runs from ${dateOf(ad.start)} to ${dateOf(ad.end)}. ${ad.lord === md.lord ? `It is ${the(md.lord)}'s own sub-period within its major period.` : lordText(ad.lord)}` }] : []),
+    { id: 'current.mahadasha', required: true, explain: true, text: `You are now in the ${md.lord} Mahadasha, the major period running from ${dateOf(md.start)} to ${dateOf(md.end)}. ${lordText(md.lord)}` },
+    ...(ad ? [{ id: 'current.antardasha', required: true, explain: true, text: `Within it, you are now in the ${ad.lord} Antardasha (sub-period), which began on ${dateOf(ad.start)} and runs until ${dateOf(ad.end)}. ${ad.lord === md.lord ? `It is ${the(md.lord)}'s own sub-period within its major period, so the same planet${rulesText(ad.lord) ? `, which ${rulesText(ad.lord)},` : ''} sets the tone for both.` : lordText(ad.lord)}` }] : []),
     ...(nextAd ? [{ id: 'current.next', required: false, explain: true, text: `The next sub-period, the ${nextAd.lord} Antardasha, begins on ${dateOf(nextAd.start)}.` }] : []),
   ];
 
@@ -259,7 +261,7 @@ export function buildCareerReportFacts(kundli: unknown, asOf: Date): CareerRepor
     .replace(/^(Sun|Moon)\b/, 'the $1').replace(/, (Sun|Moon),/, ', the $1,');
   const fields: CareerFact[] = brief.fields.map((f) => ({
     id: `field.${f.id}`, required: f.rating !== 'weakly supported', explain: true,
-    text: `${f.label}: ${f.rating}. ${f.plus.length ? `In its favour, ${grouped(f.plus.map(human))}.` : 'Nothing in the chart speaks clearly for it.'} ${f.minus.length ? `Against it, ${grouped(f.minus.map(human))}.` : 'No specific obstacle is indicated, which is not a guarantee.'}`,
+    text: `${f.label}: ${f.rating}. ${f.plus.length ? `In its favour, ${grouped(f.plus.map(human))}.` : 'Nothing in the chart speaks clearly for it.'} ${f.minus.length ? `Against it, ${grouped(f.minus.map(human))}.` : 'The chart shows no specific obstacle to it.'}`,
   }));
   const planning = chart.dashas.vimshottari.mahadashas.flatMap((m) => m.antardashas.map((a) => ({ ...a, md: m.lord }))).filter(overlaps);
   const guidance: CareerFact[] = [

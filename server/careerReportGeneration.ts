@@ -11,7 +11,7 @@ export const CAREER_CORRECTION_TOKENS = 900;
 export type CareerUsage = { prompt_tokens: number; completion_tokens: number };
 export interface CareerCompletion { choices: Array<{ finish_reason?: string | null; message: { content?: string | null } }>; usage?: CareerUsage | null }
 /** Evaluation only (synthetic charts): the order path never passes `onSection`, so model text is never logged. */
-export interface CareerSectionAttempt { heading: string; correcting: boolean; accepted: boolean; problems: string[]; dropped: string[]; content: string | null }
+export interface CareerSectionAttempt { heading: string; correcting: boolean; accepted: boolean; problems: string[]; dropped: string[]; advisories: string[]; content: string | null }
 export type CareerRequester = (prompt: string, options: { signal: AbortSignal; maxTokens: number }) => Promise<CareerCompletion>;
 
 /** One shared ledger per report; reserve() has no await, making admission atomic across workers. */
@@ -57,14 +57,14 @@ async function boundedRequest(request: CareerRequester, prompt: string, signal: 
 const WHOLE = 'response';
 const sentenceKey = (s: string) => s.toLowerCase().replace(/[^a-z0-9 ]/g, '').replace(/\s+/g, ' ').trim();
 
-export async function generateDeterministicCareer(kundli: unknown, asOf: Date, request: CareerRequester, options: { ledger?: CareerSpending; onMetrics?: (m: { calls: number; corrections: number; costMicroUsd: number; firstPassAccepted: number; optionalDropped: number }) => void; onSection?: (attempt: CareerSectionAttempt) => void } = {}) {
+export async function generateDeterministicCareer(kundli: unknown, asOf: Date, request: CareerRequester, options: { ledger?: CareerSpending; onMetrics?: (m: { calls: number; corrections: number; costMicroUsd: number; firstPassAccepted: number; optionalDropped: number; advisories: number }) => void; onSection?: (attempt: CareerSectionAttempt) => void } = {}) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), CAREER_DEADLINE_MS);
   const ledger = options.ledger ?? new CareerSpending();
   const text = new Map<string, SectionText>();
   const failing = new Map<string, Map<string, string[]>>();
   const dropped = new Map<string, Map<string, string[]>>();
-  let corrections = 0, firstPassAccepted = 0;
+  let corrections = 0, firstPassAccepted = 0, advisoryCount = 0;
   try {
     const evidence = buildCareerReportFacts(kundli, asOf);
     for (const s of evidence.sections) { text.set(s.key, new Map()); failing.set(s.key, new Map()); dropped.set(s.key, new Map()); }
@@ -85,6 +85,7 @@ export async function generateDeterministicCareer(kundli: unknown, asOf: Date, r
       const fail = failing.get(section.key)!, drop = dropped.get(section.key)!, accepted = text.get(section.key)!;
       // A whole-section request replaces everything the section had; a correction replaces only its slots.
       if (!only) { fail.clear(); drop.clear(); accepted.clear(); }
+      let advisories: string[] = [];
       const parsed = result.choices[0]?.finish_reason !== 'stop' ? { problem: 'incomplete-response: output truncated or refused' } : parseSectionReply(content);
       if (!parsed.reply) fail.set(WHOLE, [parsed.problem!]);
       else {
@@ -95,9 +96,11 @@ export async function generateDeterministicCareer(kundli: unknown, asOf: Date, r
         checked.accepted.forEach((v, k) => accepted.set(k, v));
         checked.required.forEach((v, k) => fail.set(k, v));
         checked.dropped.forEach((v, k) => drop.set(k, v));
+        advisoryCount += checked.advisories.size;
+        advisories = Array.from(checked.advisories).map(([id, a]) => `${id}: ${a.join('; ')}`);
       }
       const problems = Array.from(fail).map(([id, p]) => `${id}: ${p.join('; ')}`);
-      options.onSection?.({ heading: section.heading, correcting, accepted: !fail.size, problems, dropped: Array.from(drop).map(([id, p]) => `${id}: ${p.join('; ')}`), content });
+      options.onSection?.({ heading: section.heading, correcting, accepted: !fail.size, problems, dropped: Array.from(drop).map(([id, p]) => `${id}: ${p.join('; ')}`), advisories, content });
       if (process.env.NAVAGRAHA_CAREER_EVAL_DIAGNOSTICS === '1' && (fail.size || drop.size)) console.error('[career-eval]', JSON.stringify({ section: section.heading, correcting, required: problems, dropped: Array.from(drop.keys()) }));
     };
 
@@ -138,6 +141,6 @@ export async function generateDeterministicCareer(kundli: unknown, asOf: Date, r
     return { title: 'Career & Profession Report', summary: careerSummary(evidence), sections: evidence.sections.map((s) => ({ heading: s.heading, body: renderCareerSection(s, text.get(s.key)!) })), remedies: [] as string[], ...careerMetadata(evidence, kundli), generatedAt: asOf.toISOString() };
   } finally {
     controller.abort(); clearTimeout(timer);
-    options.onMetrics?.({ calls: ledger.calls, corrections, costMicroUsd: ledger.spent + ledger.reserved, firstPassAccepted, optionalDropped: Array.from(dropped.values()).reduce((n, m) => n + m.size, 0) });
+    options.onMetrics?.({ calls: ledger.calls, corrections, costMicroUsd: ledger.spent + ledger.reserved, firstPassAccepted, optionalDropped: Array.from(dropped.values()).reduce((n, m) => n + m.size, 0), advisories: advisoryCount });
   }
 }

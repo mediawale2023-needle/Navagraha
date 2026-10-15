@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { CareerSpending, CAREER_BUDGET_MICRO_USD, CAREER_DEADLINE_MS, CAREER_OUTPUT_TOKENS, CAREER_CORRECTION_TOKENS, careerRequester, generateDeterministicCareer, type CareerCompletion } from '../../server/careerReportGeneration';
 import { buildCareerReportFacts, CAREER_HEADINGS, type CareerReportFacts } from '../../server/careerReportEvidence';
-import { careerSectionPrompt, slotProblems, checkSectionReply, parseSectionReply } from '../../server/careerReportRendering';
+import { careerSectionPrompt, slotProblems, slotCheck, checkSectionReply, parseSectionReply } from '../../server/careerReportRendering';
 import { ASOF, fixtureChart } from '../fixtures/career-chart';
 import { promptTarget, realisticRequester, replyFor } from '../fixtures/career-replies';
 import { LIVE } from '../fixtures/career-live-db644dd';
@@ -234,8 +234,9 @@ describe('facts-first Career report: the db644dd review findings', () => {
     expect(fact(e, 'chart.tenthLord').text).toMatch(/^The lord of your 10th house, Jupiter, is in Capricorn in your 11th house/);
     expect(check('chart.tenthLord', LIVE.tenthLordFirst).join(' ')).not.toMatch(/mentions the 10th/);
   });
-  it('restating the fact just printed is refused; explaining it is not', () => {
-    expect(check('chart.tenthLord', LIVE.tenthLordDelivered).join(' ')).toMatch(/restates the fact \(Capricorn, 11th house\)/);
+  it('restating the fact just printed is recorded as advisory, not refused', () => {
+    const c = slotCheck(LIVE.tenthLordDelivered, 'explanation', [fact(e, 'chart.tenthLord')], e);
+    expect(c.advisories.join(' ')).toMatch(/restates the fact \(Capricorn, 11th house\)/); expect(c.problems.join(' ')).not.toMatch(/restates/);
     expect(check('chart.tenthLord', 'Its debilitation suggests you may need extra effort to gain recognition through networks and large teams, so build credibility through visible, well-documented results before seeking wider responsibility.')).toEqual([]);
   });
   it('never overstates strength: the Sun is only in a friendly sign; exalted Venus may be called strong', () => {

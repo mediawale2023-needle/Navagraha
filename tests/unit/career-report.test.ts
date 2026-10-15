@@ -37,8 +37,8 @@ describe('Career facts are written by code from the canonical chart', () => {
     const now = (p: { start: string; end: string }) => Date.parse(p.start) <= +ASOF && +ASOF < Date.parse(p.end);
     const md = c.dashas.vimshottari.mahadashas.find(now)!; const ad = md.antardashas.find(now)!;
     const current = e.sections.find((s) => s.key === 'current')!.facts;
-    expect(current.find((f) => f.id === 'current.mahadasha')!.text).toContain(`${md.lord} Mahadasha, the major period running from ${dateOf(md.start)} to ${dateOf(md.end)}`);
-    expect(current.find((f) => f.id === 'current.antardasha')!.text).toContain(`${ad.lord} Antardasha (sub-period) runs from ${dateOf(ad.start)} to ${dateOf(ad.end)}`);
+    expect(current.find((f) => f.id === 'current.mahadasha')!.text).toContain(`You are now in the ${md.lord} Mahadasha, the major period running from ${dateOf(md.start)} to ${dateOf(md.end)}`);
+    expect(current.find((f) => f.id === 'current.antardasha')!.text).toContain(`you are now in the ${ad.lord} Antardasha (sub-period), which began on ${dateOf(ad.start)} and runs until ${dateOf(ad.end)}`);
     expect(current.filter((f) => f.required).map((f) => f.id)).toEqual(['current.mahadasha', 'current.antardasha']);
   });
   it('covers every period overlapping the next four years, across a Mahadasha boundary', () => {

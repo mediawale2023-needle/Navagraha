@@ -75,7 +75,32 @@ The first facts-first report passed (6 calls, $0.0377) and was reviewed in full.
   - a short list of stock phrases ("natural leader", "inspire others", "great candidate", …).
 - **Distinct sections.** Each section's purpose states its one job and names what belongs to another section.
 
-## Evaluation
+## Fixes from the three-chart evaluation (f729c61)
+
+The runs were Delhi, Belagavi and Mumbai, costing $0.1438 in total. All three failed, each on a false rejection from the rules added in 6397e0b. The fixes, in the order of the constraint "fact construction, then structure, then a simpler check":
+
+- **Facts.**
+  - Periods are marked "(running now)" or "(still to come)", and the current ones read "You are now in…". The model had called a running sub-period "upcoming".
+  - An own sub-period (the same lord as its Mahadasha) states the houses that lord rules.
+  - A field with no obstacle reads "The chart shows no specific obstacle to it." The old ending "which is not a guarantee" was echoed by the model and then refused.
+- **Structure.**
+  - A next step is checked against the facts it cites plus the section's planning dates.
+  - Restating a printed placement is an advisory (recorded in `onSection` and the `advisories` metric), not a rejection.
+- **Simpler checks.**
+  - Only affirmative promises are refused: "you will succeed", "will bring you success", "this ensures", "is guaranteed". Negations and purpose clauses pass ("no guarantee", "to ensure clarity", "adaptability will become important").
+  - A house placement must be direct: "<planet> [≤3 words] in (the|your) [Sign and the] Nth house". It is not read across "…position and high support for your 3rd and 11th houses" or "…placement and a weak 2nd house".
+  - "Work/career/professional chart" means the D10.
+  - A yoga is known if its name, with or without "Yoga", is in the facts.
+  - The guard's "now/current" must sit within about 50 characters of its period.
+  - The one new rule is narrow and factual: a period running now is refused when called upcoming or approaching, including in a list ("upcoming Mercury and Ketu sub-periods").
+  - The existing strength check also recognises "the Sun well-placed".
+
+**Offline replay** (`tests/unit/career-live-replay.test.ts`, records in `tests/fixtures/career-live-f729c61/`). The recorded replies were served to the corrected pipeline:
+- Delhi completes with no correction.
+- Belagavi completes with one correction (the debilitated Sun called well placed; a short synthesis).
+- Mumbai stops at one correction the live run never made. Its recorded Periods synthesis says "Upcoming Mercury and Ketu sub-periods" while the Mercury Antardasha is running: a real error, now refused.
+
+
 
 `npx tsx scripts/evaluate-career.ts --run` needs a dedicated non-production `NAVAGRAHA_CAREER_EVAL_API_KEY`. It writes one synthetic report (Delhi, 1985-03-22 06:15) under the same limits and saves the report and every section attempt (text, problems, dropped slots) to a private (0600) temporary file, also on failure. Only this script passes the `onSection` hook; the order path never logs model text.
 

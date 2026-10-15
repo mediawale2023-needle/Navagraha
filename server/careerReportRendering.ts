@@ -52,11 +52,21 @@ export function parseSectionReply(content: string | null | undefined): { reply?:
 
 const ORDINALS = ['first', 'second', 'third', 'fourth', 'fifth', 'sixth', 'seventh', 'eighth', 'ninth', 'tenth', 'eleventh', 'twelfth'];
 const ord = (n: number) => `${n}${n === 1 ? 'st' : n === 2 ? 'nd' : n === 3 ? 'rd' : 'th'}`;
-// A tendency may be stated; an outcome may not be promised. "will" is refused only before an outcome verb
-// ("will bring", "will favour", "will come to the fore") and not when hedged ("will likely bring");
-// "will need to", "will begin on" or "small steps will tell you more" pass.
-const OUTCOME = 'bring|favou?r|see|experience|come|lead|open|result|thrive|flourish|prosper|excel|succeed|achieve|get|become|earn|receive|land|win|rise|grow|gain|attract|enjoy|face|shine|be (?:successful|promoted|recogni[sz]ed|rewarded|prosperous)';
-const PROMISE = new RegExp(`\\bwill\\s+(?:(?:definitely|certainly|surely|soon)\\s+)?(?:${OUTCOME})\\b|\\b(?:shall|guarantee\\w*|ensures?|destined|is bound to|are bound to|certainly|definitely)\\b|\\b(?:brings?|promis\\w*|confers?|grants?)\\b[^.!?]{0,40}\\b(?:success|fame|wealth|prosperity|status)\\b|\\b(?:indicat\\w*|signal\\w*|mean\\w*)\\s+(?:a\\s+|an\\s+)?(?:favou?rable|strong|great|certain|assured)\\b[^.!?]{0,40}\\b(?:success|fame|wealth|prosperity|status)\\b`, 'i');
+// A tendency may be stated; an outcome may not be promised. Only affirmative promises are refused, tied to
+// who or what is promised: "you will succeed", "will bring you success", "this ensures", "is guaranteed".
+// Negations ("no guarantee", "not guaranteed"), purposes ("to ensure clarity") and ordinary futures
+// ("adaptability will become important", "you will need to") pass.
+const PROMISE = new RegExp([
+  String.raw`\b(?:you|your career|your work|your business)\s+will\s+(?:definitely\s+|certainly\s+|surely\s+)?(?:succeed|thrive|flourish|prosper|excel|achieve|get|earn|receive|land|win|rise|gain|attract|enjoy|be (?:successful|promoted|recogni[sz]ed|rewarded|prosperous))\b`,
+  String.raw`\bwill\s+(?:bring|give|grant)\s+(?:you\s+)?(?:success|wealth|fame|status|promotion|recognition|prosperity)\b`,
+  String.raw`\bwill\s+(?:favou?r|come to the fore|guarantee|ensure)\b`,
+  String.raw`\b(?:this|that|it|which|these|they|the period|the placement|the yoga|your chart)\s+(?:guarantees|ensures)\b`,
+  String.raw`\b(?:is|are)\s+guaranteed\b|\b(?:destined|is bound to|are bound to)\b`,
+  String.raw`\b(?:brings?|promis\w*|confers?|grants?)\b[^.!?]{0,40}\b(?:success|fame|wealth|prosperity|status)\b`,
+  String.raw`\b(?:indicat\w*|signal\w*|mean\w*)\s+(?:a\s+|an\s+)?(?:favou?rable|strong|great|certain|assured)\b[^.!?]{0,40}\b(?:success|fame|wealth|prosperity|status)\b`,
+].join('|'), 'i');
+/** "work chart", "career chart" and "professional chart" are the model's names for the D10. */
+const D10_NAMES = /\b(?:work|career|professional) chart\b/gi;
 const REMEDY = /\b(gemstones?|sapphire|ruby|emerald|pearl|coral|wear (?:a|an) \w+|mantras?|pujas?|poojas?|rituals?|fasting)\b/i;
 const INTERNAL = /\bwork_?style\b|\bfact ?ids?\b|\bJSON\b/i;
 const DEGREE = /\d\s*°|\bdegrees?\b/i;
@@ -66,6 +76,7 @@ const EMPLOYED = /\b(employment|employed roles?|a job|salaried|working for an or
 const INDEPENDENT = /\b(self-employ\w*|self-directed|independent(?:,? \w+)? (?:work|settings?|roles?|ventures?|paths?|pursuits?|projects?|initiatives?)|working independently|working for yourself|your own (?:business|venture|firm|practice)|freelanc\w*)\b/i;
 const STOCK = /\b(natural leader|inspire others|great candidate|shine in your career|unlock (?:your )?(?:full )?potential|sky is the limit|carefully crafted|dynamic and fulfilling)\b/i;
 const STRONG_WORDS = '(?:strong|powerful|excellent|exceptional|well[- ]placed|dominant)';
+const LINKING = '(?:\\s+(?:is|remains|appears|seems|looks|very|particularly|quite|also|still)){0,2}';
 const MIX = /\b(mix\w*|blend\w*|both|alongside|combin\w*|balanc\w*|as well as|hybrid|between|either)\b/i;
 const RECOMMEND = /\b(recommend\w*|ideal|best|pursue|go for|well suited|strong choice|excellent choice|promising)\b/i;
 const QUALIFIED = /\b(not|less|weak\w*|limited|unlikely|caution|avoid|only if|secondary)\b/i;
@@ -74,11 +85,13 @@ const QUALIFIED = /\b(not|less|weak\w*|limited|unlikely|caution|avoid|only if|se
 export function houseClaimProblems(text: string, evidence: CareerReportFacts, defaultChart: 'D1' | 'D10' = 'D1'): string[] {
   const problems: string[] = [];
   const planets = GRAHAS.join('|');
-  const claim = new RegExp(`\\b(${planets})\\b(?:['’]s?)?((?:(?!\\b(?:${planets})\\b)[^.!?;]){0,60}?)\\b(?:the\\s+)?(?:D(?:1|10)(?:['’]s)?\\s+)?(?:(\\d{1,2})(?:st|nd|rd|th)|(${ORDINALS.join('|')}))\\s+house`, 'gi');
-  for (const sentence of text.split(SENTENCES)) {
+  // Only a direct placement: "<planet> [up to three words] in (the|your) [Sign and the] Nth house". A house named
+  // in another clause ("…position, and your 11th house support") or beside another noun ("…placement and a
+  // weak 2nd house") is not placed by the planet.
+  const claim = new RegExp(`\\b(${planets})\\b(?:['’]s?)?((?:\\s+[\\w'’-]+){0,3}?)\\s+(?:in|into|occupies|occupying|holding)\\s+(?:(?:the|your|its)\\s+)?(?:[A-Z][a-z]+\\s+(?:and|&)\\s+(?:the\\s+|your\\s+)?)?(?:D(?:1|10)(?:['’]s)?\\s+)?(?:(\\d{1,2})(?:st|nd|rd|th)|(${ORDINALS.join('|')}))\\s+house`, 'gi');
+  for (const sentence of text.replace(D10_NAMES, 'D10').split(SENTENCES)) {
     for (const m of Array.from(sentence.matchAll(claim))) {
-      if (!/\b(?:in|into|occup\w*|placed|placement|posited|position\w*|situated|located|sits?|resid\w*|holding)\b/i.test(m[2])) continue;
-      if (/\b(?:rul\w*|lord\w*|own\w*|govern\w*|roles?|aspect\w*|influence\w*|over|from|points?|bindus?|score|tally)\b/i.test(m[2])) continue;
+      if (/\b(?:rul\w*|lord\w*|govern\w*|roles?|aspect\w*|influence\w*)\b/i.test(m[2])) continue;
       const house = m[3] ? Number(m[3]) : ORDINALS.indexOf(m[4].toLowerCase()) + 1;
       const planet = GRAHAS.find((g) => g.toLowerCase() === m[1].toLowerCase())!;
       // A chart named earlier in the sentence counts only when no other planet comes first.
@@ -99,7 +112,12 @@ export function houseClaimProblems(text: string, evidence: CareerReportFacts, de
  * guard then checks the text against the whole chart.
  */
 export function slotProblems(text: string, kind: keyof typeof LENGTH, facts: CareerFact[], evidence: CareerReportFacts): string[] {
-  const problems: string[] = [];
+  return slotCheck(text, kind, facts, evidence).problems;
+}
+
+/** Problems block a slot; advisories (restating the printed placement) are recorded only. */
+export function slotCheck(text: string, kind: keyof typeof LENGTH, facts: CareerFact[], evidence: CareerReportFacts): { problems: string[]; advisories: string[] } {
+  const problems: string[] = [], advisories: string[] = [];
   const factText = facts.map((f) => f.text).join('\n');
   const allowed = namesIn(factText);
   const n = countWords(text);
@@ -111,7 +129,8 @@ export function slotProblems(text: string, kind: keyof typeof LENGTH, facts: Car
   for (const m of Array.from(text.matchAll(new RegExp(`\\b(${ORDINALS.join('|')})\\s+house`, 'gi')))) if (!factText.includes(ord(ORDINALS.indexOf(m[1].toLowerCase()) + 1))) problems.push(`mentions the ${m[0]}, which these facts do not`);
   for (const y of text.match(/\b(?:19|20|21)\d{2}\b/g) ?? []) if (!factText.includes(y)) problems.push(`mentions ${y}, which these facts do not`);
   for (const m of Array.from(text.matchAll(/\b(January|February|March|April|May|June|July|August|September|October|November|December)\s+(\d{4})\b/g))) if (!factText.includes(m[0])) problems.push(`mentions ${m[0]}, which these facts do not`);
-  for (const m of Array.from(text.matchAll(/\b((?:[A-Z][a-z]+[ -])*[A-Z][a-z]+) Yoga\b/g))) if (!factText.includes(m[0]) && !/^(This|The|That|A|Each|Any|No|Its|Your|Such)\b/.test(m[1])) problems.push(`names ${m[0]}, which these facts do not`);
+  // "Neecha Bhanga Yoga" names the fact's "Neecha Bhanga": a yoga is known if its name, with or without "Yoga", is.
+  for (const m of Array.from(text.matchAll(/\b((?:[A-Z][a-z]+[ -])*[A-Z][a-z]+) Yoga\b/g))) if (!factText.includes(m[0]) && !factText.includes(m[1]) && !/^(This|The|That|A|Each|Any|No|Its|Your|Such)\b/.test(m[1])) problems.push(`names ${m[0]}, which these facts do not`);
   if (DEGREE.test(text)) problems.push('states degrees, which the facts do not');
   if (PROMISE.test(text)) problems.push('states an outcome as certain; describe it as a tendency (may, can, tends to)');
   if (REMEDY.test(text)) problems.push('suggests a remedy');
@@ -119,15 +138,26 @@ export function slotProblems(text: string, kind: keyof typeof LENGTH, facts: Car
   if (STOCK.test(text)) problems.push(`uses a stock phrase ("${text.match(STOCK)![0]}"); say something specific to these facts`);
   // Restating the fact: the fact is printed just before, so "Jupiter in Capricorn in your 11th house" adds nothing.
   for (const m of Array.from(factText.matchAll(/\b(?:in )?(Aries|Taurus|Gemini|Cancer|Leo|Virgo|Libra|Scorpio|Sagittarius|Capricorn|Aquarius|Pisces) in (?:your|the D10's|the) (\d+\w\w) house/g))) {
-    if (new RegExp(`\\b${m[1]}\\b[^.!?]{0,15}\\b${m[2]}\\b`).test(text)) { problems.push(`restates the fact (${m[1]}, ${m[2]} house); explain what it means instead`); break; }
+    if (new RegExp(`\\b${m[1]}\\b[^.!?]{0,15}\\b${m[2]}\\b`).test(text)) { advisories.push(`restates the fact (${m[1]}, ${m[2]} house)`); break; }
   }
   // Strength claims: a planet may be called strong only when its fact's chart gives it a strong dignity.
   const d10 = facts.every((f) => f.chart === 'D10');
   for (const g of GRAHAS) {
-    const claim = new RegExp(`\\b(?:the\\s+)?${g}(?:['’]s)?\\s+(?:${STRONG_WORDS}\\s+(?:position|placement|influence|presence)|is\\s+(?:very\\s+|particularly\\s+)?${STRONG_WORDS})|\\b${STRONG_WORDS}\\s+(?:the\\s+)?${g}\\b`, 'i');
+    // "the Sun well-placed", "Mercury's strong influence", "Saturn is strong", "a strong Venus"
+    const claim = new RegExp(`\\b(?:the\\s+)?${g}(?:['’]s)?${LINKING}\\s+${STRONG_WORDS}\\b|\\b${STRONG_WORDS}\\s+(?:the\\s+)?${g}\\b`, 'i');
     if (!claim.test(text)) continue;
     const dignity = d10 ? signDignity(g, evidence.chart.vargas.D10.placements.find((p) => p.planet === g)!.signIndex) : evidence.chart.strength.dignities.find((d) => d.planet === g)?.dignity;
     if (!['Exalted', 'Moolatrikona', 'Own sign'].includes(dignity ?? '')) problems.push(`overstates ${g}'s strength (${(dignity ?? 'no special dignity').toLowerCase()} in the ${d10 ? 'D10' : 'birth chart'})`);
+  }
+  // A period running now is never "upcoming": the facts say "running now", so this is a plain timing error.
+  const now = (p: { start: string; end: string }) => Date.parse(p.start) <= +evidence.asOf && +evidence.asOf < Date.parse(p.end);
+  const md = evidence.chart.dashas.vimshottari.mahadashas.find(now), ad = md?.antardashas.find(now);
+  for (const [lord, level] of [[md?.lord, 'Mahadasha'], [ad?.lord, 'Antardasha|sub-?period']] as const) {
+    if (!lord) continue;
+    // Also in a list: "upcoming Mercury and Ketu sub-periods", "the coming Ketu and Mercury periods".
+    const other = `(?:[A-Z][a-z]+(?:['’]s)?\\s+(?:and|&)\\s+)?`;
+    const period = `${other}${lord}(?:['’]s)?\\s+(?:(?:and|&)\\s+[A-Z][a-z]+(?:['’]s)?\\s+)?(?:${level}|period|phase)s?`;
+    if (new RegExp(`\\b(?:upcoming|approaching|forthcoming|coming|next)\\s+(?:the\\s+)?${period}\\b|\\b${period}\\b[^.!?]{0,25}\\b(?:approaches|approach|is approaching|will begin|is about to begin|begins soon|is coming)\\b`, 'i').test(text)) problems.push(`calls the ${lord} ${level.split('|')[0]} upcoming, but it is running now`);
   }
   for (const s of text.split(SENTENCES)) {
     if (FAVOUR.test(s) && !MIX.test(s)) {
@@ -138,9 +168,10 @@ export function slotProblems(text: string, kind: keyof typeof LENGTH, facts: Car
   }
   problems.push(...houseClaimProblems(text, evidence, d10 ? 'D10' : 'D1'));
   // The guard reads an unnamed chart as D1; explanations of D10 facts are about the D10 unless they say otherwise.
-  const scoped = d10 ? text.split(SENTENCES).map((x) => (/\bD1\b|\bD10\b|Dasamsa|birth chart|natal/i.test(x) ? x : `In the D10, ${x.charAt(0).toLowerCase()}${x.slice(1)}`)).join(' ') : text;
+  const named = text.replace(D10_NAMES, 'D10');
+  const scoped = d10 ? named.split(SENTENCES).map((x) => (/\bD1\b|\bD10\b|Dasamsa|birth chart|natal/i.test(x) ? x : `In the D10, ${x.charAt(0).toLowerCase()}${x.slice(1)}`)).join(' ') : named;
   problems.push(...textProblems(scoped, { chart: evidence.chart, factsText: factText, asOf: evidence.asOf }, 0));
-  return Array.from(new Set(problems));
+  return { problems: Array.from(new Set(problems)), advisories };
 }
 
 /**
@@ -151,16 +182,18 @@ export function checkSectionReply(section: CareerSectionFacts, reply: SectionRep
   const accepted: SectionText = new Map();
   const required = new Map<string, string[]>();
   const dropped = new Map<string, string[]>();
+  const advisories = new Map<string, string[]>();
+  const check = (id: string, text: string, kind: keyof typeof LENGTH, facts: CareerFact[]) => { const c = slotCheck(text, kind, facts, evidence); if (c.advisories.length) advisories.set(id, c.advisories); return c.problems; };
   const want = (id: string) => !only || only.includes(id);
   for (const fact of section.facts.filter((f) => f.explain && want(f.id))) {
     const text = reply.explanations[fact.id]?.trim();
-    const problems = text ? slotProblems(text, 'explanation', [fact], evidence) : ['missing'];
+    const problems = text ? check(fact.id, text, 'explanation', [fact]) : ['missing'];
     if (!problems.length) accepted.set(fact.id, { text: text! });
     else (fact.required ? required : dropped).set(fact.id, problems);
   }
   if (want(SYNTHESIS)) {
     const text = reply.synthesis?.trim();
-    const problems = text ? slotProblems(text, 'synthesis', section.facts, evidence) : ['missing'];
+    const problems = text ? check(SYNTHESIS, text, 'synthesis', section.facts) : ['missing'];
     if (!problems.length) accepted.set(SYNTHESIS, { text: text! });
     else required.set(SYNTHESIS, problems);
   }
@@ -168,7 +201,9 @@ export function checkSectionReply(section: CareerSectionFacts, reply: SectionRep
     const good: Array<{ text: string; factIds: string[] }> = [];
     reply.steps.slice(0, MAX_STEPS).forEach((step, i) => {
       const facts = step.factIds.map((id) => section.facts.find((f) => f.id === id));
-      const problems = !facts.length ? ['cites no fact'] : facts.some((f) => !f) ? ['cites an id that is not in this section'] : slotProblems(step.text.trim(), 'step', facts as CareerFact[], evidence);
+      // The section's unexplained facts (the planning dates) are always part of a step's evidence.
+      const context = section.facts.filter((f) => !f.explain && !step.factIds.includes(f.id));
+      const problems = !facts.length ? ['cites no fact'] : facts.some((f) => !f) ? ['cites an id that is not in this section'] : check(stepId(i), step.text.trim(), 'step', [...(facts as CareerFact[]), ...context]);
       if (problems.length) dropped.set(stepId(i), problems); else good.push({ text: step.text.trim(), factIds: step.factIds });
     });
     good.forEach((s, i) => accepted.set(stepId(i), s));
@@ -179,7 +214,7 @@ export function checkSectionReply(section: CareerSectionFacts, reply: SectionRep
     ].filter(Boolean) as string[];
     if (stepProblems.length) required.set('steps', [...stepProblems, ...Array.from(dropped).filter(([id]) => id.startsWith('step.')).map(([id, p]) => `${id}: ${p[0]}`)]);
   }
-  return { accepted, required, dropped };
+  return { accepted, required, dropped, advisories };
 }
 
 // ── Prompt ───────────────────────────────────────────────────────────────────

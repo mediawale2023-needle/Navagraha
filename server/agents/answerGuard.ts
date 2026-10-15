@@ -470,8 +470,10 @@ export function validateAnswer(answer: string, ctx: GuardContext): string[] {
     for (let i = 0; i < periodClaims.length; i++) { const m = periodClaims[i];
       // "current" belongs to the period it sits beside: in "use the current Saturn Antardasha to prepare for
       // the Mercury Antardasha" only Saturn is claimed to run now. Each claim's span runs from the previous
-      // period mention to the next.
-      const span = s.slice(i ? periodClaims[i - 1].end : 0, periodClaims[i + 1]?.index ?? s.length);
+      // period mention to the next,
+      // and within ~50 characters of it: in "start building … now, preparing for … the Mercury Antardasha" the
+      // "now" is the reader's action, not the period's.
+      const span = s.slice(Math.max(i ? periodClaims[i - 1].end : 0, m.index - 50), Math.min(periodClaims[i + 1]?.index ?? s.length, m.end + 50));
       if (!CURRENT.test(span) || negatedBefore(s, m.index)) continue;
       const g = planetOf(m.planet);
       const antar = /antar|bhukti|sub/i.test(m.level);
