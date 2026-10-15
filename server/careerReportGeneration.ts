@@ -1,18 +1,17 @@
 import type OpenAI from 'openai';
-import { z } from 'zod';
 import { ReportGenerationError } from './reportQuality';
-import { buildFiveCareerEvidence, type CareerPacket } from './careerReportEvidence';
-import { fiveCareerPrompt, draftProse, renderCareerSection, careerMetadata, careerSummary, validateFiveCareerDraft, schemaIssues, type CareerDraft } from './careerReportRendering';
+import { buildCareerReportFacts, type CareerSectionFacts } from './careerReportEvidence';
+import { careerSectionPrompt, checkSectionReply, parseSectionReply, renderCareerSection, careerMetadata, careerSummary, MIN_STEPS, SYNTHESIS, type SectionText } from './careerReportRendering';
 
 export const CAREER_BUDGET_MICRO_USD = 250_000;
 export const CAREER_DEADLINE_MS = 6 * 60_000;
-export const MAX_CAREER_CORRECTIONS = 2;
-/** Per section: about 330 words plus JSON and citations used ~530 tokens live; 1100 keeps seven worst-case reservations near $0.24. */
-export const CAREER_OUTPUT_TOKENS = 1100;
+/** A first pass writes a whole section (at most 11 explanations, a synthesis, steps); a correction only its failed slots. With no usage reported, 5 whole sections and 5 whole re-requests stay under $0.25. */
+export const CAREER_OUTPUT_TOKENS = 1400;
+export const CAREER_CORRECTION_TOKENS = 900;
 export type CareerUsage = { prompt_tokens: number; completion_tokens: number };
 export interface CareerCompletion { choices: Array<{ finish_reason?: string | null; message: { content?: string | null } }>; usage?: CareerUsage | null }
 /** Evaluation only (synthetic charts): the order path never passes `onSection`, so model text is never logged. */
-export interface CareerSectionAttempt { heading: string; correcting: boolean; accepted: boolean; problems: string[]; content: string | null }
+export interface CareerSectionAttempt { heading: string; correcting: boolean; accepted: boolean; problems: string[]; dropped: string[]; content: string | null }
 export type CareerRequester = (prompt: string, options: { signal: AbortSignal; maxTokens: number }) => Promise<CareerCompletion>;
 
 /** One shared ledger per report; reserve() has no await, making admission atomic across workers. */
@@ -55,91 +54,90 @@ async function boundedRequest(request: CareerRequester, prompt: string, signal: 
   finally { signal.removeEventListener('abort', abort); }
 }
 
-// Echoed keys (e.g. a section heading) are dropped, not rejected.
-// A section may carry its blocks directly, mirroring the SECTIONS list the prompt shows.
-const envelope = z.object({
-  workStyle: z.preprocess((v) => (typeof v === 'string' ? v.trim().toLowerCase() : v), z.enum(['employment', 'entrepreneurship', 'mixed'])),
-  sections: z.array(z.object({ id: z.union([z.number(), z.string().regex(/^\d+$/)]).pipe(z.coerce.number().int()), draft: z.unknown().optional() }).passthrough()
-    .transform(({ id, draft, ...rest }) => ({ id, draft: draft ?? ('supporting' in rest || 'limiting' in rest || 'conclusion' in rest ? rest : undefined) }))).max(5),
-});
+const WHOLE = 'response';
+const sentenceKey = (s: string) => s.toLowerCase().replace(/[^a-z0-9 ]/g, '').replace(/\s+/g, ' ').trim();
 
-export async function generateDeterministicCareer(kundli: unknown, asOf: Date, request: CareerRequester, options: { ledger?: CareerSpending; onMetrics?: (m: { calls: number; corrections: number; costMicroUsd: number; firstPassAccepted: number }) => void; onSection?: (attempt: CareerSectionAttempt) => void } = {}) {
+export async function generateDeterministicCareer(kundli: unknown, asOf: Date, request: CareerRequester, options: { ledger?: CareerSpending; onMetrics?: (m: { calls: number; corrections: number; costMicroUsd: number; firstPassAccepted: number; optionalDropped: number }) => void; onSection?: (attempt: CareerSectionAttempt) => void } = {}) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), CAREER_DEADLINE_MS);
   const ledger = options.ledger ?? new CareerSpending();
-  const accepted = new Map<number, CareerDraft>();
-  const errors = new Map<number, string[]>();
+  const text = new Map<string, SectionText>();
+  const failing = new Map<string, Map<string, string[]>>();
+  const dropped = new Map<string, Map<string, string[]>>();
   let corrections = 0, firstPassAccepted = 0;
-  let workStyle: 'employment' | 'entrepreneurship' | 'mixed' | undefined;
   try {
-    const evidence = buildFiveCareerEvidence(kundli, asOf);
-    const reject = (packet: CareerPacket, problems: string[], content: string | null = null, correcting = false) => {
-      errors.set(packet.id, problems); accepted.delete(packet.id);
-      options.onSection?.({ heading: packet.heading, correcting, accepted: false, problems, content });
-      if (process.env.NAVAGRAHA_CAREER_EVAL_DIAGNOSTICS === '1') console.error('[career-eval]', JSON.stringify({ section: packet.heading, problems }));
-    };
-    // One section per request. A bad response costs only its own section, which the
-    // correction allowance can redo; a transport failure still ends the report.
-    const run = async (packet: CareerPacket, correcting = false) => {
+    const evidence = buildCareerReportFacts(kundli, asOf);
+    for (const s of evidence.sections) { text.set(s.key, new Map()); failing.set(s.key, new Map()); dropped.set(s.key, new Map()); }
+
+    // One request per section, all in parallel: the work style is the code's, so no section waits on another.
+    // A correction asks only for the failed slots; a whole failed response is asked for again whole.
+    const run = async (section: CareerSectionFacts, only?: Map<string, string[]>) => {
       if (controller.signal.aborted) throw new ReportGenerationError('Career deadline exceeded');
-      const prompt = fiveCareerPrompt(evidence, [packet], { workStyle, reasons: correcting ? [{ id: packet.id, problems: errors.get(packet.id)!.slice(0, 6).map((p) => p.slice(0, 160)) }] : undefined });
-      const ticket = ledger.reserve(prompt, CAREER_OUTPUT_TOKENS);
+      const correcting = !!only;
+      const prompt = careerSectionPrompt(evidence, section, only);
+      const maxTokens = only ? CAREER_CORRECTION_TOKENS : CAREER_OUTPUT_TOKENS;
+      const ticket = ledger.reserve(prompt, maxTokens);
       let result: CareerCompletion;
-      try { result = await boundedRequest(request, prompt, controller.signal, CAREER_OUTPUT_TOKENS); }
+      try { result = await boundedRequest(request, prompt, controller.signal, maxTokens); }
       catch { ledger.settle(ticket); throw new ReportGenerationError(controller.signal.aborted ? 'Career deadline exceeded' : 'Career transport failed; reservation retained'); }
       ledger.settle(ticket, result.usage);
       const content = result.choices[0]?.message.content ?? null;
-      if (result.choices[0]?.finish_reason !== 'stop') return reject(packet, ['incomplete-response: output truncated or refused'], content, correcting);
-      let raw: unknown;
-      try { raw = JSON.parse(result.choices[0]?.message.content ?? ''); }
-      catch { return reject(packet, ['invalid-json'], content, correcting); }
-      const parsed = envelope.safeParse(raw);
-      if (!parsed.success) return reject(packet, [`malformed output (${schemaIssues(parsed.error)})`], content, correcting);
-      if (workStyle && workStyle !== parsed.data.workStyle) return reject(packet, [`changed the established work-style conclusion (${workStyle})`], content, correcting);
-      workStyle = parsed.data.workStyle;
-      const ids = parsed.data.sections.map((s) => s.id);
-      if (new Set(ids).size !== ids.length || ids.some((id) => id !== packet.id)) return reject(packet, ['duplicate or unexpected section id'], content, correcting);
-      const checked = validateFiveCareerDraft(packet, parsed.data.sections[0]?.draft, evidence);
-      if (checked.draft) {
-        const text = draftProse(checked.draft);
-        const job = /\b(?:favou?rs?|recommend\w*|better suited to)\s+(?:structured\s+|salaried\s+)?(?:employment|service|a job)\b/i.test(text);
-        const business = /\b(?:favou?rs?|recommend\w*|better suited to)\s+(?:independent\s+)?(?:business|entrepreneurship|self-employment)\b/i.test(text);
-        if ((workStyle === 'employment' && business) || (workStyle === 'entrepreneurship' && job) || (workStyle === 'mixed' && (job !== business))) checked.problems.push('contradicts the common employment-versus-business conclusion');
+      const fail = failing.get(section.key)!, drop = dropped.get(section.key)!, accepted = text.get(section.key)!;
+      // A whole-section request replaces everything the section had; a correction replaces only its slots.
+      if (!only) { fail.clear(); drop.clear(); accepted.clear(); }
+      const parsed = result.choices[0]?.finish_reason !== 'stop' ? { problem: 'incomplete-response: output truncated or refused' } : parseSectionReply(content);
+      if (!parsed.reply) fail.set(WHOLE, [parsed.problem!]);
+      else {
+        const checked = checkSectionReply(section, parsed.reply, evidence, only ? Array.from(only.keys()).filter((k) => k !== WHOLE) : undefined);
+        fail.delete(WHOLE);
+        for (const id of only ? Array.from(only.keys()) : []) fail.delete(id);
+        if (checked.accepted.size && (!only || only.has('steps'))) for (const id of Array.from(accepted.keys())) if (id.startsWith('step.') && Array.from(checked.accepted.keys()).some((k) => k.startsWith('step.'))) accepted.delete(id);
+        checked.accepted.forEach((v, k) => accepted.set(k, v));
+        checked.required.forEach((v, k) => fail.set(k, v));
+        checked.dropped.forEach((v, k) => drop.set(k, v));
       }
-      if (checked.problems.length) reject(packet, checked.problems, content, correcting);
-      else { accepted.set(packet.id, checked.draft!); errors.delete(packet.id); options.onSection?.({ heading: packet.heading, correcting, accepted: true, problems: [], content }); }
+      const problems = Array.from(fail).map(([id, p]) => `${id}: ${p.join('; ')}`);
+      options.onSection?.({ heading: section.heading, correcting, accepted: !fail.size, problems, dropped: Array.from(drop).map(([id, p]) => `${id}: ${p.join('; ')}`), content });
+      if (process.env.NAVAGRAHA_CAREER_EVAL_DIAGNOSTICS === '1' && (fail.size || drop.size)) console.error('[career-eval]', JSON.stringify({ section: section.heading, correcting, required: problems, dropped: Array.from(drop.keys()) }));
     };
-    // Rule messages name chart facts and field paths, never the model's prose.
-    const failureSummary = () => Array.from(errors).map(([id, problems]) => `${evidence.packets[id].heading}: ${problems.slice(0, 3).map((p) => p.slice(0, 160)).join('; ')}`).join(' | ');
-    const crossCheck = () => {
-      const seen = new Set<string>();
-      // Shared indicators are legitimate; identical interpretation paragraphs add no value.
-      for (const packet of evidence.packets) {
-        const draft = accepted.get(packet.id);
-        if (!draft) continue;
-        for (const b of Object.values(draft)) {
-          const key = b.text.toLowerCase().replace(/\s+/g, ' ').trim();
-          if (seen.has(key)) { errors.set(packet.id, ['repeated interpretation paragraph']); accepted.delete(packet.id); }
-          else seen.add(key);
+
+    // The same sentence in two places adds nothing: the later copy is dropped, or corrected when required.
+    const repetition = () => {
+      const seen = new Map<string, string>();
+      for (const section of evidence.sections) {
+        for (const [id, slot] of Array.from(text.get(section.key)!)) {
+          const repeated = slot.text.split(/(?<=[.!?])\s+/).map(sentenceKey).find((k) => k.split(' ').length >= 8 && seen.has(k) && seen.get(k) !== `${section.key}/${id}`);
+          if (repeated) {
+            text.get(section.key)!.delete(id);
+            const required = id === SYNTHESIS || id.startsWith('step.') || section.facts.find((f) => f.id === id)?.required;
+            (required ? failing : dropped).get(section.key)!.set(id.startsWith('step.') ? 'steps' : id, [`repeats a sentence from ${evidence.sections.find((s) => s.key === seen.get(repeated)!.split('/')[0])!.heading}`]);
+          } else for (const s of slot.text.split(/(?<=[.!?])\s+/).map(sentenceKey)) if (s.split(' ').length >= 8 && !seen.has(s)) seen.set(s, `${section.key}/${id}`);
         }
       }
     };
-    // Career Overview settles the work-style conclusion the other four sections are written to.
-    const [overview, ...rest] = evidence.packets;
-    await run(overview);
-    if (!workStyle) throw new ReportGenerationError(`Career quality check: Career Overview gave no usable work-style conclusion; no additional calls. ${failureSummary()}`);
-    await Promise.all(rest.map((packet) => run(packet)));
-    crossCheck(); firstPassAccepted = accepted.size;
-    if (errors.size > MAX_CAREER_CORRECTIONS) throw new ReportGenerationError(`Career quality check: systematic first-pass failure; no additional calls. ${failureSummary()}`);
-    const rejected = Array.from(errors.keys());
-    corrections = rejected.length;
-    await Promise.all(rejected.map((id) => run(evidence.packets[id], true)));
-    crossCheck();
-    if (errors.size || accepted.size !== 5) throw new ReportGenerationError(`Career quality check: sections remain invalid after bounded correction. ${failureSummary()}`);
+    // Every required explanation, the synthesis and (Guidance) the minimum of steps must be present.
+    const complete = (section: CareerSectionFacts) => {
+      const t = text.get(section.key)!, fail = failing.get(section.key)!;
+      for (const f of section.facts) if (f.required && f.explain && !t.has(f.id) && !fail.has(f.id)) fail.set(f.id, ['missing']);
+      if (!t.has(SYNTHESIS) && !fail.has(SYNTHESIS)) fail.set(SYNTHESIS, ['missing']);
+      if (section.steps && Array.from(t.keys()).filter((k) => k.startsWith('step.')).length < MIN_STEPS && !fail.has('steps')) fail.set('steps', ['too few next steps']);
+      return !fail.size;
+    };
+    const summary = () => evidence.sections.filter((s) => failing.get(s.key)!.size).map((s) => `${s.heading}: ${Array.from(failing.get(s.key)!).slice(0, 3).map(([id, p]) => `${id} ${p[0]}`.slice(0, 160)).join('; ')}`).join(' | ');
+
+    await Promise.all(evidence.sections.map((s) => run(s)));
+    repetition();
+    firstPassAccepted = evidence.sections.filter(complete).length;
+    const toCorrect = evidence.sections.filter((s) => failing.get(s.key)!.size);
+    corrections = toCorrect.length;
+    // One correction round, in parallel; anything still failing fails the order (refunded by the order path).
+    await Promise.all(toCorrect.map((s) => { const f = failing.get(s.key)!; return f.has(WHOLE) ? run(s) : run(s, new Map(f)); }));
+    if (toCorrect.length) repetition();
+    if (!evidence.sections.every(complete)) throw new ReportGenerationError(`Career quality check: required explanations still invalid after one correction round. ${summary()}`);
     if (controller.signal.aborted) throw new ReportGenerationError('Career deadline exceeded');
-    return { title: 'Career & Profession Report', summary: careerSummary(evidence), sections: evidence.packets.map((p) => ({ heading: p.heading, body: renderCareerSection(p, accepted.get(p.id)!) })), remedies: [] as string[], ...careerMetadata(evidence, kundli), generatedAt: asOf.toISOString() };
+    return { title: 'Career & Profession Report', summary: careerSummary(evidence), sections: evidence.sections.map((s) => ({ heading: s.heading, body: renderCareerSection(s, text.get(s.key)!) })), remedies: [] as string[], ...careerMetadata(evidence, kundli), generatedAt: asOf.toISOString() };
   } finally {
     controller.abort(); clearTimeout(timer);
-    options.onMetrics?.({ calls: ledger.calls, corrections, costMicroUsd: ledger.spent + ledger.reserved, firstPassAccepted });
+    options.onMetrics?.({ calls: ledger.calls, corrections, costMicroUsd: ledger.spent + ledger.reserved, firstPassAccepted, optionalDropped: Array.from(dropped.values()).reduce((n, m) => n + m.size, 0) });
   }
 }

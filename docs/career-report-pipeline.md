@@ -1,51 +1,63 @@
-# Career report evidence pipeline
+# Career report pipeline (facts-first)
 
-## Incident and change
+## Why this design
 
-Order c4e71a76-65d9-42ad-89fe-c246672d2a0b stopped after three calls because eight sections failed and the previous regeneration cutoff was five. The first-pass diagnostics do not preserve the rejected D10 sentence, so its exact cause cannot be inferred. Prior prompts competed for a shared 4,000-token output, called length a guide while checks enforced minima, and required a shortened cancellation name that the required-evidence matcher rejected. PR #114 repaired label recognition but retained free-form factual generation.
+Six live evaluations of the free-prose design (PR #116) failed. In that design the model wrote every placement, date and conclusion in its own words, and about fifteen pattern rules tried to verify that prose. Across the last three runs about 22 rejections included no factual error about the chart: they rejected correct text (a fact cited in the wrong block, a field word near "roles", "could present challenges", the required work-style sentence). Meanwhile two factual errors passed ("Mars … the 11th house", "Mercury holding the 10th position"). Rules written for free prose conflict with each other and leak, and all-or-nothing gating made a complete report unlikely.
 
-The supplied 1991-11-13 12:30 Belagavi chart reproduces Jupiter in Leo in D1 and Capricorn in D10; Venus in Virgo in D1 and Leo in D10. Saturn Antardasha within Jupiter Mahadasha starts 2027-01-21 and ends 2029-08-03. These values come from the existing engine, not a model or replacement astronomy library.
+The facts-first design removes the cause: **code writes every astrological statement; the model only explains statements it is given.**
 
-## Five-section design (supersedes the ten-section draft in PR #115)
+## Structure
 
-The ten independent section calls in PR #115 failed live evaluation repeatedly. The report now has five coordinated sections, written in one request: **Career Overview**, **Favourable & Difficult Periods**, **Your Birth Chart**, **Current Career Situation**, **Personalised Guidance**.
+`careerReportEvidence.ts` recomputes the stored birth with the canonical engine. It refuses a stored chart the engine does not reproduce, and an approximate birth time, before any request. `buildCareerReportFacts` then writes reader-facing sentences, each with an id:
 
-## Authority and rendering
+| Section | Facts (code) | Required explanations |
+|---|---|---|
+| Career Overview | work style (6th vs 7th house support and the business rating); the two best-supported fields; the best-placed and most challenged career planets | all four |
+| Favourable & Difficult Periods | every Mahadasha/Antardasha overlapping the next four years, with engine dates and a tone (supportive / mixed / demanding) with its reasons from the lord's dignity, houses ruled and occupied, and D10 placement | every period |
+| Your Birth Chart | Lagna; 10th house (sign, occupants, aspects, support); 10th lord (D1 and D10); D10 Lagna; D10 10th house; career significators; up to four career-linked yogas; D10 birth-time caveat | 10th house, 10th lord, D10 Lagna, D10 10th |
+| Current Career Situation | running Mahadasha and Antardasha with dates, lords' condition, houses ruled and D10; the next sub-period | Mahadasha, Antardasha |
+| Personalised Guidance | the six field assessments with their reasons; planning dates | every field rated well supported or mixed; at least 3 next steps |
 
-`careerReportEvidence.ts` recomputes the stored resolved birth input with the unchanged canonical engine and compares placements, angles, houses, aspects, divisional charts, periods, yogas and strengths. A mismatch fails before spending; this pipeline never silently updates a chart. Each report freezes one `asOf` instant. Approximate birth times are refused before any request (the order route also refuses them before any charge).
+Every section also requires a synthesis. Optional explanations cover the Lagna, the significators, the yogas, a weak field and the next sub-period; caveats and planning dates are shown without an explanation. The work style is decided by code, so no section waits for another and the model cannot contradict it. Yoga descriptions keep the engine's configuration only, never its one-line promise ("status and success").
 
-`buildFiveCareerEvidence` regroups the verified facts of `buildCareerEvidence` into five packets without calculating anything new. Favourable & Difficult Periods lists every Vimshottari Mahadasha and Antardasha that overlaps the four years after `asOf`, with the engine's exact boundaries, plus each period lord's D1 and D10 placement. Current Career Situation keeps only the running Mahadasha and Antardasha. Your Birth Chart covers the D1 Lagna, the 10th house and its lord, significators and aspects, D10, the D1/D10 comparison and the detected yogas. No birth name, coordinates or private customer details are sent to the model.
+## Generation
 
-Code renders the factual skeleton of every section: a "Terms used in this section" glossary owned by the application (`CAREER_DEFINITIONS`, only the terms that appear), the numbered verified evidence, the birth-time caveat, field ratings and yoga conditions. The model returns, per section, three interpretation blocks (supporting, limiting, conclusion) with fact references, plus one shared `workStyle` (employment / entrepreneurship / mixed) that every section must agree with. Block contexts are derived from the cited facts, not trusted from the model. The server renders PDF/UI chart tables from canonical data; legacy projections cannot reintroduce conflicting facts. Optional AI remedies are omitted.
+One request per section, all five in parallel (`max_tokens` 1,400). The model returns `{explanations: {factId: text}, synthesis, steps?: [{factIds, text}]}`. Each explanation is printed directly after its fact, so citations cannot drift.
 
-## Validation policy
+`slotProblems` checks each piece of text against the facts it explains. Its vocabulary is closed: any planet, sign, house number, year, month-year or yoga it names must already be in those facts, and it may not state degrees. It also enforces:
+- the shared answer guard against the whole chart;
+- a planet placed in a house must match the calculated house;
+- no promised outcomes and no remedies;
+- no recommending a weakly supported field;
+- no contradicting the work style;
+- no internal terms;
+- length limits.
 
-**Citations are resolved by the application.** Live evaluation showed the model names the planets, periods, years and fields its section's facts support but does not reliably cite them in the same block (Saturn, Ketu, the Moon and 2032 were all in their sections' facts). Before any check, `resolveCitations` attaches, for anything a block names without citing, that section's own matching fact: a planet's D1/D10 placement and periods, a field's assessment, the period covering a year or the fact stating a date. Every check then runs unchanged against it: a placement must match the attached fact, a weak field must not be recommended, a year must lie inside a cited period. Nothing outside the section is attached, so a planet, field, year or date the section has no fact for is still rejected, and a conclusion is resolved only against facts already cited in the supporting or limiting block. The attached facts appear in the rendered evidence references. Career Overview carries the field assessments (it names a direction); Your Birth Chart, Favourable & Difficult Periods and Current Career Situation have none and are told not to name fields.
+A sentence of eight or more words repeated anywhere in the report is removed from the later section.
 
-**House placements, running periods, internal terms (review of the d5705f6 evaluation).** A planet placed in a house in prose ("Mars' placement in Moolatrikona and the 11th house") must match the calculated house in the chart named in that claim, or D1 (`houseClaimProblems`); rulership, aspect, influence and bindu statements name a house without placing a planet and are not checked. The live run accepted that Mars sentence (Mars is in D1 house 2) before this check existed. Current Career Situation must name each running period (the accepted live section never mentioned the running Saturn Antardasha). The JSON key `workStyle` may not appear in prose. A correct placement keeps the model's wording and gains its chart after it ("the Moon in Pisces in D1"); the earlier rewrite produced "the combust state of the in D1, Moon is in Pisces". The shared guard reads "present" as "now" only in its time sense, so "could present challenges" about an upcoming period is no longer taken as a claim that it runs now (this also applies to Ask). A conclusion's citation of a fact not weighed above is dropped when its text does not rely on it; one that does still fails.
+**Coverage, per section, never as a percentage.**
+- An invalid optional explanation is dropped and its fact still shows.
+- An invalid or missing required slot is requested again in **one correction round**. The correction asks only for the failed slots (`max_tokens` 900); a truncated or malformed reply is asked for again whole.
+- Anything required that is still invalid fails the order, which is refunded by the existing path.
+- A transport failure ends the report.
 
-**Response shape.** The model's JSON is checked structurally before any content rule. Block `contexts` are not required from the model and are ignored when present: they are derived from the cited facts (the prompt says the application renders them). A section may come with or without its `draft` wrapper; echoed keys such as a heading are dropped; an id may be a numeric string, `workStyle` any case, and a block's `text` an array of paragraphs (joined). `factIds` and `text` stay mandatory in all three blocks. A schema rejection names the failing field paths and codes (`supporting.text invalid_type`), never the model's text, and a failed report's error lists each rejected section with its first problems. The prompt shows the complete shape for all three blocks and states every rule the validator enforces (per-section citations, planets and placements only with a cited fact, dates only as cited, field names only with their assessment, the `mixed` work-style wording, no certainty).
+**Spending and time.**
+- One ledger reserves each call's worst case before dispatch: UTF-8 prompt bytes plus 128 at $2.50/M, and all permitted output tokens at $10/M. It refuses beyond $0.25.
+- With no usage reported at all, five sections plus five whole re-requests reserve at most about $0.236 on the test charts.
+- Missing usage, network failures and timeouts consume the reservation.
+- SDK retries are disabled.
+- The six-minute deadline aborts every request; two rounds of at most 120 seconds each fit well inside it.
 
-*Live failure (two evaluations, 0/5 sections, "schema" for all five, one call, $0.034825):* the strict schema required a non-empty `contexts` enum array in all 15 blocks and rejected unknown keys, while the prompt told the model that contexts are rendered by the application and showed the full shape for one block only. A uniform structural deviation of this kind fails every section of the response at once, and the validator discarded the schema issues, so the cause was not visible. `tests/unit/career-report-pipeline.test.ts` replays such responses ("realistic model response shapes").
+## Evaluation
 
-`validateFiveCareerDraft` checks each block: every reference must exist in that section; a named placement must match a cited fact (a correct placement without a chart name is scoped, e.g. "in D10, Jupiter is in Capricorn"); a planet named in prose must appear in a cited fact; field recommendations need their `D1.D10.field` assessment and weak fields may not be recommended; any date must appear in a cited fact and a stated Mahadasha/Antardasha start or end must equal the engine's boundary; certain outcomes and gemstone/ritual remedies are rejected; each block needs 45 words and each section 225. The shared answer guard (`textProblems`) then checks the prose against the whole chart (signs, houses, D1/D10 scope, yogas, dates). The conclusion may only use evidence weighed above. Across sections, an identical interpretation paragraph is rejected.
+`npx tsx scripts/evaluate-career.ts --run` needs a dedicated non-production `NAVAGRAHA_CAREER_EVAL_API_KEY`. It writes one synthetic report (Delhi, 1985-03-22 06:15) under the same limits and saves the report and every section attempt (text, problems, dropped slots) to a private (0600) temporary file, also on failure. Only this script passes the `onSection` hook; the order path never logs model text.
 
-These controls cannot prove that arbitrary natural-language interpretation is meaningful or fully justified. Reference validity is not semantic entailment. Human review and live-model evaluation are acceptance requirements.
+`tests/unit/career-report.test.ts` checks the facts against the engine for three charts (placements, D10, dates, running periods, the four-year window, the work style and the required slots) and that no engine shorthand or yoga promise reaches the reader. `tests/unit/career-report-pipeline.test.ts` uses realistic replies (`tests/fixtures/career-replies.ts`) to cover:
+- generation for three charts;
+- each kind of added fact being rejected, and the sentences the old checks wrongly rejected now passing;
+- optional drops, slot-only corrections, required coverage and next steps;
+- whole re-requests and repetition;
+- transport failure and refund, and delivery;
+- the deadline, the budget, and the evaluation hook.
 
-## Generation, corrections, spending and time
-
-**One request per section.** The single coordinated request was abandoned after live evaluation: on the synthetic Delhi chart ($0.029618, one call, finish reason `stop`) GPT-4o produced an estimated 1,500 output tokens in total, about 220 words per section, although `max_tokens` allowed 6,000, so four of five sections fell under the length minimum, and with more than two rejections the correction allowance could not recover. Career Overview is requested first and sets the shared `workStyle`; the other four sections are then requested in parallel, each told the established work style. Each request carries only its own section's facts (the shared request carried every section's facts; Saturn and the Moon were in their sections' facts but were discussed in blocks that did not cite them, which the per-block citation rule rightly rejects) and states per-block lengths (supporting and limiting at least 90 words, conclusion at least 80; the validator's minima of 45 per block and 225 per section are unchanged). `max_tokens` is 1,100 per section (about 530 were used live).
-
-A truncated, refused, malformed or wrongly identified response, or one that changes the established work style, rejects only its own section, which can be corrected. If Career Overview yields no usable work style the report fails at once. A transport failure ends the report. Rejected sections are corrected in parallel, each on its own with its listed problems, at most two (`MAX_CAREER_CORRECTIONS`); more than two first-pass rejections is a systematic failure and stops without further calls. Anything still invalid fails the order, and the existing path refunds it.
-
-**Period dates.** Period facts state their ranges in the guard's own format (`2029-09-19 → 2032-07-20`), so a year inside a cited, calculated period (for example 2030 inside that Mercury Antardasha) is accepted, as everywhere else in the app; a year with no covering period cited is still refused. The section requirements no longer state the four-year window's end date, which was a date outside the facts.
-
-One in-memory ledger per report reserves each call's worst case before dispatch (UTF-8 prompt bytes + 128 framing tokens at $2.50/M, all 1,100 permitted output tokens at $10/M) and limits settled plus reserved cost to $0.25. Missing or malformed usage, a network failure and a timeout consume the whole reservation. With no usage reported at all, five sections plus two corrections (correction problems capped at 6 of 160 characters) reserve at most about $0.242 on the test charts; an ordinary report should cost about $0.05 (about $0.07 with corrections). SDK retries are disabled. The whole report has a six-minute abort deadline: Career Overview, the parallel sections and the parallel corrections take at most 120 seconds each, which also rejects an adapter that ignores cancellation.
-
-This is a dispatch/spending-estimate ceiling, not a provider billing guarantee: price or tokenisation changes, provider-side processing after a disconnect and separately initiated invocations can make an invoice differ. Abort cannot retract a provider request.
-
-## Acceptance and evaluation
-
-`tests/unit/career-report-pipeline.test.ts` uses readable prose and canonical charts for the Belagavi, Delhi and Mumbai birth details. It checks the five headings from one request; that every rendered D1/D10 placement and every date matches the canonical chart and Vimshottari boundaries; the four-year window across a Mahadasha boundary; invented placements, yogas and dates; field recommendations; malformed, truncated, refused and empty responses; targeted correction of a missing and of a rejected section with accepted sections byte-identical; the two-correction limit; work-style consistency; the approximate-time refusal; the worst-case budget; the six-minute deadline; and delivery and refund through the existing order path. These demonstrate orchestration and deterministic contracts, not a live-model success rate.
-
-Live evaluation is opt-in: `npx tsx scripts/evaluate-career.ts --run`, with a dedicated non-production `NAVAGRAHA_CAREER_EVAL_API_KEY`. It never loads `.env`, touches a database or the order path, is bounded by the same $0.25 ceiling and six-minute deadline, prints usage metrics and saves the report and every section attempt (text, accepted or not, problems) to a private (0600) temporary file for human review, also when the run fails. Only this script passes the `onSection` hook; the order path never logs model text. **Live GPT-4o acceptance of the five-section report is UNVERIFIED.**
+These tests prove the contracts, not a live success rate. **Live acceptance is unverified until a generated report passes technical validation and a substantive quality review.**

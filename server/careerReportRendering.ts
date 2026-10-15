@@ -1,221 +1,79 @@
+/**
+ * Career report text: the prompt for one section, the checks on what the model returns, and the assembled
+ * section. Facts come from careerReportEvidence.ts; the model writes explanations attached to them, a
+ * synthesis and (Guidance) next steps. Its text may name only what the facts it explains already state.
+ */
 import { z } from 'zod';
 import { GRAHAS, SIGN_NAMES } from '@shared/v3/canonical';
-import { careerReportProblems, FIELDS } from './careerReport';
+import { FIELDS } from './careerReport';
 import { textProblems } from './reportQuality';
-import type { CareerPacket, CareerEvidenceSet } from './careerReportEvidence';
+import { CAREER_HEADINGS, namesIn, type CareerFact, type CareerReportFacts, type CareerSectionFacts } from './careerReportEvidence';
 
-export function careerSummary({ chart, brief, packets, asOf }: CareerEvidenceSet): string {
-  const tenth = chart.houses[9];
-  const lord = chart.planets.find((p) => p.name === tenth.lord)!;
-  const fields = brief.fields.filter((f) => f.rating !== 'weakly supported');
-  const periods = packets.find((p) => p.heading === 'Current Career Situation')!.facts.filter((f) => f.contexts.includes('Vimshottari')).map((f) => f.text).join(' ');
-  return `This Career & Profession Report uses the verified D1 birth chart and D10 professional chart as of ${asOf.toISOString().slice(0, 10)}. In D1, the 10th house is ${tenth.sign}; its lord ${tenth.lord} is in ${lord.sign}, house ${lord.house}. The D10 Lagna is ${brief.facts.d10LagnaSign}, ruled by ${brief.facts.d10LagnaLord}. These professional foundations are compared in the sections below, including the conditions that support or qualify their traditional interpretation. ${periods} The dates describe calculated periods, not promised professional events. ${fields.length ? `Fields warranting comparison under the existing assessment are ${fields.map((f) => `${f.label} (${f.rating})`).join(', ')}.` : 'No assessed field has sufficient support for a positive recommendation.'} Each field assessment includes its reasons and limits. The D10 reading depends on the accuracy of the recorded birth time. Actual skills, experience, resources and opportunities must also inform decisions; none can be established from a birth chart alone.`;
-}
+export const SYNTHESIS = 'synthesis';
+export const stepId = (i: number) => `step.${i + 1}`;
+export interface SectionReply { explanations: Record<string, string>; synthesis?: string; steps: Array<{ factIds: string[]; text: string }> }
+/** Accepted text per slot id: fact ids, `synthesis` and `step.N`. */
+export type SectionText = Map<string, { text: string; factIds?: string[] }>;
 
-/** PDF/UI tables must use the same authority as the narrative, never legacy projections. */
-export function careerMetadata({ chart, asOf }: CareerEvidenceSet, kundli: any) {
-  const positions = chart.planets.map((p) => ({ planet: p.name, sign: p.sign, house: p.house, degree: p.degreeInSign, retrograde: p.retrograde }));
-  const status = (p: { start: string; end: string }): 'past' | 'current' | 'upcoming' => Date.parse(p.start) > +asOf ? 'upcoming' : Date.parse(p.end) <= +asOf ? 'past' : 'current';
-  return {
-    birthDetails: { name: typeof kundli?.name === 'string' ? kundli.name : undefined, dateOfBirth: chart.birth.localDate, timeOfBirth: chart.birth.localTime, placeOfBirth: chart.birth.place, ascendant: chart.ascendant.sign, moonSign: chart.planets.find((p) => p.name === 'Moon')!.sign, sunSign: chart.planets.find((p) => p.name === 'Sun')!.sign, timeAccuracy: 'exact' as const },
-    planetaryPositions: positions,
-    chartData: { houses: chart.houses.map((h) => ({ house: h.house, sign: h.sign, planets: h.occupants })), planetaryPositions: positions.map((p) => ({ ...p, isRetrograde: p.retrograde })) },
-    dashaTimeline: chart.dashas.vimshottari.mahadashas.map((p) => {
-      const ad = p.antardashas.find((a) => status(a) === 'current');
-      return { planet: p.lord, startDate: p.start.slice(0, 10), endDate: p.end.slice(0, 10), status: status(p), currentAntardasha: ad ? { planet: ad.lord, startDate: ad.start.slice(0, 10), endDate: ad.end.slice(0, 10) } : null };
-    }),
-  };
-}
+export const countWords = (s: string) => (s.match(/[A-Za-z0-9'’-]+/g) ?? []).length;
+const SENTENCES = /(?<=[.!?])\s+/;
+const LENGTH = { explanation: [20, 90], synthesis: [80, 200], step: [12, 70] } as const;
+export const MIN_STEPS = 3, MAX_STEPS = 5;
 
-const block = z.object({ factIds: z.array(z.string()).min(1).max(40), contexts: z.array(z.enum(['D1', 'D10', 'Vimshottari'])).min(1).max(3), text: z.string().min(1).max(6000) }).strict();
-export const careerDraftSchema = z.object({ supporting: block, limiting: block, conclusion: block }).strict();
-export type CareerDraft = z.infer<typeof careerDraftSchema>;
-export const countCareerWords = (s: string) => (s.match(/[A-Za-z0-9'’-]+/g) ?? []).length;
+// ── Reply ────────────────────────────────────────────────────────────────────
 
-// Facts live in typed references and are rendered by code. Free prose cannot restate or
-// introduce placements, periods, combinations or professional-field recommendations.
-const FACT_PROSE = new RegExp(`\\b(${[...GRAHAS, ...SIGN_NAMES, 'D1', 'D10', 'Lagna', 'Dasamsa', 'Mahadasha', 'Antardasha', 'Vimshottari', 'yoga', 'yogas', 'nakshatra', 'ascendant', 'exalted', 'debilitated', 'combust', 'retrograde', 'kendra', 'trikona', 'dusthana', 'bindus', 'degrees', 'lord', 'lords'].join('|')})\\b|\\d|\\b(?:own sign|rising sign|planet|planets|house|houses|conjunct|conjunction|aspect|aspects|zodiac)\\b`, 'i');
-/**
- * A named planetary placement must cite that planet's verified placement
- * in the same chart and interpretation block.
- * Chart-wide accuracy is checked separately by textProblems().
- */
-function unsupportedPlacementClaims(
-  text: string,
-  factIds: string[],
-): string[] {
-  const problems: string[] = [];
-  const planetNames = GRAHAS.join('|');
-  const signNames = SIGN_NAMES.join('|');
+const prose = z.union([z.string(), z.array(z.string()).transform((xs) => xs.join(' '))]);
+const replySchema = z.object({
+  explanations: z.union([
+    z.record(z.string(), prose),
+    z.array(z.object({ id: z.string().optional(), factId: z.string().optional(), text: prose.optional(), explanation: prose.optional() }))
+      .transform((xs) => Object.fromEntries(xs.map((x) => [x.factId ?? x.id ?? '', x.text ?? x.explanation ?? '']))),
+  ]).default({}),
+  synthesis: prose.optional(),
+  steps: z.array(z.union([
+    z.object({ factIds: z.array(z.string()).default([]), text: prose }),
+    z.string().transform((text) => ({ factIds: [] as string[], text })),
+  ])).default([]),
+});
 
-  const placement = new RegExp(
-    `\\b(${planetNames})\\b(?:['’]s)?\\s+(?:(?:is|sits|placed|posited|located|was)\\s+)?(?:in|into|occupies)\\s+(?:the\\s+sign\\s+(?:of\\s+)?)?(${signNames})\\b`,
-    'gi',
-  );
-
-  for (const match of Array.from(text.matchAll(placement))) {
-    const planet = GRAHAS.find(
-      (name) => name.toLowerCase() === match[1].toLowerCase(),
-    );
-    if (!planet) continue;
-
-    const sentenceStart = Math.max(
-      text.lastIndexOf('.', match.index) + 1,
-      text.lastIndexOf('!', match.index) + 1,
-      text.lastIndexOf('?', match.index) + 1,
-    );
-    const nextPunctuation = text.slice(match.index + match[0].length).search(/[.!?]/);
-    const sentenceEnd = nextPunctuation < 0
-      ? text.length
-      : match.index + match[0].length + nextPunctuation;
-    const sentence = text.slice(sentenceStart, sentenceEnd);
-
-    const charts = Array.from(sentence.matchAll(/\bD(1|10)\b/gi))
-      .map((m) => `D${m[1]}`);
-
-    const uniqueCharts = Array.from(new Set(charts));
-
-    if (uniqueCharts.length === 0) {
-      problems.push(`placement for ${planet}: identify the chart (D1 or D10)`);
-      continue;
-    }
-
-    if (uniqueCharts.length > 1) {
-      problems.push(`placement for ${planet}: clarify whether this placement belongs to D1 or D10`);
-      continue;
-    }
-
-    const required = `${uniqueCharts[0]}.planet.${planet}`;
-    if (!factIds.includes(required)) {
-      problems.push(`placement for ${planet}: cite ${required} in this block`);
-    }
-  }
-
-  return problems;
-}
-
-const CERTAIN = /\b(?:will|shall|definitely|certainly|guaranteed|destined|inevitably)\b/i;
-const GENERIC = /\b(?:leadership (?:potential|qualities|capabilities|roles?)|hard work|networking|success will come|bright future|great potential|strong potential|many opportunities|opportunities will|natural leader|challenges may arise|with patience|work hard|positive energy|cosmic)\b/i;
-const FIELD_CLAIM = /\b(?:recommend\w*|suited|suitable|ideal|best|pursue|choose|enter)\b[^.!?]*\b(?:government|administrat\w*|business|entrepreneur\w*|financ\w*|management|communicat\w*|media|consult\w*|teach\w*|bank\w*|sales|marketing)\b/i;
-
-/** This is a stronger structural contract, not a keyword proxy for evidence or balance. */
-export function validateCareerDraft(packet: CareerPacket, input: unknown): { draft?: CareerDraft; problems: string[] } {
-  const parsed = careerDraftSchema.safeParse(input);
-  if (!parsed.success) return { problems: ['schema: supply supporting, limiting and conclusion blocks with factIds, contexts and text'] };
-  const draft = parsed.data;
-  const problems: string[] = [];
-  for (const [kind, b] of Object.entries(draft)) {
-    const refs = b.factIds.map((id) => packet.facts.find((f) => f.id === id));
-    if (new Set(b.factIds).size !== b.factIds.length) problems.push(`${kind}: duplicate evidence references`);
-    if (kind !== 'conclusion' && !b.factIds.some((id) => packet[kind as 'supporting' | 'limiting'].includes(id))) problems.push(`${kind}: reference the supplied ${kind} indicators or their explicit evidence gap`);
-    if (refs.some((f) => !f)) problems.push(`${kind}: unknown or out-of-section evidence reference`);
-    const contexts = Array.from(new Set(refs.flatMap((f) => f?.contexts ?? []))).sort();
-    if (JSON.stringify(Array.from(new Set(b.contexts)).sort()) !== JSON.stringify(contexts)) problems.push(`${kind}: D1/D10/period context must exactly match referenced facts`);
-
-    problems.push(...unsupportedPlacementClaims(b.text, b.factIds).map((problem) => `${kind}: ${problem}`));
-    if (CERTAIN.test(b.text)) problems.push(`${kind}: certain predictions prohibited`);
-    if (GENERIC.test(b.text)) problems.push(`${kind}: generic content`);
-    if (FIELD_CLAIM.test(b.text)) problems.push(`${kind}: professional recommendations must come from the deterministic field assessment`);
-    if (packet.id === 6 && /\b(?:government|administration|entrepreneurship|finance|management|communication|media|consulting|teaching|banking|sales|marketing|business)\b/i.test(b.text)) problems.push(`${kind}: name professional fields only through their verified references`);
-    const min = packet.minimumWords === 40 ? 10 : 45;
-    if (countCareerWords(b.text) < min) problems.push(`${kind}: too short; provide at least ${min} substantive words explaining the referenced evidence`);
-  }
-  const argued = new Set([...draft.supporting.factIds, ...draft.limiting.factIds]);
-  if (draft.conclusion.factIds.some((id) => !argued.has(id))) problems.push('conclusion: use only evidence already weighed in supporting or limiting blocks');
-  if (countCareerWords([...packet.facts.map((f) => f.text), draftProse(draft)].join('\n')) < packet.minimumWords) problems.push(`too short: substantive section requires ${packet.minimumWords} words, excluding labels and reference IDs; expand the interpretations without repeating facts`);
-  const repetition = careerReportProblems([{ heading: packet.heading, body: draftProse(draft) }]);
-  problems.push(...(repetition.get(packet.heading) ?? []).map(() => 'repetition: each paragraph must add distinct information'));
-  return { draft, problems };
-}
-
-export function draftProse(draft: CareerDraft): string { return [draft.supporting.text, draft.limiting.text, draft.conclusion.text].join('\n\n'); }
-
-export const CAREER_DEFINITIONS: Record<string, string> = {
-  D1: 'the natal birth chart', D10: 'the divisional chart traditionally used for professional matters', Lagna: 'the rising sign', Dasamsa: 'another name for the D10 professional chart',
-  Mahadasha: 'a major planetary period', Antardasha: 'a sub-period within a Mahadasha', Vimshottari: 'the planetary-period system used here',
-  trikona: 'a trinal house: the first, fifth or ninth', kendra: 'an angular house: the first, fourth, seventh or tenth', dusthana: 'a traditionally difficult house: the sixth, eighth or twelfth',
-  yoga: 'a named combination of chart factors', karaka: 'a traditional significator', Sarvashtakavarga: 'a traditional tally of support for the houses', bindus: 'points in that tally',
-  'Neecha Bhanga': 'cancellation or mitigation of debilitation, not an automatic promise of status', combust: 'close to the Sun under the engine’s combustion rule', retrograde: 'apparent backward motion as viewed from Earth',
-};
-function definitionsFor(text: string): string {
-  return Object.entries(CAREER_DEFINITIONS).filter(([term]) => new RegExp(`\\b${term}\\b`, 'i').test(text)).map(([term, meaning]) => `${term}: ${meaning}.`).join(' ');
-}
-
-/** Natural placements are scoped from cited facts, never by guessing a different sign. */
-// Contexts are derived from the cited facts below, so the model may omit them (the prompt says
-// the application renders them); keys the model echoes, such as a heading, are dropped unread.
-const fiveBlock = z.object({
-  factIds: z.array(z.string()).min(1).max(40),
-  contexts: z.unknown().optional(),
-  text: z.union([z.string(), z.array(z.string()).min(1).transform((paragraphs) => paragraphs.join(' '))]).pipe(z.string().min(1).max(6000)),
-}).transform(({ factIds, text }) => ({ factIds, text, contexts: [] as Array<'D1' | 'D10' | 'Vimshottari'> }));
-const fiveDraftSchema = z.object({ supporting: fiveBlock, limiting: fiveBlock, conclusion: fiveBlock });
-
-/** Paths and codes only, never the model's text: safe for logs and an order's failure reason. */
+/** Paths and codes only, never the model's text. */
 export const schemaIssues = (error: z.ZodError) => error.issues.slice(0, 6).map((i) => `${i.path.join('.') || '(root)'} ${i.code}`).join(', ');
 
-const SENTENCES = /(?<=[.!?])\s+/;
-const FIELD_CONTEXT = /\b(recommend\w*|suitab\w*|suited|pursue|ideal|roles?|professions?|fields?)\b/i;
-const namesField = (text: string, field: (typeof FIELDS)[keyof typeof FIELDS]) => text.split(SENTENCES).some((s) => (field.words.test(s) || s.toLowerCase().includes(field.label.toLowerCase())) && FIELD_CONTEXT.test(s));
-const yearsOf = (f: { text: string }) => (f.text.match(/\b(?:19|20|21)\d{2}\b/g) ?? []).map(Number);
-
-/**
- * Citations are application-owned, like contexts: the model reliably names the planets, periods and
- * fields its section's facts support but not which block cites them. For anything a block names
- * without citing, the section's own verified fact is attached, and every check below then runs
- * against it. Nothing outside the section is attached, so a planet, field, date or year the section
- * has no fact for is still rejected; a conclusion draws only on facts already weighed above.
- */
-export function resolveCitations(packet: CareerPacket, draft: CareerDraft): void {
-  const resolve = (b: CareerDraft['supporting'], pool: CareerPacket['facts']) => {
-    const cited = () => b.factIds.map((id) => pool.find((f) => f.id === id) ?? packet.facts.find((f) => f.id === id)).filter(Boolean) as CareerPacket['facts'];
-    const attach = (facts: CareerPacket['facts']) => { for (const f of facts) if (!b.factIds.includes(f.id)) b.factIds.push(f.id); };
-    for (const planet of GRAHAS) {
-      const named = new RegExp(`\\b${planet}\\b`, 'i');
-      if (!named.test(b.text)) continue;
-      const own = pool.filter((f) => f.id.endsWith(`.planet.${planet}`) || f.id.startsWith(`Vimshottari.Mahadasha.${planet}.`) || f.id.startsWith(`Vimshottari.Antardasha.${planet}.`));
-      const placed = new RegExp(`\\b${planet}\\b[^.!?]{0,40}\\b(?:in|occupies)\\s+(?:the sign of\\s+)?(?:${SIGN_NAMES.join('|')})\\b`, 'i').test(b.text);
-      if (placed && !cited().some((f) => f.id.endsWith(`.planet.${planet}`))) attach(own.filter((f) => f.id.endsWith(`.planet.${planet}`)));
-      if (!cited().some((f) => named.test(f.text))) attach(own.length ? own : pool.filter((f) => named.test(f.text)));
-    }
-    for (const [id, field] of Object.entries(FIELDS)) if (namesField(b.text, field)) attach(pool.filter((f) => f.id === `D1.D10.field.${id}`));
-    for (const date of b.text.match(/\d{4}-\d{2}-\d{2}/g) ?? []) if (!cited().some((f) => f.text.includes(date))) attach(pool.filter((f) => f.text.includes(date)));
-    for (const year of (b.text.match(/\b(?:19|20|21)\d{2}\b/g) ?? []).map(Number)) {
-      const covers = (f: { text: string }) => { const ys = yearsOf(f); return ys.includes(year) || (f.text.includes('→') && ys.length >= 2 && ys[0] <= year && year <= ys[ys.length - 1]); };
-      if (!cited().some(covers)) attach(pool.filter((f) => f.contexts.includes('Vimshottari') && covers(f)));
-    }
-  };
-  resolve(draft.supporting, packet.facts);
-  resolve(draft.limiting, packet.facts);
-  const argued = new Set([...draft.supporting.factIds, ...draft.limiting.factIds]);
-  // A conclusion listing a fact it does not rely on loses that citation; if its text needs a fact
-  // not weighed above, nothing resolves it and the unsupported statement is rejected below.
-  const kept = draft.conclusion.factIds.filter((id) => argued.has(id));
-  if (kept.length) draft.conclusion.factIds = kept;
-  resolve(draft.conclusion, packet.facts.filter((f) => argued.has(f.id)));
+export function parseSectionReply(content: string | null | undefined): { reply?: SectionReply; problem?: string } {
+  let raw: unknown;
+  try { raw = JSON.parse(content ?? ''); } catch { return { problem: 'invalid-json' }; }
+  const parsed = replySchema.safeParse(raw);
+  if (!parsed.success) return { problem: `malformed output (${schemaIssues(parsed.error)})` };
+  return { reply: parsed.data as SectionReply };
 }
 
+// ── Checks ───────────────────────────────────────────────────────────────────
+
 const ORDINALS = ['first', 'second', 'third', 'fourth', 'fifth', 'sixth', 'seventh', 'eighth', 'ninth', 'tenth', 'eleventh', 'twelfth'];
-const HOUSE = `(?:(\\d{1,2})(?:st|nd|rd|th)|(${ORDINALS.join('|')}))\\s+house`;
-/**
- * A planet placed in a house ("Mars' placement in Moolatrikona and the 11th house", "Jupiter in the
- * 11th house of D1") must match the calculated house in the chart named (D1 unless only D10 is).
- * Rulership, aspect and bindu statements name a house without placing a planet in it.
- */
-export function houseClaimProblems(text: string, evidence: CareerEvidenceSet): string[] {
+const ord = (n: number) => `${n}${n === 1 ? 'st' : n === 2 ? 'nd' : n === 3 ? 'rd' : 'th'}`;
+const CERTAIN = /\b(?:will|shall)\s+(?:definitely\s+|certainly\s+|surely\s+)?(?:get|be promoted|earn|become|receive|succeed|achieve|land|win)\b|\bguarantee\w*\b|\bdestined\b/i;
+const REMEDY = /\b(gemstones?|sapphire|ruby|emerald|pearl|coral|wear (?:a|an) \w+|mantras?|pujas?|poojas?|rituals?|fasting)\b/i;
+const INTERNAL = /\bwork_?style\b|\bfact ?ids?\b|\bJSON\b/i;
+const DEGREE = /\d\s*°|\bdegrees?\b/i;
+const FAVOUR = /\b(favou?rs?|better suited|best suited|recommend\w*|should (?:choose|pursue|aim for)|points? (?:clearly )?(?:to|towards))\b/i;
+const EMPLOYED = /\b(employment|a job|salaried|working for an organi[sz]ation)\b/i;
+const INDEPENDENT = /\b(self-employ\w*|independent work|working independently|your own (?:business|venture|firm|practice)|freelanc\w*)\b/i;
+const MIX = /\b(mix\w*|blend\w*|both|alongside|combin\w*|balanc\w*|as well as|hybrid)\b/i;
+const RECOMMEND = /\b(recommend\w*|ideal|best|pursue|go for|well suited|strong choice|excellent choice|promising)\b/i;
+const QUALIFIED = /\b(not|less|weak\w*|limited|unlikely|caution|avoid|only if|secondary)\b/i;
+
+/** A planet placed in a house in prose must match the calculated house (the chart named in the claim, else D1). */
+export function houseClaimProblems(text: string, evidence: CareerReportFacts): string[] {
   const problems: string[] = [];
   const planets = GRAHAS.join('|');
-  const claim = new RegExp(`\\b(${planets})\\b(?:['’]s?)?((?:(?!\\b(?:${planets})\\b)[^.!?;]){0,60}?)\\b(?:the\\s+)?(?:D(?:1|10)\\s+)?${HOUSE}`, 'gi');
+  const claim = new RegExp(`\\b(${planets})\\b(?:['’]s?)?((?:(?!\\b(?:${planets})\\b)[^.!?;]){0,60}?)\\b(?:the\\s+)?(?:D(?:1|10)(?:['’]s)?\\s+)?(?:(\\d{1,2})(?:st|nd|rd|th)|(${ORDINALS.join('|')}))\\s+house`, 'gi');
   for (const sentence of text.split(SENTENCES)) {
     for (const m of Array.from(sentence.matchAll(claim))) {
-      const between = m[2];
-      if (!/\b(?:in|into|occup\w*|placed|placement|posited|position\w*|situated|located|sits?|resid\w*)\b/i.test(between)) continue;
-      if (/\b(?:rul\w*|lord\w*|own\w*|govern\w*|aspect\w*|influence\w*|over|from|bindus?|tally|sarva\w*|of the lord)\b/i.test(between)) continue;
+      if (!/\b(?:in|into|occup\w*|placed|placement|posited|position\w*|situated|located|sits?|resid\w*|holding)\b/i.test(m[2])) continue;
+      if (/\b(?:rul\w*|lord\w*|own\w*|govern\w*|aspect\w*|influence\w*|over|from|points?|bindus?|score|tally)\b/i.test(m[2])) continue;
       const house = m[3] ? Number(m[3]) : ORDINALS.indexOf(m[4].toLowerCase()) + 1;
       const planet = GRAHAS.find((g) => g.toLowerCase() === m[1].toLowerCase())!;
-      // The chart is the one named in the claim or right after the house ("11th house of the D1 chart"),
-      // else D1: a chart named for another planet in the same sentence does not scope this claim.
-      // A chart named earlier in the sentence ("In D10, Mercury is placed…") counts only when no other planet comes first.
+      // A chart named earlier in the sentence counts only when no other planet comes first.
       const before = sentence.slice(0, m.index!);
       const span = (new RegExp(`\\b(?:${planets})\\b`, 'i').test(before) ? '' : before) + sentence.slice(m.index!, m.index! + m[0].length + 25);
       const charts = Array.from(new Set(Array.from(span.matchAll(/\bD(1|10)\b|\b(Dasamsa)\b/gi)).map((c) => (c[1] === '1' ? 'D1' : 'D10'))));
@@ -227,102 +85,143 @@ export function houseClaimProblems(text: string, evidence: CareerEvidenceSet): s
   return problems;
 }
 
-export function validateFiveCareerDraft(packet: CareerPacket, input: unknown, evidence: CareerEvidenceSet): { draft?: CareerDraft; problems: string[] } {
-  const parsed = fiveDraftSchema.safeParse(input);
-  if (!parsed.success) return { problems: [`schema: return supporting, limiting and conclusion, each with factIds (strings) and text (${schemaIssues(parsed.error)})`] };
-  const draft: CareerDraft = parsed.data;
+/**
+ * Problems with one piece of model text, judged against the facts it explains. The vocabulary is closed:
+ * any planet, sign, house number, year, month, yoga or degree must already be in those facts; the shared
+ * guard then checks the text against the whole chart.
+ */
+export function slotProblems(text: string, kind: keyof typeof LENGTH, facts: CareerFact[], evidence: CareerReportFacts): string[] {
   const problems: string[] = [];
-  if ([draft.supporting, draft.limiting, draft.conclusion].every((b) => b.factIds.every((id) => packet.facts.some((f) => f.id === id)))) resolveCitations(packet, draft);
-  const placement = new RegExp(`\\b(${GRAHAS.join('|')})\\b\\s*,?\\s*(?:(?:is|was)\\s+)?(?:(?:placed|posited|located|situated)\\s+)?(?:in|occupies|sits in)\\s+(?:the sign of\\s+)?(${SIGN_NAMES.join('|')})\\b`, 'gi');
-  for (const [kind, b] of Object.entries(draft)) {
-    const refs = b.factIds.map((id) => packet.facts.find((f) => f.id === id));
-    if (refs.some((f) => !f) || !refs.length) { problems.push(`${kind}: unknown evidence reference`); continue; }
-    // Context and glossary are application-owned, rather than model formatting hurdles.
-    b.contexts = Array.from(new Set(refs.flatMap((f) => f!.contexts)));
-    b.text = b.text.split(/(?<=[.!?])\s+/).map((sentence) => {
-      const matches = Array.from(sentence.matchAll(placement));
-      const explicitChart = /\bD(?:1|10)\b|birth chart|natal chart|Dasamsa/i.test(sentence);
-      for (const m of matches) {
-        const planet = GRAHAS.find((p) => p.toLowerCase() === m[1].toLowerCase())!;
-        const cited = refs.filter((f) => f!.id.endsWith(`.planet.${planet}`));
-        if (!cited.length) { problems.push(`${kind}: placement needs a cited fact for ${m[1]}`); continue; }
-        const matching = cited.filter((f) => (f!.value as any).sign?.toLowerCase() === m[2].toLowerCase());
-        if (!matching.length) { problems.push(`${kind}: incorrect placement for ${m[1]}`); continue; }
-        // The chart is added after the placement, leaving the model's wording intact: rewriting the
-        // clause garbled noun phrases ("the combust state of the Moon in Pisces").
-        if (!explicitChart) sentence = sentence.replace(m[0], `${m[0]} in ${Array.from(new Set(matching.flatMap((f) => f!.contexts))).join(' and ')}`);
-      }
-      return sentence;
-    }).join(' ');
-    problems.push(...houseClaimProblems(b.text, evidence).map((p) => `${kind}: ${p}`));
-    if (/\bwork_?style\b/.test(b.text) || /\bworkStyle\b/i.test(b.text)) problems.push(`${kind}: internal term "workStyle" in the text; describe the employment-versus-business conclusion in plain words`);
-    for (const planet of GRAHAS) if (new RegExp(`\\b${planet}\\b`, 'i').test(b.text) && !refs.some((f) => new RegExp(`\\b${planet}\\b`, 'i').test(f!.text))) problems.push(`${kind}: ${planet} assertion is not supported by cited evidence`);
-    for (const [id, field] of Object.entries(FIELDS)) if (namesField(b.text, field)) {
-      const assessment = refs.find((f) => f!.id === `D1.D10.field.${id}`);
-      // Employment/trade comparison is permitted with the service/trade-house evidence.
-      if (id === 'business' && refs.some((f) => f!.id === 'D1.house.7')) continue;
-      if (!assessment) problems.push(`${kind}: ${field.label} needs its verified field assessment`);
-      else if ((assessment.value as any).rating === 'weakly supported') {
-        for (const s of b.text.split(/(?<=[.!?])\s+/).filter((s) => field.words.test(s))) if (!/\b(less|not|weak|limited|caution|unsupported)\b/i.test(s)) problems.push(`${kind}: weak field must not be recommended`);
-      }
+  const factText = facts.map((f) => f.text).join('\n');
+  const allowed = namesIn(factText);
+  const n = countWords(text);
+  if (n < LENGTH[kind][0]) problems.push(`too short (${n} words; at least ${LENGTH[kind][0]})`);
+  if (n > LENGTH[kind][1]) problems.push(`too long (${n} words; at most ${LENGTH[kind][1]})`);
+  for (const g of GRAHAS) if (new RegExp(`\\b${g}\\b`).test(text) && !allowed.planets.includes(g)) problems.push(`names ${g}, which these facts do not mention`);
+  for (const s of SIGN_NAMES) if (new RegExp(`\\b${s}\\b`).test(text) && !allowed.signs.includes(s)) problems.push(`names ${s}, which these facts do not mention`);
+  for (const m of Array.from(text.matchAll(/\b(\d{1,2})(?:st|nd|rd|th)\b/g))) if (!factText.includes(ord(Number(m[1])))) problems.push(`mentions the ${m[0]}, which these facts do not`);
+  for (const m of Array.from(text.matchAll(new RegExp(`\\b(${ORDINALS.join('|')})\\s+house`, 'gi')))) if (!factText.includes(ord(ORDINALS.indexOf(m[1].toLowerCase()) + 1))) problems.push(`mentions the ${m[0]}, which these facts do not`);
+  for (const y of text.match(/\b(?:19|20|21)\d{2}\b/g) ?? []) if (!factText.includes(y)) problems.push(`mentions ${y}, which these facts do not`);
+  for (const m of Array.from(text.matchAll(/\b(January|February|March|April|May|June|July|August|September|October|November|December)\s+(\d{4})\b/g))) if (!factText.includes(m[0])) problems.push(`mentions ${m[0]}, which these facts do not`);
+  for (const m of Array.from(text.matchAll(/\b((?:[A-Z][a-z]+[ -])*[A-Z][a-z]+) Yoga\b/g))) if (!factText.includes(m[0]) && !/^(This|The|That|A|Each|Any|No|Its|Your|Such)\b/.test(m[1])) problems.push(`names ${m[0]}, which these facts do not`);
+  if (DEGREE.test(text)) problems.push('states degrees, which the facts do not');
+  if (CERTAIN.test(text)) problems.push('promises an outcome');
+  if (REMEDY.test(text)) problems.push('suggests a remedy');
+  if (INTERNAL.test(text)) problems.push('uses an internal term');
+  for (const s of text.split(SENTENCES)) {
+    if (FAVOUR.test(s) && !MIX.test(s)) {
+      const job = EMPLOYED.test(s), own = INDEPENDENT.test(s);
+      if ((evidence.workStyle === 'employment' && own && !job) || (evidence.workStyle === 'independent' && job && !own) || (evidence.workStyle === 'mixed' && job !== own)) problems.push(`contradicts the work-style conclusion (${evidence.workStyleSentence})`);
     }
-    const knownDates = new Set(refs.flatMap((f) => f!.text.match(/\d{4}-\d{2}-\d{2}/g) ?? []));
-    for (const d of b.text.match(/\d{4}-\d{2}-\d{2}/g) ?? []) if (!knownDates.has(d)) problems.push(`${kind}: fabricated date ${d}`);
-    const boundaries = new RegExp(`\\b(${GRAHAS.join('|')})\\s+(Mahadasha|Antardasha)\\s+(begins?|starts?|ends?|finishes?)(?:\\s+(?:on|in))?\\s+(\\d{4}-\\d{2}-\\d{2})`, 'gi');
-    for (const m of Array.from(b.text.matchAll(boundaries))) {
-      const edge = /end|finish/i.test(m[3]) ? 'end' : 'start';
-      if (!refs.some((f) => f!.id.toLowerCase().startsWith(`vimshottari.${m[2]}.${m[1]}.`.toLowerCase()) && (f!.value as any)[edge]?.slice(0, 10) === m[4])) problems.push(`${kind}: incorrect ${m[2]} ${edge} boundary`);
-    }
-    if (/\b(?:will|shall)\s+(?:definitely\s+)?(?:get|be promoted|earn|become|receive|succeed)|\bguaranteed (?:success|promotion|wealth)\b/i.test(b.text)) problems.push(`${kind}: certain outcome`);
-    if (/\b(gemstone|sapphire|ruby|emerald|wear a ring|perform a ritual)\b/i.test(b.text)) problems.push(`${kind}: unsupported remedy`);
-    if (countCareerWords(b.text) < 45) problems.push(`${kind}: incomplete interpretation; explain the cited evidence substantively`);
-    problems.push(...textProblems(b.text, { chart: evidence.chart, factsText: refs.map((f) => f!.text).join('\n'), asOf: evidence.asOf }, 0));
+    for (const id of evidence.weakFields) if (FIELDS[id].words.test(s) && RECOMMEND.test(s) && !QUALIFIED.test(s)) problems.push(`recommends ${FIELDS[id].label.toLowerCase()}, which is weakly supported`);
   }
-  const argued = new Set([...draft.supporting.factIds, ...draft.limiting.factIds]);
-  if (draft.conclusion.factIds.some((id) => !argued.has(id))) problems.push('conclusion introduces evidence not weighed above');
-  // The current-situation section exists to read the running periods; it must name each of them.
-  if (packet.heading === 'Current Career Situation') {
-    for (const f of packet.facts.filter((x) => x.contexts.includes('Vimshottari'))) {
-      const { lord } = f.value as { lord: string }; const level = f.id.split('.')[1];
-      if (!new RegExp(`\\b${lord}\\b[^.!?]{0,40}\\b${level}\\b|\\b${level}\\b[^.!?]{0,15}\\b${lord}\\b`, 'i').test(draftProse(draft))) problems.push(`name and interpret the running ${lord} ${level}`);
-    }
-  }
-  if (countCareerWords(draftProse(draft)) < packet.minimumWords) problems.push(`too short: at least ${packet.minimumWords} words of substantive interpretation required`);
-  return { draft, problems: Array.from(new Set(problems)) };
+  problems.push(...houseClaimProblems(text, evidence));
+  problems.push(...textProblems(text, { chart: evidence.chart, factsText: factText, asOf: evidence.asOf }, 0));
+  return Array.from(new Set(problems));
 }
 
 /**
- * One section per request: a shared response split its output across fifteen blocks and every
- * section came back short. Only the requested sections' facts are sent, so nothing the model reads
- * is a fact it may not cite.
+ * Checks a reply for one section (or, in a correction, only the slots in `only`). Returns the accepted text by
+ * slot and problems: a required slot's make the section fail; an optional slot's are recorded and it is dropped.
  */
-export function fiveCareerPrompt(evidence: CareerEvidenceSet, packets: CareerPacket[], context: { workStyle?: string; reasons?: Array<{ id: number; problems: string[] }> } = {}): string {
-  const facts = Array.from(new Map(packets.flatMap((p) => p.facts).map(({ value, ...f }) => [f.id, f])).values());
-  const others = evidence.packets.filter((p) => !packets.some((q) => q.id === p.id)).map((p) => p.heading).join('; ');
-  const workStyle = context.workStyle
-    ? `The report's workStyle, established in Career Overview, is "${context.workStyle}". Return exactly that workStyle and keep every statement consistent with it.`
-    : 'Choose workStyle (employment, entrepreneurship or mixed) from the employment-versus-business evidence; the other sections will be written to agree with it.';
-  return `Write the requested section of a five-section Career & Profession Report using ONLY the verified facts below. The other sections (${others}) are written separately: do not repeat their analysis. Return JSON exactly in this shape (no other keys): {"workStyle":"employment|entrepreneurship|mixed","sections":[{"id":<section id>,"draft":{"supporting":{"factIds":["<id>"],"text":"<prose>"},"limiting":{"factIds":["<id>"],"text":"<prose>"},"conclusion":{"factIds":["<id>"],"text":"<prose>"}}}]}.
-${workStyle}
-Length: 270-330 words of interpretation in total; supporting at least 90 words, limiting at least 90 words, conclusion at least 80 words. Every block has factIds (a non-empty array of id strings from FACTS) and text (one string). Cite only ids listed in FACTS. A conclusion may cite only facts already cited in the supporting or limiting block. Cite the facts each block relies on; when a block names a planet, period, year or field without citing its fact, the application attaches this section's matching fact and checks the statement against it. Never mention a planet, period, year, date or field that no fact in FACTS supports: such a statement is rejected. A sign placement must agree with that planet's D1.planet or D10.planet fact. A year must be stated in a fact or lie inside a period a fact states. ${packets.some((p) => p.facts.some((f) => f.id.startsWith('D1.D10.field.'))) ? "Name or weigh a professional field (administration, government or institutions, entrepreneurship, advisory, consulting or teaching, finance or banking, communication, media, sales or marketing) only when FACTS include that field's D1.D10.field assessment; employment versus business may instead rest on D1.house.7." : 'This section has no field assessments: do not name professional fields, occupations or roles (administration, government, institutions, business, entrepreneurship, advisory, consulting, teaching, finance, banking, management, communication, media, sales, marketing); describe working conditions and qualities instead. Career Overview and Personalised Guidance compare fields.'} With workStyle "mixed", never say that employment or business alone is favoured, recommended or better suited. Never write that something will or shall happen. Chart contexts and technical definitions are rendered by the application. Address the reader as "you". The JSON key workStyle is internal: never write the word workStyle, and do not repeat the label in every paragraph; say once, in plain words, whether employment, independent work or a mix is indicated. Natural astrological terminology is allowed; every assertion must agree with the cited facts; never place a planet in a house or sign that its fact does not state. Never calculate or alter astrology. Weak fields are less indicated, not recommended. Recognise conflicting indicators rather than manufacture certainty. Do not infer the customer's actual job or history. No gemstones or unsupported remedies. Explain why the particular evidence matters, not generic motivational advice. Dates describe periods, not promised promotion or job-change events.
-FACTS\n${JSON.stringify(facts)}\nSECTIONS\n${JSON.stringify(packets.map((p) => ({ id: p.id, heading: p.heading, factIds: p.facts.map((f) => f.id), requirements: p.permittedInterpretations, indicators: p.indicators })))}${context.reasons ? `\nCORRECTION\n${JSON.stringify(context.reasons)}\nYour previous draft of this section was rejected for these problems. Rewrite the section so that none of them recurs.` : ''}`;
+export function checkSectionReply(section: CareerSectionFacts, reply: SectionReply, evidence: CareerReportFacts, only?: string[]) {
+  const accepted: SectionText = new Map();
+  const required = new Map<string, string[]>();
+  const dropped = new Map<string, string[]>();
+  const want = (id: string) => !only || only.includes(id);
+  for (const fact of section.facts.filter((f) => f.explain && want(f.id))) {
+    const text = reply.explanations[fact.id]?.trim();
+    const problems = text ? slotProblems(text, 'explanation', [fact], evidence) : ['missing'];
+    if (!problems.length) accepted.set(fact.id, { text: text! });
+    else (fact.required ? required : dropped).set(fact.id, problems);
+  }
+  if (want(SYNTHESIS)) {
+    const text = reply.synthesis?.trim();
+    const problems = text ? slotProblems(text, 'synthesis', section.facts, evidence) : ['missing'];
+    if (!problems.length) accepted.set(SYNTHESIS, { text: text! });
+    else required.set(SYNTHESIS, problems);
+  }
+  if (section.steps && want('steps')) {
+    const good: Array<{ text: string; factIds: string[] }> = [];
+    reply.steps.slice(0, MAX_STEPS).forEach((step, i) => {
+      const facts = step.factIds.map((id) => section.facts.find((f) => f.id === id));
+      const problems = !facts.length ? ['cites no fact'] : facts.some((f) => !f) ? ['cites an id that is not in this section'] : slotProblems(step.text.trim(), 'step', facts as CareerFact[], evidence);
+      if (problems.length) dropped.set(stepId(i), problems); else good.push({ text: step.text.trim(), factIds: step.factIds });
+    });
+    good.forEach((s, i) => accepted.set(stepId(i), s));
+    if (good.length < MIN_STEPS) required.set('steps', [`${good.length} valid next steps; at least ${MIN_STEPS} required`, ...Array.from(dropped).filter(([id]) => id.startsWith('step.')).map(([id, p]) => `${id}: ${p[0]}`)]);
+  }
+  return { accepted, required, dropped };
 }
 
-/** Every factual value is owned by the engine; AI supplies interpretation only. */
-export function renderCareerSection(packet: CareerPacket, draft: CareerDraft): string {
-  const labels = { supporting: 'Supporting indicators', limiting: 'Opposing or limiting indicators', conclusion: 'Practical conclusion' };
-  const ref = (id: string) => `E${packet.facts.findIndex((f) => f.id === id) + 1}`;
-  const facts = packet.facts.map((f) => `[${ref(f.id)}; ${f.contexts.join(' / ')}] ${f.text}`).join('\n');
-  const terms = definitionsFor(facts + draftProse(draft));
-  return `${terms ? `Terms used in this section\n${terms}\n\n` : ''}Verified evidence\n${facts}\n\n` + (Object.keys(labels) as Array<keyof CareerDraft>).map((key) => {
-    const b = draft[key];
-    return `${labels[key]} (${b.contexts.join(' / ')}; evidence: ${b.factIds.map(ref).join(', ')})\n${b.text}`;
-  }).join('\n\n');
+// ── Prompt ───────────────────────────────────────────────────────────────────
+
+export function careerSectionPrompt(evidence: CareerReportFacts, section: CareerSectionFacts, correction?: Map<string, string[]>): string {
+  const whole = !correction || correction.has(SYNTHESIS) || correction.has('steps');
+  const explain = section.facts.filter((f) => f.explain && (!correction || correction.has(f.id)));
+  // A correction of the synthesis or steps still needs every fact of the section for reference.
+  const facts = whole ? section.facts : explain;
+  const others = CAREER_HEADINGS.filter((h) => h !== section.heading).join('; ');
+  const wantsSynthesis = !correction || correction.has(SYNTHESIS);
+  const wantsSteps = section.steps && (!correction || correction.has('steps'));
+  const shape = [
+    `"explanations": {${explain.map((f) => `"${f.id}": "<text>"`).join(', ')}}`,
+    wantsSynthesis && '"synthesis": "<text>"',
+    wantsSteps && '"steps": [{"factIds": ["<id of a fact below>"], "text": "<one concrete action>"}]',
+  ].filter(Boolean).join(', ');
+  return `You are writing part of "${section.heading}", one section of a personalised Career & Profession Report. The application has already written every chart fact below and shows each one to the reader; your explanation is printed directly after it.
+Write warm, plain, specific English addressed to "you", for a reader who knows no astrology. Explain what each fact means for this person's work: the kind of work, environment or approach it points to, and its limits. Be concrete and practical; avoid stock phrases.
+Rules:
+- Do not restate the fact or add chart facts. Name a planet, sign, house number, yoga, month or year only if the fact you are explaining states it (for the synthesis and steps: only if a fact in this section states it). Never mention degrees.
+- Never write that something will happen or is guaranteed. No remedies, gemstones, mantras or rituals.
+- The report's conclusion on employment versus independent work is fixed: ${evidence.workStyleSentence}. Never contradict it.
+${evidence.weakFields.length ? `- Never recommend these weakly supported fields: ${evidence.weakFields.map((id) => FIELDS[id].label.toLowerCase()).join('; ')}.\n` : ''}- ${section.purpose}
+- The other sections (${others}) are written separately; do not repeat them.
+Lengths: each explanation 1–3 sentences, 30–70 words${wantsSynthesis ? '; the synthesis 100–160 words, drawing the facts together into what they mean for you' : ''}${wantsSteps ? `; ${MIN_STEPS}–${MAX_STEPS} next steps, each one concrete action of 20–50 words citing the fact ids it rests on` : ''}.
+Return JSON exactly in this shape: {${shape}}
+FACTS
+${JSON.stringify(facts.map((f) => ({ id: f.id, fact: f.text })))}${correction ? `\nCORRECTION\nYour previous text for these items was rejected; rewrite only them so none of the problems recurs:\n${JSON.stringify(Object.fromEntries(Array.from(correction).map(([id, p]) => [id, p.slice(0, 6).map((x) => x.slice(0, 160))])))}` : ''}`;
 }
 
-export function careerDraftPrompt(packet: CareerPacket, problems: string[] = []): string {
-  // Private birth details, the full canonical chart and legacy projections are never sent.
-  return `Write one Career Report interpretation for an adult reader. Return JSON with exactly three blocks: supporting, limiting, conclusion. Each block has factIds (IDs from the packet), contexts (the exact union of D1, D10, Vimshottari contexts of those facts), and text.
-The application prints ALL verified facts separately. You may use planetary names, signs, houses, chart names and traditional astrological terminology when explaining the supplied evidence. Every factual astrological claim must be supported by a factId cited in the SAME block and must agree exactly with that verified fact. Clearly identify D1 versus D10 when describing placements. Do not invent placements, aspects, yogas, dignities, period dates or numerical values. Do not introduce chart facts absent from the cited evidence. Explain its permitted traditional meaning and practical implications. Each block needs 80-100 substantive words (10-30 if minimumWords is 40). The total prose plus verified facts must meet minimumWords; labels and reference IDs do not count. No filler, personal-history assumptions, certainty, fabricated strengths or limitations. A lack of adverse evidence must be described as a limitation of inference, not as an invented obstacle. Put supporting evidence first, limiting evidence second, and a conditional conclusion last. The conclusion must cite only evidence already weighed in the first two blocks. Conclusions must not introduce a new career recommendation: field recommendations are printed from the deterministic assessment. Never promise employment, wealth or events. These are traditional interpretations, not scientific predictions. Avoid repeated sentences across sections. Respect the section's permitted interpretations.
-PACKET\n${JSON.stringify({ ...packet, facts: packet.facts.map(({ value, ...fact }) => fact) })}${problems.length ? `\nCORRECTION: The previous section failed these exact checks. Correct each; the evidence has not changed.\n${problems.join('\n')}` : ''}`;
+// ── Assembly ─────────────────────────────────────────────────────────────────
+
+export const CAREER_DEFINITIONS: Record<string, string> = {
+  Lagna: 'the rising sign at birth, the starting point of the chart', D10: 'the Dasamsa, a divisional chart traditionally read for profession',
+  Mahadasha: 'a major planetary period in the Vimshottari system', Antardasha: 'a sub-period within a Mahadasha',
+  Sarvashtakavarga: 'a traditional tally of support for each house (about 28 points is average)', Moolatrikona: 'a sign where a planet is strong, close to its own sign',
+  'Neecha Bhanga': 'the cancellation of a debilitation, which softens the weakness', combust: 'too close to the Sun, which traditionally weakens a planet',
+  retrograde: 'apparently moving backwards as seen from Earth', debilitated: 'in the sign where a planet is traditionally weakest', exalted: 'in the sign where a planet is traditionally strongest',
+};
+const glossary = (text: string) => Object.entries(CAREER_DEFINITIONS).filter(([term]) => new RegExp(`\\b${term}\\b`, 'i').test(text)).map(([term, meaning]) => `${term}: ${meaning}.`).join('\n');
+
+/** One section's text: each fact followed by its explanation, the synthesis, next steps and the terms used. */
+export function renderCareerSection(section: CareerSectionFacts, text: SectionText): string {
+  const paragraphs = section.facts.map((f) => (text.get(f.id) ? `${f.text} ${text.get(f.id)!.text}` : f.text));
+  const steps = Array.from(text).filter(([id]) => id.startsWith('step.')).map(([, s], i) => `${i + 1}. ${s.text}`);
+  const body = [...paragraphs, `What this means for you\n${text.get(SYNTHESIS)!.text}`, ...(steps.length ? [`Next steps\n${steps.join('\n')}`] : [])].join('\n\n');
+  const terms = glossary(body);
+  return terms ? `${body}\n\nTerms used in this section\n${terms}` : body;
+}
+
+/** Deterministic report summary: the work-style conclusion, the strongest fields and the running periods. */
+export function careerSummary(evidence: CareerReportFacts): string {
+  const fact = (id: string) => evidence.sections.flatMap((s) => s.facts).find((f) => f.id === id)?.text;
+  const first = (id: string) => fact(id)?.split(/(?<=\.)\s/)[0];
+  return [fact('overview.workStyle'), first('overview.fields'), first('current.mahadasha'), first('current.antardasha'),
+    'Dates describe calculated periods, not promised events. The D10 reading depends on an accurate birth time, and your actual skills, experience and circumstances should guide every decision.'].filter(Boolean).join(' ');
+}
+
+/** PDF/UI tables from the canonical chart, never from legacy projections. */
+export function careerMetadata({ chart, asOf }: CareerReportFacts, kundli: any) {
+  const positions = chart.planets.map((p) => ({ planet: p.name, sign: p.sign, house: p.house, degree: p.degreeInSign, retrograde: p.retrograde }));
+  const status = (p: { start: string; end: string }): 'past' | 'current' | 'upcoming' => Date.parse(p.start) > +asOf ? 'upcoming' : Date.parse(p.end) <= +asOf ? 'past' : 'current';
+  return {
+    birthDetails: { name: typeof kundli?.name === 'string' ? kundli.name : undefined, dateOfBirth: chart.birth.localDate, timeOfBirth: chart.birth.localTime, placeOfBirth: chart.birth.place, ascendant: chart.ascendant.sign, moonSign: chart.planets.find((p) => p.name === 'Moon')!.sign, sunSign: chart.planets.find((p) => p.name === 'Sun')!.sign, timeAccuracy: 'exact' as const },
+    planetaryPositions: positions,
+    chartData: { houses: chart.houses.map((h) => ({ house: h.house, sign: h.sign, planets: h.occupants })), planetaryPositions: positions.map((p) => ({ ...p, isRetrograde: p.retrograde })) },
+    dashaTimeline: chart.dashas.vimshottari.mahadashas.map((p) => {
+      const ad = p.antardashas.find((a) => status(a) === 'current');
+      return { planet: p.lord, startDate: p.start.slice(0, 10), endDate: p.end.slice(0, 10), status: status(p), currentAntardasha: ad ? { planet: ad.lord, startDate: ad.start.slice(0, 10), endDate: ad.end.slice(0, 10) } : null };
+    }),
+  };
 }

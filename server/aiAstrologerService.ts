@@ -16,7 +16,7 @@ import { createOpenAI } from "./ai/metering";
 import type { Kundli } from "@shared/schema";
 import { transitsForChart, transitSummary } from "./astroEngine/index.js";
 import { isCurrentCanonicalChart, type CanonicalChart, type Graha } from "@shared/v3/canonical";
-import { CAREER_SECTIONS } from "./careerReport.js";
+import { CAREER_HEADINGS } from "./careerReportEvidence.js";
 import { careerRequester, generateDeterministicCareer } from "./careerReportGeneration.js";
 import { birthDayStability, dignityStatementStable, yogaTimeStable, type BirthDayStability } from "./astroEngine/canonical/birthDay.js";
 import { buildInsights } from "./astroEngine/evidence/insights.js";
@@ -437,7 +437,7 @@ function dedupeRemedies(list: string[]): string[] {
 }
 
 const REPORT_FOCUS: Record<string, { title: string; focus: string; sections: string[] }> = {
-  career:     { title: "Career & Profession Report", focus: "career path, ideal professions, job vs business, and timing of professional growth", sections: CAREER_SECTIONS.map((x) => x.heading) },
+  career:     { title: "Career & Profession Report", focus: "career path, ideal professions, job vs business, and timing of professional growth", sections: [...CAREER_HEADINGS] },
   marriage:   { title: "Marriage & Love Report", focus: "marriage timing, partner characteristics, married life, and relationship harmony", sections: ["Love & Marriage Overview", "Partner Traits", "Marriage Timing", "Married Life", "Harmony & Compatibility"] },
   finance:    { title: "Wealth & Finance Report", focus: "wealth houses, income sources, investments, savings and financial timing", sections: ["Financial Overview", "Income Sources", "Wealth Accumulation", "Favourable Investment Windows", "Money Management"] },
   year_ahead: { title: "Year Ahead Report", focus: "month-by-month predictions for the coming 12 months across career, money and relationships", sections: ["Year Overview", "Career & Work", "Money & Finance", "Relationships", "Best & Cautious Months"] },
