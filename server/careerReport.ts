@@ -58,7 +58,13 @@ export const FIELDS: Record<FieldId, { label: string; planets: Graha[]; houses: 
   communication: { label: 'Communication and public-facing professions', planets: ['Mercury', 'Moon', 'Venus'], houses: [3, 7], words: /\bcommunicat\w*|\bmedia\b|\bjournalis\w*|\bwriting\b|\bsales\b|\bmarketing\b|\bpublic-facing\b|\bpublic relations\b/i },
 };
 
-export interface CareerBrief { text: string; facts: CareerFacts }
+export interface CareerBrief {
+  text: string;
+  facts: CareerFacts;
+  fields: Array<{ id: FieldId; label: string; rating: 'well supported' | 'mixed' | 'weakly supported'; plus: string[]; minus: string[] }>;
+  yogaEvidence: string[];
+  birthTimeCaveat: string;
+}
 
 /** Birth-time sensitivity of the D10 Lagna: minutes earlier/later at which it would change (searched to ±60 min). */
 function d10LagnaWindow(chart: CanonicalChart): { earlier: number | null; later: number | null } {
@@ -186,6 +192,9 @@ export function careerBrief(kundli: any, asOf = new Date()): CareerBrief | null 
 
   return {
     text: L.join('\n'),
+    fields: fieldRows.map(({ id, label, rating, plus, minus }) => ({ id, label, rating, plus, minus })),
+    yogaEvidence: yogaLines,
+    birthTimeCaveat: L.find((line) => line.startsWith('- Birth-time sensitivity:'))!,
     facts: {
       tenthLord, tenthSign: tenth.sign, d10LagnaSign: SIGN_NAMES[d10.ascendantSignIndex], d10LagnaLord,
       d10TenthSign: SIGN_NAMES[d10Sign(10)], d10TenthLord, mahadasha: md?.lord ?? null, antardasha: ad?.lord ?? null,
@@ -243,12 +252,11 @@ function yogaLine(y: CanonicalChart['yogas'][number], chart: CanonicalChart, ctx
   return `- ${y.name}${y.cancelled ? ' (cancelled)' : ''}: rule — ${rule}; configuration — ${config || y.description.split(' — ')[0]}; ${y.cancelled ? 'the engine marks it cancelled' : 'met by the engine\'s rule'}${limits ? `; limits — ${limits}` : ''}${mods.length ? `; modifying conditions — ${mods.join('; ')}` : ''}; ${career}.`;
 }
 
-/** One Career Report section: its heading, an editorial word range (a ceiling for depth, not a quota) and what it must explain. */
+/** Editorial section definition; the lower word bound (with the existing tolerance) is enforced. */
 export interface CareerSection { heading: string; words: [number, number]; core: boolean; brief: string }
 /**
- * The Career Report is written in three parallel parts that share one deterministic evidence block; each part is
- * validated on its own and only its failed sections are regenerated, then the whole report is checked for
- * repetition and contradictions. Ten sections of 300–550 words is roughly 4,000–5,000 words (6–7 PDF pages).
+ * Editorial grouping retained for heading order and content requirements. Runtime generation
+ * is section-by-section in careerReportGeneration.ts, not one model request per group.
  */
 export const CAREER_BATCHES: Array<{ id: string; summary: boolean; remedies: boolean; sections: CareerSection[] }> = [
   { id: 'foundations', summary: true, remedies: false, sections: [
@@ -317,7 +325,7 @@ export function careerSectionProblems(heading: string, body: string, f: CareerFa
     if (!has(/\b(agree\w*|confirm\w*|echo\w*|differ\w*|contrast\w*|whereas|while|both|neither|same sign|unlike)\b/i)) out.push('must say where the D1 and D10 agree or differ');
   }
   if (heading === 'Career Yogas') {
-    for (const y of f.careerYogas ?? []) if (!body.toLowerCase().includes(y.toLowerCase().replace(/ yoga$/, ''))) out.push(`must explain ${y}, which the evidence links to career`);
+    for (const y of f.careerYogas ?? []) if (!body.toLowerCase().includes(y === 'Neecha Bhanga Raja Yoga' ? 'neecha bhanga' : y.toLowerCase().replace(/ yoga$/, ''))) out.push(`must explain ${y}, which the evidence links to career`);
     if (!(f.careerYogas ?? []).length && !has(/\b(no|none)\b/i)) out.push('must say that no detected yoga is linked to career');
   }
   if (heading === 'Suitable Professional Fields') {
