@@ -7,6 +7,7 @@
 //    and the engine do not.
 //  - Venus from Mars: PyJHora gives 3,4,6,9,11,12; BPHS/Raman and the engine give 3,5,6,9,11,12.
 // Every reading keeps the classical totals (Moon 49, Venus 52, 337 in all).
+import * as ref from '../../scripts/golden/reference';
 import { describe, expect, it } from 'vitest';
 import { AV_CANONICAL_TOTALS, AV_PLANETS, computeAshtakavarga } from '../../server/astroEngine/ashtakavarga';
 import { getKundli } from '../../server/astroEngine/index';
@@ -106,9 +107,18 @@ describe('whole charts', () => {
   });
 
   it('the canonical chart stores SAV by house counted from the Lagna', async () => {
-    const chart = (await getKundli('1995-11-02', '08:15', 20.7085, 76.5647, { timeAccuracy: 'exact' })).chartData.canonical as CanonicalChart;
+    // An invented chart (17 Mar 1994, 07:40 IST, Khamgaon): Pisces Lagna, so houses and signs differ; every
+    // contributor is more than 2° from a sign edge in the independent reference pipeline.
+    const utc = new Date('1994-03-17T02:10:00Z');
+    const chart = (await getKundli('1994-03-17', '07:40', 20.7085, 76.5647, { timeAccuracy: 'exact' })).chartData.canonical as CanonicalChart;
+    expect(chart.birth.birthUTC).toBe(utc.toISOString());
+    const refSigns: Record<string, number> = Object.fromEntries(ref.REF_BODIES.map((b) => [b, ref.signOf(ref.referenceSidereal(b, utc))]));
+    refSigns.Ascendant = ref.signOf(ref.referenceAngles(utc, 20.7085, 76.5647).ascendant);
+    expect(refSigns).toEqual({ Sun: 11, Moon: 0, Mars: 10, Mercury: 10, Jupiter: 6, Venus: 11, Saturn: 10, Ascendant: 11 });
     const { sav, savByHouse } = chart.strength.ashtakavarga;
-    expect(savByHouse).toEqual(sav.map((_, h) => sav[(chart.ascendant.signIndex + h) % 12]));
+    // Independently: the reference signs give the same SAV, and the 1st house is the Lagna's sign.
+    expect(sav).toEqual(computeAshtakavarga(refSigns).sav);
+    expect(savByHouse).toEqual(sav.map((_, h) => sav[(refSigns.Ascendant + h) % 12]));
     const signs = Object.fromEntries(chart.planets.filter((p) => (AV_PLANETS as readonly string[]).includes(p.name)).map((p) => [p.name, p.signIndex]));
     expect(computeAshtakavarga({ ...signs, Ascendant: chart.ascendant.signIndex }).sav).toEqual(sav);
   });
