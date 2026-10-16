@@ -15,11 +15,21 @@ import { getKundli } from '../../server/astroEngine';
 import { computeCanonicalChart } from '../../server/astroEngine/canonical/compute';
 import { resolveBirthWithCoordinates } from '../../server/astroEngine/birthResolver';
 import { careerCorrectionNote, generateReport, MAX_CAREER_REGENERATIONS } from '../../server/aiAstrologerService';
+import * as ref from '../../scripts/golden/reference';
 import { CAREER_BATCHES, CAREER_SECTIONS, FIELDS, STRUCTURE_LABELS, careerBrief, careerDiagnostics, careerRuleCode, careerRemedies, careerReportProblems, careerSectionProblems, type CareerFacts } from '../../server/careerReport';
 
 const ASOF = new Date('2026-10-14T06:00:00Z');
-// The production report's birth details: 13 Nov 1991, 12:30 IST, Belagavi.
-const sanket = async () => ({ ...(await getKundli('1991-11-13', '12:30', 15.8497, 74.4977)) as any, name: 'S', dateOfBirth: new Date('1991-11-13'), timeOfBirth: '12:30', placeOfBirth: 'Belagavi' });
+const SIGNS = ['Aries', 'Taurus', 'Gemini', 'Cancer', 'Leo', 'Virgo', 'Libra', 'Scorpio', 'Sagittarius', 'Capricorn', 'Aquarius', 'Pisces'];
+const LORD = ['Mars', 'Venus', 'Mercury', 'Moon', 'Sun', 'Mercury', 'Venus', 'Mars', 'Jupiter', 'Saturn', 'Saturn', 'Jupiter'];
+// An invented chart (19 Apr 1985, 11:20 IST, Pune city centre), chosen for the structure these tests need: three
+// planets in the 10th (one a cancelled debilitation), a debilitated 10th lord without cancellation, a Pancha
+// Mahapurusha yoga, Vipreeta Raja Yogas, weakly supported fields and a D10 Lagna within minutes of changing.
+// The first test checks that structure against the independent reference pipeline (scripts/golden/reference.ts).
+const BIRTH = { date: '1985-04-19', time: '11:20', lat: 18.5204, lng: 73.8567, utc: new Date('1985-04-19T05:50:00Z') };
+const invented = async () => ({ ...(await getKundli(BIRTH.date, BIRTH.time, BIRTH.lat, BIRTH.lng)) as any, name: 'P', dateOfBirth: new Date(BIRTH.date), timeOfBirth: BIRTH.time, placeOfBirth: 'Pune' });
+const refSign = (g: typeof ref.REF_BODIES[number]) => ref.signOf(ref.referenceSidereal(g, BIRTH.utc));
+const refAsc = () => ref.referenceAngles(BIRTH.utc, BIRTH.lat, BIRTH.lng).ascendant;
+const house = (sign: number, lagna: number) => ((sign - lagna + 12) % 12) + 1;
 const headingsIn = (prompt: string): string[] => Array.from(prompt.matchAll(/^- "([^"]+)" \(about/gm)).map((m) => m[1]);
 const FILL = 'The reading weighs these placements together with the other factors of the chart and describes tendencies rather than certainties, so the native can use the periods the chart marks as supportive and plan steadily for the ones it marks as demanding. ';
 
@@ -52,7 +62,7 @@ function careerBody(h: string, f: CareerFacts): string {
 const goodReply = (p: string, f: CareerFacts, override: (h: string) => string | undefined = () => undefined) => JSON.stringify({
   ...(p.includes('"summary":') ? { summary: `This career reading rests on the 10th lord ${f.tenthLord} and the D10 Lagna ${f.d10LagnaSign}. ${filler(20)}` } : {}),
   sections: headingsIn(p).map((h) => ({ heading: h, body: override(h) ?? careerBody(h, f) })),
-  ...(p.includes('"remedies":') ? { remedies: ['Strengthen Saturn: wear a Blue Sapphire', 'Recite the Saturn mantra 108 times on Saturdays, since Saturn rules the Lagna and aspects the 10th house'] } : {}),
+  ...(p.includes('"remedies":') ? { remedies: ['Strengthen Saturn: wear a Blue Sapphire', 'Recite the Saturn mantra 108 times on Saturdays, since Saturn rules the D10 Lagna'] } : {}),
 });
 
 let k: any; let facts: CareerFacts;
@@ -60,25 +70,52 @@ beforeEach(async () => {
   vi.stubEnv('OPENAI_API_KEY', 'test-key');
   ai.respond.mockReset();
   ai.maxTokens.length = 0;
-  k = await sanket();
+  k = await invented();
   facts = careerBrief(k, new Date())!.facts;
 });
 afterEach(() => vi.unstubAllEnvs());
 
 describe('career evidence (deterministic)', () => {
-  it('reads the 10th house, D10, periods and yogas from the engine for the production chart', async () => {
+  it('the invented chart has the structure these tests rely on, by the independent reference pipeline', () => {
+    const asc = ref.signOf(refAsc()), d10Asc = ref.d10(refAsc());
+    expect([SIGNS[asc], SIGNS[(asc + 9) % 12], SIGNS[d10Asc], SIGNS[(d10Asc + 9) % 12]]).toEqual(['Gemini', 'Pisces', 'Capricorn', 'Libra']);
+    // Moon, Mercury and Venus in the 10th; the 10th lord Jupiter in Capricorn (its debilitation sign), the 8th;
+    // Venus exalted in Pisces; Saturn (lord of the 8th and 9th) in the 6th; Mars (lord of the 6th) in the 12th.
+    expect((['Moon', 'Mercury', 'Venus', 'Jupiter', 'Saturn', 'Mars', 'Sun'] as const).map((g) => [g, SIGNS[refSign(g)], house(refSign(g), asc)])).toEqual([
+      ['Moon', 'Pisces', 10], ['Mercury', 'Pisces', 10], ['Venus', 'Pisces', 10], ['Jupiter', 'Capricorn', 8], ['Saturn', 'Scorpio', 6], ['Mars', 'Taurus', 12], ['Sun', 'Aries', 11],
+    ]);
+    // D10: the Lagna lord Saturn in Leo (the D10 8th), the 10th lord Jupiter in Pisces (the D10 3rd).
+    // The Moon in Revati (index 26), Mercury's nakshatra: the birth-star remedies are Mercury's.
+    expect(ref.nakshatraOf(ref.referenceSidereal('Moon', BIRTH.utc))).toBe(26);
+    expect([SIGNS[ref.d10(ref.referenceSidereal('Saturn', BIRTH.utc))], SIGNS[ref.d10(ref.referenceSidereal('Jupiter', BIRTH.utc))]]).toEqual(['Leo', 'Pisces']);
+  });
+
+  it('reads the 10th house, D10, periods and yogas from the engine, in agreement with the independent reference', async () => {
     const b = careerBrief(k, ASOF)!;
-    expect(b.facts).toMatchObject({ tenthSign: 'Libra', tenthLord: 'Venus', d10LagnaSign: 'Pisces', d10LagnaLord: 'Jupiter', d10TenthSign: 'Sagittarius', d10TenthLord: 'Jupiter', mahadasha: 'Jupiter', antardasha: 'Jupiter' });
-    expect(b.text).toMatch(/10th house: Libra; its lord Venus: Virgo, 9th house \(Debilitated, no cancellation of the debilitation\)/);
-    expect(b.text).toMatch(/Planets in the 10th: Sun: Libra, 10th house \(Debilitated, debilitation cancelled \(Neecha Bhanga\)\).*\| Mars: Libra, 10th house/);
-    expect(b.text).toMatch(/D10 Lagna: Pisces; its lord Jupiter is in D10 Capricorn, the D10 11th house/);
+    const asc = ref.signOf(refAsc()), d10Asc = ref.d10(refAsc());
+    expect(b.facts).toMatchObject({ tenthSign: SIGNS[(asc + 9) % 12], tenthLord: LORD[(asc + 9) % 12], d10LagnaSign: SIGNS[d10Asc], d10LagnaLord: LORD[d10Asc], d10TenthSign: SIGNS[(d10Asc + 9) % 12], d10TenthLord: LORD[(d10Asc + 9) % 12] });
+    expect(b.facts).toMatchObject({ tenthSign: 'Pisces', tenthLord: 'Jupiter', d10LagnaSign: 'Capricorn', d10LagnaLord: 'Saturn', d10TenthSign: 'Libra', d10TenthLord: 'Venus', mahadasha: 'Moon', antardasha: 'Rahu' });
+    expect(b.text).toMatch(/10th house: Pisces; its lord Jupiter: Capricorn, 8th house \(Debilitated, no cancellation of the debilitation\)/);
+    expect(b.text).toMatch(/Planets in the 10th: Moon: Pisces, 10th house.*\| Mercury: Pisces, 10th house \(Debilitated, debilitation cancelled \(Neecha Bhanga\)\).*\| Venus: Pisces, 10th house \(Exalted/);
+    const d10Saturn = ref.d10(ref.referenceSidereal('Saturn', BIRTH.utc));
+    expect(b.text).toContain(`D10 Lagna: Capricorn; its lord Saturn is in D10 ${SIGNS[d10Saturn]}, the D10 ${house(d10Saturn, d10Asc)}th house`);
     // Every period date is the engine's own.
-    const md = k.dashas.find((d: any) => d.planet === 'Jupiter');
+    const md = k.dashas.find((d: any) => d.planet === 'Moon');
     expect(b.text).toContain(`runs ${md.startDate} to ${md.endDate}`);
-    const [ad, next] = md.antardashas;
+    const i = md.antardashas.findIndex((a: any) => a.startDate <= '2026-10-14' && '2026-10-14' < a.endDate);
+    const [ad, next] = md.antardashas.slice(i);
     expect(b.text).toContain(`Current Antardasha: ${ad.planet} (${ad.startDate} to ${ad.endDate})`);
     expect(b.text).toContain(`Next Antardasha: ${next.planet} (${next.startDate} to ${next.endDate})`);
-    expect([md.startDate, md.endDate, ad.endDate, next.endDate]).toEqual(['2024-12-03', '2040-12-03', '2027-01-21', '2029-08-03']);
+    expect([md.startDate, md.endDate, ad.planet, ad.endDate, next.planet, next.endDate]).toEqual(['2024-11-04', '2034-11-05', 'Rahu', '2027-10-06', 'Jupiter', '2029-02-04']);
+    // Independently: the reference Moon gives the same Mahadasha, Antardasha and boundaries (to within a day).
+    const day = 86_400_000;
+    const refMd = ref.vimshottariBoundaries(ref.referenceSidereal('Moon', BIRTH.utc), BIRTH.utc.getTime()).find((m) => m.startMs <= ASOF.getTime() && ASOF.getTime() < m.endMs)!;
+    const order = ref.NAKSHATRA_LORDS.slice(ref.NAKSHATRA_LORDS.indexOf(refMd.lord)).concat(ref.NAKSHATRA_LORDS.slice(0, ref.NAKSHATRA_LORDS.indexOf(refMd.lord)));
+    let at = refMd.startMs;
+    const refAds = order.map((lord) => { const s0 = at; at += (refMd.endMs - refMd.startMs) * ref.VIMSHOTTARI_YEARS[lord] / 120; return { lord, startMs: s0, endMs: at }; });
+    const ri = refAds.findIndex((a) => a.startMs <= ASOF.getTime() && ASOF.getTime() < a.endMs);
+    expect([refMd.lord, refAds[ri].lord, refAds[ri + 1].lord]).toEqual([md.planet, ad.planet, next.planet]);
+    for (const [ms, d] of [[refMd.startMs, md.startDate], [refMd.endMs, md.endDate], [refAds[ri].endMs, ad.endDate], [refAds[ri + 1].endMs, next.endDate]] as const) expect(Math.abs(ms - Date.parse(d)), d).toBeLessThan(2 * day);
     const dates = b.text.match(/\d{4}-\d{2}-\d{2}/g)!;
     const engineDates = new Set(k.dashas.flatMap((d: any) => [d.startDate, d.endDate, ...(d.antardashas ?? []).flatMap((a: any) => [a.startDate, a.endDate])]));
     for (const d of dates) expect(engineDates.has(d), d).toBe(true);
@@ -91,24 +128,25 @@ describe('career evidence (deterministic)', () => {
     expect(b.facts.yogaNames).toEqual(k.chartData.canonical.yogas.map((y: any) => y.name));
     const yogaLines = b.text.split('\n').filter((l) => /^- .*Yoga.*: rule — /.test(l));
     expect(yogaLines).toHaveLength(k.chartData.canonical.yogas.length);
-    expect(b.text).toMatch(/Sasa Yoga: rule — Pancha Mahapurusha.*Saturn is in its own sign in Capricorn, the 1st house/);
-    expect(b.text).toMatch(/Neecha Bhanga Raja Yoga: rule — Neecha Bhanga \(cancellation of debilitation\).*Saturn \(exalted in Libra\) is in the 1st house, a kendra.*describe it as a cancelled debilitation \(Neecha Bhanga\), not as a separate Raja Yoga/);
-    expect(b.text).toMatch(/Vimala Vipreeta Raja Yoga: rule — Vipreeta Raja Yoga.*Jupiter, lord of the 3rd and 12th, is in the 8th house/);
+    expect(b.text).toMatch(/Malavya Yoga: rule — Pancha Mahapurusha.*Venus is exalted in Pisces, the 10th house/);
+    expect(b.text).toMatch(/Neecha Bhanga Raja Yoga: rule — Neecha Bhanga \(cancellation of debilitation\).*Venus \(exalted in Pisces\) is in the 10th house, a kendra.*describe it as a cancelled debilitation \(Neecha Bhanga\), not as a separate Raja Yoga/);
+    expect(b.text).toMatch(/Sarala Vipreeta Raja Yoga: rule — Vipreeta Raja Yoga.*Saturn, lord of the 8th and 9th, is in the 6th house/);
+    expect(b.text).toMatch(/Harsha Vipreeta Raja Yoga: rule — Vipreeta Raja Yoga.*Mars, lord of the 6th and 11th, is in the 12th house.*do not present it as a career yoga/);
   });
 
   it('measures how much the birth time can move before the D10 Lagna changes, with the engine itself', () => {
     const b = careerBrief(k, ASOF)!;
-    const m = b.text.match(/stays Pisces for a birth up to (\d+) minute\(s\) earlier and (\d+) minute\(s\) later/)!;
-    const d10Lagna = (time: string) => computeCanonicalChart(resolveBirthWithCoordinates({ date: '1991-11-13', time, latitude: 15.8497, longitude: 74.4977, timeAccuracy: 'exact' })).vargas.D10.ascendantSignIndex;
-    const at = (min: number) => { const t = 12 * 60 + 30 + min; return d10Lagna(`${String(Math.floor(t / 60)).padStart(2, '0')}:${String(t % 60).padStart(2, '0')}`); };
+    const m = b.text.match(/stays Capricorn for a birth up to (\d+) minute\(s\) earlier and (\d+) minute\(s\) later/)!;
+    const d10Lagna = (time: string) => computeCanonicalChart(resolveBirthWithCoordinates({ date: BIRTH.date, time, latitude: BIRTH.lat, longitude: BIRTH.lng, timeAccuracy: 'exact' })).vargas.D10.ascendantSignIndex;
+    const at = (min: number) => { const t = 11 * 60 + 20 + min; return d10Lagna(`${String(Math.floor(t / 60)).padStart(2, '0')}:${String(t % 60).padStart(2, '0')}`); };
     const [earlier, later] = [Number(m[1]), Number(m[2])];
-    expect(at(-earlier)).toBe(11); expect(at(-(earlier + 1))).not.toBe(11);
-    expect(at(later)).toBe(11); expect(at(later + 1)).not.toBe(11);
+    expect(at(-earlier)).toBe(9); expect(at(-(earlier + 1))).not.toBe(9);
+    expect(at(later)).toBe(9); expect(at(later + 1)).not.toBe(9);
     expect(b.text).toMatch(/depends on an accurate birth time/);
   });
 
   it('is not built for an approximate birth time', async () => {
-    const a = await getKundli('1991-11-13', '12:30', 15.8497, 74.4977, { timeAccuracy: 'approximate' });
+    const a = await getKundli(BIRTH.date, BIRTH.time, BIRTH.lat, BIRTH.lng, { timeAccuracy: 'approximate' });
     expect(careerBrief(a)).toBeNull();
   });
 
@@ -119,29 +157,29 @@ describe('career evidence (deterministic)', () => {
     Object.assign(d10.find((p: any) => p.planet === 'Venus'), { sign: 'Virgo', signIndex: 5 });
     stale.chartData.dasamsa = { planetaryPositions: [{ planet: 'Jupiter', sign: 'Capricorn', house: 1 }, { planet: 'Venus', sign: 'Leo', house: 2 }] };
     stale.dashas = structuredClone(k.dashas);
-    const legacySaturn = stale.dashas.flatMap((m: any) => m.antardashas ?? []).find((a: any) => a.planet === 'Saturn');
-    if (legacySaturn) legacySaturn.startDate = '2029-01-01';
+    // The legacy projection disagrees about when the next Antardasha (Jupiter) begins.
+    stale.dashas.find((m: any) => m.planet === 'Moon').antardashas.find((a: any) => a.planet === 'Jupiter').startDate = '2029-01-01';
     const b = careerBrief(stale, ASOF)!;
     expect(b.text).toMatch(/Jupiter:.*in D10 Leo/);
     expect(b.text).toMatch(/Venus:.*in D10 Virgo/);
     expect(b.text).not.toContain('Jupiter: Capricorn, D10 1st house');
-    expect(b.text).toContain('Next Antardasha: Saturn (2027-01-21');
-    expect(b.text).not.toContain('Saturn (2029-01-01');
+    expect(b.text).toContain('Next Antardasha: Jupiter (2027-10-06');
+    expect(b.text).not.toContain('Jupiter (2029-01-01');
   });
 });
 
 describe('career section checks', () => {
   it('accept a section that meets its requirements, and reject a short one', () => {
     for (const x of CAREER_SECTIONS) expect(careerSectionProblems(x.heading, careerBody(x.heading, facts), facts), x.heading).toEqual([]);
-    expect(careerSectionProblems('Tenth House & Its Lord (D1)', `The 10th house is Libra and its lord Venus. ${filler(80)}`, facts)).toEqual([expect.stringMatching(/too short: \d+ words/)]);
+    expect(careerSectionProblems('Tenth House & Its Lord (D1)', `The 10th house is ${facts.tenthSign} and its lord ${facts.tenthLord}. ${filler(80)}`, facts)).toEqual([expect.stringMatching(/too short: \d+ words/)]);
   });
   it('require each section to use its own evidence, including the D1–D10 comparison', () => {
     const long = filler(400);
-    expect(careerSectionProblems('Tenth House & Its Lord (D1)', long, facts)).toEqual(expect.arrayContaining([expect.stringMatching(/10th house/), expect.stringMatching(/10th lord, Venus/)]));
-    expect(careerSectionProblems('Dasamsa (D10) Analysis', long, facts)).toEqual(expect.arrayContaining([expect.stringMatching(/D10/), expect.stringMatching(/Pisces/), expect.stringMatching(/birth time/)]));
-    expect(careerSectionProblems('Comparing the D1 and D10', `The D10 matters. ${long}`, facts)).toEqual(expect.arrayContaining([expect.stringMatching(/compare the D1 \(birth chart\) with the D10/), expect.stringMatching(/10th lord, Venus/), expect.stringMatching(/agree or differ/)]));
-    expect(careerSectionProblems('Career Timeline (Dasha Periods)', long, { ...facts, nextAntardasha: 'Mercury' })).toEqual(expect.arrayContaining([expect.stringMatching(/Mahadasha lord, Jupiter/), expect.stringMatching(/Antardasha/), expect.stringMatching(/next Antardasha, Mercury/)]));
-    expect(careerSectionProblems('Career Yogas', long, facts)).toEqual(expect.arrayContaining([expect.stringMatching(/must explain Sasa Yoga/)]));
+    expect(careerSectionProblems('Tenth House & Its Lord (D1)', long, facts)).toEqual(expect.arrayContaining([expect.stringMatching(/10th house/), expect.stringMatching(/10th lord, Jupiter/)]));
+    expect(careerSectionProblems('Dasamsa (D10) Analysis', long, facts)).toEqual(expect.arrayContaining([expect.stringMatching(/D10/), expect.stringMatching(/Capricorn/), expect.stringMatching(/birth time/)]));
+    expect(careerSectionProblems('Comparing the D1 and D10', `The D10 matters. ${long}`, facts)).toEqual(expect.arrayContaining([expect.stringMatching(/compare the D1 \(birth chart\) with the D10/), expect.stringMatching(/10th lord, Jupiter/), expect.stringMatching(/agree or differ/)]));
+    expect(careerSectionProblems('Career Timeline (Dasha Periods)', long, { ...facts, nextAntardasha: 'Mercury' })).toEqual(expect.arrayContaining([expect.stringMatching(/Mahadasha lord, Moon/), expect.stringMatching(/Antardasha/), expect.stringMatching(/next Antardasha, Mercury/)]));
+    expect(careerSectionProblems('Career Yogas', long, facts)).toEqual(expect.arrayContaining([expect.stringMatching(/must explain Malavya Yoga/)]));
     // No career-linked yoga: a few sentences are enough, and nothing invites padding.
     expect(careerSectionProblems('Career Yogas', 'None of the yogas the engine detected is linked to the 10th house, its lord, the D10 or the career significators, so none is read as a career yoga here. The Dhana Yoga in this chart concerns wealth rather than work.', { ...facts, careerYogas: [], yogaNames: ['Dhana Yoga'] })).toEqual([]);
     // Hyphenated engine names are matched as written or with spaces.
@@ -149,8 +187,7 @@ describe('career section checks', () => {
     expect(careerSectionProblems('Job vs Business', long, facts)).toEqual([expect.stringMatching(/6th, 7th and 10th/)]);
   });
   it('reject a recommendation the chart supports only weakly, and a field named without its facts', () => {
-    const weak = facts.fields!.find((x) => x.rating === 'weakly supported')!;
-    expect(weak.id).toBe('advisory');
+    expect(facts.fields!.find((x) => x.id === 'advisory')!.rating).toBe('weakly supported');
     const body = careerBody('Suitable Professional Fields', facts);
     expect(careerSectionProblems('Suitable Professional Fields', `${body}\n\nConsulting is an excellent path for you.`, facts)).toEqual([expect.stringMatching(/recommends advisory and consulting roles, which the chart supports only weakly/)]);
     expect(careerSectionProblems('Suitable Professional Fields', `${body}\n\nBanking suits you.`, facts)).toEqual([expect.stringMatching(/names finance and management without the chart facts/)]);
@@ -161,7 +198,7 @@ describe('career section checks', () => {
     expect(one('Saturn shows you will definitely be promoted.')).toEqual([expect.stringMatching(/outcome as certain/)]);
     expect(one('Saturn may help you gain recognition.')).toEqual([]);
     expect(one('A new role arrives in March 2028 for Saturn.')).toEqual([expect.stringMatching(/March 2028, which is not a period date/)]);
-    expect(one('The Saturn Antardasha begins in January 2027 with Saturn.')).toEqual([]);
+    expect(one('The Jupiter Antardasha begins in October 2027 with Saturn.')).toEqual([]);
     expect(one('Venus sits at 14° in the D10 chart.')).toEqual([expect.stringMatching(/D10 degree/)]);
     expect(one('The Gajakesari Yoga lifts the career.')).toEqual([expect.stringMatching(/Gajakesari Yoga, which the engine did not detect/)]);
     expect(one('You have leadership potential.')).toEqual([expect.stringMatching(/generic statement/)]);
@@ -232,11 +269,11 @@ describe('PR #113 production failure: the prompt\'s structure labels and the val
 
 describe('career evidence states the D1 foundations from the canonical chart', () => {
   it('D1 Lagna and its lord, Moon, Rahu and Ketu — matching the canonical placements, for several charts', async () => {
-    for (const [d, t, lat, lng] of [['1991-11-13', '12:30', 15.8497, 74.4977], ['1968-03-02', '04:15', 40.7128, -74.006], ['2001-07-21', '19:40', -33.8688, 151.2093]] as const) {
+    for (const [d, t, lat, lng] of [[BIRTH.date, BIRTH.time, BIRTH.lat, BIRTH.lng], ['1968-03-02', '04:15', 40.7128, -74.006], ['2001-07-21', '19:40', -33.8688, 151.2093]] as const) {
       const kk: any = await getKundli(d, t, lat, lng);
       const c = kk.chartData.canonical;
       const text = careerBrief(kk, ASOF)!.text;
-      const lord = ['Mars', 'Venus', 'Mercury', 'Moon', 'Sun', 'Mercury', 'Venus', 'Mars', 'Jupiter', 'Saturn', 'Saturn', 'Jupiter'][c.ascendant.signIndex];
+      const lord = LORD[c.ascendant.signIndex];
       const lp = c.planets.find((p: any) => p.name === lord);
       expect(text).toContain(`- D1 Lagna (the rising sign): ${c.ascendant.sign}; its lord ${lord}: ${lp.sign}, `);
       for (const g of ['Moon', 'Rahu', 'Ketu']) {
@@ -247,10 +284,10 @@ describe('career evidence states the D1 foundations from the canonical chart', (
     }
   });
 
-  it('the production chart: Capricorn Lagna ruled by Saturn, Moon in Capricorn in the 1st', () => {
+  it('the invented chart: Gemini Lagna ruled by Mercury, Mercury (cancelled debilitation) and the Moon in Pisces in the 10th', () => {
     const text = careerBrief(k, ASOF)!.text;
-    expect(text).toMatch(/D1 Lagna \(the rising sign\): Capricorn; its lord Saturn: Capricorn, 1st house/);
-    expect(text).toMatch(/^- Moon: Capricorn, 1st house/m);
+    expect(text).toMatch(/D1 Lagna \(the rising sign\): Gemini; its lord Mercury: Pisces, 10th house \(Debilitated, debilitation cancelled \(Neecha Bhanga\)\)/);
+    expect(text).toMatch(/^- Moon: Pisces, 10th house/m);
   });
 });
 
@@ -259,7 +296,7 @@ describe('diagnostic rule codes', () => {
     const cases: Array<[string, string]> = [
       ['too short: 120 words; explain …', 'too-short'], ['too short (40 characters)', 'too-short'], ['missing', 'missing'],
       ['must weigh the indicators for and against and end with a practical conclusion, not only state conclusions', 'for-against-conclusion'],
-      ['generic statement with no chart evidence: "Sanket has great potential"', 'generic-statement'],
+      ['generic statement with no chart evidence: "The native has great potential"', 'generic-statement'],
       ['mostly generic text: most sentences cite no chart fact', 'mostly-generic'],
       ['repeats a sentence already used in "Career Yogas": "x y z"', 'repeated-sentence'],
       ['a paragraph largely repeats one in "Job vs Business"; each section must add new information', 'repeated-paragraph'],
@@ -272,7 +309,7 @@ describe('diagnostic rule codes', () => {
       ['not generated: AI provider error 429', 'not-generated'],
     ];
     for (const [p, code] of cases) expect(careerRuleCode(p), p).toBe(code);
-    const d = careerDiagnostics(new Map([['Career Yogas', ['generic statement with no chart evidence: "Sanket has great potential"', 'too short: 100 words']], ['summary', ['too short (0 characters)']]]));
+    const d = careerDiagnostics(new Map([['Career Yogas', ['generic statement with no chart evidence: "The native has great potential"', 'too short: 100 words']], ['summary', ['too short (0 characters)']]]));
     expect(d).toBe('Career Yogas: generic-statement, too-short | summary: too-short');
   });
 });
@@ -309,16 +346,16 @@ describe('career remedies', () => {
       'Strengthen Saturn: wear a Blue Sapphire on the middle finger',
       'Wear a Diamond for Venus after consulting an astrologer',
       'Gemstone: Pearl — birth-star gemstone for Moon',
-      'Chant Om Chandraya Namah 108 times on Mondays for the Moon',
+      'Chant Om Budhaya Namah 108 times on Wednesdays for Mercury',
       'Regular visits to sacred places',
-      'Recite the Saturn mantra 108 times on Saturdays, since Saturn rules the Lagna and aspects the 10th house',
+      'Recite the Saturn mantra 108 times on Saturdays, since Saturn rules the D10 Lagna',
       'Strengthen the Sun with Surya namaskar on Sundays',
       'Pacify the Sun by donating wheat on Sundays',
-      'Offer yellow flowers to Jupiter on Thursdays, as Jupiter rules the D10 Lagna and runs the current Mahadasha',
+      'Offer yellow flowers to Jupiter on Thursdays, as Jupiter rules the 10th house',
     ], facts);
     expect(out).toEqual([
-      'Recite the Saturn mantra 108 times on Saturdays, since Saturn rules the Lagna and aspects the 10th house',
-      'Offer yellow flowers to Jupiter on Thursdays, as Jupiter rules the D10 Lagna and runs the current Mahadasha',
+      'Recite the Saturn mantra 108 times on Saturdays, since Saturn rules the D10 Lagna',
+      'Offer yellow flowers to Jupiter on Thursdays, as Jupiter rules the 10th house',
     ]);
   });
 });
@@ -343,8 +380,8 @@ describe('Career report generation (AI mocked): three parts, partial regeneratio
       expect(p).not.toMatch(/include a gemstone/);
     }
     expect(content.sections.map((s: any) => s.heading)).toEqual(CAREER_SECTIONS.map((x) => x.heading));
-    expect(content.summary).toMatch(/10th lord Venus/);
-    expect(content.remedies).toEqual(['Recite the Saturn mantra 108 times on Saturdays, since Saturn rules the Lagna and aspects the 10th house']);
+    expect(content.summary).toContain(`10th lord ${facts.tenthLord}`);
+    expect(content.remedies).toEqual(['Recite the Saturn mantra 108 times on Saturdays, since Saturn rules the D10 Lagna']);
     expect(JSON.stringify(content.remedies)).not.toMatch(/Pearl|Sapphire|Diamond|gemstone/i);
   });
 
@@ -408,15 +445,15 @@ describe('Career report generation (AI mocked): three parts, partial regeneratio
       return goodReply(p, facts, (h) => {
         if (h === 'Dasamsa (D10) Analysis') return `${careerBody(h, facts)} In the D10, Jupiter is in Leo and Venus is in Leo.`;
         if (h === 'Suitable Professional Fields') return `${careerBody(h, facts)} Administration, government and institutional roles, business and entrepreneurship, finance and management, and communication and public-facing professions are recommended.`;
-        if (h === 'Career Timeline (Dasha Periods)') return `${careerBody(h, facts)} Saturn Antardasha begins in 2029.`;
-        if (h === 'Strengths, Challenges & Practical Guidance') return `Saturn in the 1st house shapes work. ${Array.from({ length: 45 }, (_, i) => `Jupiter house ${i} shapes a career factor.`).join(' ')}`;
+        if (h === 'Career Timeline (Dasha Periods)') return `${careerBody(h, facts)} Jupiter Antardasha begins in 2029.`;
+        if (h === 'Strengths, Challenges & Practical Guidance') return `Saturn in the 6th house shapes work. ${Array.from({ length: 45 }, (_, i) => `Jupiter house ${i} shapes a career factor.`).join(' ')}`;
       });
     });
     await generateReport('career', k);
     expect(ai.respond).toHaveBeenCalledTimes(7);
     const retries = prompts.slice(3).join('\n');
     expect(retries).toMatch(/Jupiter is in .*D10, not Leo/);
-    expect(retries).toMatch(/Saturn Antardasha begins in .*not 2029/);
+    expect(retries).toMatch(/Jupiter Antardasha begins in .*not 2029/);
     expect(retries).toMatch(/without the chart facts|supports only weakly/);
     expect(retries).toMatch(/weigh the indicators for and against/);
   });
@@ -432,7 +469,7 @@ describe('Career report generation (AI mocked): three parts, partial regeneratio
     expect(logged).toHaveLength(1);
     // No report text, birth details or name: section names and codes only.
     for (const text of [logged[0], err.message]) {
-      expect(text).not.toMatch(/"|1991|12:30|Belagavi|\bS\b/);
+      expect(text).not.toMatch(/"|1985|11:20|Pune|\bP\b/);
     }
     warn.mockRestore();
   });
@@ -450,7 +487,7 @@ describe('Career report generation (AI mocked): three parts, partial regeneratio
     ai.respond.mockImplementation((p) => {
       prompts.push(p);
       if (first && headingsIn(p).includes('Strengths, Challenges & Practical Guidance')) { first = false; return goodReply(p, facts, (h) => (h === 'Strengths, Challenges & Practical Guidance' ? `${careerBody(h, facts)}\n\n${copied}` : undefined)); }
-      if (headingsIn(p).includes('Tenth House & Its Lord (D1)')) return goodReply(p, facts, (h) => (h === 'Tenth House & Its Lord (D1)' ? `The 10th house (the house of profession) is Libra, and its lord Venus shapes the working life.\n\n${copied}\n\n${filler(250)}` : undefined));
+      if (headingsIn(p).includes('Tenth House & Its Lord (D1)')) return goodReply(p, facts, (h) => (h === 'Tenth House & Its Lord (D1)' ? `The 10th house (the house of profession) is ${facts.tenthSign}, and its lord ${facts.tenthLord} shapes the working life.\n\n${copied}\n\n${filler(250)}` : undefined));
       return goodReply(p, facts);
     });
     await generateReport('career', k);
@@ -477,7 +514,7 @@ describe('Career report generation (AI mocked): three parts, partial regeneratio
 
   it('blind personalisation: three different charts give different evidence, ratings and prompts', async () => {
     const charts = await Promise.all([
-      sanket(),
+      invented(),
       getKundli('1968-03-02', '04:15', 40.7128, -74.006).then((x: any) => ({ ...x, name: 'B', dateOfBirth: new Date('1968-03-02'), timeOfBirth: '04:15', placeOfBirth: 'New York' })),
       getKundli('2001-07-21', '19:40', -33.8688, 151.2093).then((x: any) => ({ ...x, name: 'C', dateOfBirth: new Date('2001-07-21'), timeOfBirth: '19:40', placeOfBirth: 'Sydney' })),
     ]);
@@ -510,6 +547,7 @@ describe('Career report generation (AI mocked): three parts, partial regeneratio
     expect(ai.respond).toHaveBeenCalledTimes(1);
     expect(prompt).not.toMatch(/CAREER EVIDENCE|HOW TO WRITE/);
     expect(prompt).toMatch(/include a gemstone/);
-    expect(content.remedies.some((r: string) => /Pearl/.test(r))).toBe(true);
+    // The chart's own remedies, gemstone included (this chart's birth star is ruled by Mercury: Emerald).
+    expect(content.remedies.some((r: string) => /Emerald/.test(r))).toBe(true);
   });
 });

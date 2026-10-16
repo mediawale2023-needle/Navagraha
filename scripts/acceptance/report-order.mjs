@@ -76,7 +76,7 @@ const api = (page, method, url, body) => page.evaluate(async ([method, url, body
 }, [method, url, body]);
 const register = async (page, label) => {
   const email = `ro-${label}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}@example.com`;
-  const r = await api(page, 'POST', '/api/auth/register', { email, password: 'Report-Order#2026', firstName: 'Shivani' });
+  const r = await api(page, 'POST', '/api/auth/register', { email, password: 'Report-Order#2026', firstName: 'Asha Test' });
   assert(r.status === 201, `register ${r.status}`);
   sql(`UPDATE wallets SET balance = 1000 WHERE user_id = '${r.json.id}'`);
   return r.json.id;
@@ -107,9 +107,9 @@ for (const [label, viewport] of [['desktop', { width: 1280, height: 900 }], ['mo
       await page.getByTestId('input-bd-name').waitFor();
     });
     await check(`[${label}] "khamgaon" suggests Khamgaon, Maharashtra; typed text alone cannot be ordered`, async () => {
-      await page.getByTestId('input-bd-name').fill('Shivani');
-      await page.getByTestId('input-bd-date').fill('1995-11-02');
-      await page.getByTestId('input-bd-time').fill('08:15');
+      await page.getByTestId('input-bd-name').fill('Asha Test');
+      await page.getByTestId('input-bd-date').fill('1994-03-17');
+      await page.getByTestId('input-bd-time').fill('07:40');
       await page.getByTestId('input-place').click();
       await page.keyboard.type('khamgaon', { delay: 40 });
       const option = page.getByTestId('input-place-option').filter({ hasText: 'Khamgaon' });
@@ -158,13 +158,13 @@ for (const [label, viewport] of [['desktop', { width: 1280, height: 900 }], ['mo
     const { ctx, page } = await session(viewport);
     const userId = await register(page, `${label}-charts`);
     const limitedId = sql(`INSERT INTO kundlis (user_id,name,gender,date_of_birth,time_of_birth,place_of_birth,zodiac_sign,moon_sign,ascendant,chart_data,created_at) VALUES ('${userId}','Old chart','female','1985-03-10','09:00','Pune','Pisces','Leo','Gemini','{"planetaryPositions":[],"houses":[]}', now() + interval '1 hour') RETURNING id`).split('\n')[0];
-    const own = (await api(page, 'POST', '/api/kundli', { name: 'Shivani', gender: 'female', dateOfBirth: '1995-11-02', timeOfBirth: '08:15', placeOfBirth: 'Khamgaon, Maharashtra, India', latitude: 20.7085, longitude: 76.5647 })).json;
+    const own = (await api(page, 'POST', '/api/kundli', { name: 'Asha Test', gender: 'female', dateOfBirth: '1994-03-17', timeOfBirth: '07:40', placeOfBirth: 'Khamgaon, Maharashtra, India', latitude: 20.7085, longitude: 76.5647 })).json;
     await api(page, 'POST', '/api/kundli', { name: 'Rohan', gender: 'male', dateOfBirth: '1992-01-20', timeOfBirth: '21:40', placeOfBirth: 'Pune, Maharashtra, India', latitude: 18.5204, longitude: 73.8567 });
     await check(`[${label}] saved charts list name, date, time and place; a limited chart cannot be picked`, async () => {
       await openCareer(page);
       await page.getByTestId('saved-charts').waitFor();
       const row = await page.getByTestId(`saved-chart-${own.id}`).innerText();
-      for (const t of ['Shivani', '2 Nov 1995', '08:15', 'Khamgaon, Maharashtra, India']) assert(row.includes(t), `row lacks ${t}: ${row}`);
+      for (const t of ['Asha Test', '17 Mar 1994', '07:40', 'Khamgaon, Maharashtra, India']) assert(row.includes(t), `row lacks ${t}: ${row}`);
       assert(await page.getByTestId(`saved-chart-${limitedId}`).locator('input').isDisabled(), 'limited chart selectable');
       assert(!(await page.getByTestId(`saved-chart-${limitedId}`).locator('input').isChecked()), 'limited chart preselected');
       assert(await page.getByTestId('button-confirm-order').isEnabled(), 'no chart preselected');
@@ -203,7 +203,7 @@ for (const [label, viewport] of [['desktop', { width: 1280, height: 900 }], ['mo
   {
     const { ctx, page } = await session(viewport);
     await register(page, `${label}-slow`);
-    const own = (await api(page, 'POST', '/api/kundli', { name: 'Shivani', gender: 'female', dateOfBirth: '1995-11-02', timeOfBirth: '08:15', placeOfBirth: 'Khamgaon, Maharashtra, India', latitude: 20.7085, longitude: 76.5647 })).json;
+    const own = (await api(page, 'POST', '/api/kundli', { name: 'Asha Test', gender: 'female', dateOfBirth: '1994-03-17', timeOfBirth: '07:40', placeOfBirth: 'Khamgaon, Maharashtra, India', latitude: 20.7085, longitude: 76.5647 })).json;
     await page.route(`${BASE}/api/kundli`, async (route) => { await new Promise((r) => setTimeout(r, 4000)); await route.continue(); });
     await check(`[${label}] a chart list that arrives after the dialog opened is offered with the chart preselected`, async () => {
       await openCareer(page);
@@ -221,9 +221,9 @@ for (const [label, viewport] of [['desktop', { width: 1280, height: 900 }], ['mo
     await register(page, `${label}-nokey`);
     await check(`[${label}] without a Maps key the place field says suggestions are unavailable; ordering stays off`, async () => {
       await openCareer(page);
-      await page.getByTestId('input-bd-name').fill('Shivani');
-      await page.getByTestId('input-bd-date').fill('1995-11-02');
-      await page.getByTestId('input-bd-time').fill('08:15');
+      await page.getByTestId('input-bd-name').fill('Asha Test');
+      await page.getByTestId('input-bd-date').fill('1994-03-17');
+      await page.getByTestId('input-bd-time').fill('07:40');
       await page.getByTestId('input-place').click();
       await page.keyboard.type('khamgaon', { delay: 20 });
       const status = await page.getByTestId('input-place-status').innerText();
