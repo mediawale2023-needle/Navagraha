@@ -2086,12 +2086,14 @@ export class DatabaseStorage implements IStorage {
   }
 
   // The claim on refunded_at and the credit share a transaction, so an order is refunded once.
-  // Orders from before refunds existed carry no charged amount: their price is refunded unless
-  // the account rides free.
+  // Orders from before refunds existed carry no charged amount: what was debited for them is
+  // refunded; with no debit found, their price, unless the account rides free (then ₹0).
   private async refundReportOrder(id: string, statusCondition: SQL, set: Partial<ReportOrder>): Promise<{ order: ReportOrder; refunded: number } | null> {
     const existing = await this.getReportOrderById(id);
     if (!existing) return null;
-    const legacyCharge = existing.chargedAmount == null ? await this.legacyReportCharge(existing) : null;
+    const legacyCharge = existing.chargedAmount == null
+      ? (await this.legacyReportCharge(existing)) ?? ((await this.hasFreeAccess(existing.userId)) ? 0 : null)
+      : null;
     return db.transaction(async (tx) => {
       const [order] = await tx
         .update(reportOrders)
@@ -2115,24 +2117,31 @@ export class DatabaseStorage implements IStorage {
   // Orders placed before charged_amount existed: the route debited the wallet just before
   // creating the order, so the nearest preceding "Report: …" debit is what was charged (₹0 for
   // a free-access account at the time).
+  // created_at is `timestamp without time zone`, written by DEFAULT now() in the database
+  // session's zone. Both sides are compared in SQL: a JS Date sent as a parameter is serialised
+  // in the Node process's zone, which shifted this window by the UTC offset (#117).
   private async legacyReportCharge(order: ReportOrder): Promise<number | null> {
-    if (!order.createdAt) return null;
     const { rows } = await pool.query(
-      `SELECT abs(amount::numeric)::float AS charged FROM transactions
-        WHERE user_id = $1 AND type = 'debit' AND description LIKE 'Report: %'
-          AND created_at BETWEEN $2::timestamp - interval '5 minutes' AND $2::timestamp + interval '1 minute'
-        ORDER BY abs(extract(epoch FROM created_at - $2::timestamp)) LIMIT 1`,
-      [order.userId, order.createdAt],
+      `SELECT abs(t.amount::numeric)::float AS charged
+         FROM report_orders o JOIN transactions t ON t.user_id = o.user_id
+        WHERE o.id = $1 AND o.created_at IS NOT NULL
+          AND t.type = 'debit' AND t.description LIKE 'Report: %'
+          AND t.created_at BETWEEN o.created_at - interval '5 minutes' AND o.created_at + interval '1 minute'
+        ORDER BY abs(extract(epoch FROM t.created_at - o.created_at)) LIMIT 1`,
+      [order.id],
     );
     return rows.length ? Number(rows[0].charged) : null;
   }
 
-  /** Orders still marked processing long after generation could have finished (e.g. a restart). */
-  async getStaleProcessingReportOrders(createdBefore: Date): Promise<ReportOrder[]> {
+  /**
+   * Orders still marked processing long after generation could have finished (e.g. a restart). The age is
+   * measured in SQL against now(), never against a JS Date, so the Node zone cannot shift it (#117).
+   */
+  async getStaleProcessingReportOrders(olderThanMs: number): Promise<ReportOrder[]> {
     return db
       .select()
       .from(reportOrders)
-      .where(and(eq(reportOrders.status, "processing"), sql`${reportOrders.createdAt} < ${createdBefore}`))
+      .where(and(eq(reportOrders.status, "processing"), sql`${reportOrders.createdAt} < now() - make_interval(secs => ${olderThanMs / 1000}::double precision)`))
       .orderBy(asc(reportOrders.createdAt))
       .limit(100);
   }
