@@ -28,7 +28,8 @@ export type AuditEvent =
   | "auth.email_verification_throttled"
   | "auth.email_verified"
   | "ai.usage"
-  | "ai.budget_refused";
+  | "ai.budget_refused"
+  | "report.career_pipeline";
 
 type Value = string | number | boolean | null | undefined;
 

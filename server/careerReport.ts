@@ -1,8 +1,9 @@
 /**
- * Career & Profession Report: the deterministic career evidence the model must build on, the career-only checks
- * its sections must pass, and the remedy safeguards. Every fact here is read from the canonical chart and the
- * engine's own derived data (house lords, aspects, dignities, vargas, Vimshottari, detected yogas); nothing is
- * calculated anew except the D10 Lagna's sensitivity to the birth time, which re-runs the engine's own angles.
+ * Career & Profession Report: the career brief (field tally, yoga analysis, D10 birth-time sensitivity) used by both
+ * pipelines — the facts-first one (careerReportEvidence.ts, test accounts only; server/careerPipeline.ts) and the
+ * three-part one customers receive, whose section checks and remedy safeguards follow below. Every value is read
+ * from the canonical chart and the engine's own derived data; nothing is calculated anew except the D10 Lagna's
+ * sensitivity to the birth time, which re-runs the engine's own angles.
  */
 import { SIGN_NAMES, isCurrentCanonicalChart, type CanonicalChart, type Graha } from '@shared/v3/canonical';
 import { savReading } from '@shared/v3/ashtakavargaPolicy';
@@ -58,10 +59,16 @@ export const FIELDS: Record<FieldId, { label: string; planets: Graha[]; houses: 
   communication: { label: 'Communication and public-facing professions', planets: ['Mercury', 'Moon', 'Venus'], houses: [3, 7], words: /\bcommunicat\w*|\bmedia\b|\bjournalis\w*|\bwriting\b|\bsales\b|\bmarketing\b|\bpublic-facing\b|\bpublic relations\b/i },
 };
 
-export interface CareerBrief { text: string; facts: CareerFacts }
+export interface CareerBrief {
+  text: string;
+  facts: CareerFacts;
+  fields: Array<{ id: FieldId; label: string; rating: 'well supported' | 'mixed' | 'weakly supported'; plus: string[]; minus: string[] }>;
+  yogaEvidence: string[];
+  birthTimeCaveat: string;
+}
 
 /** Birth-time sensitivity of the D10 Lagna: minutes earlier/later at which it would change (searched to ±60 min). */
-function d10LagnaWindow(chart: CanonicalChart): { earlier: number | null; later: number | null } {
+export function d10LagnaWindow(chart: CanonicalChart): { earlier: number | null; later: number | null } {
   const t0 = Date.parse(chart.birth.birthUTC);
   const at = (min: number) => dasamsaSign(siderealAngles(julianDayUT(new Date(t0 + min * 60_000)), chart.birth.latitude, chart.birth.longitude).ascendant);
   const base = chart.vargas.D10.ascendantSignIndex;
@@ -186,6 +193,9 @@ export function careerBrief(kundli: any, asOf = new Date()): CareerBrief | null 
 
   return {
     text: L.join('\n'),
+    fields: fieldRows.map(({ id, label, rating, plus, minus }) => ({ id, label, rating, plus, minus })),
+    yogaEvidence: yogaLines,
+    birthTimeCaveat: L.find((line) => line.startsWith('- Birth-time sensitivity:'))!,
     facts: {
       tenthLord, tenthSign: tenth.sign, d10LagnaSign: SIGN_NAMES[d10.ascendantSignIndex], d10LagnaLord,
       d10TenthSign: SIGN_NAMES[d10Sign(10)], d10TenthLord, mahadasha: md?.lord ?? null, antardasha: ad?.lord ?? null,
@@ -242,6 +252,7 @@ function yogaLine(y: CanonicalChart['yogas'][number], chart: CanonicalChart, ctx
   const career = links.length ? `career link: ${listOf(Array.from(new Set(links)))}` : 'no direct link to the 10th house, its lord, the D10 or the career significators; do not present it as a career yoga';
   return `- ${y.name}${y.cancelled ? ' (cancelled)' : ''}: rule — ${rule}; configuration — ${config || y.description.split(' — ')[0]}; ${y.cancelled ? 'the engine marks it cancelled' : 'met by the engine\'s rule'}${limits ? `; limits — ${limits}` : ''}${mods.length ? `; modifying conditions — ${mods.join('; ')}` : ''}; ${career}.`;
 }
+
 
 /** One Career Report section: its heading, an editorial word range (a ceiling for depth, not a quota) and what it must explain. */
 export interface CareerSection { heading: string; words: [number, number]; core: boolean; brief: string }

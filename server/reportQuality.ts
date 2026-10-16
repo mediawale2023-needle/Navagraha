@@ -22,6 +22,8 @@ export interface ReportGuard {
   factsText: string;
   transits?: string;
   asOf: Date;
+  /** Facts-first Career Report rules in the answer guard (GuardContext.factsFirst). */
+  factsFirst?: boolean;
 }
 
 export interface Section { heading: string; body: string }
@@ -39,6 +41,7 @@ export function textProblems(text: string, guard: ReportGuard, minChars: number)
     asOf: guard.asOf,
     running: rp ? { mahadasha: rp.mahadasha, antardasha: rp.antardasha } : null,
     timing: { mahadashaReliable: stable.mahadasha, antardashaReliable: stable.antardasha },
+    factsFirst: guard.factsFirst,
   });
 }
 

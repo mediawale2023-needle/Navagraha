@@ -16,7 +16,9 @@ import { createOpenAI } from "./ai/metering";
 import type { Kundli } from "@shared/schema";
 import { transitsForChart, transitSummary } from "./astroEngine/index.js";
 import { isCurrentCanonicalChart, type CanonicalChart, type Graha } from "@shared/v3/canonical";
-import { CAREER_BATCHES, CAREER_SECTIONS, careerBrief, careerDiagnostics, careerRemedies, careerReportProblems, careerSectionProblems, type CareerBrief } from "./careerReport.js";
+import { CAREER_BATCHES, CAREER_SECTIONS, careerBrief, careerDiagnostics, careerRemedies, careerReportProblems, careerSectionProblems } from "./careerReport.js";
+import { careerRequester, generateDeterministicCareer } from "./careerReportGeneration.js";
+import type { CareerPipeline } from "./careerPipeline.js";
 import { birthDayStability, dignityStatementStable, yogaTimeStable, type BirthDayStability } from "./astroEngine/canonical/birthDay.js";
 import { buildInsights } from "./astroEngine/evidence/insights.js";
 import { reportGroundingFor, reportSectionGroundingFor } from "./userFacingReasoning.js";
@@ -523,6 +525,7 @@ function checkedRemedies(remedies: string[], guard: ReportGuard): string[] {
 export async function generateReport(
   category: string,
   kundli: Partial<Kundli>,
+  options: { careerPipeline?: CareerPipeline } = {},
 ): Promise<GeneratedReport> {
   requireAi();
   const meta = REPORT_FOCUS[category];
@@ -532,7 +535,11 @@ export async function generateReport(
   const asOf = new Date();
   // A year-ahead reading names the months it covers; those years are facts, not inventions.
   const window = category === "year_ahead" ? reportWindow(asOf) : "";
-  // The Career Report is generated in parts on its own evidence (server/careerReport.ts).
+  // Customers get the three-part Career Report; the facts-first pipeline only when the order route chose it for a
+  // test account (server/careerPipeline.ts). The default is the customer path.
+  if (category === "career" && options.careerPipeline === "facts-first") return { ...await generateDeterministicCareer(kundli, asOf, careerRequester(getClient()), {
+    onMetrics: (metrics) => console.info('[reports] career metrics', JSON.stringify(metrics)),
+  }) };
   if (category === "career") return generateCareerReport(kundli, asOf);
   const guard = reportGuard(kundli, undefined, window);
   const plan = sectionPlan(meta, isApproximate(kundli));
@@ -560,6 +567,7 @@ export async function generateReport(
   }
   throw new ReportGenerationError(`report failed the quality check: ${problems.join(" | ")}`);
 }
+
 
 // ─── Career & Profession Report (in parts) ─────────────────────────────────────
 

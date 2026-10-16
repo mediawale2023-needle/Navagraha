@@ -273,7 +273,7 @@ describe('chart actually used after selection', () => {
     const res = await request(app).post('/api/reports/order').set('x-user', 'owner').send({ reportTypeId: 'type' });
     expect(res.status).toBe(201);
     expect(mocks.storage.placeReportOrder).toHaveBeenCalledWith(expect.objectContaining({ kundliId: 'chart' }));
-    await vi.waitFor(() => expect(mocks.generateReport).toHaveBeenCalledWith('career', saved));
+    await vi.waitFor(() => expect(mocks.generateReport).toHaveBeenCalledWith('career', saved, { careerPipeline: 'three-part' }));
   });
 
   it('report from explicit details computes an unsaved chart with seconds and the approximate flag', async () => {

@@ -136,3 +136,32 @@ describe('approximate-time disclosure travels with every answer', () => {
     expect(packetSummary(packet).disclosure).toBeNull();
   });
 });
+
+describe('AI guard: facts-first Career rules apply only where that pipeline asks for them', () => {
+  const ff = (text: string) => validateAnswer(text, { ...packet.guard, factsFirst: true });
+  it('facts-first: "current" belongs to the period it describes', () => {
+    const rp = runningPeriod(chart, AS_OF)!;
+    const other = SEVEN.find((g) => g !== rp.antardasha && g !== rp.mahadasha)!;
+    expect(ff(`You are currently in the ${other} Antardasha.`).join(' ')).toMatch(/running Antardasha/);
+    expect(ff(`At present, the ${other} Antardasha shapes your work.`).join(' ')).toMatch(/running Antardasha/);
+    expect(ff(`Use the current ${rp.antardasha} Antardasha to prepare for the ${other} Antardasha that follows.`).join(' ')).not.toMatch(/running Antardasha/);
+    expect(ff(`The ${other} Antardasha could present challenges in communication.`).join(' ')).not.toMatch(/running Antardasha/);
+  });
+  it('facts-first: "<planet> occupies <sign>" is checked as a placement', () => {
+    const p = chart.planets.find((x) => x.name === 'Saturn')!;
+    const wrong = SIGN_NAMES.find((x) => x !== p.sign)!;
+    expect(ff(`Saturn occupies ${wrong}.`).join(' ')).toMatch(new RegExp(`Saturn is in ${p.sign}, not ${wrong}`));
+    expect(ff(`Saturn occupies ${p.sign}.`)).toEqual([]);
+  });
+  it('everywhere else (Ask, other reports, the three-part Career Report) the rules are as before', () => {
+    const rp = runningPeriod(chart, AS_OF)!;
+    const other = SEVEN.find((g) => g !== rp.antardasha && g !== rp.mahadasha)!;
+    expect(check(`You are currently in the ${other} Antardasha.`).join(' ')).toMatch(/running Antardasha/);
+    // The whole sentence is read: a later period beside "current", or "present" as a verb, is still a claim.
+    expect(check(`Use the current ${rp.antardasha} Antardasha to prepare for the ${other} Antardasha that follows.`).join(' ')).toMatch(/running Antardasha/);
+    expect(check(`The ${other} Antardasha could present challenges in communication.`).join(' ')).toMatch(/running Antardasha/);
+    // "occupies" is not read as a placement claim.
+    const p = chart.planets.find((x) => x.name === 'Saturn')!;
+    expect(check(`Saturn occupies ${SIGN_NAMES.find((x) => x !== p.sign)!}.`)).toEqual([]);
+  });
+});
