@@ -20,6 +20,13 @@ export interface GuardContext {
   timing: { mahadashaReliable: boolean; antardashaReliable: boolean };
   transits?: string;
   asOf: Date;
+  /**
+   * The facts-first Career Report's reading of three rules (careerReportRendering.ts sets it; nothing else does):
+   * "present" counts as "now" only in its time sense, "now/current" applies only to the period it sits beside,
+   * and "<planet> occupies <sign>" is checked as a placement. Off: Ask and every other report keep the rules as
+   * they were.
+   */
+  factsFirst?: boolean;
 }
 
 const cap = (w: string) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase();
@@ -34,8 +41,9 @@ const SIGN = `(${SIGN_NAMES.join('|')})`;
 const NAK = `(${NAKSHATRAS.map((n) => n.name.replace(' ', '[ -]?')).join('|')})`;
 const NEGATION = /\b(no|not|never|without|free (?:of|from)|absent|cancel+ed|isn['’]t|aren['’]t|doesn['’]t|don['’]t|does not|do not|lacks?|neither|nor|unknown|uncertain|cannot|can['’]t|unclear|not known)\b/i;
 const TRANSIT_CONTEXT = /\b(transit|transiting|gochar|currently|right now|these days|this year|today|at present)\b/i;
-// "present" only in its time sense: the verb ("could present challenges") says nothing about which period runs now.
-const CURRENT = /\b(current(?:ly)?|running|now|presently|at present|(?:the|this|your) present|present (?:period|phase|time|stage|cycle|dasha|mahadasha|antardasha|maha\s?dasha|antar\s?dasha|sub-?period|bhukti)|ongoing|you are (?:in|going through|under)|you['’]re (?:in|going through|under)|at the moment|these days)\b/i;
+const CURRENT = /\b(current(?:ly)?|running|now|present(?:ly)?|ongoing|you are (?:in|going through|under)|you['’]re (?:in|going through|under)|at the moment|these days)\b/i;
+// Facts-first: "present" only in its time sense; the verb ("could present challenges") says nothing about which period runs now.
+const CURRENT_FACTS_FIRST = /\b(current(?:ly)?|running|now|presently|at present|(?:the|this|your) present|present (?:period|phase|time|stage|cycle|dasha|mahadasha|antardasha|maha\s?dasha|antar\s?dasha|sub-?period|bhukti)|ongoing|you are (?:in|going through|under)|you['’]re (?:in|going through|under)|at the moment|these days)\b/i;
 
 function sentences(text: string): string[] {
   return text.replace(/\n+/g, '. ').split(/(?<=[.!?])\s+/).filter(Boolean);
@@ -289,7 +297,8 @@ export function validateAnswer(answer: string, ctx: GuardContext): string[] {
 
     // Planet in sign (natal). Transit sentences are about the sky today, not the chart.
     if (!transitSentence) {
-      for (const m of Array.from(s.matchAll(new RegExp(`\\b${PLANET}\\b(?:['’]s)?\\s+(?:(?:is\\s+|sits\\s+|placed\\s+|posited\\s+|located\\s+|was\\s+)?(?:in|into)\\s+|occupies\\s+)(?:the\\s+sign\\s+(?:of\\s+)?)?${SIGN}\\b`, 'gi')))) {
+      const occupies = ctx.factsFirst ? '|occupies\\s+' : '';
+      for (const m of Array.from(s.matchAll(new RegExp(`\\b${PLANET}\\b(?:['’]s)?\\s+(?:(?:is\\s+|sits\\s+|placed\\s+|posited\\s+|located\\s+|was\\s+)?(?:in|into)\\s+${occupies})(?:the\\s+sign\\s+(?:of\\s+)?)?${SIGN}\\b`, 'gi')))) {
         const g = planetOf(m[1]); const claimed = cap(m[2]);
         if (approx && !st.planets[g].sign) { if (!negatedBefore(s, m.index!)) issues.push(`${g}'s sign is uncertain: it changes during the birth date and the birth time is approximate`); continue; }
         if (negatedBefore(s, m.index!)) continue;
@@ -466,15 +475,16 @@ export function validateAnswer(answer: string, ctx: GuardContext): string[] {
     const periodClaims = [
       ...Array.from(s.matchAll(new RegExp(`\\b${PLANET}\\b(?:['’]s)?\\s*[- ]?\\s*(maha\\s?dasha|mahadasa|dasha|dasa|antar\\s?dasha|antardasa|bhukti|sub-?period)`, 'gi'))).map((m) => ({ index: m.index!, end: m.index! + m[0].length, planet: m[1], level: m[2] })),
       ...Array.from(s.matchAll(new RegExp(`\\b(maha\\s?dasha|dasha|antar\\s?dasha|bhukti)\\s+of\\s+${PLANET}\\b`, 'gi'))).map((m) => ({ index: m.index!, end: m.index! + m[0].length, planet: m[2], level: m[1] })),
-    ].sort((a, b) => a.index - b.index);
+    ];
+    if (ctx.factsFirst) periodClaims.sort((a, b) => a.index - b.index);
     for (let i = 0; i < periodClaims.length; i++) { const m = periodClaims[i];
-      // "current" belongs to the period it sits beside: in "use the current Saturn Antardasha to prepare for
-      // the Mercury Antardasha" only Saturn is claimed to run now. Each claim's span runs from the previous
-      // period mention to the next,
-      // and within ~50 characters of it: in "start building … now, preparing for … the Mercury Antardasha" the
-      // "now" is the reader's action, not the period's.
-      const span = s.slice(Math.max(i ? periodClaims[i - 1].end : 0, m.index - 50), Math.min(periodClaims[i + 1]?.index ?? s.length, m.end + 50));
-      if (!CURRENT.test(span) || negatedBefore(s, m.index)) continue;
+      // Facts-first: "current" belongs to the period it sits beside. In "use the current Saturn Antardasha to
+      // prepare for the Mercury Antardasha" only Saturn is claimed to run now. Each claim's span runs from the
+      // previous period mention to the next, and within ~50 characters of it: in "start building … now,
+      // preparing for … the Mercury Antardasha" the "now" is the reader's action, not the period's.
+      // Everywhere else the whole sentence is read, as before.
+      const span = ctx.factsFirst ? s.slice(Math.max(i ? periodClaims[i - 1].end : 0, m.index - 50), Math.min(periodClaims[i + 1]?.index ?? s.length, m.end + 50)) : s;
+      if (!(ctx.factsFirst ? CURRENT_FACTS_FIRST : CURRENT).test(span) || negatedBefore(s, m.index)) continue;
       const g = planetOf(m.planet);
       const antar = /antar|bhukti|sub/i.test(m.level);
       if (!ctx.running) { issues.push('no running period is available for this chart'); continue; }

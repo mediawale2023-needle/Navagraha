@@ -170,7 +170,7 @@ export function slotCheck(text: string, kind: keyof typeof LENGTH, facts: Career
   // The guard reads an unnamed chart as D1; explanations of D10 facts are about the D10 unless they say otherwise.
   const named = text.replace(D10_NAMES, 'D10');
   const scoped = d10 ? named.split(SENTENCES).map((x) => (/\bD1\b|\bD10\b|Dasamsa|birth chart|natal/i.test(x) ? x : `In the D10, ${x.charAt(0).toLowerCase()}${x.slice(1)}`)).join(' ') : named;
-  problems.push(...textProblems(scoped, { chart: evidence.chart, factsText: factText, asOf: evidence.asOf }, 0));
+  problems.push(...textProblems(scoped, { chart: evidence.chart, factsText: factText, asOf: evidence.asOf, factsFirst: true }, 0));
   return { problems: Array.from(new Set(problems)), advisories };
 }
 
