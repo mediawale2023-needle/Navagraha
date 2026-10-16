@@ -91,6 +91,7 @@ import {
   extractMemories,
 } from "./aiAstrologerService";
 import { fulfilReportOrder, isOfferedReportCategory, reportsAvailable } from "./reportOrders";
+import { careerPipelineFor } from "./careerPipeline";
 import { computeJyotishChart } from "./astroEngine/jyotishEngine.js";
 import { streamTraditionReading, answerSessionQuery, type Tradition } from "./jyotishAiService.js";
 import { insertJyotishClientProfileSchema } from "@shared/schema";
@@ -1910,10 +1911,15 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
       const { order } = placed;
       audit("wallet.debit", { userId, reason: 'report', orderId: order.id, amount: Number(order.chargedAmount ?? 0), reportTypeId: reportType.id });
 
+      // The Career pipeline is chosen here, from the signed-in account as deserializeUser read it from the database
+      // (server/careerPipeline.ts), never from the request.
+      const careerPipeline = careerPipelineFor(reportType.category, req.user as { email?: string | null } | undefined);
+      if (reportType.category === 'career') audit("report.career_pipeline", { userId, orderId: order.id, pipeline: careerPipeline });
+
       // Generated asynchronously; the client polls until the order is ready or failed (refunded).
       void fulfilReportOrder(order, reportType.name, () => reportType.category === 'life_complete'
         ? generateLifeReport(kundli)
-        : generateReport(reportType.category || 'life', kundli));
+        : generateReport(reportType.category || 'life', kundli, { careerPipeline }));
 
       res.status(201).json({ orderId: order.id, newBalance: placed.balance });
     } catch (err) {

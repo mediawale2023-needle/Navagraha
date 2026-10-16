@@ -50,4 +50,9 @@ export const features = {
    * prompts are exactly as before. Verdicts, evidence, prices and eligibility are the same either way.
    */
   userFacingReasoning: () => on('USER_FACING_REASONING_V1'),
+  /**
+   * The facts-first Career Report (server/careerReportGeneration.ts) for admin accounts only (server/careerPipeline.ts),
+   * for controlled website testing. Off, or for any other account: the three-part Career Report, as before.
+   */
+  careerFactsFirst: () => on('FEATURE_CAREER_FACTS_FIRST'),
 };

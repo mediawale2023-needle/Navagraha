@@ -1,0 +1,119 @@
+// Controlled testing of the facts-first Career Report: FEATURE_CAREER_FACTS_FIRST plus an admin account, decided by
+// the order route from the signed-in account. Customers, and anything a request body says, get the three-part report.
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import express, { type Express } from 'express';
+import request from 'supertest';
+
+const CATALOGUE = [
+  { id: 't-career', slug: 'career-report', category: 'career', price: '299.00', isActive: true },
+  { id: 't-marriage', slug: 'marriage-report', category: 'marriage', price: '349.00', isActive: true },
+];
+const USERS: Record<string, { id: string; email: string }> = {
+  admin: { id: 'admin', email: 'tester@example.com' },
+  customer: { id: 'customer', email: 'customer@example.com' },
+  // A case variant of the admin address is a different, possibly attacker-registered account (adminAccess.ts).
+  variant: { id: 'variant', email: 'Tester@example.com' },
+};
+const mocks = vi.hoisted(() => ({
+  storage: { getReportTypes: vi.fn(), getReportTypeById: vi.fn(), placeReportOrder: vi.fn(), getUserKundlis: vi.fn(), failAndRefundReportOrder: vi.fn(), createNotification: vi.fn(), setReportOrderContent: vi.fn() },
+  generateReport: vi.fn(),
+}));
+vi.mock('../../server/storage', () => ({ storage: mocks.storage }));
+vi.mock('../../server/db', () => ({ db: {}, pool: {} }));
+vi.mock('../../server/auth', async (orig) => ({ ...await orig<typeof import('../../server/auth')>(), setupAuth: vi.fn() }));
+vi.mock('../../server/swagger', () => ({ setupSwagger: vi.fn() }));
+vi.mock('../../server/pushService', () => ({ sendPushToUser: vi.fn(), sendPushToAstrologer: vi.fn() }));
+vi.mock('../../server/aiAstrologerService', async (orig) => ({
+  ...await orig<typeof import('../../server/aiAstrologerService')>(),
+  generateReport: mocks.generateReport,
+  generateLifeReport: vi.fn(async () => { throw new Error('not in this test'); }),
+}));
+import { registerRoutes } from '../../server/routes';
+import { careerPipelineFor } from '../../server/careerPipeline';
+
+let app: Express;
+let kundli: any;
+beforeAll(async () => {
+  app = express(); app.use(express.json());
+  app.use((req, _res, next) => {
+    req.isAuthenticated = (() => true) as typeof req.isAuthenticated;
+    // As passport's deserializeUser does: the stored account row, read by id.
+    req.user = USERS[String(req.headers['x-user'] ?? 'customer')] as any;
+    req.session = {} as any;
+    next();
+  });
+  await registerRoutes(app);
+  const { getKundli } = await import('../../server/astroEngine');
+  kundli = await getKundli('1990-05-15', '14:30', 28.6139, 77.209, { timeAccuracy: 'exact', timezone: null, utcOffset: null, place: 'New Delhi' });
+});
+beforeEach(() => {
+  vi.clearAllMocks();
+  vi.stubEnv('OPENAI_API_KEY', 'sk-test');
+  vi.stubEnv('ADMIN_EMAILS', 'tester@example.com');
+  mocks.storage.getReportTypes.mockResolvedValue(CATALOGUE);
+  mocks.storage.getReportTypeById.mockImplementation(async (id: string) => CATALOGUE.find((t) => t.id === id));
+  mocks.storage.getUserKundlis.mockImplementation(async (userId: string) => [{ id: 'k1', userId, name: 'Test', ...kundli, chartData: { ...kundli.chartData, isBirthTimeApproximate: false } }]);
+  mocks.storage.placeReportOrder.mockResolvedValue({ order: { id: 'o1', chargedAmount: '0' }, balance: '0.00' });
+  mocks.generateReport.mockRejectedValue(new Error('not in this test'));
+  mocks.storage.failAndRefundReportOrder.mockResolvedValue({ refunded: 0 });
+  mocks.storage.createNotification.mockResolvedValue({});
+});
+afterEach(() => { vi.unstubAllEnvs(); });
+
+const order = (user: string, body: Record<string, unknown> = {}) => request(app).post('/api/reports/order').set('x-user', user).send({ reportTypeId: 't-career', ...body });
+const pipelineUsed = () => mocks.generateReport.mock.calls[0]?.[2]?.careerPipeline;
+
+describe('Career pipeline selection at the order route', () => {
+  it('flag off: every account, admin included, gets the three-part report', async () => {
+    for (const user of ['admin', 'customer']) {
+      mocks.generateReport.mockClear();
+      expect((await order(user)).status).toBe(201);
+      expect(pipelineUsed()).toBe('three-part');
+    }
+  });
+
+  it('flag on: an admin account gets the facts-first pipeline', async () => {
+    vi.stubEnv('FEATURE_CAREER_FACTS_FIRST', 'true');
+    expect((await order('admin')).status).toBe(201);
+    expect(mocks.generateReport).toHaveBeenCalledWith('career', expect.anything(), { careerPipeline: 'facts-first' });
+  });
+
+  it('flag on: a customer, and a case variant of an admin address, get the three-part report', async () => {
+    vi.stubEnv('FEATURE_CAREER_FACTS_FIRST', 'true');
+    for (const user of ['customer', 'variant']) {
+      mocks.generateReport.mockClear();
+      expect((await order(user)).status).toBe(201);
+      expect(pipelineUsed(), user).toBe('three-part');
+    }
+  });
+
+  it('flag on: nothing in the request body can choose the pipeline', async () => {
+    vi.stubEnv('FEATURE_CAREER_FACTS_FIRST', 'true');
+    const attempts = [{ careerPipeline: 'facts-first' }, { pipeline: 'facts-first' }, { options: { careerPipeline: 'facts-first' } }, { isAdmin: true, email: 'tester@example.com' }];
+    for (const body of attempts) {
+      mocks.generateReport.mockClear();
+      expect((await order('customer', body)).status).toBe(201);
+      expect(pipelineUsed(), JSON.stringify(body)).toBe('three-part');
+    }
+  });
+
+  it('other reports are unaffected', async () => {
+    vi.stubEnv('FEATURE_CAREER_FACTS_FIRST', 'true');
+    expect((await order('admin', { reportTypeId: 't-marriage' })).status).toBe(201);
+    expect(mocks.generateReport).toHaveBeenCalledWith('marriage', expect.anything(), { careerPipeline: 'three-part' });
+  });
+});
+
+describe('careerPipelineFor', () => {
+  it('needs the flag, the career category and an admin account', () => {
+    vi.stubEnv('FEATURE_CAREER_FACTS_FIRST', 'true');
+    expect(careerPipelineFor('career', USERS.admin)).toBe('facts-first');
+    expect(careerPipelineFor('marriage', USERS.admin)).toBe('three-part');
+    expect(careerPipelineFor('career', USERS.customer)).toBe('three-part');
+    expect(careerPipelineFor('career', USERS.variant)).toBe('three-part');
+    expect(careerPipelineFor('career', null)).toBe('three-part');
+    expect(careerPipelineFor('career', { email: null })).toBe('three-part');
+    vi.stubEnv('FEATURE_CAREER_FACTS_FIRST', '1');
+    expect(careerPipelineFor('career', USERS.admin)).toBe('three-part');
+  });
+});
