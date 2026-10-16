@@ -48,8 +48,8 @@ export async function fulfilReportOrder(order: ReportOrder, reportName: string, 
   }
 }
 
-export async function sweepStaleReportOrders(now = new Date()): Promise<number> {
-  const stale = await storage.getStaleProcessingReportOrders(new Date(now.getTime() - STALE_REPORT_ORDER_MS));
+export async function sweepStaleReportOrders(staleAfterMs = STALE_REPORT_ORDER_MS): Promise<number> {
+  const stale = await storage.getStaleProcessingReportOrders(staleAfterMs);
   let refunded = 0;
   for (const order of stale) {
     const type = await storage.getReportTypeById(order.reportTypeId).catch(() => undefined);

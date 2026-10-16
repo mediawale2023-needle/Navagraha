@@ -55,3 +55,32 @@ jobs:
       env:
         TEST_DATABASE_URL: postgres://postgres:postgres@localhost:5432/navagraha_test
       run: npx vitest run --config vitest.config.ts --no-file-parallelism tests/unit/*.db.test.ts
+
+    # #117: the same suites with Node and the Postgres session in Asia/Kolkata (fresh database), and the
+    # report refund suites with Node and Postgres in different zones, both ways round.
+    - name: Database tests (Node and Postgres in Asia/Kolkata)
+      env:
+        PGPASSWORD: postgres
+        TZ: Asia/Kolkata
+        TEST_DATABASE_URL: postgres://postgres:postgres@localhost:5432/navagraha_test_ist?options=-c%20TimeZone%3DAsia%2FKolkata
+      run: |
+        psql -h localhost -U postgres -c 'CREATE DATABASE navagraha_test_ist'
+        npx vitest run --config vitest.config.ts --no-file-parallelism tests/unit/*.db.test.ts
+
+    - name: Report refund tests (Node UTC, Postgres Asia/Kolkata)
+      env:
+        PGPASSWORD: postgres
+        TZ: UTC
+        TEST_DATABASE_URL: postgres://postgres:postgres@localhost:5432/navagraha_test_mixed_a?options=-c%20TimeZone%3DAsia%2FKolkata
+      run: |
+        psql -h localhost -U postgres -c 'CREATE DATABASE navagraha_test_mixed_a'
+        npx vitest run --config vitest.config.ts --no-file-parallelism tests/unit/report-orders.db.test.ts tests/unit/report-refund-timezones.db.test.ts
+
+    - name: Report refund tests (Node Asia/Kolkata, Postgres UTC)
+      env:
+        PGPASSWORD: postgres
+        TZ: Asia/Kolkata
+        TEST_DATABASE_URL: postgres://postgres:postgres@localhost:5432/navagraha_test_mixed_b?options=-c%20TimeZone%3DUTC
+      run: |
+        psql -h localhost -U postgres -c 'CREATE DATABASE navagraha_test_mixed_b'
+        npx vitest run --config vitest.config.ts --no-file-parallelism tests/unit/report-orders.db.test.ts tests/unit/report-refund-timezones.db.test.ts
