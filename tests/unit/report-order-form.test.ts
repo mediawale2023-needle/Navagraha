@@ -65,6 +65,14 @@ describe('entered birth details need a picked place', () => {
   });
 });
 
+describe('Ask your Kundli birth details need a picked place', () => {
+  const ask = readFileSync('client/src/pages/AIAstrologer.tsx', 'utf8');
+  it('editing the place clears the earlier pick and a question needs picked coordinates', () => {
+    expect(ask).toMatch(/onChange=\{\(v\) => \{ setBirth\(\(b\) => \(\{ \.\.\.b, placeOfBirth: v \}\)\); setBirthCoords\(null\); \}\}/);
+    expect(ask).toMatch(/const birthValid = birthDetailsReady\(birth, birthCoords\)/);
+  });
+});
+
 describe('place search without a Maps key says so', () => {
   it('shows a message instead of staying silent when the site has no key', () => {
     expect(places).toMatch(/unconfigured: '/);

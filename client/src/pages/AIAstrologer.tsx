@@ -23,6 +23,7 @@ import { AskPacks } from '@/components/ask/AskPacks';
 import { useAppFeatures } from '@/lib/appConfig';
 import { GlossaryAside, GlossarySheet } from '@/components/ask/Glossary';
 import type { GlossaryEntry } from '@/lib/glossary';
+import { birthDetailsReady } from '@/lib/reportOrderForm';
 
 interface Kundli {
   id: string;
@@ -160,7 +161,7 @@ export default function AIAstrologer() {
   });
 
   const detailsMode = selectedKundliId === DETAILS_KEY;
-  const birthValid = !!(birth.name.trim() && birth.dateOfBirth && birth.timeOfBirth && birth.placeOfBirth.trim());
+  const birthValid = birthDetailsReady(birth, birthCoords);
 
   // Deep links from the Evidence Sheet: ?kundliId=<owned chart>&q=<question>.
   const [linkParams] = useState(() => new URLSearchParams(window.location.search));
@@ -297,7 +298,7 @@ export default function AIAstrologer() {
     const msg = (text || input).trim();
     if (!msg || chatMutation.isPending) return;
     if (detailsMode && !birthValid) {
-      toast({ title: "Add birth details", description: "Enter name, date, time and place first.", variant: "destructive" });
+      toast({ title: "Add birth details", description: birth.placeOfBirth.trim() && !birthCoords ? "Pick the birth place from the suggestions." : "Enter name, date, time and place first.", variant: "destructive" });
       return;
     }
     setMessages((prev) => [...prev, { role: "user", content: msg, id: crypto.randomUUID() }]);
@@ -404,11 +405,11 @@ export default function AIAstrologer() {
                 </div>
                 <PlacesAutocomplete
                   value={birth.placeOfBirth}
-                  onChange={(v) => setBirth((b) => ({ ...b, placeOfBirth: v }))}
+                  onChange={(v) => { setBirth((b) => ({ ...b, placeOfBirth: v })); setBirthCoords(null); }}
                   onPlaceSelect={(place) => setBirthCoords({ lat: place.lat, lng: place.lng })}
                   placeholder="City, State, Country"
                 />
-                {!birthValid && <p className="text-caption text-ink-muted">Enter name, date, time and place to get a personalised reading. The chart is calculated for this conversation and not saved.</p>}
+                {!birthValid && <p className="text-caption text-ink-muted" data-testid="ai-bd-hint">{birth.placeOfBirth.trim() && !birthCoords ? 'Pick the town from the suggestions: its coordinates and time zone fix the chart.' : 'Enter name, date, time and place to get a personalised reading. The chart is calculated for this conversation and not saved.'}</p>}
               </div>
             )}
             {kundlis.length === 0 && !detailsMode && (
