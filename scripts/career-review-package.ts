@@ -13,7 +13,6 @@ import { buildCareerReportFacts, dateOf } from '../server/careerReportEvidence';
 const DIR = 'docs/career-evaluations/3fcfea4';
 const CHARTS = {
   delhi: { label: 'Delhi', date: '1985-03-22', time: '06:15', latitude: 28.6139, longitude: 77.209 },
-  belagavi: { label: 'Belagavi', date: '1991-11-13', time: '12:30', latitude: 15.8497, longitude: 74.4977 },
   mumbai: { label: 'Mumbai', date: '2000-07-04', time: '18:45', latitude: 19.076, longitude: 72.8777 },
 } as const;
 const ord = (n: number) => `${n}${n === 1 ? 'st' : n === 2 ? 'nd' : n === 3 ? 'rd' : 'th'}`;

@@ -4,7 +4,7 @@ import { resolveBirthWithCoordinates } from '../../server/astroEngine/birthResol
 import { buildCareerReportFacts, CAREER_HEADINGS, dateOf } from '../../server/careerReportEvidence';
 import { ASOF, fixtureChart } from '../fixtures/career-chart';
 
-const CHARTS = [['1985-03-22', '06:15', 28.6139, 77.209], ['1991-11-13', '12:30', 15.8497, 74.4977], ['2000-07-04', '18:45', 19.076, 72.8777]] as const;
+const CHARTS = [['1985-03-22', '06:15', 28.6139, 77.209], ['1977-10-30', '10:25', 22.5726, 88.3639], ['2000-07-04', '18:45', 19.076, 72.8777]] as const;
 const ORD = (n: number) => `${n}${n === 1 ? 'st' : n === 2 ? 'nd' : n === 3 ? 'rd' : 'th'}`;
 
 describe('Career facts are written by code from the canonical chart', () => {
@@ -66,10 +66,11 @@ describe('Career facts are written by code from the canonical chart', () => {
     const e = buildCareerReportFacts(fixtureChart(date, time, lat, lon), ASOF);
     const text = e.sections.flatMap((s) => s.facts.map((f) => f.text)).join('\n');
     expect(text).not.toMatch(/\bbindus?\b|\bengine\b|\bdusthana\b|\bkendra\b|\btrikona\b|do not|never state|status and success|marked rise|financial gain|undefined|NaN/);
-    expect(text).not.toMatch(/\b(?:Sun|Moon) (?:is|rules|sits|occupies)\b(?<!the (?:Sun|Moon) \w+)/);
+    expect(text).not.toMatch(/\b(?:Sun|Moon) (?:is|rules|sits|occupies)\b(?<![Tt]he (?:Sun|Moon) \w+)/);
+    expect('Saturn rules it. Sun is in Libra.').toMatch(/\b(?:Sun|Moon) (?:is|rules|sits|occupies)\b(?<![Tt]he (?:Sun|Moon) \w+)/);
   });
   it('refuses an approximate birth time and a stored chart that the engine does not reproduce', () => {
-    const approximate = computeCanonicalChart(resolveBirthWithCoordinates({ date: '1991-11-13', time: '12:30', latitude: 15.8497, longitude: 74.4977, timeAccuracy: 'approximate' }));
+    const approximate = computeCanonicalChart(resolveBirthWithCoordinates({ date: '1977-10-30', time: '10:25', latitude: 22.5726, longitude: 88.3639, timeAccuracy: 'approximate' }));
     expect(() => buildCareerReportFacts({ chartData: { canonical: approximate } }, ASOF)).toThrow(/exact birth time/);
     const k: any = fixtureChart(); k.chartData.canonical = JSON.parse(JSON.stringify(k.chartData.canonical));
     k.chartData.canonical.planets.find((p: any) => p.name === 'Jupiter').sign = 'Aries';

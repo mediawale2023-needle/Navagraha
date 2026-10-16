@@ -77,7 +77,7 @@ The first facts-first report passed (6 calls, $0.0377) and was reviewed in full.
 
 ## Fixes from the three-chart evaluation (f729c61)
 
-The runs were Delhi, Belagavi and Mumbai, costing $0.1438 in total. All three failed, each on a false rejection from the rules added in 6397e0b. The fixes, in the order of the constraint "fact construction, then structure, then a simpler check":
+The runs used three charts (two are kept: Delhi and Mumbai; the third used personal birth details and its records were removed), costing $0.1438 in total. All three failed, each on a false rejection from the rules added in 6397e0b. The fixes, in the order of the constraint "fact construction, then structure, then a simpler check":
 
 - **Facts.**
   - Periods are marked "(running now)" or "(still to come)", and the current ones read "You are now in…". The model had called a running sub-period "upcoming".
@@ -97,7 +97,7 @@ The runs were Delhi, Belagavi and Mumbai, costing $0.1438 in total. All three fa
 
 **Offline replay** (`tests/unit/career-live-replay.test.ts`, records in `tests/fixtures/career-live-f729c61/`). The recorded replies were served to the corrected pipeline:
 - Delhi completes with no correction.
-- Belagavi completes with one correction (the debilitated Sun called well placed; a short synthesis).
+- The removed third run's finding (a debilitated Sun called well placed) is kept as a hand-written sentence on the invented default chart.
 - Mumbai stops at one correction the live run never made. Its recorded Periods synthesis says "Upcoming Mercury and Ketu sub-periods" while the Mercury Antardasha is running: a real error, now refused.
 
 

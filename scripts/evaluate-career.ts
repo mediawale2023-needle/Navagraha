@@ -16,7 +16,7 @@ async function main() {
   // Synthetic charts only (the test fixtures); never a customer's.
   const CHARTS = {
     delhi: { date: '1985-03-22', time: '06:15', latitude: 28.6139, longitude: 77.2090 },
-    belagavi: { date: '1991-11-13', time: '12:30', latitude: 15.8497, longitude: 74.4977 },
+    kolkata: { date: '1977-10-30', time: '10:25', latitude: 22.5726, longitude: 88.3639 },
     mumbai: { date: '2000-07-04', time: '18:45', latitude: 19.0760, longitude: 72.8777 },
   } as const;
   const name = (process.argv.find((a) => a.startsWith('--chart='))?.slice(8) ?? 'delhi') as keyof typeof CHARTS;

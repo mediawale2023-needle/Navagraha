@@ -1,13 +1,12 @@
 # Career & Profession Report: independent astrological review
 
-Three reports produced by the live evaluation of commit 3fcfea4 (gpt-4o, facts-first pipeline), for three **synthetic** test charts. None is a customer's. The reports were not edited.
+Two reports produced by the live evaluation of commit 3fcfea4 (gpt-4o, facts-first pipeline), for two **synthetic** test charts. None is a customer's. The reports were not edited. (A third report from that evaluation was removed because its chart used personal birth details.)
 
 ## What is in this package
 
 | Chart | Report as the customer sees it | Annotated report (fact vs AI) | Calculated chart data |
 |---|---|---|---|
 | Delhi, 1985-03-22 06:15 | [`../delhi.md`](../delhi.md) | [`delhi-report-annotated.md`](delhi-report-annotated.md) | [`delhi-chart.md`](delhi-chart.md) |
-| Belagavi, 1991-11-13 12:30 | [`../belagavi.md`](../belagavi.md) | [`belagavi-report-annotated.md`](belagavi-report-annotated.md) | [`belagavi-chart.md`](belagavi-chart.md) |
 | Mumbai, 2000-07-04 18:45 | [`../mumbai.md`](../mumbai.md) | [`mumbai-report-annotated.md`](mumbai-report-annotated.md) | [`mumbai-chart.md`](mumbai-chart.md) |
 
 Each chart file gives the birth details, the D1 (placements, dignity, Neecha Bhanga, combustion, retrogression, houses, lords, Sarvashtakavarga), the D10, the 10th-house aspects, the engine's yogas, and the full Vimshottari timeline, with the Antardashas of every Mahadasha in the report's four-year window. It also lists the field and work-style assessments the report used. Machine-readable records, including every section attempt and the validators' findings, are in `../<chart>.json`. Regenerate this folder with `npx tsx scripts/career-review-package.ts`.
@@ -72,7 +71,6 @@ Score each item 1–5 (5 = no issue) for each report, and note any specific sent
 | Report | A | B | C | D | E | F | Overall /10 | Must-fix issues |
 |---|---|---|---|---|---|---|---|---|
 | Delhi | | | | | | | | |
-| Belagavi | | | | | | | | |
 | Mumbai | | | | | | | | |
 
 ## Note on the generating commit

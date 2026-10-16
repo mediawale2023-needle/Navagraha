@@ -12,7 +12,7 @@ vi.mock('../../server/storage', () => ({ storage: delivery }));
 vi.mock('../../server/pushService', () => ({ sendPushToUser: vi.fn() }));
 import { fulfilReportOrder } from '../../server/reportOrders';
 
-const CHARTS = [['1985-03-22', '06:15', 28.6139, 77.209], ['1991-11-13', '12:30', 15.8497, 74.4977], ['2000-07-04', '18:45', 19.076, 72.8777]] as const;
+const CHARTS = [['1985-03-22', '06:15', 28.6139, 77.209], ['1977-10-30', '10:25', 22.5726, 88.3639], ['2000-07-04', '18:45', 19.076, 72.8777]] as const;
 const delhi = () => fixtureChart('1985-03-22', '06:15', 28.6139, 77.209);
 const facts = (k = delhi()) => buildCareerReportFacts(k, ASOF);
 const section = (e: CareerReportFacts, key: string) => e.sections.find((s) => s.key === key)!;
