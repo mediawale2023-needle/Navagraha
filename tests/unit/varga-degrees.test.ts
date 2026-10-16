@@ -12,12 +12,12 @@ import { chartPlacementLabel } from '../../client/src/lib/reportPdf';
 import { withoutVargaDegreePlaceholders } from '../../server/astroEngine/canonical/upgrade';
 
 const SIGNS = ['Aries', 'Taurus', 'Gemini', 'Cancer', 'Leo', 'Virgo', 'Libra', 'Scorpio', 'Sagittarius', 'Capricorn', 'Aquarius', 'Pisces'];
-// The production report's birth details: 13 Nov 1991, 12:30 IST, Belagavi (15.8497 N, 74.4977 E).
-const BIRTH = { date: '1991-11-13', time: '12:30', lat: 15.8497, lng: 74.4977, utc: new Date('1991-11-13T07:00:00Z') };
+// An invented chart (24 Aug 1993, 08:05 IST, Pune city centre); the reference is computed for it at run time.
+const BIRTH = { date: '1993-08-24', time: '08:05', lat: 18.5204, lng: 73.8567, utc: new Date('1993-08-24T02:35:00Z') };
 const kundli = async (date = BIRTH.date, time = BIRTH.time, lat = BIRTH.lat, lng = BIRTH.lng) =>
   (await getKundli(date, time, lat, lng, { timeAccuracy: 'exact' })) as any;
 
-describe('D10 for the production Career Report chart, against the independent reference', () => {
+describe('D10 for a Career Report chart, against the independent reference', () => {
   it('Lagna, D10 Lagna, and every planet\'s D1, D9 and D10 sign and house agree with scripts/golden/reference.ts', async () => {
     const k = await kundli();
     const c = k.chartData.canonical;
@@ -27,10 +27,10 @@ describe('D10 for the production Career Report chart, against the independent re
     const refAsc = ref.referenceAngles(BIRTH.utc, BIRTH.lat, BIRTH.lng).ascendant;
     expect(c.birth.birthUTC).toBe(BIRTH.utc.toISOString());
     expect(c.ascendant.sign).toBe(SIGNS[ref.signOf(refAsc)]);
-    expect(c.ascendant.sign).toBe('Capricorn');
+    expect(c.ascendant.sign).toBe('Virgo');
     const d10Asc = ref.d10(refAsc), d9Asc = ref.d9(refAsc);
     expect(c.vargas.D10.ascendantSignIndex).toBe(d10Asc);
-    expect(SIGNS[d10Asc]).toBe('Pisces');
+    expect(SIGNS[d10Asc]).toBe('Taurus');
     expect(c.vargas.D9.ascendantSignIndex).toBe(d9Asc);
     for (const p of c.planets) {
       const r = refLon[p.name];
@@ -47,14 +47,15 @@ describe('D10 for the production Career Report chart, against the independent re
     }
   });
 
-  it('the D10 placements printed in the production PDF are the calculated ones', async () => {
+  it('the D10 placements printed in the PDF are the independent reference ones', async () => {
     const k = await kundli();
     const at = (p: string) => k.chartData.dasamsa.planetaryPositions.find((x: any) => x.planet === p);
-    const expected: Record<string, [string, number]> = {
-      Ascendant: ['Pisces', 1], Sun: ['Gemini', 4], Moon: ['Capricorn', 11], Mars: ['Gemini', 4], Mercury: ['Capricorn', 11],
-      Jupiter: ['Capricorn', 11], Venus: ['Leo', 6], Saturn: ['Scorpio', 9], Rahu: ['Gemini', 4], Ketu: ['Sagittarius', 10],
-    };
-    for (const [planet, [sign, house]] of Object.entries(expected)) expect([planet, at(planet).sign, at(planet).house]).toEqual([planet, sign, house]);
+    const refLon: Record<string, number> = Object.fromEntries(ref.REF_BODIES.map((b) => [b, ref.referenceSidereal(b, BIRTH.utc)]));
+    refLon.Rahu = ref.referenceMeanNode(BIRTH.utc);
+    refLon.Ketu = (refLon.Rahu + 180) % 360;
+    const d10Asc = ref.d10(ref.referenceAngles(BIRTH.utc, BIRTH.lat, BIRTH.lng).ascendant);
+    expect([at('Ascendant').sign, at('Ascendant').house]).toEqual([SIGNS[d10Asc], 1]);
+    for (const [planet, lon] of Object.entries(refLon)) expect([planet, at(planet).sign, at(planet).house]).toEqual([planet, SIGNS[ref.d10(lon)], ((ref.d10(lon) - d10Asc + 12) % 12) + 1]);
   });
 });
 
