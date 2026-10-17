@@ -114,15 +114,15 @@ describe('facts-first Career report: coverage and correction', () => {
     await generateDeterministicCareer(k, ASOF, request);
     expect(targets(e, request).slice(5)).toEqual(['periods:period.Antardasha.Saturn.2026-07-20']);
   });
-  it('fails, and refunds through the order path, when a required explanation is still invalid after its correction', async () => {
+  it('fails, and refunds through the order path, when a required explanation is still invalid after both correction rounds', async () => {
     const k = delhi(); const e = facts(k);
     const bad = (r: any, s: any) => { if (s.key === 'chart' && r.explanations['chart.tenth']) r.explanations['chart.tenth'] += ' Venus shapes this house.'; };
     const request = spy(e, bad);
     delivery.failAndRefundReportOrder.mockResolvedValue({ refunded: 299 }); delivery.createNotification.mockResolvedValue({});
     await fulfilReportOrder({ id: 'test-only', userId: 'test-user' } as any, 'Career', () => generateDeterministicCareer(k, ASOF, request));
-    expect(request).toHaveBeenCalledTimes(6);
+    expect(request).toHaveBeenCalledTimes(7); // five sections, then two correction rounds for the one failing slot
     expect(delivery.setReportOrderContent).not.toHaveBeenCalled(); expect(delivery.failAndRefundReportOrder).toHaveBeenCalledTimes(1);
-    await expect(generateDeterministicCareer(k, ASOF, spy(e, bad))).rejects.toThrow(/Your Birth Chart: chart.tenth names Venus/);
+    await expect(generateDeterministicCareer(k, ASOF, spy(e, bad))).rejects.toThrow(/after 2 correction rounds\. Your Birth Chart: chart\.tenth names/);
   });
   it('requires at least three valid next steps citing this section\'s facts', async () => {
     const k = delhi(); const e = facts(k);
@@ -132,7 +132,7 @@ describe('facts-first Career report: coverage and correction', () => {
     expect(request.mock.calls[5][0]).toMatch(/cites an id that is not in this section|cites no fact/);
     expect(report.sections[4].body.match(/^\d\. /gm)).toHaveLength(3);
   });
-  it('re-requests a whole section once when its response is truncated or malformed, and fails if it is again', async () => {
+  it('retries a truncated or malformed response before judging it, and fails if it stays unreadable through both rounds', async () => {
     const k = delhi(); const e = facts(k); let n = 0;
     const base = realisticRequester(e);
     const request = vi.fn(async (p: string) => { const r = await base(p); if (promptTarget(e, p).section.key === 'overview' && n++ === 0) r.choices[0].finish_reason = 'length'; return r; });
@@ -140,7 +140,7 @@ describe('facts-first Career report: coverage and correction', () => {
     expect(report.sections).toHaveLength(5); expect(targets(e, request).slice(5)).toEqual(['overview']);
     const broken = vi.fn(async (p: string) => { const r = await base(p); if (promptTarget(e, p).section.key === 'overview') r.choices[0].message.content = '{'; return r; });
     await expect(generateDeterministicCareer(k, ASOF, broken)).rejects.toThrow(/Career Overview: response invalid-json/);
-    expect(broken).toHaveBeenCalledTimes(6);
+    expect(broken).toHaveBeenCalledTimes(10); // four sections + overview: (1 + 1 format retry) × first pass and two rounds
   });
   it('accepts the reply shapes the model has produced: explanation arrays and paragraph arrays', () => {
     const e = facts(); const s = section(e, 'current'); const reply = replyFor(e, s);
