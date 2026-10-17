@@ -73,13 +73,24 @@ const grouped = (reasons: string[]) => {
 };
 const STRONG = ['Exalted', 'Moolatrikona', 'Own sign'];
 
+/**
+ * JSON with object keys sorted, so two values compare equal exactly when their contents do. A chart read back from
+ * Postgres JSONB has its keys re-ordered (JSONB stores shorter keys first), so a plain JSON.stringify comparison
+ * refused every saved chart; values, array order and numbers are still compared exactly.
+ */
+export function canonicalJson(value: unknown): string {
+  const sorted = (v: unknown): unknown => Array.isArray(v) ? v.map(sorted)
+    : v && typeof v === 'object' ? Object.fromEntries(Object.keys(v as object).sort().map((k) => [k, sorted((v as Record<string, unknown>)[k])])) : v;
+  return JSON.stringify(sorted(value));
+}
+
 /** Recompute with the same engine; a stored chart that differs is refused before any spending. */
 export function verifiedCareerChart(kundli: any): CanonicalChart {
   const stored = kundli?.chartData?.canonical;
   if (!isCurrentCanonicalChart(stored) || stored.birth.timeAccuracy !== 'exact') throw new ReportGenerationError('Career requires a complete canonical chart and exact birth time');
   const chart = computeCanonicalChart(stored.birth);
   for (const key of ['planets', 'ascendant', 'houses', 'aspects', 'vargas', 'dashas', 'yogas', 'strength'] as const) {
-    if (JSON.stringify(chart[key]) !== JSON.stringify(stored[key])) throw new ReportGenerationError(`Career canonical verification failed: ${key}`);
+    if (canonicalJson(chart[key]) !== canonicalJson(stored[key])) throw new ReportGenerationError(`Career canonical verification failed: ${key}`);
   }
   return chart;
 }
