@@ -20,7 +20,7 @@ export async function replay(name: keyof typeof CHARTS) {
     const heading = prompt.match(/part of "([^"]+)"/)![1];
     const n = served.get(heading) ?? 0; served.set(heading, n + 1);
     const recorded = attempts.filter((a) => a.heading === heading)[n];
-    if (!recorded) { unrecorded.push(heading); throw new Error(`UNRECORDED ${heading}`); }
+    if (!recorded) { unrecorded.push(heading); throw Object.assign(new Error(`UNRECORDED ${heading}`), { status: 400 }); } // 400: not retryable, so the replay stops here
     return { choices: [{ finish_reason: 'stop', message: { content: recorded.content } }], usage: { prompt_tokens: 1500, completion_tokens: 900 } };
   };
   try {

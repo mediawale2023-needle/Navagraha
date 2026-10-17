@@ -37,7 +37,9 @@ A sentence of eight or more words repeated anywhere in the report is removed fro
 
 **Coverage, per section, never as a percentage.**
 - An invalid optional explanation is dropped and its fact still shows.
-- An invalid or missing required slot is requested again in **one correction round**. The correction asks only for the failed slots (`max_tokens` 900); a truncated or malformed reply is asked for again whole.
+- An invalid or missing required slot is requested again in up to **two correction rounds** (`CAREER_CORRECTION_ROUNDS`). A correction asks only for the failed slots (`max_tokens` 900); an accepted section is never requested again (unless a later correction makes it repeat a sentence).
+- Faults that say nothing about the astrology are retried before a reply is judged: a transient transport error (no HTTP status, 408, 409, 429, 5xx) up to twice with 1 s and 3 s backoff (`CAREER_TRANSPORT_RETRIES`); any other status fails at once. A truncated or refused reply (`finish_reason` other than `stop`) or unparseable JSON is requested again once (`CAREER_FORMAT_RETRIES`); if it is still unreadable it becomes a whole-section failure for the correction rounds. Every retry is reserved in the same spending ledger and stops at the six-minute deadline.
+- Diagnostics: `onMetrics` receives one record per request — section heading, phase (`first`, `correction-1`, `correction-2`), attempt number, category (`accepted`, `validation`, `truncated`, `malformed`, `transport`, `deadline`, `budget`), rule codes (`careerRuleCode`: planet and sign names, numbers, quotes and parentheses removed), prompt/completion tokens, cost and duration — plus the totals, outcome and failure category. No birth details or report text; the stored failure reason uses rule codes too.
 - Anything required that is still invalid fails the order, which is refunded by the existing path.
 - A transport failure ends the report.
 
