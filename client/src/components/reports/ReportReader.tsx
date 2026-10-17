@@ -4,6 +4,7 @@ import { Sheet, SheetContent, SheetTitle } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
 import { NorthIndianChartEnhanced } from '@/components/NorthIndianChartEnhanced';
 import type { ReportContent } from '@/lib/reportPdf';
+import { formatDashaPeriod, formatPlanetDegree } from '@/lib/reportFormatting';
 import { savReading, SAV_POLICY_TEXT } from '@shared/v3/ashtakavargaPolicy';
 
 interface Props {
@@ -91,7 +92,7 @@ export function ReportReader({ content, title, refunded, downloading, onDownload
                         <td className="py-2 pr-3 font-semibold">{p.planet}{p.retrograde ? ' ℞' : ''}</td>
                         <td className="py-2 pr-3">{p.sign || '—'}</td>
                         <td className="py-2 pr-3">{p.house ?? '—'}</td>
-                        <td className="py-2">{p.degree != null ? `${p.degree}°` : '—'}</td>
+                        <td className="py-2">{formatPlanetDegree(p.degree)}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -106,7 +107,7 @@ export function ReportReader({ content, title, refunded, downloading, onDownload
               <ol className="m-0 list-none overflow-hidden rounded-lg border border-line bg-surface p-0 text-sm tabular-nums">
                 {content.dashaTimeline.map((d, i) => (
                   <li key={i} className={`flex justify-between gap-3 border-b border-hairline px-4 py-2.5 last:border-0 ${d.status === 'current' ? 'bg-highlight font-semibold' : ''}`}>
-                    <span>{d.planet}{d.status === 'current' ? ' · now' : ''}</span><span className="text-ink-muted">{d.period || '—'}</span>
+                    <span>{d.planet}{d.status === 'current' ? ' · now' : ''}</span><span className="text-ink-muted">{formatDashaPeriod(d)}</span>
                   </li>
                 ))}
               </ol>

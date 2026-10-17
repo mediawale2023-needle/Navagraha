@@ -2,7 +2,7 @@ import type OpenAI from 'openai';
 import { GRAHAS, SIGN_NAMES } from '@shared/v3/canonical';
 import { ReportGenerationError } from './reportQuality';
 import { buildCareerReportFacts, type CareerSectionFacts } from './careerReportEvidence';
-import { careerSectionPrompt, checkSectionReply, parseSectionReply, renderCareerSection, careerMetadata, careerSummary, MIN_STEPS, SYNTHESIS, type SectionText } from './careerReportRendering';
+import { careerSectionPrompt, checkSectionReply, parseSectionReply, renderCareerSection, careerGlossarySection, careerMetadata, careerSummary, MIN_STEPS, SYNTHESIS, type SectionText } from './careerReportRendering';
 
 export const CAREER_BUDGET_MICRO_USD = 250_000;
 export const CAREER_DEADLINE_MS = 6 * 60_000;
@@ -110,6 +110,30 @@ async function boundedRequest(request: CareerRequester, prompt: string, signal: 
 
 const WHOLE = 'response';
 const sentenceKey = (s: string) => s.toLowerCase().replace(/[^a-z0-9 ]/g, '').replace(/\s+/g, ' ').trim();
+const REPETITION_STOP_WORDS = new Set(['a', 'an', 'and', 'are', 'as', 'at', 'be', 'because', 'but', 'by', 'can', 'for', 'from', 'in', 'is', 'it', 'may', 'of', 'on', 'or', 'that', 'the', 'this', 'to', 'with', 'you', 'your']);
+const repetitionWords = (sentence: string) => sentenceKey(sentence).split(' ').filter((word) => word.length > 2 && !REPETITION_STOP_WORDS.has(word));
+const repetitionThemes = (sentence: string) => {
+  const themes = [
+    /\b(disciplin\w*|patien\w*|persever\w*|endurance|steady effort)\b/i.test(sentence) && 'endurance',
+    /\b(adapt\w*|flexib\w*)\b/i.test(sentence) && 'adaptability',
+    /\b(debilitat\w*|weak\w*|challeng\w*|obstacle\w*|delay\w*)\b/i.test(sentence) && 'challenge',
+  ].filter(Boolean) as string[];
+  const planets = GRAHAS.filter((planet) => new RegExp(`\\b${planet}\\b`, 'i').test(sentence));
+  return new Set(planets.flatMap((planet) => themes.map((theme) => `${planet}:${theme}`)));
+};
+
+/** Catch close paraphrases as well as verbatim copies, without treating a shared planet name as repetition. */
+export function repeatsCareerInterpretation(first: string, second: string): boolean {
+  const a = new Set(repetitionWords(first)), b = new Set(repetitionWords(second));
+  if (a.size < 7 || b.size < 7) return false;
+  const shared = Array.from(a).filter((word) => b.has(word)).length;
+  const similarity = shared / new Set(Array.from(a).concat(Array.from(b))).size;
+  // A very close lexical frame is repetitive even when it changes the subject. Looser matches are rejected
+  // only when they repeat the same planet-specific theme, avoiding false positives from ordinary career terms.
+  if (shared >= 12 && similarity >= 0.62) return true;
+  const firstThemes = repetitionThemes(first), secondThemes = repetitionThemes(second);
+  return Array.from(firstThemes).some((theme) => secondThemes.has(theme)) && shared >= 6 && similarity >= 0.55;
+}
 
 export async function generateDeterministicCareer(kundli: unknown, asOf: Date, request: CareerRequester, options: { ledger?: CareerSpending; onMetrics?: (m: CareerMetrics) => void; onSection?: (attempt: CareerSectionAttempt) => void; retryDelaysMs?: readonly number[] } = {}) {
   const started = Date.now();
@@ -201,15 +225,24 @@ export async function generateDeterministicCareer(kundli: unknown, asOf: Date, r
 
     // The same sentence in two places adds nothing: the later copy is dropped, or corrected when required.
     const repetition = () => {
-      const seen = new Map<string, string>();
+      const seen = new Map<string, { location: string; sentence: string }>();
       for (const section of evidence.sections) {
         for (const [id, slot] of Array.from(text.get(section.key)!)) {
-          const repeated = slot.text.split(/(?<=[.!?])\s+/).map(sentenceKey).find((k) => k.split(' ').length >= 8 && seen.has(k) && seen.get(k) !== `${section.key}/${id}`);
+          const sentences = slot.text.split(/(?<=[.!?])\s+/).filter((s) => repetitionWords(s).length >= 7);
+          const repeated = sentences.map((sentence) => {
+            const exact = seen.get(sentenceKey(sentence));
+            if (exact && exact.location !== `${section.key}/${id}`) return exact;
+            return Array.from(seen.values()).find((prior) => prior.location !== `${section.key}/${id}` && repeatsCareerInterpretation(prior.sentence, sentence));
+          }).find(Boolean);
           if (repeated) {
             text.get(section.key)!.delete(id);
             const required = id === SYNTHESIS || id.startsWith('step.') || section.facts.find((f) => f.id === id)?.required;
-            (required ? failing : dropped).get(section.key)!.set(id.startsWith('step.') ? 'steps' : id, [`repeats a sentence from ${evidence.sections.find((s) => s.key === seen.get(repeated)!.split('/')[0])!.heading}`]);
-          } else for (const s of slot.text.split(/(?<=[.!?])\s+/).map(sentenceKey)) if (s.split(' ').length >= 8 && !seen.has(s)) seen.set(s, `${section.key}/${id}`);
+            const source = evidence.sections.find((s) => s.key === repeated.location.split('/')[0])!.heading;
+            (required ? failing : dropped).get(section.key)!.set(id.startsWith('step.') ? 'steps' : id, [`repeats an interpretation from ${source}; explain this fact with distinct reasoning`]);
+          } else for (const sentence of sentences) {
+            const key = sentenceKey(sentence);
+            if (!seen.has(key)) seen.set(key, { location: `${section.key}/${id}`, sentence });
+          }
         }
       }
     };
@@ -244,7 +277,9 @@ export async function generateDeterministicCareer(kundli: unknown, asOf: Date, r
     }
     if (controller.signal.aborted) throw new ReportGenerationError('Career deadline exceeded');
     outcome = 'completed';
-    return { title: 'Career & Profession Report', summary: careerSummary(evidence), sections: evidence.sections.map((s) => ({ heading: s.heading, body: renderCareerSection(s, text.get(s.key)!) })), remedies: [] as string[], ...careerMetadata(evidence, kundli), generatedAt: asOf.toISOString() };
+    const sections = evidence.sections.map((s) => ({ heading: s.heading, body: renderCareerSection(s, text.get(s.key)!) }));
+    const glossary = careerGlossarySection(sections);
+    return { title: 'Career & Profession Report', summary: careerSummary(evidence), sections: glossary ? [...sections, glossary] : sections, remedies: [] as string[], ...careerMetadata(evidence, kundli), generatedAt: asOf.toISOString() };
   } catch (err) {
     if (!failureCategory) {
       const message = String((err as Error)?.message ?? '');

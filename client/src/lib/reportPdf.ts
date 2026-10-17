@@ -2,6 +2,7 @@
 // so it stays out of the main bundle and only loads when a user downloads.
 import { HOUSE_TEXT, PLANET_ABBR, PLANET_COLORS, SIGN_NUM } from "@/components/NorthIndianChartEnhanced";
 import { savReading } from "@shared/v3/ashtakavargaPolicy";
+import { formatDashaPeriod, formatPlanetDegree } from "@/lib/reportFormatting";
 
 interface ChartPlanetPos {
   planet: string;
@@ -41,7 +42,7 @@ export interface ReportContent {
     status?: string;
     startDate?: string;
     endDate?: string;
-    currentAntardasha?: { planet: string; period?: string } | null;
+    currentAntardasha?: { planet: string; period?: string; startDate?: string; endDate?: string } | null;
   }[];
   generatedAt?: string;
 }
@@ -163,7 +164,7 @@ export async function downloadReportPdf(content: ReportContent) {
       p.planet,
       p.sign || "—",
       p.house != null ? String(p.house) : "—",
-      p.degree != null ? `${p.degree}°` : "—",
+      formatPlanetDegree(p.degree, "'"),
       p.retrograde ? "R" : "",
     ]);
     y = drawTable(doc, M, y, ["Planet", "Sign", "House", "Degree", "Retro"], [40, 50, 30, 35, 25], rows);
@@ -174,9 +175,9 @@ export async function downloadReportPdf(content: ReportContent) {
     heading("Vimshottari Dasha Timeline");
     const rows = content.dashaTimeline.map((d) => [
       d.planet,
-      d.period || "—",
+      formatDashaPeriod(d),
       (d.status || "").replace(/^\w/, (c) => c.toUpperCase()),
-      d.currentAntardasha ? `${d.currentAntardasha.planet} (${d.currentAntardasha.period || "—"})` : "—",
+      d.currentAntardasha ? `${d.currentAntardasha.planet} (${formatDashaPeriod(d.currentAntardasha)})` : "—",
     ]);
     y = drawTable(
       doc,
@@ -239,7 +240,8 @@ export async function downloadReportPdf(content: ReportContent) {
  */
 export function chartPlacementLabel(p: ChartPlanetPos, opts: { degrees: boolean }): string {
   const abbr = PLANET_ABBR[p.planet] || (p.planet === "Ascendant" ? "Asc" : p.planet.slice(0, 2));
-  const degree = opts.degrees && typeof p.degree === "number" && Number.isFinite(p.degree) ? `-${p.degree}°` : "";
+  const formatted = formatPlanetDegree(p.degree, "'");
+  const degree = opts.degrees && formatted !== "—" ? `-${formatted}` : "";
   return `${abbr}${degree}${p.isRetrograde ? "R" : ""}`;
 }
 

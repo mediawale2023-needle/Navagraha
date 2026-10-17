@@ -92,6 +92,7 @@ for (const [key, c] of Object.entries(CHARTS)) {
       if (f) { annotated.push('', `**[Chart fact]** ${f}`); const rest = para.slice(f.length).trim(); if (rest) annotated.push('', `**[AI]** ${rest}`); }
       else if (para.startsWith('What this means for you')) annotated.push('', `**[AI synthesis]** ${para.replace('What this means for you\n', '')}`);
       else if (para.startsWith('Next steps')) annotated.push('', '**[AI next steps]**', '', para.replace('Next steps\n', ''));
+      else if (s.heading === 'Glossary') annotated.push('', `**[Glossary, application]** ${para.split('\n').join(' ')}`);
       else if (para.startsWith('Terms used in this section')) annotated.push('', `**[Glossary, application]** ${para.replace('Terms used in this section\n', '').split('\n').join(' ')}`);
       else annotated.push('', `**[Unclassified]** ${para}`);
     }
