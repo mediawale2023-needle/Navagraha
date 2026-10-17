@@ -151,3 +151,13 @@ describe('facts-first Career report: diagnostics carry no birth details or repor
     expect(careerRuleCode('invalid-json')).toBe('invalid-json');
   });
 });
+
+describe('facts-first Career report: per-attempt cost', () => {
+  it('each attempt records its own charge, and the attempts add up to the ledger total', async () => {
+    const e = facts(); const metrics = vi.fn(); const ledger = new CareerSpending();
+    await generateDeterministicCareer(delhi(), ASOF, vi.fn(realisticRequester(e)), { ...NO_WAIT, ledger, onMetrics: metrics });
+    const m = metricsOf(metrics);
+    expect(m.attempts.reduce((n, a) => n + a.costMicroUsd, 0)).toBe(ledger.spent);
+    for (const a of m.attempts) expect(a.costMicroUsd).toBe(Math.ceil((a.promptTokens ?? 0) * 2.5 + (a.completionTokens ?? 0) * 10));
+  });
+});

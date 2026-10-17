@@ -83,12 +83,15 @@ export class CareerSpending {
     this.tickets.set(id, cost); this.reserved += cost;
     return id;
   }
-  settle(id: number, usage?: CareerUsage | null) {
+  /** Settles a reservation and returns what it cost (0 if already settled). */
+  settle(id: number, usage?: CareerUsage | null): number {
     const reservation = this.tickets.get(id);
-    if (reservation === undefined) return;
+    if (reservation === undefined) return 0;
     this.tickets.delete(id); this.reserved -= reservation;
     const valid = usage && Number.isFinite(usage.prompt_tokens) && usage.prompt_tokens >= 0 && Number.isFinite(usage.completion_tokens) && usage.completion_tokens >= 0;
-    this.spent += valid ? Math.ceil(usage.prompt_tokens * 2.5 + usage.completion_tokens * 10) : reservation;
+    const cost = valid ? Math.ceil(usage.prompt_tokens * 2.5 + usage.completion_tokens * 10) : reservation;
+    this.spent += cost;
+    return cost;
   }
 }
 
@@ -145,14 +148,13 @@ export async function generateDeterministicCareer(kundli: unknown, asOf: Date, r
         let ticket: number;
         try { ticket = ledger.reserve(prompt, maxTokens); }
         catch (err) { record('budget', [], t0, null, 0); throw err; }
-        const spentBefore = ledger.spent;
         let result: CareerCompletion;
         try { result = await boundedRequest(request, prompt, controller.signal, maxTokens); }
         catch (err) {
-          ledger.settle(ticket);
-          if (controller.signal.aborted) { record('deadline', [], t0, null, ledger.spent - spentBefore); throw new ReportGenerationError('Career deadline exceeded'); }
+          const charged = ledger.settle(ticket);
+          if (controller.signal.aborted) { record('deadline', [], t0, null, charged); throw new ReportGenerationError('Career deadline exceeded'); }
           const status = (err as { status?: unknown } | null)?.status;
-          record('transport', [typeof status === 'number' ? `http-${status}` : 'no-status'], t0, null, ledger.spent - spentBefore);
+          record('transport', [typeof status === 'number' ? `http-${status}` : 'no-status'], t0, null, charged);
           if (transportTries < CAREER_TRANSPORT_RETRIES && transientError(err)) {
             transportTries++; transportRetries++;
             await pause(delays[Math.min(transportTries, delays.length) - 1] ?? 0, controller.signal);
@@ -160,8 +162,8 @@ export async function generateDeterministicCareer(kundli: unknown, asOf: Date, r
           }
           throw new ReportGenerationError('Career transport failed; reservation retained');
         }
-        ledger.settle(ticket, result.usage);
-        const cost = ledger.spent - spentBefore;
+        // This attempt's own charge: parallel sections settle concurrently, so a ledger difference would include theirs.
+        const cost = ledger.settle(ticket, result.usage);
         const finish = result.choices[0]?.finish_reason;
         const content = result.choices[0]?.message.content ?? null;
         const parsed = finish !== 'stop' ? { problem: 'incomplete-response: output truncated or refused' } : parseSectionReply(content);
