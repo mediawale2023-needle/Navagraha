@@ -27,14 +27,16 @@ describe('facts-first Career report: generation', () => {
     const report = await generateDeterministicCareer(k, ASOF, request, { onMetrics: metrics });
     expect(report.sections.map((s) => s.heading)).toEqual([...CAREER_HEADINGS, CAREER_GLOSSARY_HEADING]);
     expect(targets(e, request).sort()).toEqual(['chart', 'current', 'guidance', 'overview', 'periods']);
-    expect(metrics).toHaveBeenCalledWith(expect.objectContaining({ calls: 5, corrections: 0, firstPassAccepted: 5, optionalDropped: 0 }));
+    expect(metrics).toHaveBeenCalledWith(expect.objectContaining({ calls: 5, corrections: 0, correctionRounds: 0, costMicroUsd: 63_750, firstPassAccepted: 5, optionalDropped: 0, outcome: 'completed' }));
     for (const s of e.sections) {
       const body = report.sections.find((x) => x.heading === s.heading)!.body;
       for (const f of s.facts) expect(body).toContain(f.text);
       expect(body).toContain('What this means for you');
     }
     expect(report.sections[4].body).toMatch(/Next steps\n1\. .+\n2\. .+\n3\. .+/);
-    expect(report.summary).toContain(e.workStyleSentence);
+    expect(report.summary).toContain('separates the career picture');
+    expect(report.summary).not.toContain(e.workStyleSentence);
+    expect(report.summary).not.toContain(e.sections[0].facts[1].text.split('.')[0]);
   });
   it('sends each section only its own facts, the fixed work-style conclusion and the weak fields', () => {
     const e = facts(fixtureChart()); const guidance = section(e, 'guidance'); const prompt = careerSectionPrompt(e, guidance);
@@ -165,6 +167,15 @@ describe('facts-first Career report: coverage and correction', () => {
     expect(report.sections.filter((x) => x.body.includes(copied))).toHaveLength(1);
     expect(targets(e, request).slice(5)).toEqual(['current:synthesis']);
   });
+  it('corrects one editorial-template failure in one bounded targeted request', async () => {
+    const k = delhi(); const e = facts(k); const metrics = vi.fn();
+    const request = spy(e, (r, s, attempt) => {
+      if (s.key === 'overview' && attempt === 1) r.explanations['overview.strength'] = 'The Sun is the thread here. In practical terms, this points you towards responsible work. Treat it as a tendency rather than a fixed outcome.';
+    });
+    await generateDeterministicCareer(k, ASOF, request, { onMetrics: metrics });
+    expect(targets(e, request).slice(5)).toEqual(['overview:overview.strength']);
+    expect(metrics).toHaveBeenCalledWith(expect.objectContaining({ calls: 6, corrections: 1, correctionRounds: 1, costMicroUsd: 76_500, outcome: 'completed' }));
+  });
   it('recognises a close paraphrase of the same planet-specific interpretation', () => {
     expect(repeatsCareerInterpretation(
       'Saturn asks for patience, discipline and steady perseverance when professional progress is slow.',
@@ -174,6 +185,10 @@ describe('facts-first Career report: coverage and correction', () => {
       'Saturn asks for patience, discipline and steady perseverance when professional progress is slow.',
       'Venus asks for patience, discipline and steady perseverance when professional progress is slow.',
     )).toBe(false);
+    expect(repeatsCareerInterpretation(
+      'The balance of support and constraint for administration matters because it shows how reliably that line of work fits the chart and should be tested through a small project.',
+      'The balance of support and constraint for finance matters because it shows how reliably that line of work fits the chart and should be tested through a small project.',
+    )).toBe(true);
   });
 });
 
@@ -270,22 +285,38 @@ describe('facts-first Career report: the db644dd review findings', () => {
     for (const ok of ['You will need to plan the change carefully, building skills and savings first, so that the move rests on evidence rather than hope or pressure from others.',
       'Small, steady experiments will tell you more than one bold leap, and this chart suits testing an idea alongside a stable base before committing fully to it.',
       'This period will likely bring more structure to your work, which can feel slow but tends to reward patience, careful records and steady delivery over quick wins.']) {
-      expect(check('overview.workStyle', ok)).toEqual([]);
+      expect(check('overview.workStyle', ok).join(' ')).not.toMatch(/states an outcome as certain/);
     }
   });
   it('refuses generic stock phrases', () => {
     expect(check('overview.strength', LIVE.overviewStrength).join(' ')).toMatch(/stock phrase/);
   });
   it('refuses generic career advice unless it is made concrete', () => {
-    const grounded = 'This points towards work where steady effort is noticed and responsibility grows in measured steps over time.';
+    const grounded = 'The Sun\'s moderate condition suggests work where steady effort is noticed and responsibility grows in measured steps over time.';
     expect(check('overview.strength', `${grounded} Stay adaptable.`).join(' ')).toMatch(/generic advice/);
     expect(check('overview.strength', `${grounded} Develop communication skills.`).join(' ')).toMatch(/generic advice/);
     expect(check('overview.strength', `${grounded} Stay adaptable by testing one role through a short project and recording which duties produce measurable results.`)).toEqual([]);
   });
+  it('refuses the repeated writing scaffolds found in the sample', () => {
+    const base = 'The Sun\'s moderate condition suggests work where careful delivery is visible and responsibility can grow through completed assignments.';
+    for (const phrase of ['The Sun is the thread here.', 'In practical terms, this points you towards accountable work.', 'Treat it as a tendency rather than a fixed outcome.']) {
+      expect(check('overview.strength', `${base} ${phrase}`).join(' ')).toMatch(/repeated writing template/);
+    }
+  });
+  it('requires a fact-to-conclusion connection, while allowing an explicit cautious limit', () => {
+    expect(check('overview.strength', 'Choose work with visible responsibility, reliable colleagues and room to improve a process through measured results over time.').join(' ')).toMatch(/does not explain how/);
+    expect(check('overview.strength', 'The Sun\'s moderate condition suggests that visible responsibility may be sustainable when progress can be judged through completed work and measured results.')).toEqual([]);
+    expect(check('overview.strength', 'This fact supports only a broad tendency and does not by itself identify a profession, so compare it with your skills and results before choosing work.')).toEqual([]);
+  });
+  it('refuses an unresolved field reference in a recommendation', () => {
+    const business = fact(e, 'field.business');
+    expect(slotProblems('Spend one month testing a small project in this field, then compare the results with the daily work and skills the role requires.', 'step', [business], e).join(' ')).toMatch(/unresolved recommendation reference/);
+    expect(slotProblems('Spend one month testing a small business and entrepreneurship project, then compare the results with the daily work and skills the role requires.', 'step', [business], e)).toEqual([]);
+  });
   it('refuses drifting from the mixed work-style conclusion; field talk about business is not an arrangement', () => {
     expect(slotProblems(LIVE.guidanceSynthesis, 'synthesis', guidance.facts, e).join(' ')).toMatch(/contradicts the work-style conclusion/);
-    expect(check('field.business', LIVE.businessField)).toEqual([]);
-    expect(check('field.finance', LIVE.financeField)).toEqual([]);
+    expect(check('field.business', LIVE.businessField).join(' ')).not.toMatch(/recommends .*weakly supported/);
+    expect(check('field.finance', LIVE.financeField).join(' ')).not.toMatch(/recommends .*weakly supported/);
   });
   it('requires a next step that acts on a well-supported field', () => {
     const only = { explanations: {}, synthesis: undefined, steps: LIVE.steps.filter((s) => s.factIds.every((id) => !['field.business', 'field.advisory', 'field.finance', 'field.communication'].includes(id))) } as any;
@@ -303,6 +334,8 @@ describe('facts-first Career report: the work style is explained once', () => {
       expect(prompt.includes('Career Overview explains it: do not restate it here.')).toBe(s.key !== 'overview');
       expect(prompt.includes('This section is the one place it is explained.')).toBe(s.key === 'overview');
       expect(prompt).toContain('"be patient"');
+      expect(prompt).toContain('Explain how its stated dignity');
+      expect(prompt).toContain('never leave "this field"');
     }
   });
 });

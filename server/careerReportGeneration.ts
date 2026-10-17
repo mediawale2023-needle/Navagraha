@@ -126,11 +126,13 @@ const repetitionThemes = (sentence: string) => {
 export function repeatsCareerInterpretation(first: string, second: string): boolean {
   const a = new Set(repetitionWords(first)), b = new Set(repetitionWords(second));
   if (a.size < 7 || b.size < 7) return false;
-  const firstThemes = repetitionThemes(first), secondThemes = repetitionThemes(second);
-  if (!Array.from(firstThemes).some((theme) => secondThemes.has(theme))) return false;
   const shared = Array.from(a).filter((word) => b.has(word)).length;
   const similarity = shared / new Set(Array.from(a).concat(Array.from(b))).size;
-  return shared >= 6 && similarity >= 0.55;
+  // A very close lexical frame is repetitive even when it changes the subject. Looser matches are rejected
+  // only when they repeat the same planet-specific theme, avoiding false positives from ordinary career terms.
+  if (shared >= 12 && similarity >= 0.62) return true;
+  const firstThemes = repetitionThemes(first), secondThemes = repetitionThemes(second);
+  return Array.from(firstThemes).some((theme) => secondThemes.has(theme)) && shared >= 6 && similarity >= 0.55;
 }
 
 export async function generateDeterministicCareer(kundli: unknown, asOf: Date, request: CareerRequester, options: { ledger?: CareerSpending; onMetrics?: (m: CareerMetrics) => void; onSection?: (attempt: CareerSectionAttempt) => void; retryDelaysMs?: readonly number[] } = {}) {
@@ -229,14 +231,14 @@ export async function generateDeterministicCareer(kundli: unknown, asOf: Date, r
           const sentences = slot.text.split(/(?<=[.!?])\s+/).filter((s) => repetitionWords(s).length >= 7);
           const repeated = sentences.map((sentence) => {
             const exact = seen.get(sentenceKey(sentence));
-            if (exact && exact.location.split('/')[0] !== section.key) return exact;
-            return Array.from(seen.values()).find((prior) => prior.location.split('/')[0] !== section.key && repeatsCareerInterpretation(prior.sentence, sentence));
+            if (exact && exact.location !== `${section.key}/${id}`) return exact;
+            return Array.from(seen.values()).find((prior) => prior.location !== `${section.key}/${id}` && repeatsCareerInterpretation(prior.sentence, sentence));
           }).find(Boolean);
           if (repeated) {
             text.get(section.key)!.delete(id);
             const required = id === SYNTHESIS || id.startsWith('step.') || section.facts.find((f) => f.id === id)?.required;
             const source = evidence.sections.find((s) => s.key === repeated.location.split('/')[0])!.heading;
-            (required ? failing : dropped).get(section.key)!.set(id.startsWith('step.') ? 'steps' : id, [`repeats an interpretation from ${source}; add this section's distinct purpose`]);
+            (required ? failing : dropped).get(section.key)!.set(id.startsWith('step.') ? 'steps' : id, [`repeats an interpretation from ${source}; explain this fact with distinct reasoning`]);
           } else for (const sentence of sentences) {
             const key = sentenceKey(sentence);
             if (!seen.has(key)) seen.set(key, { location: `${section.key}/${id}`, sentence });
