@@ -44,7 +44,7 @@ describe('offline replay of the f729c61 live evaluations', () => {
 describe('recorded sentences from the f729c61 runs, judged by the current checks', () => {
   const load = (name: string) => (JSON.parse(readFileSync(new URL(`../fixtures/career-live-f729c61/${name}.json`, import.meta.url), 'utf8')).attempts as Array<{ heading: string; correcting: boolean; content: string }>).map((a) => ({ ...a, reply: JSON.parse(a.content) }));
   it('Delhi now yields a complete report; Mumbai stops only for its real timing error', async () => {
-    expect((await replay('delhi')).report?.sections).toHaveLength(5);
+    expect((await replay('delhi')).report?.sections).toHaveLength(6);
     const mumbai = await replay('mumbai');
     expect(mumbai.report).toBeNull(); expect(mumbai.unrecorded).toEqual(['Favourable & Difficult Periods']);
     expect(mumbai.log.find((a) => a.heading === 'Favourable & Difficult Periods')!.problems).toEqual(['synthesis: calls the Mercury Antardasha upcoming, but it is running now']);

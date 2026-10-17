@@ -1,8 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { CareerSpending, CAREER_BUDGET_MICRO_USD, CAREER_DEADLINE_MS, CAREER_OUTPUT_TOKENS, CAREER_CORRECTION_TOKENS, careerRequester, generateDeterministicCareer, type CareerCompletion } from '../../server/careerReportGeneration';
+import { CareerSpending, CAREER_BUDGET_MICRO_USD, CAREER_DEADLINE_MS, CAREER_OUTPUT_TOKENS, CAREER_CORRECTION_TOKENS, careerRequester, generateDeterministicCareer, repeatsCareerInterpretation, type CareerCompletion } from '../../server/careerReportGeneration';
 import { buildCareerReportFacts, CAREER_HEADINGS, type CareerReportFacts } from '../../server/careerReportEvidence';
-import { careerSectionPrompt, slotProblems, slotCheck, checkSectionReply, parseSectionReply } from '../../server/careerReportRendering';
+import { CAREER_GLOSSARY_HEADING, careerSectionPrompt, slotProblems, slotCheck, checkSectionReply, parseSectionReply } from '../../server/careerReportRendering';
 import { ASOF, fixtureChart } from '../fixtures/career-chart';
 import { promptTarget, realisticRequester, replyFor } from '../fixtures/career-replies';
 import { LIVE } from '../fixtures/career-live-db644dd';
@@ -25,7 +25,7 @@ describe('facts-first Career report: generation', () => {
   it.each(CHARTS)('writes all five sections in one parallel round for %s, every fact followed by its explanation', async (date, time, lat, lon) => {
     const k = fixtureChart(date, time, lat, lon); const e = facts(k); const request = spy(e); const metrics = vi.fn();
     const report = await generateDeterministicCareer(k, ASOF, request, { onMetrics: metrics });
-    expect(report.sections.map((s) => s.heading)).toEqual(CAREER_HEADINGS);
+    expect(report.sections.map((s) => s.heading)).toEqual([...CAREER_HEADINGS, CAREER_GLOSSARY_HEADING]);
     expect(targets(e, request).sort()).toEqual(['chart', 'current', 'guidance', 'overview', 'periods']);
     expect(metrics).toHaveBeenCalledWith(expect.objectContaining({ calls: 5, corrections: 0, firstPassAccepted: 5, optionalDropped: 0 }));
     for (const s of e.sections) {
@@ -43,6 +43,15 @@ describe('facts-first Career report: generation', () => {
     expect(prompt).toContain(e.workStyleSentence); expect(prompt).toContain('Never recommend these weakly supported fields: advisory and consulting roles');
     expect(prompt).toContain('"steps": [');
     expect(careerSectionPrompt(e, section(e, 'overview'))).not.toContain('"steps"');
+  });
+  it('collects technical definitions once in a final glossary', async () => {
+    const k = delhi(); const e = facts(k);
+    const report = await generateDeterministicCareer(k, ASOF, spy(e));
+    const glossary = report.sections.find((s) => s.heading === CAREER_GLOSSARY_HEADING)!;
+    expect(glossary.body).toContain('D10:');
+    expect(glossary.body).toContain('Mahadasha:');
+    expect(report.sections.filter((s) => s.body.includes('Terms used in this section'))).toHaveLength(0);
+    expect(report.sections.filter((s) => s.body.includes('D10: the Dasamsa'))).toHaveLength(1);
   });
   it('refuses an approximate birth time before any request', async () => {
     const { computeCanonicalChart } = await import('../../server/astroEngine/canonical/compute');
@@ -137,7 +146,7 @@ describe('facts-first Career report: coverage and correction', () => {
     const base = realisticRequester(e);
     const request = vi.fn(async (p: string) => { const r = await base(p); if (promptTarget(e, p).section.key === 'overview' && n++ === 0) r.choices[0].finish_reason = 'length'; return r; });
     const report = await generateDeterministicCareer(k, ASOF, request);
-    expect(report.sections).toHaveLength(5); expect(targets(e, request).slice(5)).toEqual(['overview']);
+    expect(report.sections).toHaveLength(6); expect(targets(e, request).slice(5)).toEqual(['overview']);
     const broken = vi.fn(async (p: string) => { const r = await base(p); if (promptTarget(e, p).section.key === 'overview') r.choices[0].message.content = '{'; return r; });
     await expect(generateDeterministicCareer(k, ASOF, broken)).rejects.toThrow(/Career Overview: response invalid-json/);
     expect(broken).toHaveBeenCalledTimes(10); // four sections + overview: (1 + 1 format retry) × first pass and two rounds
@@ -156,6 +165,16 @@ describe('facts-first Career report: coverage and correction', () => {
     expect(report.sections.filter((x) => x.body.includes(copied))).toHaveLength(1);
     expect(targets(e, request).slice(5)).toEqual(['current:synthesis']);
   });
+  it('recognises a close paraphrase of the same planet-specific interpretation', () => {
+    expect(repeatsCareerInterpretation(
+      'Saturn asks for patience, discipline and steady perseverance when professional progress is slow.',
+      'When professional progress is slow, Saturn calls for steady discipline, patience and perseverance in your work.',
+    )).toBe(true);
+    expect(repeatsCareerInterpretation(
+      'Saturn asks for patience, discipline and steady perseverance when professional progress is slow.',
+      'Venus asks for patience, discipline and steady perseverance when professional progress is slow.',
+    )).toBe(false);
+  });
 });
 
 describe('facts-first Career report: limits and delivery', () => {
@@ -169,7 +188,7 @@ describe('facts-first Career report: limits and delivery', () => {
     delivery.setReportOrderContent.mockResolvedValue({ id: 'test-only' });
     await fulfilReportOrder({ id: 'test-only', userId: 'test-user' } as any, 'Career', () => generateDeterministicCareer(delhi(), ASOF, realisticRequester(facts())));
     const content = delivery.setReportOrderContent.mock.calls[0][1];
-    expect(content.sections.map((s: any) => s.heading)).toEqual(CAREER_HEADINGS); expect(content.dashaTimeline.length).toBeGreaterThan(0);
+    expect(content.sections.map((s: any) => s.heading)).toEqual([...CAREER_HEADINGS, CAREER_GLOSSARY_HEADING]); expect(content.dashaTimeline.length).toBeGreaterThan(0);
     expect(delivery.failAndRefundReportOrder).not.toHaveBeenCalled();
   });
   it('aborts at six minutes even if transport never settles', async () => {
@@ -184,7 +203,7 @@ describe('facts-first Career report: limits and delivery', () => {
     const base = realisticRequester(e); const seen = new Set<string>();
     const request = vi.fn(async (p: string) => { const r = await base(p); const key = promptTarget(e, p).section.key; if (!seen.has(key)) { seen.add(key); r.choices[0].finish_reason = 'length'; } delete r.usage; return r; });
     const report = await generateDeterministicCareer(k, ASOF, request, { ledger });
-    expect(report.sections).toHaveLength(5); expect(request).toHaveBeenCalledTimes(10);
+    expect(report.sections).toHaveLength(6); expect(request).toHaveBeenCalledTimes(10);
     expect(ledger.spent).toBeLessThanOrEqual(CAREER_BUDGET_MICRO_USD); expect(ledger.reserved).toBe(0);
   });
   it('reserves before dispatch, keeps missing usage at the reservation and refuses overspending', async () => {
@@ -257,6 +276,12 @@ describe('facts-first Career report: the db644dd review findings', () => {
   it('refuses generic stock phrases', () => {
     expect(check('overview.strength', LIVE.overviewStrength).join(' ')).toMatch(/stock phrase/);
   });
+  it('refuses generic career advice unless it is made concrete', () => {
+    const grounded = 'This points towards work where steady effort is noticed and responsibility grows in measured steps over time.';
+    expect(check('overview.strength', `${grounded} Stay adaptable.`).join(' ')).toMatch(/generic advice/);
+    expect(check('overview.strength', `${grounded} Develop communication skills.`).join(' ')).toMatch(/generic advice/);
+    expect(check('overview.strength', `${grounded} Stay adaptable by testing one role through a short project and recording which duties produce measurable results.`)).toEqual([]);
+  });
   it('refuses drifting from the mixed work-style conclusion; field talk about business is not an arrangement', () => {
     expect(slotProblems(LIVE.guidanceSynthesis, 'synthesis', guidance.facts, e).join(' ')).toMatch(/contradicts the work-style conclusion/);
     expect(check('field.business', LIVE.businessField)).toEqual([]);
@@ -277,7 +302,7 @@ describe('facts-first Career report: the work style is explained once', () => {
       expect(prompt).toContain(`fixed: ${e.workStyleSentence}. Never contradict it.`);
       expect(prompt.includes('Career Overview explains it: do not restate it here.')).toBe(s.key !== 'overview');
       expect(prompt.includes('This section is the one place it is explained.')).toBe(s.key === 'overview');
-      expect(prompt).toContain('"harness your potential"');
+      expect(prompt).toContain('"be patient"');
     }
   });
 });

@@ -75,6 +75,7 @@ const FAVOUR = /\b(favou?rs?|better suited|best suited|recommend\w*|should (?:ch
 const EMPLOYED = /\b(employment|employed roles?|a job|salaried|working for an organi[sz]ation|organisational settings?|organizational settings?)\b/i;
 const INDEPENDENT = /\b(self-employ\w*|self-directed|independent(?:,? \w+)? (?:work|settings?|roles?|ventures?|paths?|pursuits?|projects?|initiatives?)|working independently|working for yourself|your own (?:business|venture|firm|practice)|freelanc\w*)\b/i;
 const STOCK = /\b(natural leader|inspire others|great candidate|shine in your career|unlock (?:your )?(?:full )?potential|sky is the limit|carefully crafted|dynamic and fulfilling)\b/i;
+const GENERIC_ADVICE = /(?:^|[.!?]\s+)(?:(?:be|stay|remain) (?:patient|adaptable|flexible)|(?:develop|improve|strengthen) (?:your )?communication skills)(?=[.!?](?:$|\s)|$)/i;
 const STRONG_WORDS = '(?:strong|powerful|excellent|exceptional|well[- ]placed|dominant)';
 const LINKING = '(?:\\s+(?:is|remains|appears|seems|looks|very|particularly|quite|also|still)){0,2}';
 const MIX = /\b(mix\w*|blend\w*|both|alongside|combin\w*|balanc\w*|as well as|hybrid|between|either)\b/i;
@@ -136,6 +137,7 @@ export function slotCheck(text: string, kind: keyof typeof LENGTH, facts: Career
   if (REMEDY.test(text)) problems.push('suggests a remedy');
   if (INTERNAL.test(text)) problems.push('uses an internal term');
   if (STOCK.test(text)) problems.push(`uses a stock phrase ("${text.match(STOCK)![0]}"); say something specific to these facts`);
+  if (GENERIC_ADVICE.test(text)) problems.push('uses generic advice; tie it to a concrete decision or action supported by the facts');
   // Restating the fact: the fact is printed just before, so "Jupiter in Capricorn in your 11th house" adds nothing.
   for (const m of Array.from(factText.matchAll(/\b(?:in )?(Aries|Taurus|Gemini|Cancer|Leo|Virgo|Libra|Scorpio|Sagittarius|Capricorn|Aquarius|Pisces) in (?:your|the D10's|the) (\d+\w\w) house/g))) {
     if (new RegExp(`\\b${m[1]}\\b[^.!?]{0,15}\\b${m[2]}\\b`).test(text)) { advisories.push(`restates the fact (${m[1]}, ${m[2]} house)`); break; }
@@ -239,7 +241,7 @@ Rules:
 - Describe tendencies, not certainties: use may, can, tends to. Never promise an outcome (success, promotion, wealth, status) and never write "will" about a result. No remedies, gemstones, mantras or rituals.
 - Describe a planet's strength only as its fact does: a planet in a friendly or neutral sign is moderate, not strong.
 - When you mention a house in a D10 fact, it is the D10's house; say "in your birth chart" if you mean the D1.
-- No filler ("thrive", "dynamic", "harness your potential", "navigate challenges", "shine"): name a concrete kind of work, setting or action.
+- No filler or generic advice ("thrive", "be patient", "stay adaptable", "develop communication skills"). Give a concrete, fact-backed action.
 - The report's conclusion on employment versus independent work is fixed: ${evidence.workStyleSentence}. Never contradict it. ${section.key === 'overview'
     ? 'This section is the one place it is explained.'
     : 'Career Overview explains it: do not restate it here.'}
@@ -260,15 +262,22 @@ export const CAREER_DEFINITIONS: Record<string, string> = {
   'Neecha Bhanga': 'the cancellation of a debilitation, which softens the weakness', combust: 'too close to the Sun, which traditionally weakens a planet',
   retrograde: 'apparently moving backwards as seen from Earth', debilitated: 'in the sign where a planet is traditionally weakest', exalted: 'in the sign where a planet is traditionally strongest',
 };
-const glossary = (text: string) => Object.entries(CAREER_DEFINITIONS).filter(([term]) => new RegExp(`\\b${term}\\b`, 'i').test(text)).map(([term, meaning]) => `${term}: ${meaning}.`).join('\n');
-
-/** One section's text: each fact followed by its explanation, the synthesis, next steps and the terms used. */
+/** One section's text: each fact followed by its explanation, the synthesis and next steps. */
 export function renderCareerSection(section: CareerSectionFacts, text: SectionText): string {
   const paragraphs = section.facts.map((f) => (text.get(f.id) ? `${f.text} ${text.get(f.id)!.text}` : f.text));
   const steps = Array.from(text).filter(([id]) => id.startsWith('step.')).map(([, s], i) => `${i + 1}. ${s.text}`);
-  const body = [...paragraphs, `What this means for you\n${text.get(SYNTHESIS)!.text}`, ...(steps.length ? [`Next steps\n${steps.join('\n')}`] : [])].join('\n\n');
-  const terms = glossary(body);
-  return terms ? `${body}\n\nTerms used in this section\n${terms}` : body;
+  return [...paragraphs, `What this means for you\n${text.get(SYNTHESIS)!.text}`, ...(steps.length ? [`Next steps\n${steps.join('\n')}`] : [])].join('\n\n');
+}
+
+export const CAREER_GLOSSARY_HEADING = 'Glossary';
+
+/** One deterministic glossary for the whole report; definitions are never delegated to the model. */
+export function careerGlossarySection(sections: Array<{ heading: string; body: string }>): { heading: string; body: string } | null {
+  const reportText = sections.map((section) => section.body).join('\n');
+  const definitions = Object.entries(CAREER_DEFINITIONS)
+    .filter(([term]) => new RegExp(`\\b${term}\\b`, 'i').test(reportText))
+    .map(([term, meaning]) => `${term}: ${meaning}.`);
+  return definitions.length ? { heading: CAREER_GLOSSARY_HEADING, body: definitions.join('\n') } : null;
 }
 
 /** Deterministic report summary: the work-style conclusion, the strongest fields and the running periods. */

@@ -124,7 +124,7 @@ describe('PDF chart labels', () => {
   const sun = { planet: 'Sun', sign: 'Libra', house: 10 };
   it('a calculated 0° is printed as 0°; it is not treated as missing', () => {
     expect(navamsaDegree(0)).toBe(0); // a placement exactly at a navamsa boundary has a real D9 degree of 0
-    expect(chartPlacementLabel({ ...sun, degree: 0 }, { degrees: true })).toBe('Su-0°');
+    expect(chartPlacementLabel({ ...sun, degree: 0 }, { degrees: true })).toBe("Su-0°00'");
   });
   it('a missing, null or non-numeric degree is left out, never printed as "—°" or 0°', () => {
     for (const degree of [undefined, null, Number.NaN, '12' as unknown]) {
@@ -140,9 +140,9 @@ describe('PDF chart labels', () => {
     }
     expect(chartPlacementLabel({ planet: 'Rahu', degree: 0, isRetrograde: true }, { degrees: false })).toBe('RaR');
   });
-  it('D1 and D9 labels are unchanged', () => {
-    expect(chartPlacementLabel({ planet: 'Ascendant', degree: 20.34 }, { degrees: true })).toBe('Asc-20.34°');
-    expect(chartPlacementLabel({ planet: 'Rahu', degree: 18.64, isRetrograde: true }, { degrees: true })).toBe('Ra-18.64°R');
-    expect(chartPlacementLabel({ planet: 'Mercury', degree: 12.93 }, { degrees: true })).toBe('Me-12.93°');
+  it('D1 and D9 labels use conventional degree-and-minute display precision', () => {
+    expect(chartPlacementLabel({ planet: 'Ascendant', degree: 20.34 }, { degrees: true })).toBe("Asc-20°20'");
+    expect(chartPlacementLabel({ planet: 'Rahu', degree: 18.64, isRetrograde: true }, { degrees: true })).toBe("Ra-18°38'R");
+    expect(chartPlacementLabel({ planet: 'Mercury', degree: 12.93 }, { degrees: true })).toBe("Me-12°56'");
   });
 });
