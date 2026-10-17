@@ -1,5 +1,6 @@
-// Controlled testing of the facts-first Career Report: FEATURE_CAREER_FACTS_FIRST plus an admin account, decided by
-// the order route from the signed-in account. Customers, and anything a request body says, get the three-part report.
+// Controlled testing of the facts-first Career Report: FEATURE_CAREER_FACTS_FIRST plus an admin account or an allow-listed,
+// verified customer test account (CAREER_FACTS_FIRST_ALLOWLIST), decided by the order route from the signed-in account.
+// Everyone else, and anything a request body says, gets the three-part report.
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import express, { type Express } from 'express';
 import request from 'supertest';
@@ -8,11 +9,15 @@ const CATALOGUE = [
   { id: 't-career', slug: 'career-report', category: 'career', price: '299.00', isActive: true },
   { id: 't-marriage', slug: 'marriage-report', category: 'marriage', price: '349.00', isActive: true },
 ];
-const USERS: Record<string, { id: string; email: string }> = {
+const USERS: Record<string, { id: string; email: string; emailVerifiedAt?: Date | null }> = {
   admin: { id: 'admin', email: 'tester@example.com' },
   customer: { id: 'customer', email: 'customer@example.com' },
   // A case variant of the admin address is a different, possibly attacker-registered account (adminAccess.ts).
   variant: { id: 'variant', email: 'Tester@example.com' },
+  // Allow-listed customer test accounts (CAREER_FACTS_FIRST_ALLOWLIST): only a verified, canonical address counts.
+  pilot: { id: 'pilot', email: 'pilot@example.com', emailVerifiedAt: new Date('2026-10-01T00:00:00Z') },
+  pilotUnverified: { id: 'pilot-unverified', email: 'pending@example.com', emailVerifiedAt: null },
+  pilotVariant: { id: 'pilot-variant', email: 'Pilot@example.com', emailVerifiedAt: new Date('2026-10-01T00:00:00Z') },
 };
 const mocks = vi.hoisted(() => ({
   storage: { getReportTypes: vi.fn(), getReportTypeById: vi.fn(), placeReportOrder: vi.fn(), getUserKundlis: vi.fn(), failAndRefundReportOrder: vi.fn(), createNotification: vi.fn(), setReportOrderContent: vi.fn() },
@@ -104,6 +109,57 @@ describe('Career pipeline selection at the order route', () => {
   });
 });
 
+describe('Career pipeline selection: the customer allow-list', () => {
+  const allowList = () => vi.stubEnv('CAREER_FACTS_FIRST_ALLOWLIST', ' Pilot@Example.com , pending@example.com ');
+
+  it('flag on: an allow-listed, verified customer gets facts-first and is charged through the usual order path', async () => {
+    vi.stubEnv('FEATURE_CAREER_FACTS_FIRST', 'true'); allowList();
+    expect((await order('pilot')).status).toBe(201);
+    expect(mocks.generateReport).toHaveBeenCalledWith('career', expect.anything(), { careerPipeline: 'facts-first' });
+    expect(mocks.storage.placeReportOrder).toHaveBeenCalledTimes(1);
+  });
+
+  it('flag on: customers not on the list, unverified listed addresses and case variants stay three-part', async () => {
+    vi.stubEnv('FEATURE_CAREER_FACTS_FIRST', 'true'); allowList();
+    for (const user of ['customer', 'pilotUnverified', 'pilotVariant']) {
+      mocks.generateReport.mockClear();
+      expect((await order(user)).status).toBe(201);
+      expect(pipelineUsed(), user).toBe('three-part');
+    }
+  });
+
+  it('flag off: everyone, allow-listed and admin included, is routed back to three-part', async () => {
+    allowList();
+    for (const user of ['pilot', 'admin', 'customer']) {
+      mocks.generateReport.mockClear();
+      expect((await order(user)).status).toBe(201);
+      expect(pipelineUsed(), user).toBe('three-part');
+    }
+  });
+
+  it('flag on: admins keep facts-first whether or not they are on the list', async () => {
+    vi.stubEnv('FEATURE_CAREER_FACTS_FIRST', 'true'); allowList();
+    expect((await order('admin')).status).toBe(201);
+    expect(pipelineUsed()).toBe('facts-first');
+  });
+
+  it('flag on: a request cannot claim an allow-listed identity or choose the pipeline', async () => {
+    vi.stubEnv('FEATURE_CAREER_FACTS_FIRST', 'true'); allowList();
+    const attempts = [{ email: 'pilot@example.com' }, { emailVerifiedAt: '2026-10-01', email: 'pilot@example.com' }, { careerPipeline: 'facts-first' }, { allowlist: ['customer@example.com'] }];
+    for (const body of attempts) {
+      mocks.generateReport.mockClear();
+      expect((await order('customer', body)).status).toBe(201);
+      expect(pipelineUsed(), JSON.stringify(body)).toBe('three-part');
+    }
+  });
+
+  it('other reports are unaffected for allow-listed customers', async () => {
+    vi.stubEnv('FEATURE_CAREER_FACTS_FIRST', 'true'); allowList();
+    expect((await order('pilot', { reportTypeId: 't-marriage' })).status).toBe(201);
+    expect(mocks.generateReport).toHaveBeenCalledWith('marriage', expect.anything(), { careerPipeline: 'three-part' });
+  });
+});
+
 describe('careerPipelineFor', () => {
   it('needs the flag, the career category and an admin account', () => {
     vi.stubEnv('FEATURE_CAREER_FACTS_FIRST', 'true');
@@ -115,5 +171,17 @@ describe('careerPipelineFor', () => {
     expect(careerPipelineFor('career', { email: null })).toBe('three-part');
     vi.stubEnv('FEATURE_CAREER_FACTS_FIRST', '1');
     expect(careerPipelineFor('career', USERS.admin)).toBe('three-part');
+  });
+  it('the allow-list is empty by default and matches only verified, canonical addresses', () => {
+    vi.stubEnv('FEATURE_CAREER_FACTS_FIRST', 'true');
+    expect(careerPipelineFor('career', USERS.pilot)).toBe('three-part'); // no list configured
+    vi.stubEnv('CAREER_FACTS_FIRST_ALLOWLIST', 'pilot@example.com,,pending@example.com');
+    expect(careerPipelineFor('career', USERS.pilot)).toBe('facts-first');
+    expect(careerPipelineFor('career', USERS.pilotUnverified)).toBe('three-part');
+    expect(careerPipelineFor('career', USERS.pilotVariant)).toBe('three-part');
+    expect(careerPipelineFor('career', { email: 'pilot@example.com' })).toBe('three-part'); // no verification recorded
+    expect(careerPipelineFor('marriage', USERS.pilot)).toBe('three-part');
+    vi.stubEnv('FEATURE_CAREER_FACTS_FIRST', '');
+    expect(careerPipelineFor('career', USERS.pilot)).toBe('three-part');
   });
 });
