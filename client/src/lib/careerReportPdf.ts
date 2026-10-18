@@ -8,6 +8,7 @@ import { formatPlanetDegree } from './reportFormatting';
 import { GRAHA_ABBR } from './jyotishNames';
 import { LAGNA_DIAMOND, NORTH_GROWTH, NORTH_LAGNA_LABEL, NORTH_LINES, NORTH_PLANETS, NORTH_SIGN_NUMBER, labelOffsets } from './rashiChart';
 import { PDF_FONTS, PDF_LINE_HEIGHT, PDF_PAGE, PDF_RADIUS, PDF_TYPE, rgb, type PdfColour } from './pdf/tokens';
+import { assertLatinReportText } from './pdf/textSupport';
 import type { ReportContent } from './reportPdf';
 
 type Doc = any;
@@ -28,6 +29,7 @@ const VERDICT_TONE = (v: string) => (/Exceptional|Very Strong|Strong/.test(v) ? 
 const toneOfDirection = (d: string) => (d === 'positive' ? 'support' : d === 'negative' ? 'strain' : 'neutral');
 
 export function renderCareerPdf(doc: Doc, content: ReportContent, opts: CareerPdfOptions): Doc {
+  assertLatinReportText(content);
   const a = content.careerAnalysis as Analysis;
   for (const [file, name, style, data] of [['DMSans-Regular.ttf', PDF_FONTS.body, 'normal', opts.fonts.regular], ['DMSans-SemiBold.ttf', PDF_FONTS.body, 'bold', opts.fonts.semibold], ['Eczar-SemiBold.ttf', PDF_FONTS.display, 'bold', opts.fonts.display]] as const) {
     doc.addFileToVFS(file, data); doc.addFont(file, name, style);

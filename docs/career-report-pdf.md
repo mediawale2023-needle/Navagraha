@@ -29,7 +29,7 @@ Tokens are in `client/src/lib/pdf/tokens.ts` and are reusable by other premium r
 **Print adjustments:**
 - **Page tint.** The page is `--surface` rather than `--ground`. That is the frontend's lightest cream, so prints stay close to white while keeping the tint.
 - **Type sizes.** Body 9.8pt and captions down to 7.2pt are the frontend's 16px and 12px roles at reading distance on A4.
-- **Devanagari.** The glosses are left out: jsPDF cannot shape Devanagari conjuncts, and broken glyphs would be worse than none. Chart labels use the frontend's English abbreviations, and "R" stands for ℞, which neither font has.
+- **Language support.** Career Reports are currently generated in English only. Before rendering, the PDF path rejects any non-Latin script with a visible download error; it never silently removes Hindi, Marathi, or other unsupported customer text. Chart labels use the frontend's English abbreviations, and "R" stands for ℞, which neither font has.
 
 ## Structure
 
@@ -62,7 +62,7 @@ The paragraphs are fixture text, so these show layout, not GPT-4o writing.
 
 ## Known limits
 
-- Devanagari is left out, as above.
+- Career Report PDF text is English/Latin-script only; unsupported scripts are rejected visibly rather than omitted.
 - The appendix's last page is about one third full.
 - Field-matrix rows run tall when a field has many indicators; the matrix names the firmest four, plus a count.
 - Live text lengths may differ from the fixtures. The renderer flows text, but page count and breaks still need checking on live reports.

@@ -12,6 +12,7 @@ import { generateDeterministicCareer } from '../../server/careerReportGeneration
 import { indianDate, renderCareerPdf } from '../../client/src/lib/careerReportPdf';
 import { PDF_COLOURS, PDF_PAGE } from '../../client/src/lib/pdf/tokens';
 import { DM_SANS_REGULAR, DM_SANS_SEMIBOLD, ECZAR_SEMIBOLD } from '../../client/src/lib/pdf/fonts';
+import { UnsupportedPdfTextError } from '../../client/src/lib/pdf/textSupport';
 
 const FONTS = { regular: DM_SANS_REGULAR, semibold: DM_SANS_SEMIBOLD, display: ECZAR_SEMIBOLD };
 const NAMES = Object.keys(SYNTHETIC_CHARTS) as Array<keyof typeof SYNTHETIC_CHARTS>;
@@ -61,6 +62,11 @@ describe('Career Report PDF', () => {
     r.birthDetails = { ...r.birthDetails, name: 'A Synthetic Person With A Very Long Name Used Only For Layout Testing', placeOfBirth: 'A very long synthetic place name, District, State, Country' };
     const long = render(r).drawn;
     expect(long.filter((d) => d.page === 1 && /Very Long Name/.test(d.text)).length).toBeGreaterThan(0);
+  });
+
+  it('rejects unsupported scripts instead of silently omitting customer text', async () => {
+    const r = await report('chennai', 'आशा');
+    expect(() => render(r)).toThrow(UnsupportedPdfTextError);
   });
 
   it('dates are Indian order and come from the engine; no model call is made', async () => {
