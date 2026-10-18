@@ -28,13 +28,11 @@ export interface ReportGuard {
 
 export interface Section { heading: string; body: string }
 
-/** Problems with one piece of report text: too short, or claims that contradict the chart. */
-export function textProblems(text: string, guard: ReportGuard, minChars: number): string[] {
-  const body = text.trim();
-  if (body.length < minChars) return [`too short (${body.length} characters)`];
+/** Blocking factual problems only. Length and editorial preferences belong to separate validation levels. */
+export function factualProblems(text: string, guard: ReportGuard): string[] {
   const rp = runningPeriod(guard.chart, guard.asOf);
   const stable = dashaTimingStable(guard.chart, guard.asOf);
-  return validateAnswer(body, {
+  return validateAnswer(text.trim(), {
     chart: guard.chart,
     packetText: `${guard.factsText}\n${guard.transits ?? ""}`,
     transits: guard.transits,
@@ -43,6 +41,13 @@ export function textProblems(text: string, guard: ReportGuard, minChars: number)
     timing: { mahadashaReliable: stable.mahadasha, antardashaReliable: stable.antardasha },
     factsFirst: guard.factsFirst,
   });
+}
+
+/** Problems with one piece of report text: too short, or claims that contradict the chart. */
+export function textProblems(text: string, guard: ReportGuard, minChars: number): string[] {
+  const body = text.trim();
+  if (body.length < minChars) return [`too short (${body.length} characters)`];
+  return factualProblems(body, guard);
 }
 
 /** Matches each planned heading to the model's sections and splits them into sellable and rejected. */

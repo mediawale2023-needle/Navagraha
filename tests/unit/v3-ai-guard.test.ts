@@ -34,6 +34,7 @@ describe('AI guard v2 — adversarial answers are caught', () => {
     const mangal = chart.doshas.find((d) => d.id === 'mangal')!.present;
     expect(check(mangal ? 'Good news: you do not have Mangal Dosha.' : 'You are Manglik, so be careful.')).not.toEqual([]);
     expect(check(mangal ? 'You have Mangal Dosha.' : 'You do not have Mangal Dosha.')).toEqual([]);
+    expect(check(mangal ? 'Mangal Dosha is present in this chart.' : 'Mangal Dosha is not present in this chart.')).toEqual([]);
     expect(check('Grahan Dosha is affecting your career.')).not.toEqual([]);
     expect(check('You are under Sade Sati right now.')).not.toEqual([]);
   });

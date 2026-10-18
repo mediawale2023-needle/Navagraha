@@ -53,6 +53,12 @@ function negatedBefore(sentence: string, index: number): boolean {
   return NEGATION.test(sentence.slice(0, index));
 }
 
+/** A named condition can be negated before it ("no Mangal Dosha") or by its predicate
+ * ("Mangal Dosha is not present"). Treat both grammatical forms consistently. */
+function negatedClaim(sentence: string, start: number, end: number): boolean {
+  return negatedBefore(sentence, start) || /^\s*(?:is|was|remains?|appears?)?\s*(?:not|absent|unknown|uncertain|cancel+ed|nullified|not present|not active)\b/i.test(sentence.slice(end));
+}
+
 // ── Named yogas and doshas ───────────────────────────────────────────────────
 // Catalogue of names the model might use; each maps to the engine's name (or null:
 // the engine never computes it, so an affirmative claim is unsupported).
@@ -395,7 +401,7 @@ export function validateAnswer(answer: string, ctx: GuardContext): string[] {
     for (const [re, engineName] of YOGA_CATALOGUE) {
       const m = (engineName === 'Raja Yoga' ? withoutCompoundRaja : s).match(re);
       if (!m) continue;
-      const negated = negatedBefore(s, m.index!);
+      const negated = negatedClaim(s, m.index!, m.index! + m[0].length);
       if (approx && engineName && !yogaTimeStable(engineName, st)) {
         if (!negated) issues.push(`${engineName} depends on the Lagna or a sign that changes during the birth date, so it cannot be stated with an approximate birth time`);
         continue;
@@ -413,7 +419,7 @@ export function validateAnswer(answer: string, ctx: GuardContext): string[] {
     for (const [re, id] of DOSHA_CATALOGUE) {
       const m = s.match(re);
       if (!m) continue;
-      const negated = negatedBefore(s, m.index!);
+      const negated = negatedClaim(s, m.index!, m.index! + m[0].length);
       let present: boolean | null;
       if (id === 'sadeSati') present = sadeSatiActive;
       else if (id) present = chart.doshas.find((d) => d.id === id)?.present ?? null;
