@@ -43,11 +43,14 @@ describe('offline replay of the f729c61 live evaluations', () => {
 
 describe('recorded sentences from the f729c61 runs, judged by the current checks', () => {
   const load = (name: string) => (JSON.parse(readFileSync(new URL(`../fixtures/career-live-f729c61/${name}.json`, import.meta.url), 'utf8')).attempts as Array<{ heading: string; correcting: boolean; content: string }>).map((a) => ({ ...a, reply: JSON.parse(a.content) }));
-  it('Delhi now yields a complete report; Mumbai stops only for its real timing error', async () => {
-    expect((await replay('delhi')).report?.sections).toHaveLength(5);
+  it('the historical replies now require editorial correction, in addition to the recorded Mumbai timing error', async () => {
+    const delhi = await replay('delhi');
+    expect(delhi.report).toBeNull();
+    expect(delhi.log.flatMap((a) => a.problems).join(' ')).toMatch(/does not explain how the verified fact supports/);
     const mumbai = await replay('mumbai');
-    expect(mumbai.report).toBeNull(); expect(mumbai.unrecorded).toEqual(['Favourable & Difficult Periods']);
-    expect(mumbai.log.find((a) => a.heading === 'Favourable & Difficult Periods')!.problems).toEqual(['synthesis: calls the Mercury Antardasha upcoming, but it is running now']);
+    expect(mumbai.report).toBeNull();
+    expect(mumbai.log.flatMap((a) => a.problems).join(' ')).toMatch(/does not explain how the verified fact supports/);
+    expect(mumbai.log.find((a) => a.heading === 'Favourable & Difficult Periods')!.problems.join(' ')).toMatch(/calls the Mercury Antardasha upcoming/);
   });
   it('still refuses the real errors: a running period called upcoming, a debilitated Sun called well placed, a debilitated Mercury called strong', async () => {
     const { buildCareerReportFacts } = await import('../../server/careerReportEvidence');
@@ -61,7 +64,7 @@ describe('recorded sentences from the f729c61 runs, judged by the current checks
     // same form for the invented default chart, whose Sun is debilitated in Libra.
     const sun = 'Your chart suggests a strong alignment with administrative roles. With the Sun well-placed in your chart, these positions are positively supported, indicating your capacity to handle organizational tasks effectively.';
     expect(fixtureChart().chartData.canonical.strength.dignities.find((d) => d.planet === 'Sun')!.dignity).toBe('Debilitated');
-    expect(slotProblems(sun, 'explanation', facts(invented, 'guidance').filter((f) => f.id === 'field.administration'), invented)).toEqual(["overstates Sun's strength (debilitated in the birth chart)"]);
+    expect(slotProblems(sun, 'explanation', facts(invented, 'guidance').filter((f) => f.id === 'field.administration'), invented).join(' ')).toMatch(/overstates Sun's strength/);
     const mercury = load('delhi').find((a) => a.heading === 'Personalised Guidance' && !a.correcting)!.reply.steps[0];
     expect(slotProblems(mercury.text, 'step', facts(delhi, 'guidance'), delhi).join(' ')).toMatch(/overstates Mercury's strength/);
   });

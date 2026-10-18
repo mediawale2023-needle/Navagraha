@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { CareerSpending, CAREER_DEADLINE_MS, careerRuleCode, generateDeterministicCareer, type CareerMetrics } from '../../server/careerReportGeneration';
 import { buildCareerReportFacts, CAREER_HEADINGS, type CareerReportFacts } from '../../server/careerReportEvidence';
+import { CAREER_GLOSSARY_HEADING } from '../../server/careerReportRendering';
 import { ASOF, fixtureChart } from '../fixtures/career-chart';
 import { promptTarget, realisticRequester } from '../fixtures/career-replies';
 
@@ -32,7 +33,7 @@ describe('facts-first Career report: transport and format faults are retried, no
     });
     const metrics = vi.fn();
     const report = await generateDeterministicCareer(delhi(), ASOF, request, { ...NO_WAIT, onMetrics: metrics });
-    expect(report.sections.map((s) => s.heading)).toEqual(CAREER_HEADINGS);
+    expect(report.sections.map((s) => s.heading)).toEqual([...CAREER_HEADINGS, CAREER_GLOSSARY_HEADING]);
     const m = metricsOf(metrics);
     expect(m).toMatchObject({ outcome: 'completed', transportRetries: 1, formatRetries: 0, corrections: 0, correctionRounds: 0 });
     expect(m.attempts.filter((a) => a.category === 'transport')).toEqual([expect.objectContaining({ section: 'Career Overview', phase: 'first', attempt: 1, rules: ['http-503'] })]);
@@ -50,7 +51,7 @@ describe('facts-first Career report: transport and format faults are retried, no
     const e = facts(); const request = firstOverview(e, (r) => { r.choices[0].finish_reason = 'length'; });
     const metrics = vi.fn();
     const report = await generateDeterministicCareer(delhi(), ASOF, request, { ...NO_WAIT, onMetrics: metrics });
-    expect(report.sections).toHaveLength(5);
+    expect(report.sections).toHaveLength(6);
     const m = metricsOf(metrics);
     expect(m).toMatchObject({ outcome: 'completed', formatRetries: 1, corrections: 0, correctionRounds: 0, firstPassAccepted: 5 });
     expect(m.attempts.find((a) => a.category === 'truncated')).toMatchObject({ section: 'Career Overview', attempt: 1 });
@@ -61,7 +62,7 @@ describe('facts-first Career report: transport and format faults are retried, no
     const e = facts(); const request = firstOverview(e, (r) => { r.choices[0].message.content = '{"explanations": '; });
     const metrics = vi.fn();
     const report = await generateDeterministicCareer(delhi(), ASOF, request, { ...NO_WAIT, onMetrics: metrics });
-    expect(report.sections).toHaveLength(5);
+    expect(report.sections).toHaveLength(6);
     expect(metricsOf(metrics)).toMatchObject({ outcome: 'completed', formatRetries: 1, corrections: 0, firstPassAccepted: 5 });
     expect(metricsOf(metrics).attempts.find((a) => a.category === 'malformed')?.rules).toEqual(['response:invalid-json']);
   });
@@ -75,7 +76,7 @@ describe('facts-first Career report: targeted correction rounds', () => {
   it('a required slot corrected on the second round completes the report', async () => {
     const e = facts(); const request = vi.fn(realisticRequester(e, venus(2))); const metrics = vi.fn();
     const report = await generateDeterministicCareer(delhi(), ASOF, request, { ...NO_WAIT, onMetrics: metrics });
-    expect(report.sections).toHaveLength(5);
+    expect(report.sections).toHaveLength(6);
     expect(request).toHaveBeenCalledTimes(7);
     const m = metricsOf(metrics);
     expect(m).toMatchObject({ outcome: 'completed', correctionRounds: 2, corrections: 2, firstPassAccepted: 4 });
@@ -101,7 +102,7 @@ describe('facts-first Career report: targeted correction rounds', () => {
     const k = keys(e, request);
     for (const key of ['overview', 'periods', 'current', 'guidance']) expect(count(k, key)).toBe(1);
     expect(count(k, 'chart')).toBe(2);
-    expect(report.sections).toHaveLength(5);
+    expect(report.sections).toHaveLength(6);
   });
 });
 

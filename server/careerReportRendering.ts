@@ -75,6 +75,20 @@ const FAVOUR = /\b(favou?rs?|better suited|best suited|recommend\w*|should (?:ch
 const EMPLOYED = /\b(employment|employed roles?|a job|salaried|working for an organi[sz]ation|organisational settings?|organizational settings?)\b/i;
 const INDEPENDENT = /\b(self-employ\w*|self-directed|independent(?:,? \w+)? (?:work|settings?|roles?|ventures?|paths?|pursuits?|projects?|initiatives?)|working independently|working for yourself|your own (?:business|venture|firm|practice)|freelanc\w*)\b/i;
 const STOCK = /\b(natural leader|inspire others|great candidate|shine in your career|unlock (?:your )?(?:full )?potential|sky is the limit|carefully crafted|dynamic and fulfilling)\b/i;
+const GENERIC_ADVICE = /(?:^|[.!?]\s+)(?:(?:be|stay|remain) (?:patient|adaptable|flexible)|(?:develop|improve|strengthen) (?:your )?communication skills)(?=[.!?](?:$|\s)|$)/i;
+const REPEATED_TEMPLATE = /\b(?:[A-Z][a-z]+ is the thread here|in practical terms,? (?:this|it) points you towards|treat it as a tendency rather than a fixed outcome)\b/i;
+const UNRESOLVED_RECOMMENDATION = /\b(?:this|that|these|those) (?:field|profession|career(?: path)?|line of work|option)\b/i;
+const PRACTICAL_CONCLUSION = /\b(?:work|career|job|role|setting|task|dut\w*|decision|responsibilit\w*|project|employment|business|profession\w*|team|organi[sz]ation|skill|client|colleague|management|administration|consult\w*|financ\w*|communicat\w*)\b/i;
+const INTERPRETIVE_LINK = /\b(?:because|since|therefore|so|as a result|suggests?|indicates?|means?|connects?|supports?|points? to|makes? it|which (?:can|may|makes?|means?|suggests?|indicates?))\b/i;
+const CAUTIOUS_LINK = /\b(?:supports? only a broad tendency|does not by itself identify|cannot by itself show|is not enough to identify|does not support a narrower conclusion)\b/i;
+const CONNECTION_MARKERS: Array<[RegExp, RegExp]> = [
+  [/\b(?:support\w*|in its favour|against it|points,? (?:above|below|well below) average)\b/i, /\b(?:support|balance|evidence|favour|constraint|mixed)\w*\b/i],
+  [/\b(?:Mahadasha|Antardasha|period|sub-period)\b/i, /\b(?:period|timing|phase|Mahadasha|Antardasha)\b/i],
+  [/\b(?:rules?|lord|governed)\b/i, /\b(?:rulership|rules?|lordship|govern\w*)\b/i],
+  [/\b(?:exalt\w*|debilitat\w*|Moolatrikona|friendly sign|enemy's sign|own sign|combust\w*|retrograde|strong\w*|weak\w*)\b/i, /\b(?:exalt\w*|debilitat\w*|dignity|condition|strength|weakness|combust\w*|retrograde|friendly|enemy)\b/i],
+  [/\b(?:house|D10|Lagna|placement|aspects?)\b/i, /\b(?:house|D10|Lagna|placement|aspect|position|structure)\b/i],
+  [/\b(?:Yoga|together)\b/i, /\b(?:Yoga|combination|together)\b/i],
+];
 const STRONG_WORDS = '(?:strong|powerful|excellent|exceptional|well[- ]placed|dominant)';
 const LINKING = '(?:\\s+(?:is|remains|appears|seems|looks|very|particularly|quite|also|still)){0,2}';
 const MIX = /\b(mix\w*|blend\w*|both|alongside|combin\w*|balanc\w*|as well as|hybrid|between|either)\b/i;
@@ -136,6 +150,18 @@ export function slotCheck(text: string, kind: keyof typeof LENGTH, facts: Career
   if (REMEDY.test(text)) problems.push('suggests a remedy');
   if (INTERNAL.test(text)) problems.push('uses an internal term');
   if (STOCK.test(text)) problems.push(`uses a stock phrase ("${text.match(STOCK)![0]}"); say something specific to these facts`);
+  if (GENERIC_ADVICE.test(text)) problems.push('uses generic advice; tie it to a concrete decision or action supported by the facts');
+  if (REPEATED_TEMPLATE.test(text)) problems.push('uses a repeated writing template; explain this fact in its own terms');
+  if (UNRESOLVED_RECOMMENDATION.test(text) && !Object.values(FIELDS).some((field) => field.words.test(text) || text.toLowerCase().includes(field.label.toLowerCase()))) {
+    problems.push('uses an unresolved recommendation reference; name the specific professional field');
+  }
+  if (kind === 'explanation') {
+    const matchingMarkers = CONNECTION_MARKERS.filter(([factPattern]) => factPattern.test(factText)).map(([, explanationPattern]) => explanationPattern);
+    const cautious = CAUTIOUS_LINK.test(text);
+    if (!cautious && (!PRACTICAL_CONCLUSION.test(text) || !INTERPRETIVE_LINK.test(text) || !matchingMarkers.some((marker) => marker.test(text)))) {
+      problems.push('does not explain how the verified fact supports the practical conclusion; add the connection or state a cautious limit');
+    }
+  }
   // Restating the fact: the fact is printed just before, so "Jupiter in Capricorn in your 11th house" adds nothing.
   for (const m of Array.from(factText.matchAll(/\b(?:in )?(Aries|Taurus|Gemini|Cancer|Leo|Virgo|Libra|Scorpio|Sagittarius|Capricorn|Aquarius|Pisces) in (?:your|the D10's|the) (\d+\w\w) house/g))) {
     if (new RegExp(`\\b${m[1]}\\b[^.!?]{0,15}\\b${m[2]}\\b`).test(text)) { advisories.push(`restates the fact (${m[1]}, ${m[2]} house)`); break; }
@@ -232,14 +258,14 @@ export function careerSectionPrompt(evidence: CareerReportFacts, section: Career
     wantsSynthesis && '"synthesis": "<text>"',
     wantsSteps && '"steps": [{"factIds": ["<id of a fact below>"], "text": "<one concrete action>"}]',
   ].filter(Boolean).join(', ');
-  return `You are writing part of "${section.heading}", one section of a personalised Career & Profession Report. Each chart fact below is shown to the reader, with your explanation printed right after it.
-Write warm, plain, specific English addressed to "you", for a reader who knows no astrology. Explain what each fact means for this person's work: the kind of work, environment or approach it points to, and its limits. Be concrete and practical; avoid stock phrases.
+  return `Write part of "${section.heading}" for a personalised Career Report. Each fact is printed before your explanation. Use warm, plain, specific English addressed to "you".
 Rules:
-- The fact is printed just before your text: do not repeat its placement, explain what it means. Add no chart facts. Name a planet, sign, house number, yoga, month or year only if the fact you are explaining states it (for the synthesis and steps: only if a fact in this section states it). Never mention degrees.
-- Describe tendencies, not certainties: use may, can, tends to. Never promise an outcome (success, promotion, wealth, status) and never write "will" about a result. No remedies, gemstones, mantras or rituals.
-- Describe a planet's strength only as its fact does: a planet in a friendly or neutral sign is moderate, not strong.
-- When you mention a house in a D10 fact, it is the D10's house; say "in your birth chart" if you mean the D1.
-- No filler ("thrive", "dynamic", "harness your potential", "navigate challenges", "shine"): name a concrete kind of work, setting or action.
+- Do not repeat the fact. Explain how its stated dignity, rulership, house role, support score, combination or period conditions support the work conclusion. If the link is broad, say so; invent nothing.
+- Add no chart facts. Names and dates must occur in the relevant fact (or, for synthesis/steps, this section). Never mention degrees.
+- Use may/can/tends to; never promise success, promotion, wealth or status. No remedies.
+- A friendly or neutral sign is moderate, not strong. An unnamed D10 house is in the D10; name the birth chart when you mean D1.
+- Avoid filler, generic advice and these repeated scaffolds: "thrive", "be patient", "stay adaptable", "X is the thread here", "In practical terms, this points you towards", "Treat it as a tendency rather than a fixed outcome".
+- Name the professional field or type of work in every recommendation; never leave "this field" or "that profession" unresolved.
 - The report's conclusion on employment versus independent work is fixed: ${evidence.workStyleSentence}. Never contradict it. ${section.key === 'overview'
     ? 'This section is the one place it is explained.'
     : 'Career Overview explains it: do not restate it here.'}
@@ -260,23 +286,28 @@ export const CAREER_DEFINITIONS: Record<string, string> = {
   'Neecha Bhanga': 'the cancellation of a debilitation, which softens the weakness', combust: 'too close to the Sun, which traditionally weakens a planet',
   retrograde: 'apparently moving backwards as seen from Earth', debilitated: 'in the sign where a planet is traditionally weakest', exalted: 'in the sign where a planet is traditionally strongest',
 };
-const glossary = (text: string) => Object.entries(CAREER_DEFINITIONS).filter(([term]) => new RegExp(`\\b${term}\\b`, 'i').test(text)).map(([term, meaning]) => `${term}: ${meaning}.`).join('\n');
-
-/** One section's text: each fact followed by its explanation, the synthesis, next steps and the terms used. */
+/** One section's text: each fact followed by its explanation, the synthesis and next steps. */
 export function renderCareerSection(section: CareerSectionFacts, text: SectionText): string {
   const paragraphs = section.facts.map((f) => (text.get(f.id) ? `${f.text} ${text.get(f.id)!.text}` : f.text));
   const steps = Array.from(text).filter(([id]) => id.startsWith('step.')).map(([, s], i) => `${i + 1}. ${s.text}`);
-  const body = [...paragraphs, `What this means for you\n${text.get(SYNTHESIS)!.text}`, ...(steps.length ? [`Next steps\n${steps.join('\n')}`] : [])].join('\n\n');
-  const terms = glossary(body);
-  return terms ? `${body}\n\nTerms used in this section\n${terms}` : body;
+  return [...paragraphs, `What this means for you\n${text.get(SYNTHESIS)!.text}`, ...(steps.length ? [`Next steps\n${steps.join('\n')}`] : [])].join('\n\n');
 }
 
-/** Deterministic report summary: the work-style conclusion, the strongest fields and the running periods. */
+export const CAREER_GLOSSARY_HEADING = 'Glossary';
+
+/** One deterministic glossary for the whole report; definitions are never delegated to the model. */
+export function careerGlossarySection(sections: Array<{ heading: string; body: string }>): { heading: string; body: string } | null {
+  const reportText = sections.map((section) => section.body).join('\n');
+  const definitions = Object.entries(CAREER_DEFINITIONS)
+    .filter(([term]) => new RegExp(`\\b${term}\\b`, 'i').test(reportText))
+    .map(([term, meaning]) => `${term}: ${meaning}.`);
+  return definitions.length ? { heading: CAREER_GLOSSARY_HEADING, body: definitions.join('\n') } : null;
+}
+
+/** Deterministic reading guide; substantive conclusions stay in Career Overview instead of being duplicated. */
 export function careerSummary(evidence: CareerReportFacts): string {
-  const fact = (id: string) => evidence.sections.flatMap((s) => s.facts).find((f) => f.id === id)?.text;
-  const first = (id: string) => fact(id)?.split(/(?<=\.)\s/)[0];
-  return [fact('overview.workStyle'), first('overview.fields'), first('current.mahadasha'), first('current.antardasha'),
-    'Dates describe calculated periods, not promised events. The D10 reading depends on an accurate birth time, and your actual skills, experience and circumstances should guide every decision.'].filter(Boolean).join(' ');
+  void evidence;
+  return 'This report separates the career picture into working style, timing, chart structure, current conditions and practical options. Dates describe calculated periods, not promised events. The D10 reading depends on an accurate birth time, and your actual skills, experience and circumstances should guide every decision.';
 }
 
 /** PDF/UI tables from the canonical chart, never from legacy projections. */
