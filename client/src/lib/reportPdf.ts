@@ -3,6 +3,7 @@
 import { HOUSE_TEXT, PLANET_ABBR, PLANET_COLORS, SIGN_NUM } from "@/components/NorthIndianChartEnhanced";
 import { savReading } from "@shared/v3/ashtakavargaPolicy";
 import { formatDashaPeriod, formatPlanetDegree } from "@/lib/reportFormatting";
+import { assertLatinReportText } from "@/lib/pdf/textSupport";
 
 interface ChartPlanetPos {
   planet: string;
@@ -82,6 +83,14 @@ export async function downloadReportPdf(content: ReportContent) {
   if (content.careerAnalysis?.timeline) return (await import("./careerReportPdf")).downloadCareerReportPdf(content);
   const { jsPDF } = await import("jspdf");
   const doc = new jsPDF({ unit: "mm", format: "a4" });
+  renderGenericReportPdf(doc, content);
+  const safe = (content.title || "astrology-report").replace(/[^\w]+/g, "-").replace(/^-+|-+$/g, "").toLowerCase();
+  doc.save(`${safe || "astrology-report"}.pdf`);
+}
+
+/** Pure renderer used by every non-Career paid report and by offline PDF verification. */
+export function renderGenericReportPdf(doc: any, content: ReportContent) {
+  assertLatinReportText(content);
   let y = M;
 
   const ensure = (h: number) => {
@@ -249,8 +258,7 @@ export async function downloadReportPdf(content: ReportContent) {
     doc.text(`Navagraha · Page ${i} of ${pages}`, PW / 2, PH - 8, { align: "center" });
   }
 
-  const safe = (content.title || "astrology-report").replace(/[^\w]+/g, "-").replace(/^-+|-+$/g, "").toLowerCase();
-  doc.save(`${safe || "astrology-report"}.pdf`);
+  return doc;
 }
 
 /**
