@@ -230,6 +230,26 @@ const FIELD_NAMES: Record<FieldId, RegExp> = {
 };
 const fieldsNamed = (text: string) => (Object.keys(FIELDS) as FieldId[]).filter((id) => FIELD_NAMES[id].test(text));
 
+/**
+ * Fields can appear together without being compared: period evidence, for example, deterministically lists every
+ * field a lord brings forward. Assessment citations are required only when the prose ranks or weighs those fields.
+ * Keep this sentence-scoped so a comparison elsewhere in a paragraph does not turn an ordinary field list into one.
+ */
+const FIELD_COMPARISON = new RegExp([
+  COMPARISON.source,
+  String.raw`\b(?:rank\w*|lead\w*|trail\w*|outpace\w*|exceed\w*|lag\w*|prefer\w*|favou?r\w*)\b`,
+  String.raw`\b(?:versus|vs\.?|against)\b`,
+  String.raw`\b(?:more|less|better|worse|stronger|weaker|firmer|higher|lower)\b[^.!?]{0,50}\bthan\b`,
+  String.raw`\b(?:more|less|better|worse|stronger|weaker|firmer|higher|lower)\b[^.!?]{0,30}\b(?:support\w*|rank\w*|reading|balance)\b`,
+  String.raw`\b(?:ahead of|behind|above|below|rather than)\b`,
+  String.raw`\bshare\w*\b[^.!?]{0,30}\b(?:rank|reading|support|tier)\b`,
+].join('|'), 'i');
+
+const comparedFields = (text: string): FieldId[] => Array.from(new Set(text.split(SENTENCES).flatMap((sentence) => {
+  const named = fieldsNamed(sentence);
+  return named.length >= 2 && FIELD_COMPARISON.test(sentence) ? named : [];
+})));
+
 /** The cited items and those a cited conclusion was built from (one level): what the paragraph may draw on. */
 export function citedEvidence(evidence: CareerReportFacts, cites: string[]): string[] {
   return Array.from(new Set(cites.flatMap((id) => [id, ...(evidence.ledger.byId.get(id)?.derivedFrom ?? [])])));
@@ -250,12 +270,15 @@ export function citationProblems(text: string, cites: string[], scope: string[],
   const sides = all.map((id) => evidence.ledger.byId.get(id)!).map((x) => (x.ruleId === 'd1-d10' ? 'both' : x.chart));
   const t = text.replace(D10_NAMES, 'D10');
   if (NAMES_D10.test(t) && NAMES_D1.test(t) && !(sides.some((c) => c === 'D10' || c === 'both') && sides.some((c) => c === 'D1' || c === 'timing' || c === 'both'))) problems.push('relates the birth chart and the D10 without citing evidence from both');
-  const named = fieldsNamed(text);
-  if (named.length >= 2) {
-    const uncited = named.filter((f) => !all.includes(`F.${f}`));
-    if (uncited.length) problems.push(`compares fields without citing the assessment of ${uncited.map((f) => FIELDS[f].label.toLowerCase()).join(', ')}`);
+  const compared = comparedFields(text);
+  if (compared.length >= 2) {
+    const uncited = compared.filter((f) => !all.includes(`F.${f}`));
+    const unavailable = uncited.filter((f) => !scope.includes(`F.${f}`));
+    if (unavailable.length) problems.push('compares field support or rank outside this paragraph\'s evidence; describe only which fields the period emphasises, without ranking them');
+    const available = uncited.filter((f) => scope.includes(`F.${f}`));
+    if (available.length) problems.push(`compares fields without citing the assessment of ${available.map((f) => FIELDS[f].label.toLowerCase()).join(', ')}`);
   }
-  const combines = namesOf(text).planets.length >= 2 || named.length >= 2 || COMPARISON.test(text) || (NAMES_D10.test(t) && NAMES_D1.test(t));
+  const combines = namesOf(text).planets.length >= 2 || compared.length >= 2 || COMPARISON.test(text) || (NAMES_D10.test(t) && NAMES_D1.test(t));
   if (combines && all.length < 2) problems.push('combines or compares evidence but cites one item; cite each item it draws on');
   return problems;
 }
@@ -334,8 +357,8 @@ EVIDENCE (+ supports, - strains, = neutral; weight S > M > W; ~ traditional, unc
 ${scope.filter((id) => !thesisIds.includes(id)).map((id) => `${id} ${MARK(item(id))} ${item(id).brief ?? item(id).text}`).join('\n')}
 WRITE, in order (id: job [citable ids, * must cite]):
 ${jobs.includes(FIELD_JOB) ? `field.*: ${FIELD_JOB}\n` : ''}${jobs.includes(PERIOD_JOB) ? `timing.(mahadasha|antardasha|next): ${PERIOD_JOB}\n` : ''}${slots.map((s) => `${s.id}${s.job === FIELD_JOB || s.job === PERIOD_JOB ? '' : `: ${s.job}`} [${s.scope.map((id) => (s.mustCite.includes(id) ? `${id}*` : id)).join(' ')}]`).join('\n')}${wantsSteps ? `\nsteps: ${MIN_STEPS}–${MAX_STEPS} concrete actions, 20–50 words, one on a best-supported field [${slots.length && section.stepScope.every((id) => slots[slots.length - 1].scope.includes(id)) ? `as ${slots[slots.length - 1].id}` : section.stepScope.join(' ')}]` : ''}
-RULES: Interpret, don't list: how items bear on each other, which way the balance falls, how firm (say if thin or split); strong over weak. Cite every item used; a sentence joining two planets, both charts or two fields cites each. No ids in prose. Name only planets, signs, houses, yogas, dates, years from cited items; no degrees; no calculation. may/can/tends to; promise nothing; no remedies. Friendly/neutral signs are moderate. Say "in the D10" for D10 placements. Fixed: ${evidence.workStyleSentence}.${evidence.weakFields.length ? ` Never recommend: ${evidence.weakFields.map((id) => FIELDS[id].label.toLowerCase()).join('; ')}.` : ''} Define terms briefly. No filler or generic advice; don't repeat other sections. 60–110 words a paragraph.
-Return JSON exactly: ${shape}${correction ? `\nCORRECTION\nYour previous text for these items was rejected; rewrite only them so none of the problems recurs:\n${JSON.stringify(Object.fromEntries(Array.from(correction).map(([id, p]) => [id, p.slice(0, 6).map((x) => x.slice(0, 160))])))}` : ''}`;
+RULES: Interpret, don't list: how items bear on each other, which way the balance falls, how firm (say if thin or split); strong over weak. Cite every item used; a sentence joining two planets, both charts or comparing two fields' support or rank cites each. A period may bring several fields forward without ranking their support. No ids in prose. Name only planets, signs, houses, yogas, dates, years from cited items; no degrees; no calculation. may/can/tends to; promise nothing; no remedies. Friendly/neutral signs are moderate. Say "in the D10" for D10 placements. Fixed: ${evidence.workStyleSentence}.${evidence.weakFields.length ? ` Never recommend: ${evidence.weakFields.map((id) => FIELDS[id].label.toLowerCase()).join('; ')}.` : ''} Define terms briefly. No filler or generic advice; don't repeat other sections. 60–110 words a paragraph.
+Return JSON exactly: ${shape}${correction ? `\nCORRECTION\nYour previous text for these items was rejected; rewrite only them so none of the problems recurs. Use only the citable ids shown for that item. If a field comparison needs assessment ids not shown there, remove the support/rank comparison and describe only the period's emphasis:\n${JSON.stringify(Object.fromEntries(Array.from(correction).map(([id, p]) => [id, p.slice(0, 6).map((x) => x.slice(0, 160))])))}` : ''}`;
 }
 
 // ── Assembly ─────────────────────────────────────────────────────────────────

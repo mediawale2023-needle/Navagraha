@@ -6,7 +6,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { CareerSpending, CAREER_BUDGET_MICRO_USD, CAREER_DEADLINE_MS, CAREER_OUTPUT_TOKENS, CAREER_CORRECTION_TOKENS, careerRequester, generateDeterministicCareer, partTokens, repeatsCareerInterpretation, type CareerCompletion } from '../../server/careerReportGeneration';
 import { buildCareerReportFacts, CAREER_HEADINGS, factsOf, type CareerReportFacts } from '../../server/careerReportEvidence';
-import { CAREER_APPENDIX_HEADING, careerSectionPrompt, checkCitedText, checkSectionReply, parseSectionReply, slotCheck, slotProblems } from '../../server/careerReportRendering';
+import { CAREER_APPENDIX_HEADING, careerSectionPrompt, checkCitedText, checkSectionReply, citationProblems, parseSectionReply, slotCheck, slotProblems } from '../../server/careerReportRendering';
 import { ASOF, fixtureChart, SYNTHETIC_CHARTS } from '../fixtures/career-chart';
 import { mockedRequester, promptTarget, replyFor } from '../fixtures/career-premium-replies';
 
@@ -117,6 +117,23 @@ describe('every paragraph rests on the evidence it cites', () => {
     expect(checkCitedText(compare, ['F.business'], 'paragraph', [...c.scope, 'F.business'], [], e).problems.join(' ')).toMatch(/compares fields without citing the assessment of (?:communication|finance)/);
   });
 
+  it.each(['summary.now', 'timing.mahadasha', 'timing.antardasha', 'timing.next'])(
+    '%s may name government and administration as period emphases without pretending to compare their support',
+    (id) => {
+      const s = slot(e, id);
+      const text = 'This period brings government and administration into focus together, so both areas may become more visible in the work available to you.';
+      expect(citationProblems(text, s.mustCite, s.scope, s.mustCite, e).join(' ')).not.toMatch(/compares fields/);
+    },
+  );
+
+  it('accepts a supported field comparison and rejects an unsupported timing comparison with actionable guidance', () => {
+    const text = 'Administration ranks ahead of government because its assessment has the firmer balance.';
+    const comparison = slot(e, 'fields.comparison');
+    expect(citationProblems(text, ['F.administration', 'F.government'], comparison.scope, [], e).join(' ')).not.toMatch(/compares fields/);
+    const timing = slot(e, 'timing.antardasha');
+    expect(citationProblems(text, timing.mustCite, timing.scope, timing.mustCite, e).join(' ')).toMatch(/outside this paragraph's evidence; describe only which fields the period emphasises/);
+  });
+
   it('combining two planets on one citation is refused; a single-fact paragraph on one citation passes the citation rule', () => {
     const one = e.ledger.planets.Jupiter.d1!;
     const single = 'Jupiter is debilitated in Capricorn, which weakens what it can carry for you at work, so roles that lean on its themes of guidance and judgement may need more support and slower build-up than you would like.';
@@ -141,6 +158,22 @@ describe('every paragraph rests on the evidence it cites', () => {
 });
 
 describe('coverage and correction', () => {
+  it('corrects all four reported out-of-scope field comparisons without another call or broader evidence', async () => {
+    const k = delhi(); const e = facts(k);
+    const affected = new Set(['summary.now', 'timing.mahadasha', 'timing.antardasha', 'timing.next']);
+    const request = spy(e, (r, _s, attempt) => {
+      if (attempt !== 1) return;
+      for (const id of affected) if (r.slots[id]) r.slots[id].text += ' Administration ranks ahead of government during this period.';
+    });
+    const report = await generateDeterministicCareer(k, ASOF, request);
+    expect(report.sections).toHaveLength(9);
+    expect(targets(e, request).slice(5).sort()).toEqual(['overview:summary.now', 'timing:timing.mahadasha,timing.antardasha,timing.next']);
+    const corrections = request.mock.calls.slice(5).map((call) => call[0]);
+    expect(corrections.every((prompt) => prompt.includes("outside this paragraph's evidence"))).toBe(true);
+    expect(corrections.every((prompt) => prompt.includes('remove the support/rank comparison'))).toBe(true);
+    expect(request).toHaveBeenCalledTimes(7);
+  });
+
   it('corrects only the failed paragraph, keeping every accepted one', async () => {
     const k = delhi(); const e = facts(k);
     const request = spy(e, (r, s, attempt) => { if (s.key === 'timing' && attempt === 1) r.slots['timing.antardasha'].text += ' It ends in 2031.'; });
