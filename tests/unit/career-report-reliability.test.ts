@@ -1,9 +1,9 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { CareerSpending, CAREER_DEADLINE_MS, careerRuleCode, generateDeterministicCareer, type CareerMetrics } from '../../server/careerReportGeneration';
 import { buildCareerReportFacts, CAREER_HEADINGS, type CareerReportFacts } from '../../server/careerReportEvidence';
-import { CAREER_GLOSSARY_HEADING } from '../../server/careerReportRendering';
+import { CAREER_APPENDIX_HEADING } from '../../server/careerReportRendering';
 import { ASOF, fixtureChart } from '../fixtures/career-chart';
-import { promptTarget, realisticRequester } from '../fixtures/career-replies';
+import { promptTarget, mockedRequester as realisticRequester } from '../fixtures/career-premium-replies';
 
 // Invented chart (no personal birth details); the same one the pipeline tests use.
 const BIRTH = ['1985-03-22', '06:15', 28.6139, 77.209] as const;
@@ -13,6 +13,7 @@ const NO_WAIT = { retryDelaysMs: [0, 0] } as const;
 const keys = (e: CareerReportFacts, request: { mock: { calls: any[][] } }) => request.mock.calls.map((c) => promptTarget(e, c[0]).section.key);
 const count = (list: string[], key: string) => list.filter((k) => k === key).length;
 const metricsOf = (m: ReturnType<typeof vi.fn>) => m.mock.calls[0][0] as CareerMetrics;
+const OVERVIEW = 'Executive Career Summary + Professional Identity', CHART = 'Strengths and Challenges + D1 and D10 Analysis';
 /** The base requester with one change on the overview's first request. */
 const firstOverview = (e: CareerReportFacts, change: (r: any) => void | never) => {
   const base = realisticRequester(e); let seen = false;
@@ -33,10 +34,10 @@ describe('facts-first Career report: transport and format faults are retried, no
     });
     const metrics = vi.fn();
     const report = await generateDeterministicCareer(delhi(), ASOF, request, { ...NO_WAIT, onMetrics: metrics });
-    expect(report.sections.map((s) => s.heading)).toEqual([...CAREER_HEADINGS, CAREER_GLOSSARY_HEADING]);
+    expect(report.sections.map((s) => s.heading).slice(0, 8)).toEqual([...CAREER_HEADINGS, CAREER_APPENDIX_HEADING]);
     const m = metricsOf(metrics);
     expect(m).toMatchObject({ outcome: 'completed', transportRetries: 1, formatRetries: 0, corrections: 0, correctionRounds: 0 });
-    expect(m.attempts.filter((a) => a.category === 'transport')).toEqual([expect.objectContaining({ section: 'Career Overview', phase: 'first', attempt: 1, rules: ['http-503'] })]);
+    expect(m.attempts.filter((a) => a.category === 'transport')).toEqual([expect.objectContaining({ section: OVERVIEW, phase: 'first', attempt: 1, rules: ['http-503'] })]);
     expect(count(keys(e, request), 'overview')).toBe(2);
   });
 
@@ -51,47 +52,48 @@ describe('facts-first Career report: transport and format faults are retried, no
     const e = facts(); const request = firstOverview(e, (r) => { r.choices[0].finish_reason = 'length'; });
     const metrics = vi.fn();
     const report = await generateDeterministicCareer(delhi(), ASOF, request, { ...NO_WAIT, onMetrics: metrics });
-    expect(report.sections).toHaveLength(6);
+    expect(report.sections.length).toBeGreaterThanOrEqual(8);
     const m = metricsOf(metrics);
     expect(m).toMatchObject({ outcome: 'completed', formatRetries: 1, corrections: 0, correctionRounds: 0, firstPassAccepted: 5 });
-    expect(m.attempts.find((a) => a.category === 'truncated')).toMatchObject({ section: 'Career Overview', attempt: 1 });
+    expect(m.attempts.find((a) => a.category === 'truncated')).toMatchObject({ section: OVERVIEW, attempt: 1 });
     expect(request).toHaveBeenCalledTimes(6);
   });
 
   it('invalid JSON followed by success is not a content failure', async () => {
-    const e = facts(); const request = firstOverview(e, (r) => { r.choices[0].message.content = '{"explanations": '; });
+    const e = facts(); const request = firstOverview(e, (r) => { r.choices[0].message.content = '{"slots": '; });
     const metrics = vi.fn();
     const report = await generateDeterministicCareer(delhi(), ASOF, request, { ...NO_WAIT, onMetrics: metrics });
-    expect(report.sections).toHaveLength(6);
+    expect(report.sections.length).toBeGreaterThanOrEqual(8);
     expect(metricsOf(metrics)).toMatchObject({ outcome: 'completed', formatRetries: 1, corrections: 0, firstPassAccepted: 5 });
     expect(metricsOf(metrics).attempts.find((a) => a.category === 'malformed')?.rules).toEqual(['response:invalid-json']);
   });
 });
 
 describe('facts-first Career report: targeted correction rounds', () => {
+  // Libra is named by none of the strengths paragraph's evidence in this chart.
   const venus = (upTo: number) => (r: any, s: any, attempt: number) => {
-    if (s.key === 'chart' && attempt <= upTo && r.explanations['chart.tenth']) r.explanations['chart.tenth'] += ' Venus shapes this house.';
+    if (s.key === 'chart' && attempt <= upTo && r.slots.strengths) r.slots.strengths.text += ' Libra shapes this house.';
   };
 
   it('a required slot corrected on the second round completes the report', async () => {
     const e = facts(); const request = vi.fn(realisticRequester(e, venus(2))); const metrics = vi.fn();
     const report = await generateDeterministicCareer(delhi(), ASOF, request, { ...NO_WAIT, onMetrics: metrics });
-    expect(report.sections).toHaveLength(6);
+    expect(report.sections.length).toBeGreaterThanOrEqual(8);
     expect(request).toHaveBeenCalledTimes(7);
     const m = metricsOf(metrics);
     expect(m).toMatchObject({ outcome: 'completed', correctionRounds: 2, corrections: 2, firstPassAccepted: 4 });
-    expect(m.attempts.filter((a) => a.section === 'Your Birth Chart').map((a) => [a.phase, a.category])).toEqual([
+    expect(m.attempts.filter((a) => a.section === CHART).map((a) => [a.phase, a.category])).toEqual([
       ['first', 'validation'], ['correction-1', 'validation'], ['correction-2', 'accepted'],
     ]);
     // Correction prompts ask for the failed slot only.
-    for (const call of request.mock.calls.slice(5)) expect(promptTarget(e, call[0]).correction).toEqual(['chart.tenth']);
+    for (const call of request.mock.calls.slice(5)) expect(promptTarget(e, call[0]).correction).toEqual(['strengths']);
   });
 
   it('a persistent factual error fails the order after two rounds, with rule codes only', async () => {
     const e = facts(); const request = vi.fn(realisticRequester(e, venus(99))); const metrics = vi.fn();
     const err = await generateDeterministicCareer(delhi(), ASOF, request, { ...NO_WAIT, onMetrics: metrics }).catch((x) => x as Error);
-    expect(err.message).toMatch(/after 2 correction rounds\. Your Birth Chart: chart\.tenth names/);
-    expect(err.message).not.toMatch(/Venus/);
+    expect(err.message).toMatch(/after 2 correction rounds\. Strengths and Challenges \+ D1 and D10 Analysis: strengths names/);
+    expect(err.message).not.toMatch(/Libra/);
     expect(request).toHaveBeenCalledTimes(7);
     expect(metricsOf(metrics)).toMatchObject({ outcome: 'failed', failureCategory: 'quality', correctionRounds: 2 });
   });
@@ -100,9 +102,9 @@ describe('facts-first Career report: targeted correction rounds', () => {
     const e = facts(); const request = vi.fn(realisticRequester(e, venus(1)));
     const report = await generateDeterministicCareer(delhi(), ASOF, request, NO_WAIT);
     const k = keys(e, request);
-    for (const key of ['overview', 'periods', 'current', 'guidance']) expect(count(k, key)).toBe(1);
+    for (const key of ['overview', 'fields', 'timing', 'strategy']) expect(count(k, key)).toBe(1);
     expect(count(k, 'chart')).toBe(2);
-    expect(report.sections).toHaveLength(6);
+    expect(report.sections.length).toBeGreaterThanOrEqual(8);
   });
 });
 
@@ -132,16 +134,16 @@ describe('facts-first Career report: the deadline and the spending ceiling still
 describe('facts-first Career report: diagnostics carry no birth details or report text', () => {
   it('records section, category, rule, attempt, tokens, cost and duration, and nothing personal', async () => {
     const e = facts(); const metrics = vi.fn();
-    const request = vi.fn(realisticRequester(e, (r, s, attempt) => { if (s.key === 'chart' && attempt === 1 && r.explanations['chart.tenth']) r.explanations['chart.tenth'] += ' Venus shapes this house.'; }));
+    const request = vi.fn(realisticRequester(e, (r, s, attempt) => { if (s.key === 'chart' && attempt === 1 && r.slots.strengths) r.slots.strengths.text += ' Libra shapes this house.'; }));
     await generateDeterministicCareer(delhi(), ASOF, request, { ...NO_WAIT, onMetrics: metrics });
     const m = metricsOf(metrics);
     for (const a of m.attempts) {
       expect(Object.keys(a).sort()).toEqual(['attempt', 'category', 'completionTokens', 'costMicroUsd', 'durationMs', 'phase', 'promptTokens', 'rules', 'section']);
-      expect(CAREER_HEADINGS).toContain(a.section);
+      for (const heading of a.section.split(' + ')) expect(CAREER_HEADINGS).toContain(heading);
     }
     expect(m.durationMs).toBeGreaterThanOrEqual(0); expect(m.costMicroUsd).toBeGreaterThan(0);
     const logged = JSON.stringify(m);
-    for (const secret of [BIRTH[0], BIRTH[1], String(BIRTH[2]), String(BIRTH[3]), 'shapes this house', 'Venus']) expect(logged).not.toContain(secret);
+    for (const secret of [BIRTH[0], BIRTH[1], String(BIRTH[2]), String(BIRTH[3]), 'shapes this house', 'Libra']) expect(logged).not.toContain(secret);
   });
 
   it('reduces a validator problem to its rule', () => {

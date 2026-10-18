@@ -2,13 +2,24 @@ import type OpenAI from 'openai';
 import { GRAHAS, SIGN_NAMES } from '@shared/v3/canonical';
 import { ReportGenerationError } from './reportQuality';
 import { buildCareerReportFacts, type CareerSectionFacts } from './careerReportEvidence';
-import { careerSectionPrompt, checkSectionReply, parseSectionReply, renderCareerSection, careerGlossarySection, careerMetadata, careerSummary, MIN_STEPS, SYNTHESIS, type SectionText } from './careerReportRendering';
+import { careerSectionPrompt, checkSectionReply, parseSectionReply, renderCareerSection, careerAppendixSection, careerGlossarySection, careerMetadata, careerSummary, MIN_STEPS, type SectionText } from './careerReportRendering';
 
 export const CAREER_BUDGET_MICRO_USD = 250_000;
 export const CAREER_DEADLINE_MS = 6 * 60_000;
-/** A first pass writes a whole section (at most 11 explanations, a synthesis, steps); a correction only its failed slots. With no usage reported, 5 whole sections and 5 whole re-requests stay under $0.25. */
+/** The most a part may write (7 paragraphs); smaller parts reserve less (partTokens). With no usage reported, 5 whole parts and 5 whole re-requests stay under $0.25. */
 export const CAREER_OUTPUT_TOKENS = 1400;
 export const CAREER_CORRECTION_TOKENS = 900;
+/**
+ * The output a part can need: each paragraph at the checks' maximum length (130 words ≈ 175 tokens) with its
+ * citations and JSON keys, and each step at its maximum (50 words). A valid reply always fits; a longer one would be
+ * refused anyway. Reserving only this, not the ceiling for every part, keeps a whole retry of every part affordable.
+ */
+export const TOKENS_PER_PARAGRAPH = 205, TOKENS_PER_STEP = 95, TOKENS_PER_REPLY = 100;
+export function partTokens(section: { slots: Array<{ id: string }>; steps: boolean }, only?: Map<string, string[]>): number {
+  const slots = section.slots.filter((s) => !only || only.has(s.id)).length;
+  const steps = section.steps && (!only || only.has('steps')) ? 5 : 0;
+  return Math.min(CAREER_OUTPUT_TOKENS, TOKENS_PER_REPLY + slots * TOKENS_PER_PARAGRAPH + steps * TOKENS_PER_STEP);
+}
 export type CareerUsage = { prompt_tokens: number; completion_tokens: number };
 export interface CareerCompletion { choices: Array<{ finish_reason?: string | null; message: { content?: string | null } }>; usage?: CareerUsage | null }
 /** Evaluation only (synthetic charts): the order path never passes `onSection`, so model text is never logged. */
@@ -153,18 +164,18 @@ export async function generateDeterministicCareer(kundli: unknown, asOf: Date, r
     const evidence = buildCareerReportFacts(kundli, asOf);
     for (const s of evidence.sections) { text.set(s.key, new Map()); failing.set(s.key, new Map()); dropped.set(s.key, new Map()); }
 
-    // One request per section, all in parallel: the work style is the code's, so no section waits on another.
+    // One request per part, all in parallel: every conclusion is the code's (the shared plan), so no part waits on another.
     // A correction asks only for the failed slots; a whole failed response is asked for again whole.
     // Transport faults and unreadable replies are retried here, within the deadline and the ledger, before the
     // reply is judged; only a readable reply's astrology can fail a section.
     const run = async (section: CareerSectionFacts, only: Map<string, string[]> | undefined, phase: CareerAttemptDiagnostic['phase']) => {
       const correcting = !!only;
       const prompt = careerSectionPrompt(evidence, section, only);
-      const maxTokens = only ? CAREER_CORRECTION_TOKENS : CAREER_OUTPUT_TOKENS;
+      const maxTokens = Math.min(only ? CAREER_CORRECTION_TOKENS : CAREER_OUTPUT_TOKENS, partTokens(section, only));
       let transportTries = 0, formatTries = 0;
       const record = (category: CareerAttemptCategory, rules: string[], t0: number, usage: CareerUsage | null | undefined, cost: number) => {
         const attempt = (attemptNo.get(section.key) ?? 0) + 1; attemptNo.set(section.key, attempt);
-        attempts.push({ section: section.heading, phase, attempt, category, rules, promptTokens: usage?.prompt_tokens ?? null, completionTokens: usage?.completion_tokens ?? null, costMicroUsd: cost, durationMs: Date.now() - t0 });
+        attempts.push({ section: section.headings.join(' + '), phase, attempt, category, rules, promptTokens: usage?.prompt_tokens ?? null, completionTokens: usage?.completion_tokens ?? null, costMicroUsd: cost, durationMs: Date.now() - t0 });
       };
       for (;;) {
         if (controller.signal.aborted) throw new ReportGenerationError('Career deadline exceeded');
@@ -218,8 +229,8 @@ export async function generateDeterministicCareer(kundli: unknown, asOf: Date, r
         advisories = Array.from(checked.advisories).map(([id, a]) => `${id}: ${a.join('; ')}`);
       }
       const problems = Array.from(fail).map(([id, p]) => `${id}: ${p.join('; ')}`);
-      options.onSection?.({ heading: section.heading, correcting, accepted: !fail.size, problems, dropped: Array.from(drop).map(([id, p]) => `${id}: ${p.join('; ')}`), advisories, content });
-      if (process.env.NAVAGRAHA_CAREER_EVAL_DIAGNOSTICS === '1' && (fail.size || drop.size)) console.error('[career-eval]', JSON.stringify({ section: section.heading, correcting, required: problems, dropped: Array.from(drop.keys()) }));
+      options.onSection?.({ heading: section.headings.join(' + '), correcting, accepted: !fail.size, problems, dropped: Array.from(drop).map(([id, p]) => `${id}: ${p.join('; ')}`), advisories, content });
+      if (process.env.NAVAGRAHA_CAREER_EVAL_DIAGNOSTICS === '1' && (fail.size || drop.size)) console.error('[career-eval]', JSON.stringify({ section: section.headings.join(' + '), correcting, required: problems, dropped: Array.from(drop.keys()) }));
       done(!parsed.reply ? (finish !== 'stop' ? 'truncated' : 'malformed') : fail.size ? 'validation' : 'accepted', rulesOf(fail));
     };
 
@@ -236,9 +247,11 @@ export async function generateDeterministicCareer(kundli: unknown, asOf: Date, r
           }).find(Boolean);
           if (repeated) {
             text.get(section.key)!.delete(id);
-            const required = id === SYNTHESIS || id.startsWith('step.') || section.facts.find((f) => f.id === id)?.required;
-            const source = evidence.sections.find((s) => s.key === repeated.location.split('/')[0])!.heading;
-            (required ? failing : dropped).get(section.key)!.set(id.startsWith('step.') ? 'steps' : id, [`repeats an interpretation from ${source}; explain this fact with distinct reasoning`]);
+            const required = id.startsWith('step.') || section.slots.find((s) => s.id === id)?.required;
+            const [sourceKey, sourceId] = repeated.location.split('/');
+            const sourcePart = evidence.sections.find((s) => s.key === sourceKey)!;
+            const source = sourcePart.slots.find((s) => s.id === sourceId)?.heading ?? sourcePart.headings[sourcePart.headings.length - 1];
+            (required ? failing : dropped).get(section.key)!.set(id.startsWith('step.') ? 'steps' : id, [`repeats an interpretation from ${source}; give this paragraph its own reasoning`]);
           } else for (const sentence of sentences) {
             const key = sentenceKey(sentence);
             if (!seen.has(key)) seen.set(key, { location: `${section.key}/${id}`, sentence });
@@ -246,16 +259,15 @@ export async function generateDeterministicCareer(kundli: unknown, asOf: Date, r
         }
       }
     };
-    // Every required explanation, the synthesis and (Guidance) the minimum of steps must be present.
+    // Every required paragraph and (Career Strategy) the minimum of steps must be present.
     const complete = (section: CareerSectionFacts) => {
       const t = text.get(section.key)!, fail = failing.get(section.key)!;
-      for (const f of section.facts) if (f.required && f.explain && !t.has(f.id) && !fail.has(f.id)) fail.set(f.id, ['missing']);
-      if (!t.has(SYNTHESIS) && !fail.has(SYNTHESIS)) fail.set(SYNTHESIS, ['missing']);
+      for (const s of section.slots) if (s.required && !t.has(s.id) && !fail.has(s.id)) fail.set(s.id, ['missing']);
       if (section.steps && Array.from(t.keys()).filter((k) => k.startsWith('step.')).length < MIN_STEPS && !fail.has('steps')) fail.set('steps', ['too few next steps']);
       return !fail.size;
     };
     // Rule codes only: the failure reason is stored and logged, so it names no chart fact or model text.
-    const summary = () => evidence.sections.filter((s) => failing.get(s.key)!.size).map((s) => `${s.heading}: ${Array.from(failing.get(s.key)!).slice(0, 3).map(([id, p]) => `${id} ${careerRuleCode(p[0] ?? '')}`).join('; ')}`).join(' | ');
+    const summary = () => evidence.sections.filter((s) => failing.get(s.key)!.size).map((s) => `${s.headings.join(' + ')}: ${Array.from(failing.get(s.key)!).slice(0, 3).map(([id, p]) => `${id} ${careerRuleCode(p[0] ?? '')}`).join('; ')}`).join(' | ');
 
     await Promise.all(evidence.sections.map((s) => run(s, undefined, 'first')));
     repetition();
@@ -273,13 +285,14 @@ export async function generateDeterministicCareer(kundli: unknown, asOf: Date, r
     }
     if (!evidence.sections.every(complete)) {
       failureCategory = 'quality';
-      throw new ReportGenerationError(`Career quality check: required explanations still invalid after ${correctionRounds} correction round${correctionRounds === 1 ? '' : 's'}. ${summary()}`);
+      throw new ReportGenerationError(`Career quality check: required paragraphs still invalid after ${correctionRounds} correction round${correctionRounds === 1 ? '' : 's'}. ${summary()}`);
     }
     if (controller.signal.aborted) throw new ReportGenerationError('Career deadline exceeded');
     outcome = 'completed';
-    const sections = evidence.sections.map((s) => ({ heading: s.heading, body: renderCareerSection(s, text.get(s.key)!) }));
+    const sections = evidence.sections.flatMap((s) => renderCareerSection(s, text.get(s.key)!)).filter((s) => s.body);
+    const appendix = careerAppendixSection(evidence, Array.from(text.values()));
     const glossary = careerGlossarySection(sections);
-    return { title: 'Career & Profession Report', summary: careerSummary(evidence), sections: glossary ? [...sections, glossary] : sections, remedies: [] as string[], ...careerMetadata(evidence, kundli), generatedAt: asOf.toISOString() };
+    return { title: 'Career & Profession Report', summary: careerSummary(evidence), sections: [...sections, appendix, ...(glossary ? [glossary] : [])], remedies: [] as string[], ...careerMetadata(evidence, kundli), generatedAt: asOf.toISOString() };
   } catch (err) {
     if (!failureCategory) {
       const message = String((err as Error)?.message ?? '');

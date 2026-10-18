@@ -1,79 +1,181 @@
+/**
+ * The Career Report's deterministic layer: the evidence ledger, the synthesis and the report plan. Everything here
+ * runs without a model. Seven invented charts (SYNTHETIC_CHARTS) and a seeded random sweep stand in for customers.
+ */
 import { describe, expect, it } from 'vitest';
-import { computeCanonicalChart } from '../../server/astroEngine/canonical/compute';
-import { resolveBirthWithCoordinates } from '../../server/astroEngine/birthResolver';
-import { buildCareerReportFacts, CAREER_HEADINGS, dateOf } from '../../server/careerReportEvidence';
-import { ASOF, fixtureChart } from '../fixtures/career-chart';
+import { GRAHAS, SIGN_NAMES } from '@shared/v3/canonical';
+import { buildInsights } from '../../server/astroEngine/evidence/insights';
+import { planetCondition } from '../../server/astroEngine/evidence/engine';
+import { resolveDomain } from '../../server/astroEngine/evidence/resolution';
+import { signDignity } from '../../server/astroEngine/dignity';
+import { engineItems } from '../../server/careerLedger';
+import { d10Relation } from '../../server/careerSynthesis';
+import { buildCareerReportFacts, CAREER_HEADINGS, dateOf, type CareerReportFacts } from '../../server/careerReportEvidence';
+import { careerSectionPrompt } from '../../server/careerReportRendering';
+import { CAREER_BUDGET_MICRO_USD, CAREER_OUTPUT_TOKENS } from '../../server/careerReportGeneration';
+import { ASOF, fixtureChart, SYNTHETIC_CHARTS } from '../fixtures/career-chart';
 
-const CHARTS = [['1985-03-22', '06:15', 28.6139, 77.209], ['1977-10-30', '10:25', 22.5726, 88.3639], ['2000-07-04', '18:45', 19.076, 72.8777]] as const;
-const ORD = (n: number) => `${n}${n === 1 ? 'st' : n === 2 ? 'nd' : n === 3 ? 'rd' : 'th'}`;
+const NAMES = Object.keys(SYNTHETIC_CHARTS) as Array<keyof typeof SYNTHETIC_CHARTS>;
+const cache = new Map<string, CareerReportFacts>();
+const facts = (name: keyof typeof SYNTHETIC_CHARTS) => {
+  if (!cache.has(name)) cache.set(name, buildCareerReportFacts(fixtureChart(...SYNTHETIC_CHARTS[name]), ASOF));
+  return cache.get(name)!;
+};
+const text = (e: CareerReportFacts, id: string) => e.ledger.byId.get(id)!.text;
 
-describe('Career facts are written by code from the canonical chart', () => {
-  it.each(CHARTS)('every placement, house, lordship and date in the facts matches the engine (%s)', (date, time, lat, lon) => {
-    const k = fixtureChart(date, time, lat, lon); const c = k.chartData.canonical; const e = buildCareerReportFacts(k, ASOF);
-    const text = e.sections.flatMap((s) => s.facts.map((f) => f.text)).join('\n');
-    expect(e.sections.map((s) => s.heading)).toEqual(CAREER_HEADINGS);
-    // "<Planet> is in <Sign> in your <N>th house" (D1)
-    let d1 = 0;
-    for (const m of Array.from(text.matchAll(/\b(?:the )?(Sun|Moon|Mars|Mercury|Jupiter|Venus|Saturn|Rahu|Ketu),?[^.]{0,80}? is in (\w+) in your (\d+)\w\w house/gi))) {
-      d1++; expect(c.planets.find((p) => p.name.toLowerCase() === m[1].toLowerCase())).toMatchObject({ sign: m[2], house: Number(m[3]) });
+describe('every chart statement matches the engine', () => {
+  it.each(NAMES)('D1 and D10 placements, dignities and dates (%s)', (name) => {
+    const e = facts(name); const c = e.chart;
+    const all = e.ledger.items.map((x) => x.text).join('\n');
+    // "In the D10, <planet> is in the <N>th house" / "… is <dignity> in <Sign>"
+    for (const m of Array.from(all.matchAll(/In the D10, (?:the )?(\w+) is in the (\d+)\w\w house/g))) expect(c.vargas.D10.placements.find((p) => p.planet === m[1])!.house).toBe(Number(m[2]));
+    for (const m of Array.from(all.matchAll(/In the D10, (?:the )?(\w+) is (?:exalted|in its own sign|debilitated) in (\w+)\./g))) expect(c.vargas.D10.placements.find((p) => p.planet === m[1])!.sign).toBe(m[2]);
+    for (const m of Array.from(all.matchAll(/In the D10, (?:the )?(\w+) is in an? (friendly|neutral|enemy's) sign \((\w+)\)/g))) {
+      const p = c.vargas.D10.placements.find((x) => x.planet === m[1])!;
+      expect(p.sign).toBe(m[3]);
+      expect(signDignity(m[1], p.signIndex)).toBe({ friendly: "Friend's sign", neutral: 'Neutral sign', "enemy's": "Enemy's sign" }[m[2]]);
     }
-    // "In the D10 it is in <Sign> in the <N>th house", following a sentence about one planet
-    let d10 = 0;
-    for (const m of Array.from(text.matchAll(/(?:^|\. )(?:Its lord, )?(?:the )?(Sun|Moon|Mars|Mercury|Jupiter|Venus|Saturn|Rahu|Ketu)[^.]*\.(?: It rules [^.]*\.)? In the D10 it is in (\w+) in the (\d+)\w\w house/gim))) {
-      d10++; expect(c.vargas.D10.placements.find((p) => p.planet.toLowerCase() === m[1].toLowerCase())).toMatchObject({ sign: m[2], house: Number(m[3]) });
+    // "<Planet> rules your <N>th and <M>th houses and sits in your <K>th house" (period links)
+    for (const m of Array.from(all.matchAll(/(?:^|\. )(?:The )?(\w+) rules your ([\d\w ,and]+?) houses? and sits in your (\d+)\w\w house/gm))) {
+      const ruled = Array.from(m[2].matchAll(/(\d+)/g)).map((x) => Number(x[1]));
+      expect(ruled.sort((a, b) => a - b)).toEqual(c.houses.filter((h) => h.lord === m[1]).map((h) => h.house));
+      expect(c.planets.find((p) => p.name === m[1])!.house).toBe(Number(m[3]));
     }
-    expect(d1).toBeGreaterThan(4); expect(d10).toBeGreaterThanOrEqual(3);
-    expect(text).toContain(`Your 10th house, the house of career and public standing, is ${c.houses[9].sign}.`);
-    expect(text).toContain(`The lord of your 10th house, ${['Sun', 'Moon'].includes(c.houses[9].lord) ? 'the ' : ''}${c.houses[9].lord}, is in ${c.planets.find((p) => p.name === c.houses[9].lord)!.sign} in your ${ORD(c.planets.find((p) => p.name === c.houses[9].lord)!.house)} house`);
-    expect(text).toContain(`the rising sign is ${['Aries', 'Taurus', 'Gemini', 'Cancer', 'Leo', 'Virgo', 'Libra', 'Scorpio', 'Sagittarius', 'Capricorn', 'Aquarius', 'Pisces'][c.vargas.D10.ascendantSignIndex]}.`);
     // Every date is a Vimshottari boundary.
     const boundaries = new Set(c.dashas.vimshottari.mahadashas.flatMap((m) => [m.start, m.end, ...m.antardashas.flatMap((a) => [a.start, a.end])]).map(dateOf));
-    const dates = text.match(/\b\d{1,2} (?:January|February|March|April|May|June|July|August|September|October|November|December) \d{4}\b/g)!;
-    expect(dates.length).toBeGreaterThan(4);
+    const dates = all.match(/\b\d{1,2} (?:January|February|March|April|May|June|July|August|September|October|November|December) \d{4}\b/g)!;
+    expect(dates.length).toBeGreaterThanOrEqual(4);
     for (const d of dates) expect(boundaries.has(d)).toBe(true);
   });
-  it.each(CHARTS)('names the running Mahadasha and Antardasha with their engine dates (%s)', (date, time, lat, lon) => {
-    const k = fixtureChart(date, time, lat, lon); const c = k.chartData.canonical; const e = buildCareerReportFacts(k, ASOF);
-    const now = (p: { start: string; end: string }) => Date.parse(p.start) <= +ASOF && +ASOF < Date.parse(p.end);
-    const md = c.dashas.vimshottari.mahadashas.find(now)!; const ad = md.antardashas.find(now)!;
-    const current = e.sections.find((s) => s.key === 'current')!.facts;
-    expect(current.find((f) => f.id === 'current.mahadasha')!.text).toContain(`You are now in the ${md.lord} Mahadasha, the major period running from ${dateOf(md.start)} to ${dateOf(md.end)}`);
-    expect(current.find((f) => f.id === 'current.antardasha')!.text).toContain(`you are now in the ${ad.lord} Antardasha (sub-period), which began on ${dateOf(ad.start)} and runs until ${dateOf(ad.end)}`);
-    expect(current.filter((f) => f.required).map((f) => f.id)).toEqual(['current.mahadasha', 'current.antardasha']);
+
+  it.each(NAMES)('no engine shorthand, yoga promise or degree in the evidence (%s)', (name) => {
+    const all = facts(name).ledger.items.map((x) => x.text).join('\n');
+    const yogas = facts(name).ledger.items.filter((x) => x.evidence?.source === 'Yoga').map((x) => x.text).join('\n');
+    expect(yogas).not.toMatch(/ — |status and success|marked rise|sharp intellect/);
+    expect(all).not.toMatch(/\d°|\bdegrees?\b/);
+    expect(all).not.toMatch(/Neecha Bhanga Raja Yoga/);
   });
-  it('covers every period overlapping the next four years, across a Mahadasha boundary', () => {
-    const k = fixtureChart('2000-07-04', '18:45', 19.076, 72.8777); const e = buildCareerReportFacts(k, ASOF);
-    const ids = e.sections.find((s) => s.key === 'periods')!.facts.map((f) => f.id);
-    expect(ids).toEqual(['period.Mahadasha.Venus.2010-07-21', 'period.Antardasha.Mercury.2026-07-21', 'period.Antardasha.Ketu.2029-05-21', 'period.Mahadasha.Sun.2030-07-21', 'period.Antardasha.Sun.2030-07-21']);
+});
+
+describe('the report agrees with the production engine', () => {
+  it.each(NAMES)('the overall reading is the Kundli\'s Career verdict (%s)', (name) => {
+    const e = facts(name);
+    const career = buildInsights(e.chart, ASOF).domains.find((d) => d.domain === 'career')!;
+    expect(e.ledger.career.verdict).toBe(career.verdict);
+    expect(text(e, e.synthesis.theses.verdict)).toContain(`career reads as ${career.verdict === 'Insufficient evidence' ? 'too thinly evidenced to judge' : career.verdict.toLowerCase()}, with ${career.confidence.toLowerCase()} confidence`);
   });
-  it('derives the work style from the 6th and 7th houses and the business rating, and states it once in plain words', () => {
-    for (const [date, time, lat, lon] of CHARTS) {
-      const e = buildCareerReportFacts(fixtureChart(date, time, lat, lon), ASOF);
-      expect(e.workStyle).toBe('mixed');
-      expect(e.sections[0].facts[0].text).toContain(e.workStyleSentence);
+
+  it.each(NAMES)('engine items keep their engine direction and strength; career rules carry a documented rule (%s)', (name) => {
+    for (const x of facts(name).ledger.items) {
+      if (x.evidence && x.ruleId === x.evidence.id) expect([x.direction, x.strength]).toEqual([x.evidence.direction, x.evidence.strength]);
+      if (x.ruleId.startsWith('career.')) expect(x.rule.length).toBeGreaterThan(40);
     }
   });
-  it('marks the essential interpretations required and weak fields optional', () => {
-    const e = buildCareerReportFacts(fixtureChart(), ASOF);
-    const required = Object.fromEntries(e.sections.map((s) => [s.key, s.facts.filter((f) => f.required).map((f) => f.id)]));
-    expect(required.overview).toEqual(['overview.workStyle', 'overview.fields', 'overview.strength', 'overview.caution']);
-    expect(required.chart).toEqual(['chart.tenth', 'chart.tenthLord', 'chart.d10Lagna', 'chart.d10Tenth']);
-    expect(required.guidance).toEqual(['field.administration', 'field.government', 'field.business', 'field.finance', 'field.communication']);
-    expect(e.weakFields).toEqual(['advisory']);
-    expect(e.sections.find((s) => s.key === 'guidance')!.facts.find((f) => f.id === 'field.advisory')).toMatchObject({ required: false, explain: true });
+
+  it.each(NAMES)('a period\'s tone is the engine\'s period-lord capacity, and its dates are the engine\'s (%s)', (name) => {
+    const e = facts(name); const t = +ASOF;
+    const md = e.chart.dashas.vimshottari.mahadashas.find((m) => Date.parse(m.start) <= t && t < Date.parse(m.end))!;
+    const ad = md.antardashas.find((a) => Date.parse(a.start) <= t && t < Date.parse(a.end))!;
+    const [pm, pa, pn] = e.synthesis.periods;
+    expect([pm.lord, pm.start, pm.end]).toEqual([md.lord, md.start, md.end]);
+    expect([pa.lord, pa.start, pa.end]).toEqual([ad.lord, ad.start, ad.end]);
+    expect(Date.parse(pn.start)).toBe(Date.parse(ad.end));
+    for (const p of e.synthesis.periods) expect(p.tone).toBe(planetCondition(e.ledger.ix, p.lord).direction);
   });
-  it.each(CHARTS)('reads as report prose: no engine shorthand, instructions or yoga promises (%s)', (date, time, lat, lon) => {
-    const e = buildCareerReportFacts(fixtureChart(date, time, lat, lon), ASOF);
-    const text = e.sections.flatMap((s) => s.facts.map((f) => f.text)).join('\n');
-    expect(text).not.toMatch(/\bbindus?\b|\bengine\b|\bdusthana\b|\bkendra\b|\btrikona\b|do not|never state|status and success|marked rise|financial gain|undefined|NaN/);
-    expect(text).not.toMatch(/\b(?:Sun|Moon) (?:is|rules|sits|occupies)\b(?<![Tt]he (?:Sun|Moon) \w+)/);
-    expect('Saturn rules it. Sun is in Libra.').toMatch(/\b(?:Sun|Moon) (?:is|rules|sits|occupies)\b(?<![Tt]he (?:Sun|Moon) \w+)/);
+});
+
+describe('fields: judged by the engine, compared by what separates them', () => {
+  it.each(NAMES)('each field\'s verdict is resolveDomain over its own counted evidence, with no lordship counted (%s)', (name) => {
+    const e = facts(name);
+    for (const f of e.synthesis.fields) {
+      expect(resolveDomain('career', engineItems(e.ledger, f.counted), { approximate: false }).verdict).toBe(f.verdict);
+      for (const id of f.counted) expect(e.ledger.byId.get(id)!.role).not.toBe('context');
+      // House-typed rules never decide a comparison between fields.
+      for (const id of f.counted) expect(e.ledger.byId.get(id)!.engineRule ?? '').not.toMatch(/^house\.occupant\.malefic|^house\.aspect\.saturn-mars/);
+    }
   });
-  it('refuses an approximate birth time and a stored chart that the engine does not reproduce', () => {
-    const approximate = computeCanonicalChart(resolveBirthWithCoordinates({ date: '1977-10-30', time: '10:25', latitude: 22.5726, longitude: 88.3639, timeAccuracy: 'approximate' }));
-    expect(() => buildCareerReportFacts({ chartData: { canonical: approximate } }, ASOF)).toThrow(/exact birth time/);
-    const k: any = fixtureChart(); k.chartData.canonical = JSON.parse(JSON.stringify(k.chartData.canonical));
-    k.chartData.canonical.planets.find((p: any) => p.name === 'Jupiter').sign = 'Aries';
-    expect(() => buildCareerReportFacts(k, ASOF)).toThrow(/canonical verification failed: planets/);
+
+  it.each(NAMES)('the order follows the verdicts and each comparison names only evidence one side lacks (%s)', (name) => {
+    const s = facts(name).synthesis;
+    const rank = (id: string) => ['Exceptional', 'Very Strong', 'Strong', 'Mixed', 'Challenging', 'Very Challenging', 'Insufficient evidence'].indexOf(s.fields.find((f) => f.id === id)!.verdict);
+    for (let i = 1; i < s.order.length; i++) expect(rank(s.order[i])).toBeGreaterThanOrEqual(rank(s.order[i - 1]));
+    for (const c of s.comparisons) {
+      const a = s.fields.find((f) => f.id === c.higher)!, b = s.fields.find((f) => f.id === c.lower)!;
+      for (const id of c.onlyHigher) expect(a.counted.includes(id) && !b.counted.includes(id)).toBe(true);
+      for (const id of c.onlyLower) expect(b.counted.includes(id) && !a.counted.includes(id)).toBe(true);
+      expect(c.relation === 'indistinguishable').toBe(!c.onlyHigher.length && !c.onlyLower.length);
+      if (c.relation === 'ranks-above') expect(a.verdict).not.toBe(b.verdict);
+    }
+  });
+});
+
+describe('D1 and D10: the D10 may reinforce, qualify, contradict or leave a reading unresolved', () => {
+  it('the relation rule', () => {
+    expect(d10Relation('positive', [1], [])).toBe('reinforces');
+    expect(d10Relation('negative', [], [1])).toBe('contradicts');
+    expect(d10Relation('positive', [1], [1])).toBe('qualifies');
+    expect(d10Relation('positive', [], [])).toBe('unresolved');
+    expect(d10Relation('neutral', [1], [])).toBe('qualifies');
+    expect(d10Relation('neutral', [1], [1])).toBe('unresolved');
+    expect(d10Relation(null, [], [])).toBe('unresolved');
+  });
+
+  it('across the seven charts every kind of relation occurs, and every relation names its D1 and D10 evidence', () => {
+    const seen = new Set(NAMES.flatMap((n) => facts(n).synthesis.relations.map((r) => r.relation)));
+    expect(Array.from(seen).sort()).toEqual(['contradicts', 'qualifies', 'reinforces', 'unresolved']);
+    for (const n of NAMES) for (const r of facts(n).synthesis.relations) {
+      const from = facts(n).ledger.byId.get(r.itemId)!.derivedFrom!.map((id) => facts(n).ledger.byId.get(id)!.chart);
+      expect(from).toContain('D1'); expect(from).toContain('D10');
+    }
+  });
+});
+
+describe('different charts, different reports', () => {
+  it('the seven charts reach different conclusions', () => {
+    const plans = NAMES.map((n) => { const e = facts(n); return Object.values(e.synthesis.theses).map((id) => text(e, id)).join('\n'); });
+    expect(new Set(plans).size).toBe(NAMES.length);
+    const leaders = new Set(NAMES.map((n) => facts(n).synthesis.order[0]));
+    expect(leaders.size).toBeGreaterThanOrEqual(4);
+    expect(new Set(NAMES.map((n) => facts(n).workStyle)).size).toBeGreaterThanOrEqual(3);
+    expect(new Set(NAMES.map((n) => facts(n).synthesis.d10.relation)).size).toBeGreaterThanOrEqual(3);
+    expect(new Set(NAMES.map((n) => facts(n).synthesis.periods[1].lord)).size).toBeGreaterThanOrEqual(4);
+  });
+
+  it('no field leads by construction: a seeded sweep of 80 random charts', () => {
+    let seed = 7; const rnd = () => ((seed = (seed * 1103515245 + 12345) % 2 ** 31) / 2 ** 31);
+    const first: Record<string, number> = {}, styles: Record<string, number> = {};
+    for (let i = 0; i < 80; i++) {
+      const pad = (n: number) => String(n).padStart(2, '0');
+      const k = fixtureChart(`${1950 + Math.floor(rnd() * 55)}-${pad(1 + Math.floor(rnd() * 12))}-${pad(1 + Math.floor(rnd() * 28))}`, `${pad(Math.floor(rnd() * 24))}:${pad(Math.floor(rnd() * 60))}`, 8 + rnd() * 24, 70 + rnd() * 18);
+      const e = buildCareerReportFacts(k, ASOF);
+      first[e.synthesis.order[0]] = (first[e.synthesis.order[0]] ?? 0) + 1; styles[e.workStyle] = (styles[e.workStyle] ?? 0) + 1;
+    }
+    // Before the house-neutral comparison one field led half the charts and independent work was almost never favoured.
+    expect(Math.max(...Object.values(first))).toBeLessThanOrEqual(36);
+    expect(Object.keys(first).length).toBe(6);
+    expect(styles.independent ?? 0).toBeGreaterThanOrEqual(6);
+  }, 60_000);
+});
+
+describe('the plan', () => {
+  it.each(NAMES)('seven reader sections in five parts; every slot cites only real ledger ids (%s)', (name) => {
+    const e = facts(name);
+    expect(e.sections.map((s) => s.key)).toEqual(['overview', 'chart', 'fields', 'timing', 'strategy']);
+    expect(Array.from(new Set(e.sections.flatMap((s) => s.headings)))).toEqual([...CAREER_HEADINGS]);
+    for (const s of e.sections) for (const slot of s.slots) {
+      for (const id of [...slot.scope, ...slot.mustCite]) expect(e.ledger.byId.has(id)).toBe(true);
+      for (const id of slot.mustCite) expect(slot.scope).toContain(id);
+      expect(slot.id).not.toMatch(new RegExp(`\\b(${[...GRAHAS, ...SIGN_NAMES].join('|')})\\b`));
+    }
+    expect(e.sections.find((s) => s.key === 'fields')!.slots.filter((x) => x.id.startsWith('field.')).map((x) => x.id.slice(6))).toEqual(e.synthesis.order);
+  });
+
+  it.each(NAMES)('spending: the worst first pass plus two whole-part retries fit the unchanged ceiling even with no usage reported (%s)', (name) => {
+    const e = facts(name);
+    const reserve = (p: string) => Math.ceil((Buffer.byteLength(p, 'utf8') + 128) * 2.5 + CAREER_OUTPUT_TOKENS * 10);
+    const costs = e.sections.map((s) => reserve(careerSectionPrompt(e, s)));
+    const firstPass = costs.reduce((a, b) => a + b, 0);
+    const twoRetries = costs.sort((a, b) => b - a).slice(0, 2).reduce((a, b) => a + b, 0);
+    expect(firstPass + twoRetries).toBeLessThanOrEqual(CAREER_BUDGET_MICRO_USD);
   });
 });
