@@ -422,7 +422,26 @@ export function careerMetadata(evidence: CareerReportFacts, kundli: any) {
       comparisons: s.comparisons.map((c) => ({ higher: c.higher, lower: c.lower, relation: c.relation, text: text(c.itemId) })),
       d1d10: s.relations.map((r) => ({ planet: r.planet, roles: r.roles, relation: r.relation, text: text(r.itemId) })),
       d10: { relation: s.d10.relation, sensitivity: text(s.d10.sensitivityId) },
-      periods: s.periods.map((p) => ({ level: p.level, lord: p.lord, within: p.within ?? null, start: p.start.slice(0, 10), end: p.end.slice(0, 10), tone: p.tone, current: p.key !== 'next' })),
+      periods: s.periods.map((p) => ({ level: p.level, lord: p.lord, within: p.within ?? null, start: p.start.slice(0, 10), end: p.end.slice(0, 10), tone: p.tone, current: p.key !== 'next', text: text(p.itemId), links: text(p.activationId) })),
+      // For the PDF: everything below is read from the canonical chart or restates the synthesis; nothing new is judged.
+      reportDate: asOf.toISOString().slice(0, 10),
+      lords: { ...ledger.lords, d10LagnaSign: SIGN_NAMES[chart.vargas.D10.ascendantSignIndex] },
+      strengths: s.strengths.map((id) => ({ label: ledger.byId.get(id)!.label, text: text(id), strength: ledger.byId.get(id)!.strength })),
+      challenges: s.challenges.map((id) => ({ label: ledger.byId.get(id)!.label, text: text(id), strength: ledger.byId.get(id)!.strength })),
+      placements: s.relations.map((r) => {
+        const p = chart.planets.find((x) => x.name === r.planet)!, x = chart.vargas.D10.placements.find((q) => q.planet === r.planet)!;
+        const dg = chart.strength.dignities.find((d) => d.planet === r.planet);
+        return { planet: r.planet, d1: { sign: p.sign, house: p.house, dignity: dg ? `${dg.dignity}${dg.dignity === 'Debilitated' && dg.neechaBhanga ? ', cancelled (Neecha Bhanga)' : ''}` : null }, d10: { sign: x.sign, house: x.house, dignity: signDignity(r.planet, x.signIndex) } };
+      }),
+      timeline: (() => {
+        const from = Date.parse(asOf.toISOString()), to = new Date(asOf); to.setUTCFullYear(to.getUTCFullYear() + 10);
+        const within = (p: { start: string; end: string }) => Date.parse(p.end) > from && Date.parse(p.start) < +to;
+        const mds = chart.dashas.vimshottari.mahadashas.filter(within);
+        return { from: asOf.toISOString().slice(0, 10), to: to.toISOString().slice(0, 10),
+          mahadashas: mds.map((m) => ({ lord: m.lord, start: m.start.slice(0, 10), end: m.end.slice(0, 10) })),
+          antardashas: mds.flatMap((m) => m.antardashas.filter(within).map((a) => ({ lord: a.lord, within: m.lord, start: a.start.slice(0, 10), end: a.end.slice(0, 10) }))) };
+      })(),
+      yogas: chart.yogas.filter((y) => !y.cancelled).map((y) => ({ name: y.name === 'Neecha Bhanga Raja Yoga' ? 'Neecha Bhanga (cancelled debilitation)' : y.name, planets: y.planets, configuration: y.description.split(' — ')[0].replace(/\.$/, '') })),
     },
   };
 }

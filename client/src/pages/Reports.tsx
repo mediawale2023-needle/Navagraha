@@ -16,6 +16,7 @@ import { apiRequest } from '@/lib/queryClient';
 import { isApiError } from '@/lib/apiError';
 import { BalanceShortfall } from '@/components/BalanceShortfall';
 import { downloadReportPdf, type ReportContent } from '@/lib/reportPdf';
+import { isUnsupportedPdfTextError } from '@/lib/pdf/textSupport';
 import { Clock } from 'lucide-react';
 import { PageHeader, PageBody } from '@/components/shell/PageHeader';
 import { birthDetailsReady, chartOrderable, chartSummary, type SavedChart } from '@/lib/reportOrderForm';
@@ -78,8 +79,12 @@ export default function Reports() {
     setDownloading(true);
     try {
       await downloadReportPdf(content);
-    } catch {
-      toast({ title: 'Download failed', description: 'Could not generate the PDF. Please try again.', variant: 'destructive' });
+    } catch (error) {
+      toast({
+        title: 'Download failed',
+        description: isUnsupportedPdfTextError(error) ? error.message : 'Could not generate the PDF. Please try again.',
+        variant: 'destructive',
+      });
     } finally {
       setDownloading(false);
     }

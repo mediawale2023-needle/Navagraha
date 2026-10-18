@@ -52,7 +52,8 @@ describe('client styles use the Direction 3 vocabulary', () => {
 
   it('no raw hex colours outside the tokens', () => {
     // jsPDF cannot read CSS variables; the chart SVGs are redrawn from tokens in Stage 4.
-    const exempt = ['lib/reportPdf.ts', 'NorthIndianChart.tsx', 'NorthIndianChartEnhanced.tsx'];
+    // lib/pdf/tokens.ts mirrors the tokens for jsPDF; tests/unit/career-report-pdf.test.ts holds it to index.css.
+    const exempt = ['lib/reportPdf.ts', 'lib/pdf/tokens.ts', 'NorthIndianChart.tsx', 'NorthIndianChartEnhanced.tsx'];
     expect(offenders(/#[0-9a-fA-F]{6}\b/).filter((p) => !exempt.some((c) => p.endsWith(c)))).toEqual([]);
   });
 
