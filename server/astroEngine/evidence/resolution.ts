@@ -39,6 +39,14 @@ function factorPhrase(factor: string): string {
   return factor.startsWith('Running ') ? `r${factor.slice(1)}` : factor;
 }
 
+/** The weighted balance resolveDomain judges: support and conflict weights of core, usable items, and r. */
+export function evidenceBalance(evidence: EvidenceItem[]): { pos: number; neg: number; r: number } {
+  const core = evidence.filter((e) => e.usable && e.tier === 'core');
+  const pos = sum(core.filter((e) => e.direction === 'positive'));
+  const neg = sum(core.filter((e) => e.direction === 'negative'));
+  return { pos, neg, r: pos + neg === 0 ? 0 : (pos - neg) / (pos + neg) };
+}
+
 export function resolveDomain(domain: LifeDomain, evidence: EvidenceItem[], opts: { approximate: boolean }): DomainResolution {
   const usable = evidence.filter((e) => e.usable);
   const excluded = evidence.filter((e) => !e.usable);
@@ -47,10 +55,8 @@ export function resolveDomain(domain: LifeDomain, evidence: EvidenceItem[], opts
   const supporting = core.filter((e) => e.direction === 'positive').sort(byWeight);
   const conflicting = core.filter((e) => e.direction === 'negative').sort(byWeight);
   const neutral = core.filter((e) => e.direction === 'neutral');
-  const pos = sum(supporting);
-  const neg = sum(conflicting);
+  const { pos, neg, r } = evidenceBalance(evidence);
   const total = pos + neg;
-  const r = total === 0 ? 0 : (pos - neg) / total;
   const confirmedBy = independent(supporting);
   const contradictedBy = independent(conflicting);
   const notes: string[] = [];

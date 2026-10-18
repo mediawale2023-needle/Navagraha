@@ -454,6 +454,17 @@ function domainSpecificRules(c: Collector, ix: ChartIndex, domain: LifeDomain) {
   }
 }
 
+/**
+ * The house rules alone (lord placement and dignity, occupants, aspects, bindus, Dig Bala) for one house, filed
+ * under `domain`. For readers that need a house the domain does not list (the Career Report's 6th, 7th, 11th…);
+ * the rules are the ones natalEvidence applies, so no second reading of a house exists.
+ */
+export function houseEvidence(chart: CanonicalChart, domain: LifeDomain, house: number, ix = indexChart(chart)): EvidenceItem[] {
+  const c = new Collector(ix, domain);
+  houseRules(c, ix, domain, house);
+  return c.items;
+}
+
 /** Natal evidence for one domain (time-independent of "today"). */
 export function natalEvidence(chart: CanonicalChart, domain: LifeDomain, ix = indexChart(chart)): EvidenceItem[] {
   const spec = DOMAIN_SPECS[domain];
