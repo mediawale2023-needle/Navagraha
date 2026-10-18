@@ -1,11 +1,11 @@
 /**
  * Opt-in LIVE evaluation on invented charts only: no dotenv, database, account, wallet or fulfilment imports.
- *   NAVAGRAHA_CAREER_EVAL_API_KEY=<non-production key> npx tsx scripts/evaluate-career.ts --run [--chart=delhi | --all]
- * Each run writes the report and every section attempt (accepted or rejected) for human review, plus a metrics
- * summary (calls, corrections, failures, cost, latency) across the charts run.
+ *   NAVAGRAHA_CAREER_EVAL_API_KEY=<non-production key> npx tsx scripts/evaluate-career.ts --run [--chart=delhi | --all] [--out=<dir>]
+ * For each chart it writes the complete report text (<chart>.md), the raw report with every section attempt and
+ * per-request metrics (<chart>.json), and a summary of calls, corrections, failures, tokens, cost and latency.
  */
 import OpenAI from 'openai';
-import { mkdtemp, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { careerRequester, generateDeterministicCareer, type CareerMetrics, type CareerSectionAttempt } from '../server/careerReportGeneration';
@@ -23,8 +23,9 @@ async function main() {
   const chosen = process.argv.includes('--all') ? names : [(process.argv.find((a) => a.startsWith('--chart='))?.slice(8) ?? 'delhi') as ChartName];
   if (chosen.some((n) => !SYNTHETIC_CHARTS[n])) { console.error(`Unknown --chart; use ${names.join(', ')} or --all.`); process.exitCode = 2; return; }
   const client = new OpenAI({ apiKey: key, maxRetries: 0, timeout: 60_000 });
-  const directory = await mkdtemp(join(tmpdir(), 'navagraha-career-eval-'));
-  const summary: Array<{ chart: ChartName } & Pick<CareerMetrics, 'calls' | 'corrections' | 'correctionRounds' | 'transportRetries' | 'formatRetries' | 'costMicroUsd' | 'durationMs' | 'outcome' | 'failureCategory'>> = [];
+  const out = process.argv.find((a) => a.startsWith('--out='))?.slice(6);
+  const directory = out ? (await mkdir(out, { recursive: true }), out) : await mkdtemp(join(tmpdir(), 'navagraha-career-eval-'));
+  const summary: Array<{ chart: ChartName; promptTokens: number; completionTokens: number; rejectedAttempts: number } & Pick<CareerMetrics, 'calls' | 'corrections' | 'correctionRounds' | 'transportRetries' | 'formatRetries' | 'costMicroUsd' | 'durationMs' | 'outcome' | 'failureCategory'>> = [];
   for (const name of chosen) {
     console.info(JSON.stringify({ identity: 'synthetic-career-evaluation', chart: name }));
     // Every section attempt, accepted or rejected, is kept for review: a failed run is diagnosed from the text.
@@ -40,7 +41,17 @@ async function main() {
     } finally {
       await writeFile(join(directory, `${name}.json`), JSON.stringify({ report, attempts, metrics }, null, 2), { mode: 0o600 });
       const m = metrics as CareerMetrics | null;
-      if (m) summary.push({ chart: name, calls: m.calls, corrections: m.corrections, correctionRounds: m.correctionRounds, transportRetries: m.transportRetries, formatRetries: m.formatRetries, costMicroUsd: m.costMicroUsd, durationMs: m.durationMs, outcome: m.outcome, failureCategory: m.failureCategory });
+      if (m) summary.push({
+        chart: name, calls: m.calls, corrections: m.corrections, correctionRounds: m.correctionRounds, transportRetries: m.transportRetries, formatRetries: m.formatRetries,
+        promptTokens: m.attempts.reduce((n, a) => n + (a.promptTokens ?? 0), 0), completionTokens: m.attempts.reduce((n, a) => n + (a.completionTokens ?? 0), 0),
+        rejectedAttempts: m.attempts.filter((a) => a.category !== 'accepted').length, costMicroUsd: m.costMicroUsd, durationMs: m.durationMs, outcome: m.outcome, failureCategory: m.failureCategory,
+      });
+      // The complete report as a reader receives it (synthetic chart; no personal data).
+      const r = report as { summary?: string; sections?: Array<{ heading: string; body: string }> } | null;
+      const rows = (m?.attempts ?? []).map((a) => `| ${a.section} | ${a.phase} | ${a.attempt} | ${a.category} | ${a.rules.join('; ') || '—'} | ${a.promptTokens ?? '—'} | ${a.completionTokens ?? '—'} | ${(a.costMicroUsd / 1e6).toFixed(4)} | ${(a.durationMs / 1000).toFixed(1)} |`);
+      await writeFile(join(directory, `${name}.md`), [`# ${name}: live GPT-4o Career Report (synthetic chart)`, '', m ? `Outcome **${m.outcome}**${m.failureCategory ? ` (${m.failureCategory})` : ''}: ${m.calls} calls, ${m.corrections} corrections in ${m.correctionRounds} rounds, ${m.transportRetries} transport and ${m.formatRetries} format retries, $${(m.costMicroUsd / 1e6).toFixed(4)}, ${(m.durationMs / 1000).toFixed(1)} s.` : 'No metrics.', '',
+        '| Part | Phase | Attempt | Category | Rules | Prompt tokens | Completion tokens | Cost (USD) | Seconds |', '|---|---|---|---|---|---|---|---|---|', ...rows, '',
+        ...(r?.sections ? [`_${r.summary ?? ''}_`, ...r.sections.flatMap((x) => ['', `## ${x.heading}`, '', x.body])] : ['No report was delivered; the rejected attempts are in the JSON file.'])].join('\n') + '\n');
     }
   }
   await writeFile(join(directory, 'summary.json'), JSON.stringify(summary, null, 2), { mode: 0o600 });

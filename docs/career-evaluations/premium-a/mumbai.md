@@ -7,7 +7,7 @@ Invented birth: 2000-07-04 18:45 at 19.076, 72.8777 (no real person). Report dat
 ## The plan every part shares
 - **verdict** — On the evidence engine's reading (the same as your Kundli's Career verdict), career reads as strong, with medium confidence: 6 supporting and 0 conflicting indicators. The strongest support: 10th lord dignity (Mercury).
 - **leadership** — Leadership (your 10th and 1st houses, with the Sun and Mars) reads as mixed on the same engine, with low confidence.
-- **arrangement** — Your 6th house of service and employment reads as mixed and your 7th house of trade and partnership as supportive, so the chart favours independent work or business over salaried employment. Your 10th lord, Mercury, sits in the 7th house, tying career to partnership and trade.
+- **arrangement** — Your 6th house of service and employment reads as mixed (for it, Jupiter in the 6th (moderate); against it, 6th lord dignity (Venus) (moderate)). Your 7th house of trade and partnership reads as supportive (for it, Mercury in the 7th (strong), 7th lord placement (Mercury) (moderate) and 7th lord dignity (Mercury) (moderate) and 1 more; against it, 7th house Sarvashtakavarga (strong)). So the chart favours independent work or business over salaried employment. Your 10th lord, Mercury, sits in the 7th house, tying career to partnership and trade.
 - **fields** — Best supported: government and institutional roles, advisory and consulting roles and administration (strong). Least supported: communication and public-facing professions, business and entrepreneurship and finance and management (mixed).
 - **d10** — Against the overall career reading (strong), the D10 evidence for the career planets partly supports and partly strains it. Supporting in the D10: Jupiter's D10 dignity, Jupiter's D10 house, Sun's D10 house and Saturn's D10 dignity. Straining in the D10: Saturn's D10 house.
 - **strength** — Mercury recurs as a strength: 10th lord dignity (Mercury), Bhadra Yoga, 10th lord placement (Mercury), 7th lord placement (Mercury), 7th lord dignity (Mercury), Mercury in the 7th and Mercury as significator all point the same way, and it is your 10th lord.
@@ -47,7 +47,7 @@ Invented birth: 2000-07-04 18:45 at 19.076, 72.8777 (no real person). Report dat
 ## Generation (MOCKED requester)
 | Calls | Corrections | Estimated cost (USD) | Outcome | Output allowance per part (tokens) |
 |---|---|---|---|---|
-| 5 | 0 | 0.0417 | completed | overview 1125, chart 1330, fields 1400, timing 920, strategy 780 |
+| 5 | 0 | 0.0418 | completed | overview 1125, chart 1330, fields 1400, timing 920, strategy 780 |
 
 Cost is estimated from the prompt and reply sizes (about 4 bytes a token); it is not a measured API charge.
 
@@ -170,7 +170,7 @@ The change of sub-period matters less for what it promises than for what it asks
 
 ### Career Strategy
 
-A sensible approach follows from the reading rather than from any single indication. Beside how the six fields compare, it rests chiefly on Employment or independent work and How the emphasis shifts. Prefer teams where expectations are revisited openly rather than assumed. Each change of role is best timed after a piece of work is complete.
+A sensible approach follows from the reading rather than from any single indication. Beside how the six fields compare, it rests chiefly on How the emphasis shifts and Administration. Prefer teams where expectations are revisited openly rather than assumed. Each change of role is best timed after a piece of work is complete.
 
 Next steps
 1. Within the next month, list three specific roles in administration and note, for each, the skills you already have and the one you would need first.

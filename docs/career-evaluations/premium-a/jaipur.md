@@ -7,7 +7,7 @@ Invented birth: 2003-01-26 14:30 at 26.9124, 75.7873 (no real person). Report da
 ## The plan every part shares
 - **verdict** — On the evidence engine's reading (the same as your Kundli's Career verdict), career reads as strong, with medium confidence: 5 supporting and 1 conflicting indicator. The strongest support: 10th lord in D10 (Saturn). The main counter-indication: Sun as significator.
 - **leadership** — Leadership (your 10th and 1st houses, with the Sun and Mars) reads as strong on the same engine, with medium confidence.
-- **arrangement** — Your 6th house of service and employment reads as too thinly evidenced to judge and your 7th house of trade and partnership as supportive, so the chart favours independent work or business over salaried employment.
+- **arrangement** — Your 6th house of service and employment reads as too thinly evidenced to judge (no counted indicator either way). Your 7th house of trade and partnership reads as supportive (for it, 7th lord placement (Mars) (moderate), 7th lord dignity (Mars) (moderate) and Venus in the 7th (moderate) and 1 more). So the chart favours independent work or business over salaried employment.
 - **fields** — Best supported: business and entrepreneurship and finance and management (very strong). Then: administration, communication and public-facing professions and government and institutional roles (strong). Least supported: advisory and consulting roles (mixed).
 - **d10** — Against the overall career reading (strong), the D10 evidence for the career planets reinforces it. Supporting in the D10: 10th lord in D10 (Saturn), Venus's D10 dignity, Venus's D10 house, Mercury's D10 dignity, Mercury's D10 house and Sun's D10 house.
 - **strength** — Jupiter recurs as a strength: Jupiter in the 3rd, Jupiter's aspect on the 7th, Jupiter's aspect on the 9th, 11th lord dignity (Jupiter), Jupiter's aspect on the 11th, Jupiter as significator and Jupiter's D10 house all point the same way.
@@ -47,7 +47,7 @@ Invented birth: 2003-01-26 14:30 at 26.9124, 75.7873 (no real person). Report da
 ## Generation (MOCKED requester)
 | Calls | Corrections | Estimated cost (USD) | Outcome | Output allowance per part (tokens) |
 |---|---|---|---|---|
-| 5 | 0 | 0.0412 | completed | overview 1125, chart 1330, fields 1400, timing 920, strategy 780 |
+| 5 | 0 | 0.0413 | completed | overview 1125, chart 1330, fields 1400, timing 920, strategy 780 |
 
 Cost is estimated from the prompt and reply sizes (about 4 bytes a token); it is not a measured API charge.
 
@@ -169,7 +169,7 @@ The change of sub-period matters less for what it promises than for what it asks
 
 ### Career Strategy
 
-A sensible approach follows from the reading rather than from any single indication. Beside how the six fields compare, it rests chiefly on Employment or independent work and How the emphasis shifts. Prefer teams where expectations are revisited openly rather than assumed. Each change of role is best timed after a piece of work is complete.
+A sensible approach follows from the reading rather than from any single indication. Beside how the six fields compare, it rests chiefly on How the emphasis shifts and Administration. Prefer teams where expectations are revisited openly rather than assumed. Each change of role is best timed after a piece of work is complete.
 
 Next steps
 1. Within the next month, list three specific roles in administration and note, for each, the skills you already have and the one you would need first.

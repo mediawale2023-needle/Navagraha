@@ -53,7 +53,7 @@ Conclusions are ledger items too ("F.finance", "C.finance.advisory", "R.Jupiter"
   - **unresolved:** none, or a split against a neutral birth chart.
 
   The same rule sets the D10's bearing on the overall verdict. Nothing forces agreement. The birth-time window of the D10 Lagna is stated.
-- **Employment or independent work.** The 6th and the 7th are each read with the engine's verdict bands:
+- **Employment or independent work.** The 6th and the 7th are each read with the engine's verdict bands, and the conclusion lists each house's evidence for and against:
   - one supportive and the other not decides a lean;
   - both supportive is a mix;
   - otherwise the question is **unresolved**.
@@ -139,7 +139,87 @@ This is pinned per chart in `tests/unit/career-report.test.ts` and `tests/unit/c
 | D10: reinforces / qualifies / contradicts / unresolved | – | 14 / 63 / 1 / 22 % |
 | Charts with an indistinguishable or not clearly separable pair | – | 6% |
 
-**Residual bias.** Administration still reaches the top tier more often than the others. It has not been adjusted, because no further rule could be justified.
+### Why Administration reaches the top tier in 56% of charts
+
+Investigated without changing the scoring (`npx tsx scripts/career-field-attribution.ts`). The method: recompute every field's verdict over the same 300 charts with one evidence source left out.
+
+| Left out | Administration | Finance | Business | Government | Communication | Advisory |
+|---|---|---|---|---|---|---|
+| nothing (as built) | 56% | 54% | 44% | 41% | 38% | 26% |
+| house bindus (`house.sav`) | 56% | 59% | 54% | 55% | 60% | 49% |
+| significator dignity | 49% | 57% | 49% | 38% | 41% | 28% |
+| D10 items | 58% | 59% | 51% | 43% | 42% | 34% |
+| lord placement | 55% | 53% | 41% | 41% | 32% | 25% |
+
+**Bindus (Sarvashtakavarga) drive the spread.** Mean bindus are structurally uneven by house:
+- higher: 11th 31.8, 6th 30.4, 10th 30.3;
+- lower: 5th 26.4, 9th 26.3, 7th 25.0.
+
+Administration's houses are the 10th and 6th, while Advisory's (5th, 9th) and Communication's (3rd, 7th) include low-bindu houses. Read against the app-wide 28-point policy (`savReading`), bindus net +1.38 a chart for Administration and −0.96 for Advisory. Without them the fields fall within 49–60%: Administration does not rise, the others do.
+
+**The Sun's and Saturn's dignity is the second, smaller factor** (56% → 49% without it).
+
+Nothing was changed. The bindu reading is a shared policy, and CLAUDE.md forbids a second set of thresholds. **Question for a qualified astrologer:** should bindus in the 6th (and other dusthanas) be read on the same scale as other houses when comparing professions?
+
+### Employment or independent work
+
+The conclusion states each house's counted evidence, for and against, with weights. When it does not settle, it says why: neither house is clearly supportive, or there is too little evidence. The Professional Identity paragraph is asked to explain both sides.
+
+Example (Kolkata, unresolved):
+- the 6th is mixed: bindus are for it; a strong debilitated 6th lord is against it;
+- the 7th is mixed: Jupiter in the 7th is for it; the 7th lord's dignity is against it.
+
+### Spending on every path
+
+Measured on the real pipeline with failure-injecting mocks on seven charts (`tests/unit/career-report-pipeline.test.ts`, "spending under failure").
+
+| Scenario | Completes | Most charged |
+|---|---|---|
+| First pass, no usage reported | 7/7 | $0.1223 |
+| One format retry, or one transport retry, per part; no usage | 7/7 | $0.2445 |
+| Every paragraph invalid once, round 1 corrects; no usage | 7/7 | $0.2417 |
+| Two transport retries plus a format retry per part; or a second correction round; or endless truncation; or endless 503s; no usage | **fails closed at the ceiling** (refund path) | $0.2445 |
+| Every paragraph invalid twice, usage reported (the normal case) | 7/7, 15 calls | $0.1342 |
+
+**What the ceiling guarantees:**
+- spend never exceeds $0.25;
+- nothing is left reserved;
+- every refusal happens before a request is sent.
+
+With no usage reported, the ceiling admits exactly one extra request per part; anything more fails and is refunded. This is the guarantee PR #124 had.
+
+**Every call path goes through the ledger.** Admin test orders are also reserved against the admin daily AI budget by `createOpenAI`. SDK retries are off.
+
+**The figure is a ceiling, not a measurement.** Reservations count every UTF-8 prompt byte as a token, so real costs are lower; the earlier "$0.2448" was the one-retry-per-part row only. Across 200 random charts that row peaks at $0.2468.
+
+### Validator rules on real GPT-4o text
+
+The 99 paragraphs GPT-4o wrote in the earlier live runs (f729c61, db644dd) were judged by today's paragraph checks, with the whole chart's evidence as vocabulary so that only the writing rules are measured.
+
+**Results:**
+- **64** pass every rule.
+- **22** fail on length only: they were written to the old 30–70-word slots, and the prompt now asks for 60–110.
+- **13** rule hits, mostly real errors:
+  - a debilitated Mercury called strong (4);
+  - a running period called upcoming (3);
+  - promised outcomes (2);
+  - stock phrases (2);
+  - a yoga the chart does not have (1);
+  - a weakly supported field recommended (1).
+- **One likely false rejection:** a D10 placement in a sentence that names the D10 only in the sentence before it ("…while Jupiter in the 3rd house…"). The prompt asks for "in the D10" on every D10 placement; the live run will show whether that suffices.
+- **25 of 99** would need a second citation under the combine/compare rule. That is only a problem if the model under-cites, which only a live run can show.
+
+**Rules most likely to cause corrections, to watch live:**
+- the citation-scoped vocabulary;
+- the combine/compare citation rule;
+- report-wide repetition between the Executive Summary and the sections it summarises;
+- the D10-context house rule above.
+
+**Rules that could push formulaic writing:**
+- naming the field in every recommendation (the unresolved-reference rule);
+- the work-style rule, which refuses any sentence preferring an arrangement when the answer is open.
+
+The old per-fact "explain the connection" word check, PR #124's main source of formula, no longer applies to paragraphs.
 
 ## What is not yet verified
 

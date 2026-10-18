@@ -7,7 +7,7 @@ Invented birth: 1995-09-02 08:50 at 18.5204, 73.8567 (no real person). Report da
 ## The plan every part shares
 - **verdict** — On the evidence engine's reading (the same as your Kundli's Career verdict), career reads as very strong, with high confidence: 6 supporting and 0 conflicting indicators. The strongest support: 10th lord dignity (Mercury).
 - **leadership** — Leadership (your 10th and 1st houses, with the Sun and Mars) reads as strong on the same engine, with medium confidence.
-- **arrangement** — Your 6th house of service and employment reads as too thinly evidenced to judge and your 7th house of trade and partnership as mixed, so the chart does not clearly favour employment or independent work.
+- **arrangement** — Your 6th house of service and employment reads as too thinly evidenced to judge (for it, 6th lord dignity (Saturn) (moderate)). Your 7th house of trade and partnership reads as mixed (for it, 7th lord dignity (Jupiter) (weak) and Jupiter's aspect on the 7th (weak); against it, 7th house Sarvashtakavarga (strong)). Neither house is clearly supportive, so the chart gives no basis to prefer one arrangement. So the chart does not clearly favour employment or independent work.
 - **fields** — Best supported: administration and government and institutional roles (strong). Least supported: advisory and consulting roles, business and entrepreneurship, finance and management and communication and public-facing professions (mixed).
 - **d10** — Against the overall career reading (very strong), the D10 evidence for the career planets partly supports and partly strains it. Supporting in the D10: Mercury's D10 house and Saturn's D10 house. Straining in the D10: Mars's D10 house.
 - **strength** — Mercury recurs as a strength: 10th lord dignity (Mercury), Bhadra Yoga, 10th lord placement (Mercury), 1st lord placement (Mercury), 1st lord dignity (Mercury), Mercury in the 1st, Mercury as significator and Mercury's D10 house all point the same way, and it is your 10th lord and your Lagna lord.
@@ -47,7 +47,7 @@ Invented birth: 1995-09-02 08:50 at 18.5204, 73.8567 (no real person). Report da
 ## Generation (MOCKED requester)
 | Calls | Corrections | Estimated cost (USD) | Outcome | Output allowance per part (tokens) |
 |---|---|---|---|---|
-| 5 | 0 | 0.0407 | completed | overview 1125, chart 1330, fields 1400, timing 920, strategy 780 |
+| 5 | 0 | 0.0408 | completed | overview 1125, chart 1330, fields 1400, timing 920, strategy 780 |
 
 Cost is estimated from the prompt and reply sizes (about 4 bytes a token); it is not a measured API charge.
 
@@ -168,7 +168,7 @@ The change of sub-period matters less for what it promises than for what it asks
 
 ### Career Strategy
 
-A sensible approach follows from the reading rather than from any single indication. Beside how the six fields compare, it rests chiefly on Employment or independent work and How the emphasis shifts. Prefer teams where expectations are revisited openly rather than assumed. Each change of role is best timed after a piece of work is complete.
+A sensible approach follows from the reading rather than from any single indication. Beside how the six fields compare, it rests chiefly on How the emphasis shifts and Administration. Prefer teams where expectations are revisited openly rather than assumed. Each change of role is best timed after a piece of work is complete.
 
 Next steps
 1. Within the next month, list three specific roles in administration and note, for each, the skills you already have and the one you would need first.

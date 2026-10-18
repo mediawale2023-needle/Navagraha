@@ -7,7 +7,7 @@ Invented birth: 1977-10-30 10:25 at 22.5726, 88.3639 (no real person). Report da
 ## The plan every part shares
 - **verdict** — On the evidence engine's reading (the same as your Kundli's Career verdict), career reads as mixed, with low confidence: 4 supporting and 5 conflicting indicators. The strongest support: Sun's cancelled debilitation (Neecha Bhanga). The main counter-indication: 10th lord dignity (Mercury).
 - **leadership** — Leadership (your 10th and 1st houses, with the Sun and Mars) reads as mixed on the same engine, with low confidence.
-- **arrangement** — Your 6th house of service and employment reads as mixed and your 7th house of trade and partnership as mixed, so the chart does not clearly favour employment or independent work.
+- **arrangement** — Your 6th house of service and employment reads as mixed (for it, 6th house Sarvashtakavarga (moderate); against it, 6th lord dignity (Venus) (strong)). Your 7th house of trade and partnership reads as mixed (for it, Jupiter in the 7th (moderate) and 7th lord placement (Mercury) (weak); against it, 7th lord dignity (Mercury) (moderate)). Neither house is clearly supportive, so the chart gives no basis to prefer one arrangement. So the chart does not clearly favour employment or independent work.
 - **fields** — Best supported: business and entrepreneurship, administration and communication and public-facing professions (mixed). Least supported: government and institutional roles, finance and management and advisory and consulting roles (challenging).
 - **d10** — Against the overall career reading (mixed), the D10 evidence for the career planets pulls both ways, so it does not tip that reading. Supporting in the D10: Saturn's D10 house and Sun's D10 house. Straining in the D10: Mercury's D10 house, Jupiter's D10 house and Venus's D10 house.
 - **strength** — Jupiter recurs as a strength: 1st lord placement (Jupiter), Jupiter's aspect on the 1st, Jupiter's aspect on the 3rd, Jupiter in the 7th and Jupiter's aspect on the 11th all point the same way, and it is your Lagna lord.
@@ -48,7 +48,7 @@ Invented birth: 1977-10-30 10:25 at 22.5726, 88.3639 (no real person). Report da
 ## Generation (MOCKED requester)
 | Calls | Corrections | Estimated cost (USD) | Outcome | Output allowance per part (tokens) |
 |---|---|---|---|---|
-| 5 | 0 | 0.0419 | completed | overview 1125, chart 1330, fields 1400, timing 920, strategy 780 |
+| 5 | 0 | 0.0421 | completed | overview 1125, chart 1330, fields 1400, timing 920, strategy 780 |
 
 Cost is estimated from the prompt and reply sizes (about 4 bytes a token); it is not a measured API charge.
 
@@ -169,7 +169,7 @@ The change of sub-period matters less for what it promises than for what it asks
 
 ### Career Strategy
 
-A sensible approach follows from the reading rather than from any single indication. Beside how the six fields compare, it rests chiefly on Employment or independent work and How the emphasis shifts. Prefer teams where expectations are revisited openly rather than assumed. Each change of role is best timed after a piece of work is complete.
+A sensible approach follows from the reading rather than from any single indication. Beside how the six fields compare, it rests chiefly on How the emphasis shifts and Administration. Prefer teams where expectations are revisited openly rather than assumed. Each change of role is best timed after a piece of work is complete.
 
 Next steps
 1. Within the next month, list three specific roles in business and entrepreneurship and note, for each, the skills you already have and the one you would need first.

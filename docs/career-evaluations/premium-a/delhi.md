@@ -7,7 +7,7 @@ Invented birth: 1985-03-22 06:15 at 28.6139, 77.209 (no real person). Report dat
 ## The plan every part shares
 - **verdict** — On the evidence engine's reading (the same as your Kundli's Career verdict), career reads as mixed, with low confidence: 4 supporting and 2 conflicting indicators. The strongest support: Mercury's cancelled debilitation (Neecha Bhanga). The main counter-indication: 10th lord dignity (Jupiter).
 - **leadership** — Leadership (your 10th and 1st houses, with the Sun and Mars) reads as mixed on the same engine, with low confidence.
-- **arrangement** — Your 6th house of service and employment reads as supportive and your 7th house of trade and partnership as mixed, so the chart favours employment within an organisation over independent business.
+- **arrangement** — Your 6th house of service and employment reads as supportive (for it, 6th house Sarvashtakavarga (moderate) and 6th lord dignity (Sun) (weak)). Your 7th house of trade and partnership reads as mixed (for it, 7th lord placement (Mercury) (weak) and Jupiter's aspect on the 7th (weak); against it, 7th house Sarvashtakavarga (moderate)). So the chart favours employment within an organisation over independent business.
 - **fields** — Best supported: communication and public-facing professions, finance and management and business and entrepreneurship (strong). Then: administration and government and institutional roles (mixed). Least supported: advisory and consulting roles (challenging).
 - **d10** — Against the overall career reading (mixed), the D10 evidence for the career planets pulls both ways, so it does not tip that reading. Supporting in the D10: Saturn's D10 house. Straining in the D10: Mercury's D10 house.
 - **strength** — Venus recurs as a strength: Venus in the 1st, 3rd lord placement (Venus), 3rd lord dignity (Venus), Venus as significator and Venus's D10 house all point the same way.
@@ -47,7 +47,7 @@ Invented birth: 1985-03-22 06:15 at 28.6139, 77.209 (no real person). Report dat
 ## Generation (MOCKED requester)
 | Calls | Corrections | Estimated cost (USD) | Outcome | Output allowance per part (tokens) |
 |---|---|---|---|---|
-| 5 | 0 | 0.0414 | completed | overview 1125, chart 1330, fields 1400, timing 920, strategy 780 |
+| 5 | 0 | 0.0415 | completed | overview 1125, chart 1330, fields 1400, timing 920, strategy 780 |
 
 Cost is estimated from the prompt and reply sizes (about 4 bytes a token); it is not a measured API charge.
 
@@ -167,7 +167,7 @@ The change of sub-period matters less for what it promises than for what it asks
 
 ### Career Strategy
 
-A sensible approach follows from the reading rather than from any single indication. Beside how the six fields compare, it rests chiefly on Employment or independent work and How the emphasis shifts. Prefer teams where expectations are revisited openly rather than assumed. Each change of role is best timed after a piece of work is complete.
+A sensible approach follows from the reading rather than from any single indication. Beside how the six fields compare, it rests chiefly on How the emphasis shifts and Administration. Prefer teams where expectations are revisited openly rather than assumed. Each change of role is best timed after a piece of work is complete.
 
 Next steps
 1. Within the next month, list three specific roles in business and entrepreneurship and note, for each, the skills you already have and the one you would need first.

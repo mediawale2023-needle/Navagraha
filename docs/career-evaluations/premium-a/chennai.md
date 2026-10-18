@@ -7,7 +7,7 @@ Invented birth: 1992-12-08 23:40 at 13.0827, 80.2707 (no real person). Report da
 ## The plan every part shares
 - **verdict** — On the evidence engine's reading (the same as your Kundli's Career verdict), career reads as strong, with medium confidence: 8 supporting and 1 conflicting indicator. The strongest support: Moon in the 10th. The main counter-indication: 10th lord placement (Venus).
 - **leadership** — Leadership (your 10th and 1st houses, with the Sun and Mars) reads as strong on the same engine, with medium confidence.
-- **arrangement** — Your 6th house of service and employment reads as supportive and your 7th house of trade and partnership as strained, so the chart favours employment within an organisation over independent business. Your 10th lord, Venus, sits in the 6th house, tying career to service.
+- **arrangement** — Your 6th house of service and employment reads as supportive (for it, 6th lord dignity (Saturn) (moderate), Venus in the 6th (moderate) and Jupiter's aspect on the 6th (weak)). Your 7th house of trade and partnership reads as strained (for it, 7th lord dignity (Saturn) (moderate); against it, 7th lord placement (Saturn) (moderate) and 7th house Sarvashtakavarga (moderate)). So the chart favours employment within an organisation over independent business. Your 10th lord, Venus, sits in the 6th house, tying career to service.
 - **fields** — Best supported: finance and management and administration (strong). Then: business and entrepreneurship and communication and public-facing professions (mixed). Least supported: government and institutional roles and advisory and consulting roles (challenging).
 - **d10** — Against the overall career reading (strong), the D10 shows no counted strength or weakness for the career planets, so it leaves that reading as it is.
 - **strength** — Saturn recurs as a strength: Saturn as significator, 6th lord placement (Saturn), 6th lord dignity (Saturn), Saturn in the 6th and 7th lord dignity (Saturn) all point the same way, and it is the D10 Lagna lord and a natural significator of career.
@@ -172,7 +172,7 @@ The change of sub-period matters less for what it promises than for what it asks
 
 ### Career Strategy
 
-A sensible approach follows from the reading rather than from any single indication. Beside how the six fields compare, it rests chiefly on Employment or independent work and How the emphasis shifts. Prefer teams where expectations are revisited openly rather than assumed. Each change of role is best timed after a piece of work is complete.
+A sensible approach follows from the reading rather than from any single indication. Beside how the six fields compare, it rests chiefly on How the emphasis shifts and Administration. Prefer teams where expectations are revisited openly rather than assumed. Each change of role is best timed after a piece of work is complete.
 
 Next steps
 1. Within the next month, list three specific roles in administration and note, for each, the skills you already have and the one you would need first.
