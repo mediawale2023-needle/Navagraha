@@ -265,6 +265,28 @@ describe('limits and delivery (unchanged)', () => {
     expect(report.sections.length).toBeGreaterThanOrEqual(8); expect(request).toHaveBeenCalledTimes(10);
     expect(ledger.spent).toBeLessThanOrEqual(CAREER_BUDGET_MICRO_USD); expect(ledger.reserved).toBe(0);
   });
+  // Every retry and correction path, charged at its reservation (no usage reported): never above the ceiling,
+  // nothing left reserved; what the ceiling cannot admit fails closed (and is refunded by the order path).
+  it.each([
+    ['one transport retry per part', { transport: 1 }, true],
+    ['every paragraph invalid once', { invalid: 1 }, true],
+    ['two transport retries and a format retry per part', { transport: 2, truncate: 1 }, false],
+    ['every paragraph invalid twice', { invalid: 2 }, false],
+    ['every reply truncated', { truncate: 99 }, false],
+    ['every request failing with 503', { transport: 99 }, false],
+  ] as const)('spending under failure: %s', async (_label, mode: { transport?: number; truncate?: number; invalid?: number }, completes) => {
+    const k = delhi(); const e = facts(k); const ledger = new CareerSpending(); const tries = new Map<string, number>();
+    const base = mockedRequester(e, (r, _s, attempt) => { if (attempt <= (mode.invalid ?? 0)) for (const v of Object.values(r.slots)) v.text += ' This changes in 2091.'; });
+    const request = vi.fn(async (p: string) => {
+      const key = promptTarget(e, p).section.key; const n = (tries.get(key) ?? 0) + 1; tries.set(key, n);
+      if (n <= (mode.transport ?? 0)) throw Object.assign(new Error('test 503'), { status: 503 });
+      const r = await base(p); if (n - (mode.transport ?? 0) <= (mode.truncate ?? 0)) r.choices[0].finish_reason = 'length';
+      delete r.usage; return r;
+    });
+    const ok = await generateDeterministicCareer(k, ASOF, request, { ledger, retryDelaysMs: [0, 0] }).then(() => true, (err) => { expect(String(err.message)).toMatch(/ceiling|transport/); return false; });
+    expect(ok).toBe(completes);
+    expect(ledger.spent).toBeLessThanOrEqual(CAREER_BUDGET_MICRO_USD); expect(ledger.reserved).toBe(0);
+  });
   it('reserves before dispatch, keeps missing usage at the reservation and refuses overspending', async () => {
     const l = new CareerSpending(); const id = l.reserve('prompt', CAREER_OUTPUT_TOKENS); const reserved = l.reserved; l.settle(id); l.settle(id);
     expect(l.spent).toBe(reserved);

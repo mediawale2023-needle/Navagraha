@@ -212,9 +212,22 @@ export function synthesiseCareer(ledger: CareerLedger, asOf: Date): CareerSynthe
   const workStyle: WorkStyle = b6 === 'positive' && b7 !== 'positive' ? 'employment' : b7 === 'positive' && b6 !== 'positive' ? 'independent' : b6 === 'positive' && b7 === 'positive' ? 'mixed' : 'unresolved';
   const bandWords = (b: string) => ({ positive: 'supportive', negative: 'strained', mixed: 'mixed', thin: 'too thinly evidenced to judge' }[b]);
   const tenthLordHouse = chart.planets.find((p) => p.name === lords.tenth)!.house;
+  // Each house's own evidence, for and against, so an unresolved answer says what each side has and why it does not settle.
+  const sideOf = (h: number, name: string, b: string) => {
+    const ids = houseNeutral(houses[h]).filter((x) => item(x).role === 'counted');
+    const firm = (d: EvidenceDirection) => ids.filter((x) => item(x).direction === d).sort((x, y) => W[item(y).strength] - W[item(x).strength]).map((x) => `${item(x).label} (${item(x).strength})`);
+    const pos = firm('positive'), neg = firm('negative');
+    const list = (xs: string[]) => `${listOf(xs.slice(0, 3))}${xs.length > 3 ? ` and ${xs.length - 3} more` : ''}`;
+    const detail = !pos.length && !neg.length ? 'no counted indicator either way' : [pos.length && `for it, ${list(pos)}`, neg.length && `against it, ${list(neg)}`].filter(Boolean).join('; ');
+    return `Your ${ord(h)} house of ${name} reads as ${bandWords(b)} (${detail}).`;
+  };
+  const why = workStyle !== 'unresolved' ? ''
+    : b6 === 'thin' && b7 === 'thin' ? ' Neither house carries enough counted evidence to decide.'
+      : b6 !== 'positive' && b7 !== 'positive' ? ' Neither house is clearly supportive, so the chart gives no basis to prefer one arrangement.'
+        : '';
   const arrangementId = add({
     id: 'T.arrangement', label: 'Employment or independent work',
-    text: `Your 6th house of service and employment reads as ${bandWords(b6)} and your 7th house of trade and partnership as ${bandWords(b7)}, so ${WORK_STYLE_SENTENCES[workStyle]}.${[6, 7].includes(tenthLordHouse) ? ` Your 10th lord, ${the(lords.tenth)}, sits in the ${ord(tenthLordHouse)} house, tying career to ${tenthLordHouse === 6 ? 'service' : 'partnership and trade'}.` : ''}`,
+    text: `${sideOf(6, 'service and employment', b6)} ${sideOf(7, 'trade and partnership', b7)}${why} So ${WORK_STYLE_SENTENCES[workStyle]}.${[6, 7].includes(tenthLordHouse) ? ` Your 10th lord, ${the(lords.tenth)}, sits in the ${ord(tenthLordHouse)} house, tying career to ${tenthLordHouse === 6 ? 'service' : 'partnership and trade'}.` : ''}`,
     direction: 'neutral', strength: 'moderate', role: 'context', chart: 'synthesis', planets: [6, 7].includes(tenthLordHouse) ? [lords.tenth] : [], houses: [6, 7],
     rule: CAREER_SYNTHESIS_RULES.arrangement, ruleId: 'arrangement', derivedFrom: houseNeutral([...houses[6], ...houses[7]]).filter((x) => item(x).role !== 'context' || [6, 7].includes(tenthLordHouse)),
   });

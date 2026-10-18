@@ -116,7 +116,7 @@ export function buildCareerReportFacts(kundli: unknown, asOf: Date): CareerRepor
     { id: 'identity.foundation', heading: 'Professional Identity', required: true, mustCite: planets[lords.tenth].links.slice(0, 1), scope: Array.from(new Set([...firmest(houses[1], 2), ...firmest(houses[10], 3), ...corePlanet(lords.lagna), ...corePlanet(lords.tenth), T.leadership])),
       job: 'Professional make-up from the Lagna, its lord, the 10th house and its lord taken together: how they bear on each other, not a list.' },
     { id: 'identity.arrangement', heading: 'Professional Identity', required: true, mustCite: [T.arrangement], scope: withSources([T.arrangement]),
-      job: 'Employment or independent work: what the 6th and 7th houses say, how firmly, and the working environments that follow.' },
+      job: 'Employment or independent work: the evidence for and against each of the 6th and 7th houses and which way it settles; if it does not settle, what each side has and why, then the working environments that suit an open answer.' },
   ];
 
   // ── Strengths and Challenges + D1 and D10 Analysis ──
@@ -160,7 +160,7 @@ export function buildCareerReportFacts(kundli: unknown, asOf: Date): CareerRepor
   ];
 
   // ── Career Strategy ──
-  const strategyScope = [T.arrangement, T.fields, T.timing, ...s.fields.map((f) => f.itemId), ...s.periods.map((p) => p.itemId)];
+  const strategyScope = [T.fields, T.timing, ...s.fields.map((f) => f.itemId), ...s.periods.map((p) => p.itemId)];
   const strategySlots: CareerSlot[] = [
     { id: 'strategy.approach', heading: 'Career Strategy', required: true, mustCite: [T.fields], scope: strategyScope,
       job: 'A practical approach from the whole reading: directions to put first, use of the arrangement and timing, what to watch. No new conclusions.' },

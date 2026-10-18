@@ -109,6 +109,20 @@ describe('fields: judged by the engine, compared by what separates them', () => 
   });
 });
 
+describe('employment or independent work', () => {
+  it.each(NAMES)('states each house\'s evidence for and against, and why an open answer does not settle (%s)', (name) => {
+    const e = facts(name); const t = text(e, e.synthesis.theses.arrangement);
+    expect(t).toMatch(/Your 6th house of service and employment reads as [^(]+\((?:for it|against it|no counted indicator)/);
+    expect(t).toMatch(/Your 7th house of trade and partnership reads as [^(]+\((?:for it|against it|no counted indicator)/);
+    if (e.workStyle === 'unresolved') expect(t).toMatch(/Neither house (?:is clearly supportive|carries enough counted evidence)/);
+    // Every evidence label it names is one of the arrangement's own items, and it names at least one.
+    const own = new Set(e.ledger.byId.get(e.synthesis.theses.arrangement)!.derivedFrom!.map((id) => e.ledger.byId.get(id)!.label));
+    const named = e.ledger.items.filter((x) => /^E\d+$/.test(x.id) && t.includes(`${x.label} (${x.strength})`)).map((x) => x.label);
+    for (const label of named) expect(own.has(label)).toBe(true);
+    if (!/no counted indicator either way\)[^(]*no counted indicator either way/.test(t)) expect(named.length).toBeGreaterThan(0);
+  });
+});
+
 describe('D1 and D10: the D10 may reinforce, qualify, contradict or leave a reading unresolved', () => {
   it('the relation rule', () => {
     expect(d10Relation('positive', [1], [])).toBe('reinforces');
