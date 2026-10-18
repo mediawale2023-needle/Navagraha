@@ -551,7 +551,7 @@ describe('Career report generation (AI mocked): three parts, partial regeneratio
     prompts.length = 0;
     await expect(generateReport('career', k, { careerPipeline: 'facts-first' })).rejects.toThrow();
     expect(prompts.length).toBeGreaterThanOrEqual(5);
-    expect(prompts.slice(0, 5).map((p) => p.match(/part of "([^"]+)"/)?.[1]).sort()).toEqual(['Career Overview', 'Current Career Situation', 'Favourable & Difficult Periods', 'Personalised Guidance', 'Your Birth Chart']);
+    expect(prompts.slice(0, 5).map((p) => p.split('\nWRITE, in order')[1].split('\n')[1].match(/^[\w.*]+/)?.[0]).sort()).toEqual(['field.*', 'strategy.approach', 'strengths', 'summary.reading', 'timing.']);
     for (const p of prompts) expect(p).not.toMatch(/CAREER EVIDENCE \(deterministic/);
   });
 

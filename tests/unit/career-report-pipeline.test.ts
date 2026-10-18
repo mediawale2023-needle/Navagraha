@@ -1,60 +1,65 @@
+/**
+ * The facts-first Career Report pipeline with MOCKED model replies (tests/fixtures/career-premium-replies.ts):
+ * generation, citation-scoped checks, correction, and the unchanged limits (deadline, ceiling, refund path).
+ */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { CareerSpending, CAREER_BUDGET_MICRO_USD, CAREER_DEADLINE_MS, CAREER_OUTPUT_TOKENS, CAREER_CORRECTION_TOKENS, careerRequester, generateDeterministicCareer, repeatsCareerInterpretation, type CareerCompletion } from '../../server/careerReportGeneration';
-import { buildCareerReportFacts, CAREER_HEADINGS, type CareerReportFacts } from '../../server/careerReportEvidence';
-import { CAREER_GLOSSARY_HEADING, careerSectionPrompt, slotProblems, slotCheck, checkSectionReply, parseSectionReply } from '../../server/careerReportRendering';
-import { ASOF, fixtureChart } from '../fixtures/career-chart';
-import { promptTarget, realisticRequester, replyFor } from '../fixtures/career-replies';
-import { LIVE } from '../fixtures/career-live-db644dd';
+import { CareerSpending, CAREER_BUDGET_MICRO_USD, CAREER_DEADLINE_MS, CAREER_OUTPUT_TOKENS, CAREER_CORRECTION_TOKENS, careerRequester, generateDeterministicCareer, partTokens, repeatsCareerInterpretation, type CareerCompletion } from '../../server/careerReportGeneration';
+import { buildCareerReportFacts, CAREER_HEADINGS, factsOf, type CareerReportFacts } from '../../server/careerReportEvidence';
+import { CAREER_APPENDIX_HEADING, careerSectionPrompt, checkCitedText, checkSectionReply, parseSectionReply, slotCheck, slotProblems } from '../../server/careerReportRendering';
+import { ASOF, fixtureChart, SYNTHETIC_CHARTS } from '../fixtures/career-chart';
+import { mockedRequester, promptTarget, replyFor } from '../fixtures/career-premium-replies';
 
 const delivery = vi.hoisted(() => ({ setReportOrderContent: vi.fn(), failAndRefundReportOrder: vi.fn(), createNotification: vi.fn() }));
 vi.mock('../../server/storage', () => ({ storage: delivery }));
 vi.mock('../../server/pushService', () => ({ sendPushToUser: vi.fn() }));
 import { fulfilReportOrder } from '../../server/reportOrders';
 
-const CHARTS = [['1985-03-22', '06:15', 28.6139, 77.209], ['1977-10-30', '10:25', 22.5726, 88.3639], ['2000-07-04', '18:45', 19.076, 72.8777]] as const;
-const delhi = () => fixtureChart('1985-03-22', '06:15', 28.6139, 77.209);
+const NAMES = Object.keys(SYNTHETIC_CHARTS) as Array<keyof typeof SYNTHETIC_CHARTS>;
+const delhi = () => fixtureChart(...SYNTHETIC_CHARTS.delhi);
 const facts = (k = delhi()) => buildCareerReportFacts(k, ASOF);
-const section = (e: CareerReportFacts, key: string) => e.sections.find((s) => s.key === key)!;
-const fact = (e: CareerReportFacts, id: string) => e.sections.flatMap((s) => s.facts).find((f) => f.id === id)!;
-const spy = (e: CareerReportFacts, edit?: Parameters<typeof realisticRequester>[1]) => vi.fn(realisticRequester(e, edit));
+const part = (e: CareerReportFacts, key: string) => e.sections.find((s) => s.key === key)!;
+const slot = (e: CareerReportFacts, id: string) => e.sections.flatMap((s) => s.slots).find((s) => s.id === id)!;
+const byLabel = (e: CareerReportFacts, label: string) => e.ledger.items.find((x) => x.label === label)!.id;
+const spy = (e: CareerReportFacts, edit?: Parameters<typeof mockedRequester>[1]) => vi.fn(mockedRequester(e, edit));
 const targets = (e: CareerReportFacts, request: { mock: { calls: any[][] } }) => request.mock.calls.map((c) => { const t = promptTarget(e, c[0]); return t.correction ? `${t.section.key}:${t.correction.join(',')}` : t.section.key; });
 afterEach(() => { vi.useRealTimers(); vi.clearAllMocks(); });
 
-describe('facts-first Career report: generation', () => {
-  it.each(CHARTS)('writes all five sections in one parallel round for %s, every fact followed by its explanation', async (date, time, lat, lon) => {
-    const k = fixtureChart(date, time, lat, lon); const e = facts(k); const request = spy(e); const metrics = vi.fn();
+describe('generation (mocked replies)', () => {
+  it.each(NAMES)('five parts in one parallel round write seven sections, an appendix and a glossary (%s)', async (name) => {
+    const k = fixtureChart(...SYNTHETIC_CHARTS[name]); const e = facts(k); const request = spy(e); const metrics = vi.fn();
     const report = await generateDeterministicCareer(k, ASOF, request, { onMetrics: metrics });
-    expect(report.sections.map((s) => s.heading)).toEqual([...CAREER_HEADINGS, CAREER_GLOSSARY_HEADING]);
-    expect(targets(e, request).sort()).toEqual(['chart', 'current', 'guidance', 'overview', 'periods']);
-    expect(metrics).toHaveBeenCalledWith(expect.objectContaining({ calls: 5, corrections: 0, correctionRounds: 0, costMicroUsd: 63_750, firstPassAccepted: 5, optionalDropped: 0, outcome: 'completed' }));
+    expect(report.sections.map((s) => s.heading).slice(0, 8)).toEqual([...CAREER_HEADINGS, CAREER_APPENDIX_HEADING]);
+    expect(targets(e, request).sort()).toEqual(['chart', 'fields', 'overview', 'strategy', 'timing']);
+    expect(metrics).toHaveBeenCalledWith(expect.objectContaining({ calls: 5, corrections: 0, firstPassAccepted: 5, outcome: 'completed' }));
+    const strategy = report.sections.find((s) => s.heading === 'Career Strategy')!.body;
+    expect(strategy).toMatch(/Next steps\n1\. .+\n2\. .+\n3\. .+/);
+    // Each field paragraph opens with its code-written name and reading, in the synthesis order.
+    const fields = report.sections.find((s) => s.heading === 'Professional Field Comparison')!.body.split('\n\n');
+    e.synthesis.order.forEach((id, i) => expect(fields[i].startsWith(e.synthesis.fields.find((f) => f.id === id)!.label)).toBe(true));
+    // The appendix lists only evidence the paragraphs cite, and the method.
+    const appendix = report.sections.find((s) => s.heading === CAREER_APPENDIX_HEADING)!.body;
+    expect(appendix).toContain('How this report reads the chart');
+    expect((report as any).careerAnalysis.fields.map((f: any) => f.id)).toEqual(e.synthesis.order);
+  });
+
+  it('every part receives the whole plan; a thesis it may not cite appears in one line only', () => {
+    const e = facts();
     for (const s of e.sections) {
-      const body = report.sections.find((x) => x.heading === s.heading)!.body;
-      for (const f of s.facts) expect(body).toContain(f.text);
-      expect(body).toContain('What this means for you');
+      const prompt = careerSectionPrompt(e, s);
+      const plan = prompt.split('PLAN (shared; never contradict):\n')[1].split('\nEVIDENCE')[0].split('\n');
+      expect(plan).toHaveLength(8);
+      for (const id of Object.values(e.synthesis.theses)) {
+        const cited = s.slots.some((x) => x.scope.includes(id)) || (s.steps && s.stepScope.includes(id));
+        expect(prompt.includes(`${id}: `)).toBe(cited);
+      }
+      expect(prompt).toContain(`Fixed: ${e.workStyleSentence}.`);
+      // Only the part's own evidence is listed.
+      const listed = prompt.split('\nEVIDENCE')[1].split('\nWRITE, in order')[0].split('\n').slice(1).map((l) => l.split(' ')[0]);
+      for (const id of listed) expect(s.slots.some((x) => x.scope.includes(id)) || s.stepScope.includes(id)).toBe(true);
     }
-    expect(report.sections[4].body).toMatch(/Next steps\n1\. .+\n2\. .+\n3\. .+/);
-    expect(report.summary).toContain('separates the career picture');
-    expect(report.summary).not.toContain(e.workStyleSentence);
-    expect(report.summary).not.toContain(e.sections[0].facts[1].text.split('.')[0]);
   });
-  it('sends each section only its own facts, the fixed work-style conclusion and the weak fields', () => {
-    const e = facts(fixtureChart()); const guidance = section(e, 'guidance'); const prompt = careerSectionPrompt(e, guidance);
-    const sent = JSON.parse(prompt.split('\nFACTS\n')[1]) as Array<{ id: string }>;
-    expect(sent.map((f) => f.id)).toEqual(guidance.facts.map((f) => f.id));
-    expect(prompt).toContain(e.workStyleSentence); expect(prompt).toContain('Never recommend these weakly supported fields: advisory and consulting roles');
-    expect(prompt).toContain('"steps": [');
-    expect(careerSectionPrompt(e, section(e, 'overview'))).not.toContain('"steps"');
-  });
-  it('collects technical definitions once in a final glossary', async () => {
-    const k = delhi(); const e = facts(k);
-    const report = await generateDeterministicCareer(k, ASOF, spy(e));
-    const glossary = report.sections.find((s) => s.heading === CAREER_GLOSSARY_HEADING)!;
-    expect(glossary.body).toContain('D10:');
-    expect(glossary.body).toContain('Mahadasha:');
-    expect(report.sections.filter((s) => s.body.includes('Terms used in this section'))).toHaveLength(0);
-    expect(report.sections.filter((s) => s.body.includes('D10: the Dasamsa'))).toHaveLength(1);
-  });
+
   it('refuses an approximate birth time before any request', async () => {
     const { computeCanonicalChart } = await import('../../server/astroEngine/canonical/compute');
     const { resolveBirthWithCoordinates } = await import('../../server/astroEngine/birthResolver');
@@ -63,119 +68,139 @@ describe('facts-first Career report: generation', () => {
     await expect(generateDeterministicCareer({ chartData: { canonical } }, ASOF, request)).rejects.toThrow(/exact birth time/);
     expect(request).not.toHaveBeenCalled();
   });
+
+  it('accepts the reply shapes the model produces: slot objects, slot arrays, "paragraphs", "evidence" for cites', () => {
+    const e = facts(); const s = part(e, 'timing'); const reply = replyFor(e, s);
+    const asArray = { slots: Object.entries(reply.slots).map(([id, c]) => ({ id, text: [c.text], evidence: c.cites })) };
+    expect(checkSectionReply(s, parseSectionReply(JSON.stringify(asArray)).reply!, e).required.size).toBe(0);
+    expect(checkSectionReply(s, parseSectionReply(JSON.stringify({ paragraphs: reply.slots })).reply!, e).required.size).toBe(0);
+  });
 });
 
-describe('facts-first Career report: the model cannot add chart facts', () => {
+describe('every paragraph rests on the evidence it cites', () => {
   const e = facts();
-  const check = (id: string, text: string) => slotProblems(text, 'explanation', [fact(e, id)], e);
-  const base = 'In practical terms, this points you towards work where steady effort is noticed and responsibility grows in measured steps over time.';
-  it.each([
-    ['chart.tenthLord', `${base} Jupiter in Leo would change that.`, /names Leo/],
-    ['chart.d10Tenth', `${base} Mars adds drive to the picture.`, /names Mars/],
-    ['period.Antardasha.Saturn.2026-07-20', `${base} Expect a shift in 2031.`, /mentions 2031/],
-    ['current.mahadasha', `${base} It peaks in March 2030 for you.`, /mentions 2030|March 2030/],
-    ['chart.tenth', `${base} Gaja Kesari Yoga strengthens it further.`, /names Gaja Kesari Yoga/],
-    ['chart.tenthLord', `${base} Jupiter sits at 12 degrees.`, /degrees/],
-    ['chart.tenthLord', `${base} The 7th house adds partnership themes.`, /7th/],
-    ['field.business', `${base} Mars' favourable placement in Moolatrikona and the 11th house gives drive.`, /Mars is in house 2 in D1, not house 11/],
-    ['overview.fields', `${base} You will be promoted within the year.`, /states an outcome as certain/],
-    ['chart.tenthLord', `${base} Wearing a yellow sapphire would help.`, /suggests a remedy/],
-    ['overview.workStyle', `${base} The chart favours employment over anything else.`, /contradicts the work-style conclusion/],
-    ['overview.workStyle', `${base} Your workStyle is mixed.`, /internal term/],
-  ])('rejects an explanation of %s that adds: %s', (id, text, problem) => {
-    expect(check(id, text).join(' ')).toMatch(problem);
+  const s = slot(e, 'field.business');
+  const check = (text: string, cites: string[], where = s) => checkCitedText(text, cites, 'paragraph', where.scope, where.mustCite, e).problems.join(' | ');
+  const body = 'This field draws on a broad base of indications, and the balance between them decides how readily a venture of your own could carry responsibility, so test it on a small scale before committing more of your working time to it.';
+
+  it('cites nothing, an unknown id, or an id outside its list: refused', () => {
+    expect(check(body, [])).toMatch(/cites no evidence/);
+    expect(check(body, ['F.business', 'E9999'])).toMatch(/E9999, which is not in the evidence/);
+    const outside = e.ledger.items.find((x) => /^E\d+$/.test(x.id) && !s.scope.includes(x.id))!.id;
+    expect(check(body, ['F.business', outside])).toMatch(/outside this paragraph's evidence/);
+    expect(check(body, [s.scope.find((x) => x !== 'F.business')!])).toMatch(/must cite F\.business/);
   });
-  it('rejects recommending a weakly supported field anywhere', () => {
-    const b = facts(fixtureChart()); const guidance = section(b, 'guidance');
-    expect(slotProblems(`${base} Teaching and consulting are an ideal choice for you, and you can build on that with patience and a clear plan for each stage ahead.`, 'synthesis', guidance.facts, b).join(' ')).toMatch(/recommends advisory and consulting roles/);
+
+  it('names only what its citations state (and what a cited conclusion was built from)', () => {
+    const named = 'Business and entrepreneurship may also draw a reflective, research-minded streak from Ketu, which suggests ventures built on specialist knowledge rather than broad sales, tested carefully before any larger commitment of time.';
+    const business = e.synthesis.fields.find((f) => f.id === 'business')!;
+    expect(business.counted.concat(business.links).some((id) => e.ledger.byId.get(id)!.planets.includes('Ketu'))).toBe(false);
+    expect(check(named, ['F.business'])).toMatch(/names Ketu, which the cited evidence does not mention/);
+    const ketu = e.ledger.planets.Ketu.capacity;
+    expect(check(named, ['F.business', ketu], { ...s, scope: [...s.scope, ketu] })).not.toMatch(/names Ketu/);
+    // Venus is in the evidence the business assessment was built from, so citing the assessment allows it.
+    expect(check(named.replace('Ketu', 'Venus'), ['F.business'])).not.toMatch(/names Venus/);
   });
-  // Sentences the old validator rejected on live runs although they were correct.
-  it.each([
-    ['overview.workStyle', 'This supports an adaptable career path that can shift between structured employment roles and more independent, entrepreneurial pursuits, so you can keep a stable base while testing ventures of your own.'],
-    ['period.Antardasha.Mercury.2029-09-19', 'This sub-period could present challenges in communication and analytical tasks, so plan important negotiations carefully and leave room for review before you commit to them.'],
-    ['chart.d10Tenth', 'Mercury, which rules this house, sits in a hidden part of the D10, which can mean your best professional work happens behind the scenes before it is recognised.'],
-  ])('accepts a correct explanation of %s that the old checks rejected', (id, text) => {
-    expect(check(id, text)).toEqual([]);
+
+  it('a sentence joining the birth chart and the D10 cites both; a D1–D10 relation counts as both', () => {
+    const r = slot(e, 'd1d10.2'); // Mercury, the D10's 10th lord
+    const text = 'In the birth chart Mercury sits in your 1st house, yet in the D10 it falls in the 8th house, so the visible role and the professional reality may pull apart until procedures are settled and expectations are written down.';
+    expect(checkCitedText(text, [r.mustCite[0]], 'paragraph', r.scope, r.mustCite, e).problems.join(' ')).not.toMatch(/without citing evidence from both/);
+    const d10Only = e.ledger.planets.Mercury.d10House!;
+    expect(checkCitedText(text, [d10Only], 'paragraph', [d10Only], [], e).problems.join(' ')).toMatch(/relates the birth chart and the D10 without citing evidence from both/);
+  });
+
+  it('a comparison of two fields cites both assessments; one field with one citation is fine', () => {
+    const c = slot(e, 'fields.comparison');
+    const compare = 'Communication and public-facing professions and business and entrepreneurship share the leading reading, while finance trails because its 2nd house is weaker, which is why the first two deserve the first trials of your time.';
+    expect(checkCitedText(compare, ['T.fields'], 'paragraph', c.scope, c.mustCite, e).problems.join(' ')).not.toMatch(/compares fields without/);
+    expect(checkCitedText(compare, ['F.business'], 'paragraph', [...c.scope, 'F.business'], [], e).problems.join(' ')).toMatch(/compares fields without citing the assessment of (?:communication|finance)/);
+  });
+
+  it('combining two planets on one citation is refused; a single-fact paragraph on one citation passes the citation rule', () => {
+    const one = e.ledger.planets.Jupiter.d1!;
+    const single = 'Jupiter is debilitated in Capricorn, which weakens what it can carry for you at work, so roles that lean on its themes of guidance and judgement may need more support and slower build-up than you would like.';
+    const joined = `${single} Whereas Saturn steadies it.`;
+    expect(checkCitedText(single, [one], 'paragraph', [one], [], e).problems.join(' ')).not.toMatch(/cites one item/);
+    expect(checkCitedText(joined, [one], 'paragraph', [one], [], e).problems.join(' ')).toMatch(/combines or compares evidence but cites one item/);
+  });
+
+  it('never writes an id into the prose', () => {
+    expect(check(`${body} See F.business and E12.`, ['F.business'])).toMatch(/evidence id in the prose/);
+  });
+
+  it('judges a strength claim in the chart the sentence names', () => {
+    const r = slot(e, 'd1d10.1');
+    // Venus: exalted in D1, enemy's sign in the D10.
+    const venus = [e.ledger.planets.Venus.d1!, e.ledger.planets.Venus.d10Dignity!, e.ledger.planets.Venus.d10House!];
+    const facts = factsOf(e, venus);
+    expect(slotCheck('In the birth chart Venus is strong, which may lend polish and ease with people to the way you present your work to colleagues and clients.', 'paragraph', facts, e).problems.join(' ')).not.toMatch(/overstates/);
+    expect(slotCheck('In the D10 Venus is strong, which may lend polish and ease with people to the way you present your work to colleagues and clients.', 'paragraph', facts, e).problems.join(' ')).toMatch(/overstates Venus's strength \(enemy's sign in the D10\)/);
+    void r;
   });
 });
 
-describe('facts-first Career report: coverage and correction', () => {
-  it('drops an invalid optional explanation silently, keeping its fact, with no extra call', async () => {
+describe('coverage and correction', () => {
+  it('corrects only the failed paragraph, keeping every accepted one', async () => {
     const k = delhi(); const e = facts(k);
-    const request = spy(e, (r, s) => { if (s.key === 'chart') r.explanations['chart.lagna'] += ' Mars adds drive here.'; });
-    const metrics = vi.fn();
-    const report = await generateDeterministicCareer(k, ASOF, request, { onMetrics: metrics });
-    expect(request).toHaveBeenCalledTimes(5); expect(metrics).toHaveBeenCalledWith(expect.objectContaining({ optionalDropped: 1, corrections: 0 }));
-    const body = report.sections[2].body;
-    expect(body).toContain(fact(e, 'chart.lagna').text + '\n\n'); expect(body).not.toContain('Mars adds drive');
-  });
-  it('corrects only the failed required explanation, keeping every accepted slot', async () => {
-    const k = delhi(); const e = facts(k);
-    const request = spy(e, (r, s, attempt) => { if (s.key === 'current' && attempt === 1) r.explanations['current.antardasha'] += ' It ends in 2031.'; });
+    const request = spy(e, (r, s, attempt) => { if (s.key === 'timing' && attempt === 1) r.slots['timing.antardasha'].text += ' It ends in 2031.'; });
     const report = await generateDeterministicCareer(k, ASOF, request);
-    expect(targets(e, request).slice(5)).toEqual(['current:current.antardasha']);
-    const correction = request.mock.calls[5][0];
-    expect(correction).toContain('mentions 2031');
-    expect(JSON.parse(correction.split('\nFACTS\n')[1].split('\nCORRECTION\n')[0]).map((f: any) => f.id)).toEqual(['current.antardasha']);
-    expect(report.sections[3].body).not.toContain('2031');
+    expect(targets(e, request).slice(5)).toEqual(['timing:timing.antardasha']);
+    expect(request.mock.calls[5][0]).toContain('mentions 2031');
+    expect(report.sections.find((s) => s.heading === 'Career Timing')!.body).not.toContain('2031');
   });
-  it('never omits a required explanation: missing in the reply, it is requested again', async () => {
+
+  it('a missing paragraph is requested again', async () => {
     const k = delhi(); const e = facts(k);
-    const request = spy(e, (r, s, attempt) => { if (s.key === 'periods' && attempt === 1) delete r.explanations['period.Antardasha.Saturn.2026-07-20']; });
+    const request = spy(e, (r, s, attempt) => { if (s.key === 'fields' && attempt === 1) delete r.slots['field.finance']; });
     await generateDeterministicCareer(k, ASOF, request);
-    expect(targets(e, request).slice(5)).toEqual(['periods:period.Antardasha.Saturn.2026-07-20']);
+    expect(targets(e, request).slice(5)).toEqual(['fields:field.finance']);
   });
-  it('fails, and refunds through the order path, when a required explanation is still invalid after both correction rounds', async () => {
+
+  it('fails, and refunds through the order path, when a paragraph is still invalid after both rounds; the reason carries no chart fact', async () => {
     const k = delhi(); const e = facts(k);
-    const bad = (r: any, s: any) => { if (s.key === 'chart' && r.explanations['chart.tenth']) r.explanations['chart.tenth'] += ' Venus shapes this house.'; };
+    const bad = (r: any, s: any) => { if (s.key === 'chart' && r.slots.strengths) r.slots.strengths.text += ' Libra shapes this house.'; };
     const request = spy(e, bad);
     delivery.failAndRefundReportOrder.mockResolvedValue({ refunded: 299 }); delivery.createNotification.mockResolvedValue({});
     await fulfilReportOrder({ id: 'test-only', userId: 'test-user' } as any, 'Career', () => generateDeterministicCareer(k, ASOF, request));
-    expect(request).toHaveBeenCalledTimes(7); // five sections, then two correction rounds for the one failing slot
+    expect(request).toHaveBeenCalledTimes(7);
     expect(delivery.setReportOrderContent).not.toHaveBeenCalled(); expect(delivery.failAndRefundReportOrder).toHaveBeenCalledTimes(1);
-    await expect(generateDeterministicCareer(k, ASOF, spy(e, bad))).rejects.toThrow(/after 2 correction rounds\. Your Birth Chart: chart\.tenth names/);
+    const err = await generateDeterministicCareer(k, ASOF, spy(e, bad)).catch((x) => x as Error);
+    expect(err.message).toMatch(/after 2 correction rounds\. Strengths and Challenges \+ D1 and D10 Analysis: strengths names/);
+    expect(err.message).not.toMatch(/Libra/);
   });
-  it('requires at least three valid next steps citing this section\'s facts', async () => {
+
+  it('requires at least three valid next steps, one acting on a best-supported field', async () => {
     const k = delhi(); const e = facts(k);
-    const request = spy(e, (r, s, attempt) => { if (s.key === 'guidance' && attempt === 1) { r.steps[0].factIds = ['chart.tenth']; r.steps[1].factIds = []; } });
+    const request = spy(e, (r, s, attempt) => { if (s.key === 'strategy' && attempt === 1) { r.steps[0].cites = ['E9999']; r.steps[1].cites = []; } });
     const report = await generateDeterministicCareer(k, ASOF, request);
-    expect(targets(e, request).slice(5)).toEqual(['guidance:steps']);
-    expect(request.mock.calls[5][0]).toMatch(/cites an id that is not in this section|cites no fact/);
-    expect(report.sections[4].body.match(/^\d\. /gm)).toHaveLength(3);
+    expect(targets(e, request).slice(5)).toEqual(['strategy:steps']);
+    expect(report.sections.find((s) => s.heading === 'Career Strategy')!.body.match(/^\d\. /gm)).toHaveLength(3);
+    const strategy = part(e, 'strategy');
+    const weakOnly = { slots: {}, steps: [0, 1, 2].map(() => ({ cites: ['T.timing'], text: 'Within the next month, list the commitments that end with the running sub-period and decide which of them to finish before the next one begins.' })) };
+    expect(checkSectionReply(strategy, weakOnly, e, ['steps']).required.get('steps')!.join(' ')).toMatch(/no valid next step acts on a well-supported field/);
   });
-  it('retries a truncated or malformed response before judging it, and fails if it stays unreadable through both rounds', async () => {
+
+  it('retries a truncated or malformed response before judging it, and fails if it stays unreadable', async () => {
     const k = delhi(); const e = facts(k); let n = 0;
-    const base = realisticRequester(e);
+    const base = mockedRequester(e);
     const request = vi.fn(async (p: string) => { const r = await base(p); if (promptTarget(e, p).section.key === 'overview' && n++ === 0) r.choices[0].finish_reason = 'length'; return r; });
     const report = await generateDeterministicCareer(k, ASOF, request);
-    expect(report.sections).toHaveLength(6); expect(targets(e, request).slice(5)).toEqual(['overview']);
+    expect(report.sections.length).toBeGreaterThanOrEqual(8); expect(targets(e, request).slice(5)).toEqual(['overview']);
     const broken = vi.fn(async (p: string) => { const r = await base(p); if (promptTarget(e, p).section.key === 'overview') r.choices[0].message.content = '{'; return r; });
-    await expect(generateDeterministicCareer(k, ASOF, broken)).rejects.toThrow(/Career Overview: response invalid-json/);
-    expect(broken).toHaveBeenCalledTimes(10); // four sections + overview: (1 + 1 format retry) × first pass and two rounds
+    await expect(generateDeterministicCareer(k, ASOF, broken)).rejects.toThrow(/Executive Career Summary \+ Professional Identity: response invalid-json/);
+    expect(broken).toHaveBeenCalledTimes(10);
   });
-  it('accepts the reply shapes the model has produced: explanation arrays and paragraph arrays', () => {
-    const e = facts(); const s = section(e, 'current'); const reply = replyFor(e, s);
-    const raw = { explanations: Object.entries(reply.explanations).map(([factId, text]) => ({ factId, text: [text] })), synthesis: [reply.synthesis!] };
-    const parsed = parseSectionReply(JSON.stringify(raw));
-    expect(checkSectionReply(s, parsed.reply!, e).required.size).toBe(0);
-  });
-  it('removes a sentence repeated in a later section, correcting it when the slot is required', async () => {
+
+  it('removes a sentence repeated in a later section, correcting it when the paragraph is required', async () => {
     const k = delhi(); const e = facts(k);
     const copied = 'Plan your larger commitments around the steadier phases and use the harder ones to strengthen your footing.';
-    const request = spy(e, (r, s, attempt) => { if (attempt === 1 && (s.key === 'overview' || s.key === 'current')) r.synthesis += ` ${copied}`; });
+    const request = spy(e, (r, s, attempt) => { if (attempt === 1 && s.key === 'overview') r.slots['identity.arrangement'].text += ` ${copied}`; if (attempt === 1 && s.key === 'timing') r.slots['timing.shift'].text += ` ${copied}`; });
     const report = await generateDeterministicCareer(k, ASOF, request);
     expect(report.sections.filter((x) => x.body.includes(copied))).toHaveLength(1);
-    expect(targets(e, request).slice(5)).toEqual(['current:synthesis']);
+    expect(targets(e, request).slice(5)).toEqual(['timing:timing.shift']);
   });
-  it('corrects one editorial-template failure in one bounded targeted request', async () => {
-    const k = delhi(); const e = facts(k); const metrics = vi.fn();
-    const request = spy(e, (r, s, attempt) => {
-      if (s.key === 'overview' && attempt === 1) r.explanations['overview.strength'] = 'The Sun is the thread here. In practical terms, this points you towards responsible work. Treat it as a tendency rather than a fixed outcome.';
-    });
-    await generateDeterministicCareer(k, ASOF, request, { onMetrics: metrics });
-    expect(targets(e, request).slice(5)).toEqual(['overview:overview.strength']);
-    expect(metrics).toHaveBeenCalledWith(expect.objectContaining({ calls: 6, corrections: 1, correctionRounds: 1, costMicroUsd: 76_500, outcome: 'completed' }));
-  });
+
   it('recognises a close paraphrase of the same planet-specific interpretation', () => {
     expect(repeatsCareerInterpretation(
       'Saturn asks for patience, discipline and steady perseverance when professional progress is slow.',
@@ -185,14 +210,33 @@ describe('facts-first Career report: coverage and correction', () => {
       'Saturn asks for patience, discipline and steady perseverance when professional progress is slow.',
       'Venus asks for patience, discipline and steady perseverance when professional progress is slow.',
     )).toBe(false);
-    expect(repeatsCareerInterpretation(
-      'The balance of support and constraint for administration matters because it shows how reliably that line of work fits the chart and should be tested through a small project.',
-      'The balance of support and constraint for finance matters because it shows how reliably that line of work fits the chart and should be tested through a small project.',
-    )).toBe(true);
   });
 });
 
-describe('facts-first Career report: limits and delivery', () => {
+describe('the shared text checks still apply to every paragraph', () => {
+  const e = facts();
+  const timing = factsOf(e, [...slot(e, 'timing.antardasha').scope, ...slot(e, 'timing.next').scope]);
+  it('a running period is never "upcoming"', () => {
+    expect(slotProblems('The upcoming Saturn period may ask for steadier routines and careful records, so finish open projects and keep your commitments realistic while it lasts.', 'paragraph', timing, e).join(' ')).toMatch(/calls the Saturn Antardasha upcoming, but it is running now/);
+  });
+  it('tendencies, not certainties; no remedies; no stock phrases; no generic advice', () => {
+    const base = 'The Saturn sub-period can reward careful, well-documented work, which suggests building a record of finished tasks before asking for wider responsibility.';
+    expect(slotProblems(`${base} You will be promoted within the year.`, 'paragraph', timing, e).join(' ')).toMatch(/as certain/);
+    expect(slotProblems(`${base} Wearing a blue sapphire would help.`, 'paragraph', timing, e).join(' ')).toMatch(/remedy/);
+    expect(slotProblems(`${base} Unlock your full potential.`, 'paragraph', timing, e).join(' ')).toMatch(/stock phrase/);
+    expect(slotProblems(`${base} Stay adaptable.`, 'paragraph', timing, e).join(' ')).toMatch(/generic advice/);
+    expect(slotProblems(base + ' You will need to plan the change carefully, building skills first.', 'paragraph', timing, e).join(' ')).not.toMatch(/as certain/);
+  });
+  it('the work-style conclusion and the weakly supported fields hold in every paragraph', () => {
+    const k = fixtureChart(...SYNTHETIC_CHARTS.kolkata); const kol = facts(k);
+    expect(kol.workStyle).toBe('unresolved'); expect(kol.weakFields).toContain('advisory');
+    const any = factsOf(kol, [kol.synthesis.theses.fields, kol.synthesis.theses.arrangement]);
+    expect(slotProblems('Your chart favours employment within an organisation, so a salaried role is the natural base, and the evidence for it is steadier than anything else in the reading here.', 'paragraph', any, kol).join(' ')).toMatch(/contradicts the work-style conclusion/);
+    expect(slotProblems('Advisory and consulting roles are an ideal choice for you, and you can pursue them through a defined client project with clear terms and measured results over a full season.', 'paragraph', any, kol).join(' ')).toMatch(/recommends advisory and consulting roles, which is weakly supported/);
+  });
+});
+
+describe('limits and delivery (unchanged)', () => {
   it('fails closed on a transport error and refunds through the existing path', async () => {
     const request = vi.fn(async () => { throw new Error('test connection failure'); });
     delivery.failAndRefundReportOrder.mockResolvedValue({ refunded: 299 }); delivery.createNotification.mockResolvedValue({});
@@ -201,9 +245,9 @@ describe('facts-first Career report: limits and delivery', () => {
   });
   it('delivers a validated report through the existing path', async () => {
     delivery.setReportOrderContent.mockResolvedValue({ id: 'test-only' });
-    await fulfilReportOrder({ id: 'test-only', userId: 'test-user' } as any, 'Career', () => generateDeterministicCareer(delhi(), ASOF, realisticRequester(facts())));
+    await fulfilReportOrder({ id: 'test-only', userId: 'test-user' } as any, 'Career', () => generateDeterministicCareer(delhi(), ASOF, mockedRequester(facts())));
     const content = delivery.setReportOrderContent.mock.calls[0][1];
-    expect(content.sections.map((s: any) => s.heading)).toEqual([...CAREER_HEADINGS, CAREER_GLOSSARY_HEADING]); expect(content.dashaTimeline.length).toBeGreaterThan(0);
+    expect(content.sections.map((s: any) => s.heading).slice(0, 8)).toEqual([...CAREER_HEADINGS, CAREER_APPENDIX_HEADING]); expect(content.dashaTimeline.length).toBeGreaterThan(0);
     expect(delivery.failAndRefundReportOrder).not.toHaveBeenCalled();
   });
   it('aborts at six minutes even if transport never settles', async () => {
@@ -213,12 +257,34 @@ describe('facts-first Career report: limits and delivery', () => {
     await vi.advanceTimersByTimeAsync(CAREER_DEADLINE_MS); await assertion;
     expect(request).toHaveBeenCalledTimes(5); expect(signals.every((s) => s.aborted)).toBe(true);
   });
-  it.each(CHARTS)('stays under $0.25 with every section re-requested whole and no usage reported (%s)', async (date, time, lat, lon) => {
-    const k = fixtureChart(date, time, lat, lon); const e = facts(k); const ledger = new CareerSpending();
-    const base = realisticRequester(e); const seen = new Set<string>();
+  it.each(NAMES)('stays under $0.25 with every part re-requested whole and no usage reported (%s)', async (name) => {
+    const k = fixtureChart(...SYNTHETIC_CHARTS[name]); const e = facts(k); const ledger = new CareerSpending();
+    const base = mockedRequester(e); const seen = new Set<string>();
     const request = vi.fn(async (p: string) => { const r = await base(p); const key = promptTarget(e, p).section.key; if (!seen.has(key)) { seen.add(key); r.choices[0].finish_reason = 'length'; } delete r.usage; return r; });
     const report = await generateDeterministicCareer(k, ASOF, request, { ledger });
-    expect(report.sections).toHaveLength(6); expect(request).toHaveBeenCalledTimes(10);
+    expect(report.sections.length).toBeGreaterThanOrEqual(8); expect(request).toHaveBeenCalledTimes(10);
+    expect(ledger.spent).toBeLessThanOrEqual(CAREER_BUDGET_MICRO_USD); expect(ledger.reserved).toBe(0);
+  });
+  // Every retry and correction path, charged at its reservation (no usage reported): never above the ceiling,
+  // nothing left reserved; what the ceiling cannot admit fails closed (and is refunded by the order path).
+  it.each([
+    ['one transport retry per part', { transport: 1 }, true],
+    ['every paragraph invalid once', { invalid: 1 }, true],
+    ['two transport retries and a format retry per part', { transport: 2, truncate: 1 }, false],
+    ['every paragraph invalid twice', { invalid: 2 }, false],
+    ['every reply truncated', { truncate: 99 }, false],
+    ['every request failing with 503', { transport: 99 }, false],
+  ] as const)('spending under failure: %s', async (_label, mode: { transport?: number; truncate?: number; invalid?: number }, completes) => {
+    const k = delhi(); const e = facts(k); const ledger = new CareerSpending(); const tries = new Map<string, number>();
+    const base = mockedRequester(e, (r, _s, attempt) => { if (attempt <= (mode.invalid ?? 0)) for (const v of Object.values(r.slots)) v.text += ' This changes in 2091.'; });
+    const request = vi.fn(async (p: string) => {
+      const key = promptTarget(e, p).section.key; const n = (tries.get(key) ?? 0) + 1; tries.set(key, n);
+      if (n <= (mode.transport ?? 0)) throw Object.assign(new Error('test 503'), { status: 503 });
+      const r = await base(p); if (n - (mode.transport ?? 0) <= (mode.truncate ?? 0)) r.choices[0].finish_reason = 'length';
+      delete r.usage; return r;
+    });
+    const ok = await generateDeterministicCareer(k, ASOF, request, { ledger, retryDelaysMs: [0, 0] }).then(() => true, (err) => { expect(String(err.message)).toMatch(/ceiling|transport/); return false; });
+    expect(ok).toBe(completes);
     expect(ledger.spent).toBeLessThanOrEqual(CAREER_BUDGET_MICRO_USD); expect(ledger.reserved).toBe(0);
   });
   it('reserves before dispatch, keeps missing usage at the reservation and refuses overspending', async () => {
@@ -229,130 +295,21 @@ describe('facts-first Career report: limits and delivery', () => {
     expect(() => new CareerSpending(250001)).toThrow(); expect(() => l.reserve('prompt', CAREER_OUTPUT_TOKENS + 1)).toThrow(/allowance/);
     expect(CAREER_CORRECTION_TOKENS).toBeLessThan(CAREER_OUTPUT_TOKENS);
   });
+  it('asks each part for no more output than its paragraphs can need, never above the ceiling', async () => {
+    const e = facts(); const sizes: number[] = [];
+    await generateDeterministicCareer(delhi(), ASOF, async (p, o) => { sizes.push(o.maxTokens); return mockedRequester(e)(p); });
+    expect(sizes.sort((a, b) => a - b)).toEqual(e.sections.map((s) => partTokens(s)).sort((a, b) => a - b));
+    for (const s of e.sections) expect(partTokens(s)).toBeLessThanOrEqual(CAREER_OUTPUT_TOKENS);
+    expect(partTokens(part(e, 'fields'))).toBe(CAREER_OUTPUT_TOKENS);
+  });
   it('uses explicit output limits and disables hidden SDK retries', async () => {
     const create = vi.fn(async () => ({})); await careerRequester({ chat: { completions: { create } } } as any)('prompt', { signal: new AbortController().signal, maxTokens: CAREER_OUTPUT_TOKENS });
     expect(create.mock.calls[0][0].max_tokens).toBe(CAREER_OUTPUT_TOKENS); expect(create.mock.calls[0][1]).toMatchObject({ maxRetries: 0, timeout: 120000 });
   });
-  it('reports each section attempt to the evaluation hook, which the order path never passes', async () => {
+  it('reports each part attempt to the evaluation hook, which the order path never passes', async () => {
     const attempts: any[] = []; const e = facts();
-    await generateDeterministicCareer(delhi(), ASOF, realisticRequester(e, (r, s) => { if (s.key === 'chart') r.explanations['chart.lagna'] += ' Mars adds drive.'; }), { onSection: (a) => attempts.push(a) });
+    await generateDeterministicCareer(delhi(), ASOF, mockedRequester(e), { onSection: (a) => attempts.push(a) });
     expect(attempts).toHaveLength(5); expect(attempts.every((a) => a.accepted && a.content)).toBe(true);
-    expect(attempts.find((a) => a.heading === 'Your Birth Chart').dropped[0]).toMatch(/^chart.lagna: names Mars/);
     expect(readFileSync(new URL('../../server/aiAstrologerService.ts', import.meta.url), 'utf8')).not.toMatch(/onSection/);
-  });
-});
-
-// Replays of the db644dd live report (synthetic Delhi chart): what its review found, with the model's own text.
-describe('facts-first Career report: the db644dd review findings', () => {
-  const e = facts();
-  const check = (id: string, text: string) => slotProblems(text, 'explanation', [fact(e, id)], e);
-  const guidance = section(e, 'guidance');
-
-  it('false rejection fixed: "Mercury\'s role in your D10\'s 10th house" is lordship, not a placement', () => {
-    expect(check('chart.yoga.1', LIVE.budhaAditya)).toEqual([]);
-  });
-  it('false rejection fixed: "use the current Saturn Antardasha … the Mercury Antardasha in 2029" claims only Saturn is running', () => {
-    const [business, advisory] = LIVE.steps;
-    expect(slotProblems(business.text, 'step', business.factIds.map((id) => fact(e, id)), e)).toEqual([]);
-    // A step naming a year without citing the planning dates is still refused.
-    expect(slotProblems(advisory.text, 'step', advisory.factIds.map((id) => fact(e, id)), e).join(' ')).toMatch(/mentions 2029/);
-  });
-  it('false rejection fixed: a house named in a D10 explanation is read in the D10', () => {
-    const d10Fact = { id: 'chart.d10Lagna', required: true, explain: true, text: "In the D10 (Dasamsa), the divisional chart read for profession, the rising sign is Sagittarius. Its lord, Jupiter, is in Aquarius in the D10's 3rd house." };
-    expect(slotProblems(LIVE.d10LagnaFirst, 'explanation', [{ ...d10Fact, chart: 'D10' as const }], e)).toEqual([]);
-    expect(slotProblems(LIVE.d10LagnaFirst, 'explanation', [d10Fact], e).join(' ')).toMatch(/Jupiter is in house 11 in D1, not house 3/);
-    // An explicit D1 claim inside a D10 explanation is still checked against the D1.
-    expect(slotProblems('Jupiter in the 3rd house of your birth chart and D1 points to learning through effort in daily work and short projects.', 'explanation', [{ ...d10Fact, chart: 'D10' as const }], e).join(' ')).toMatch(/not house 3|not the 3rd/);
-  });
-  it('the 10th lord is named as such, so "the lord of your 10th house" is no longer refused', () => {
-    expect(fact(e, 'chart.tenthLord').text).toMatch(/^The lord of your 10th house, Jupiter, is in Capricorn in your 11th house/);
-    expect(check('chart.tenthLord', LIVE.tenthLordFirst).join(' ')).not.toMatch(/mentions the 10th/);
-  });
-  it('restating the fact just printed is recorded as advisory, not refused', () => {
-    const c = slotCheck(LIVE.tenthLordDelivered, 'explanation', [fact(e, 'chart.tenthLord')], e);
-    expect(c.advisories.join(' ')).toMatch(/restates the fact \(Capricorn, 11th house\)/); expect(c.problems.join(' ')).not.toMatch(/restates/);
-    expect(check('chart.tenthLord', 'Its debilitation suggests you may need extra effort to gain recognition through networks and large teams, so build credibility through visible, well-documented results before seeking wider responsibility.')).toEqual([]);
-  });
-  it('never overstates strength: the Sun is only in a friendly sign; exalted Venus may be called strong', () => {
-    expect(check('overview.strength', LIVE.overviewStrength).join(' ')).toMatch(/overstates Sun's strength \(friend's sign in the birth chart\)/);
-    expect(fact(e, 'overview.strength').text).toContain('That is a moderate placement rather than a strong one');
-    expect(check('current.mahadasha', 'Venus is strong here, so work that relies on taste, presentation and relationships may come more easily during this long period than work that depends on rigid procedure.')).toEqual([]);
-  });
-  it('tendencies, not certainties: outcome promises are refused, ordinary "will" is not', () => {
-    expect(check('current.next', LIVE.currentNext).join(' ')).toMatch(/as certain/);
-    expect(check('chart.yoga.3', LIVE.rajaYoga).join(' ')).toMatch(/as certain/);
-    expect(check('overview.workStyle', LIVE.overviewSynthesis).join(' ')).toMatch(/as certain|stock phrase/);
-    for (const ok of ['You will need to plan the change carefully, building skills and savings first, so that the move rests on evidence rather than hope or pressure from others.',
-      'Small, steady experiments will tell you more than one bold leap, and this chart suits testing an idea alongside a stable base before committing fully to it.',
-      'This period will likely bring more structure to your work, which can feel slow but tends to reward patience, careful records and steady delivery over quick wins.']) {
-      expect(check('overview.workStyle', ok).join(' ')).not.toMatch(/states an outcome as certain/);
-    }
-  });
-  it('refuses generic stock phrases', () => {
-    expect(check('overview.strength', LIVE.overviewStrength).join(' ')).toMatch(/stock phrase/);
-  });
-  it('refuses generic career advice unless it is made concrete', () => {
-    const grounded = 'The Sun\'s moderate condition suggests work where steady effort is noticed and responsibility grows in measured steps over time.';
-    expect(check('overview.strength', `${grounded} Stay adaptable.`).join(' ')).toMatch(/generic advice/);
-    expect(check('overview.strength', `${grounded} Develop communication skills.`).join(' ')).toMatch(/generic advice/);
-    expect(check('overview.strength', `${grounded} Stay adaptable by testing one role through a short project and recording which duties produce measurable results.`)).toEqual([]);
-  });
-  it('refuses the repeated writing scaffolds found in the sample', () => {
-    const base = 'The Sun\'s moderate condition suggests work where careful delivery is visible and responsibility can grow through completed assignments.';
-    for (const phrase of ['The Sun is the thread here.', 'In practical terms, this points you towards accountable work.', 'Treat it as a tendency rather than a fixed outcome.']) {
-      expect(check('overview.strength', `${base} ${phrase}`).join(' ')).toMatch(/repeated writing template/);
-    }
-  });
-  it('requires a fact-to-conclusion connection, while allowing an explicit cautious limit', () => {
-    expect(check('overview.strength', 'Choose work with visible responsibility, reliable colleagues and room to improve a process through measured results over time.').join(' ')).toMatch(/does not explain how/);
-    expect(check('overview.strength', 'The Sun\'s moderate condition suggests that visible responsibility may be sustainable when progress can be judged through completed work and measured results.')).toEqual([]);
-    expect(check('overview.strength', 'This fact supports only a broad tendency and does not by itself identify a profession, so compare it with your skills and results before choosing work.')).toEqual([]);
-  });
-  it('refuses an unresolved field reference in a recommendation', () => {
-    const business = fact(e, 'field.business');
-    expect(slotProblems('Spend one month testing a small project in this field, then compare the results with the daily work and skills the role requires.', 'step', [business], e).join(' ')).toMatch(/unresolved recommendation reference/);
-    expect(slotProblems('Spend one month testing a small business and entrepreneurship project, then compare the results with the daily work and skills the role requires.', 'step', [business], e)).toEqual([]);
-  });
-  it('refuses drifting from the mixed work-style conclusion; field talk about business is not an arrangement', () => {
-    expect(slotProblems(LIVE.guidanceSynthesis, 'synthesis', guidance.facts, e).join(' ')).toMatch(/contradicts the work-style conclusion/);
-    expect(check('field.business', LIVE.businessField).join(' ')).not.toMatch(/recommends .*weakly supported/);
-    expect(check('field.finance', LIVE.financeField).join(' ')).not.toMatch(/recommends .*weakly supported/);
-  });
-  it('requires a next step that acts on a well-supported field', () => {
-    const only = { explanations: {}, synthesis: undefined, steps: LIVE.steps.filter((s) => s.factIds.every((id) => !['field.business', 'field.advisory', 'field.finance', 'field.communication'].includes(id))) } as any;
-    expect(checkSectionReply(guidance, only, e, ['steps']).required.get('steps')!.join(' ')).toMatch(/no valid next step acts on a well-supported field/);
-    expect(checkSectionReply(guidance, { explanations: {}, steps: LIVE.steps } as any, e, ['steps']).required.has('steps')).toBe(false);
-  });
-});
-
-describe('facts-first Career report: the work style is explained once', () => {
-  it('only Career Overview is asked to explain it; every section is told never to contradict it', () => {
-    const e = facts();
-    for (const s of e.sections) {
-      const prompt = careerSectionPrompt(e, s);
-      expect(prompt).toContain(`fixed: ${e.workStyleSentence}. Never contradict it.`);
-      expect(prompt.includes('Career Overview explains it: do not restate it here.')).toBe(s.key !== 'overview');
-      expect(prompt.includes('This section is the one place it is explained.')).toBe(s.key === 'overview');
-      expect(prompt).toContain('"be patient"');
-      expect(prompt).toContain('Explain how its stated dignity');
-      expect(prompt).toContain('never leave "this field"');
-    }
-  });
-});
-
-describe('facts-first Career report: fact wording from the review', () => {
-  const e = facts(); const chartText = section(e, 'chart').facts.map((f) => f.text).join('\n');
-  it('states a planet that rules the Lagna, the 10th and the D10 Lagna once', () => {
-    expect(chartText.match(/is in Capricorn in your 11th house/g)).toHaveLength(1);
-    expect(fact(e, 'chart.lagna').text).toBe('Your rising sign (Lagna) is Pisces. Its lord, Jupiter, also rules your 10th house of career, so how you present yourself and your career are governed by the same planet; its placement follows.');
-    expect(fact(e, 'chart.d10Lagna').text).toContain('Its lord is again Jupiter, your 10th lord, whose D10 placement is given above.');
-    expect(chartText.match(/in Aquarius in the 3rd house/g)).toHaveLength(1);
-  });
-  it('acknowledges every well-supported field before naming the strongest', () => {
-    expect(fact(e, 'overview.fields').text).toBe('Four of the six professional fields assessed are well supported: business and entrepreneurship, finance and management, advisory and consulting roles and communication and public-facing professions. Of these, business and entrepreneurship and finance and management have the most in their favour and the least against them. Personalised Guidance compares all six.');
-  });
-  it('gives each section its own job and names what belongs elsewhere', () => {
-    for (const s of e.sections) expect(s.purpose).toMatch(/^Job: /);
-    expect(new Set(e.sections.map((s) => s.purpose)).size).toBe(5);
   });
 });

@@ -1,117 +1,240 @@
-# Career report pipeline (facts-first)
+# Career report pipeline (facts-first, plan-driven)
+
+Test accounts only (`FEATURE_CAREER_FACTS_FIRST`; see CLAUDE.md). Customers still receive the three-part report (`server/careerReport.ts`).
 
 ## Why this design
 
-Six live evaluations of the free-prose design (PR #116) failed. In that design the model wrote every placement, date and conclusion in its own words, and about fifteen pattern rules tried to verify that prose. Across the last three runs about 22 rejections included no factual error about the chart: they rejected correct text (a fact cited in the wrong block, a field word near "roles", "could present challenges", the required work-style sentence). Meanwhile two factual errors passed ("Mars … the 11th house", "Mercury holding the 10th position"). Rules written for free prose conflict with each other and leak, and all-or-nothing gating made a complete report unlikely.
+**Facts-first (PRs #118–#124).** Code writes every astrological statement and the model only interprets what it is given. In the earlier free-prose design the model stated placements itself, and pattern rules both let errors through and rejected correct text.
 
-The facts-first design removes the cause: **code writes every astrological statement; the model only explains statements it is given.**
+**Plan-driven (this change).** PR #124's report had a coherence problem. The model explained one fact at a time, and a rule forbade any planet or house outside that fact, so it could not connect evidence. The seven-page sample read as fact-then-boilerplate.
 
-## Structure
+Its conclusions also came from three private tallies that disagreed with the app's own evidence engine:
+- a planet ranking;
+- an unweighted field tally that counted lordship as support;
+- a period "tone" that disagreed with the engine's period-lord rule for the running sub-period in 61% of 300 random charts.
 
-`careerReportEvidence.ts` recomputes the stored birth with the canonical engine. It refuses a stored chart the engine does not reproduce, and an approximate birth time, before any request. `buildCareerReportFacts` then writes reader-facing sentences, each with an id:
+The report now builds one shared interpretation in code and lets the model write paragraphs that cite it.
 
-| Section | Facts (code) | Required explanations |
+## Evidence ledger (`server/careerLedger.ts`)
+
+Every statement the report may interpret is an item with an id the model cites ("E12"):
+- **Engine items, restated, never re-judged:**
+  - the production Career resolution (`domainResolution`: the Kundli page's Career verdict, its evidence and the running periods);
+  - the engine's house rules (`houseEvidence`, exported for this) for the 1st, 2nd, 3rd, 5th, 6th, 7th, 9th, 10th and 11th houses.
+
+  Yoga items keep the configuration only: no one-line promise, and an engine "Neecha Bhanga Raja Yoga" is a cancelled debilitation.
+- **Career rules** (`CAREER_RULES`, each with its limits). Each applies an existing engine convention to a new input:
+  - the karaka dignity rule for each field significator;
+  - the 10th lord's D10 dignity rule for the other career planets;
+  - the period-lord house rule, read in the D10;
+  - the sub-period lord's sign position from the major-period lord. This one is provisional: shown and never counted.
+- **Context** (never counted):
+  - lordships of the Lagna, the 10th, the D10 Lagna and the D10 10th;
+  - links to the 10th;
+  - the same sign in D1 and D10. No vargottama strength is assumed; vargottama is a D9 term.
+  - each planet's period-lord capacity (`planetCondition`), Rahu and Ketu included.
+
+Items are `counted`, `experimental` or `context`. Strength classes are the engine's (strong / moderate / weak). **No number is introduced**: every balance is the engine's own (`evidenceBalance`, shared with `resolveDomain`).
+
+## Synthesis (`server/careerSynthesis.ts`)
+
+Conclusions are ledger items too ("F.finance", "C.finance.advisory", "R.Jupiter", "P.antardasha", "T.verdict"). Each lists the items it rests on (`derivedFrom`). Rules: `CAREER_SYNTHESIS_RULES`.
+
+- **Overall reading.** The production Career verdict and confidence; identical to the Kundli page by construction and by test.
+- **Fields.** The six `FIELDS` are kept. Each is judged by `resolveDomain` over its own counted evidence: significator dignity in D1 and D10, D10 house, and the engine's house rules for its houses.
+  - **Lordship of the 10th or the D10 Lagna is a link, not support:** it makes the planet's condition matter, whichever way that points. The old tally counted it as a plus.
+  - **House rules (`house-neutral`).** Some engine rules change direction with the house type: a malefic occupying or aspecting a house, and a lord placed in a difficult house, which is not held against the 6th. These would favour fields whose houses are upachaya. Fields therefore use only two-sided house rules (lord placement except the 6th, lord dignity, bindus, Dig Bala). The 6th-against-7th comparison uses every rule that reads all houses alike. Measured below.
+  - **Ordering.** By verdict, then by the engine balance, which only orders.
+  - **Comparisons.** Neighbouring fields are compared by the counted items only one of them draws on. Identical evidence is reported as **indistinguishable**; differences that are all weak as **not clearly separable**.
+- **D1 and D10.** For each career lord (10th, Lagna, D10 Lagna, D10 10th; the Sun and Saturn while fewer than three lords are distinct), the birth-chart reading is the engine's capacity and the D10 reading is its counted D10 items. Possible relations:
+  - **reinforces:** only agreeing D10 items;
+  - **contradicts:** only opposing items;
+  - **qualifies:** both, or a lean where the birth chart is neutral;
+  - **unresolved:** none, or a split against a neutral birth chart.
+
+  The same rule sets the D10's bearing on the overall verdict. Nothing forces agreement. The birth-time window of the D10 Lagna is stated.
+- **Employment or independent work.** The 6th and the 7th are each read with the engine's verdict bands, and the conclusion lists each house's evidence for and against:
+  - one supportive and the other not decides a lean;
+  - both supportive is a mix;
+  - otherwise the question is **unresolved**.
+- **Strengths, challenges, recurrence.** The firmest counted items each way. A planet "recurs" when two or more counted natal items about it point the same way; the heaviest by engine weight is named.
+- **Periods.** For the running Mahadasha, the running Antardasha and the next Antardasha:
+  - dates are the engine's, and the tone is the engine's period-lord capacity;
+  - what the period activates is the houses its lord rules and occupies, and the fields it signifies (Rahu and Ketu also through the lord of the sign they occupy);
+  - the D10 standing and the relation to the major-period lord qualify the tone, never change it;
+  - the shift to the next sub-period lists the fields it brings forward and drops.
+- **Theses.** Eight one-paragraph conclusions (verdict, leadership, arrangement, fields, D10, strength, challenge, timing), with one-line briefs.
+
+## Plan and generation
+
+Seven reader sections are written in five requests, all in parallel. Every request receives the whole plan (in full where it may cite a thesis, one line where it may not):
+
+| Part | Sections | Paragraphs (slots) |
 |---|---|---|
-| Career Overview | work style (6th vs 7th house support and the business rating); the two best-supported fields; the best-placed and most challenged career planets | all four |
-| Favourable & Difficult Periods | every Mahadasha/Antardasha overlapping the next four years, with engine dates and a tone (supportive / mixed / demanding) with its reasons from the lord's dignity, houses ruled and occupied, and D10 placement | every period |
-| Your Birth Chart | Lagna; 10th house (sign, occupants, aspects, support); 10th lord (D1 and D10); D10 Lagna; D10 10th house; career significators; up to four career-linked yogas; D10 birth-time caveat | 10th house, 10th lord, D10 Lagna, D10 10th |
-| Current Career Situation | running Mahadasha and Antardasha with dates, lords' condition, houses ruled and D10; the next sub-period | Mahadasha, Antardasha |
-| Personalised Guidance | the six field assessments with their reasons; planning dates | every field rated well supported or mixed; at least 3 next steps |
+| overview | Executive Career Summary, Professional Identity | summary.reading, summary.direction, summary.now, identity.foundation, identity.arrangement |
+| chart | Strengths and Challenges, D1 and D10 Analysis | strengths, challenges, d1d10.1–3, d1d10.overall |
+| fields | Professional Field Comparison | one per field in rank order, fields.comparison |
+| timing | Career Timing | timing.mahadasha, timing.antardasha, timing.next, timing.shift |
+| strategy | Career Strategy | strategy.approach + 3–5 next steps |
 
-Every section also requires a synthesis. Optional explanations cover the Lagna, the significators, the yogas, a weak field and the next sub-period; caveats and planning dates are shown without an explanation. The work style is decided by code, so no section waits for another and the model cannot contradict it. Yoga descriptions keep the engine's configuration only, never its one-line promise ("status and success").
+Then come a deterministic **Evidence Appendix** (only the evidence the paragraphs cite, grouped by D1, D10 and periods, plus the rules) and the **Glossary**. The structured analysis is in `content.careerAnalysis` for the PDF (Milestone B).
 
-## Generation
+**Slots.** Each slot has a job, a fixed list of citable ids and the ids it must cite. The model returns `{"slots": {"<id>": {"text", "cites"}}, "steps": [...]}`. Field paragraphs open with a code-written lead (the field and its reading).
 
-One request per section, all five in parallel (`max_tokens` 1,400). The model returns `{explanations: {factId: text}, synthesis, steps?: [{factIds, text}]}`. Each explanation is printed directly after its fact, so citations cannot drift.
+## Checks (`server/careerReportRendering.ts`)
 
-`slotProblems` checks each piece of text against the facts it explains. Its vocabulary is closed: any planet, sign, house number, year, month-year or yoga it names must already be in those facts, and it may not state degrees. It also enforces:
-- the shared answer guard against the whole chart;
-- a planet placed in a house must match the calculated house;
-- no promised outcomes and no remedies;
+**Citation rules (new).**
+- Every paragraph cites at least one id. Unknown ids, ids outside its list, or a missing required id are refused.
+- **Vocabulary is scoped to what is cited**: the cited items plus the items a cited conclusion was built from (one level). The same closed checks as before then apply to that text: planets, signs, house numbers, years, month-years and yogas, and no degrees.
+- A single-fact paragraph may cite one item. A paragraph that **combines or compares** must cite more. That means one which names two planets, both charts or two fields, or uses an explicit relating word (whereas, unlike, compared with, outweighs, offsets, contradicts, reinforces…). Ordinary comparatives do not count.
+- Relating the birth chart and the D10 needs evidence from both; a D1–D10 relation item counts as both. Comparing two fields needs both assessments.
+- No ids in the prose.
+
+**Shared checks (unchanged).**
+- the answer guard against the whole chart;
+- house placements against the chart;
+- strength only for exalted, own or Moolatrikona, judged in the chart the sentence names;
+- no promised outcomes, remedies, stock phrases or generic advice;
+- no repeated scaffolds or unresolved field references;
+- no running period called upcoming;
+- no work-style contradiction (an unresolved style forbids favouring either);
 - no recommending a weakly supported field;
-- no contradicting the work style;
-- no internal terms;
-- length limits.
+- report-wide repetition.
 
-A sentence of eight or more words repeated anywhere in the report is removed from the later section.
+The old per-fact "explain the connection" word check is not used for paragraphs; citations carry the traceability.
 
-**Coverage, per section, never as a percentage.**
-- An invalid optional explanation is dropped and its fact still shows.
-- An invalid or missing required slot is requested again in up to **two correction rounds** (`CAREER_CORRECTION_ROUNDS`). A correction asks only for the failed slots (`max_tokens` 900); an accepted section is never requested again (unless a later correction makes it repeat a sentence).
-- Faults that say nothing about the astrology are retried before a reply is judged: a transient transport error (no HTTP status, 408, 409, 429, 5xx) up to twice with 1 s and 3 s backoff (`CAREER_TRANSPORT_RETRIES`); any other status fails at once. A truncated or refused reply (`finish_reason` other than `stop`) or unparseable JSON is requested again once (`CAREER_FORMAT_RETRIES`); if it is still unreadable it becomes a whole-section failure for the correction rounds. Every retry is reserved in the same spending ledger and stops at the six-minute deadline.
-- Diagnostics: `onMetrics` receives one record per request — section heading, phase (`first`, `correction-1`, `correction-2`), attempt number, category (`accepted`, `validation`, `truncated`, `malformed`, `transport`, `deadline`, `budget`), rule codes (`careerRuleCode`: planet and sign names, numbers, quotes and parentheses removed), prompt/completion tokens, cost and duration — plus the totals, outcome and failure category. No birth details or report text; the stored failure reason uses rule codes too.
-- Anything required that is still invalid fails the order, which is refunded by the existing path.
-- A transport failure ends the report.
+**Length and steps.** Paragraphs are 35–130 words (the prompt asks for 60–110). Steps: at least three valid, one citing a best-supported field.
 
-**Spending and time.**
-- One ledger reserves each call's worst case before dispatch: UTF-8 prompt bytes plus 128 at $2.50/M, and all permitted output tokens at $10/M. It refuses beyond $0.25.
-- With no usage reported at all, five sections plus five whole re-requests reserve at most about $0.236 on the test charts.
-- Missing usage, network failures and timeouts consume the reservation.
-- SDK retries are disabled.
-- The six-minute deadline aborts every request; two rounds of at most 120 seconds each fit well inside it.
+## Coverage, retries, spending, time
 
-## Fixes from the first live report (db644dd)
+These are unchanged except for the output allowance:
+- two correction rounds for failed required slots only;
+- transport retries (2) and format retries (1) before judging;
+- the six-minute deadline;
+- rule-code-only diagnostics;
+- refund on failure through the existing path.
 
-The first facts-first report passed (6 calls, $0.0377) and was reviewed in full. Every chart fact was correct; the review found these defects, now fixed and replayed with the model's own text in `tests/unit/career-report-pipeline.test.ts` (`tests/fixtures/career-live-db644dd.ts`):
+**Output allowance per part (`partTokens`).** Each part's allowance is now what its paragraphs can need at the checks' maximum: 100 tokens, plus 205 a paragraph, plus 95 a step. The ceiling is still 1,400. Parts reserve 1,125 / 1,330 / 1,400 / 920 / 780 tokens.
 
-- **False rejections that dropped the two best next steps and forced a correction.**
-  - "Mercury's role in your D10's 10th house" is now read as lordship, not a placement.
-  - The shared guard's "current" applies only to the part of the sentence around its own period, from the previous period mention to the next. "Use the current Saturn Antardasha to prepare for the Mercury Antardasha" no longer claims Mercury runs now. This also applies to Ask.
-  - Explanations of D10 facts (tagged `chart: 'D10'`) are read in the D10 unless they name the D1, by the house check and by the guard.
-- **Fact wording.**
-  - "The lord of your 10th house, Jupiter, …" (it was "Its lord").
-  - A planet ruling the Lagna, the 10th and the D10 Lagna is described once.
-  - The overview acknowledges every well-supported field before naming the strongest two.
-  - When no career planet has a strong dignity, the best-placed one is called moderate.
-- **Strength.** A planet may be called strong only if its dignity, in the chart its fact is about, is exalted, own sign or Moolatrikona.
-- **Tendencies, not certainties.** These are refused:
-  - "will" before an outcome verb (bring, favour, come, succeed, …), unless hedged;
-  - "ensures", "guarantees" and similar;
-  - "indicates a favourable … success".
+**Spending guarantee kept.** With no usage reported, the first pass plus a whole retry of every part stays under $0.25:
+- seven synthetic charts: at most $0.2448;
+- 200 random synthetic charts: none over.
 
-  "You will need to", "will begin on" and "will likely" are accepted.
-- **Work style.** A preference for one arrangement ("more … in independent settings", "rather than employment") contradicts a mixed conclusion unless the sentence also speaks of a mix. Business as a field is not an arrangement.
-- **Usefulness.** At least one valid next step must act on a well-supported field, and a step that names a year must cite the planning dates.
-- **Filler.** These are refused:
-  - restating the placement just printed (sign and house);
-  - a short list of stock phrases ("natural leader", "inspire others", "great candidate", …).
-- **Distinct sections.** Each section's purpose states its one job and names what belongs to another section.
+This is pinned per chart in `tests/unit/career-report.test.ts` and `tests/unit/career-report-pipeline.test.ts`.
 
-## Fixes from the three-chart evaluation (f729c61)
+## Measured (deterministic, no model)
 
-The runs used three charts (two are kept: Delhi and Mumbai; the third used personal birth details and its records were removed), costing $0.1438 in total. All three failed, each on a false rejection from the rules added in 6397e0b. The fixes, in the order of the constraint "fact construction, then structure, then a simpler check":
+300 random synthetic charts, PR #124 → this design:
 
-- **Facts.**
-  - Periods are marked "(running now)" or "(still to come)", and the current ones read "You are now in…". The model had called a running sub-period "upcoming".
-  - An own sub-period (the same lord as its Mahadasha) states the houses that lord rules.
-  - A field with no obstacle reads "The chart shows no specific obstacle to it." The old ending "which is not a guarantee" was echoed by the model and then refused.
-- **Structure.**
-  - A next step is checked against the facts it cites plus the section's planning dates.
-  - Restating a printed placement is an advisory (recorded in `onSection` and the `advisories` metric), not a rejection.
-- **Simpler checks.**
-  - Only affirmative promises are refused: "you will succeed", "will bring you success", "this ensures", "is guaranteed". Negations and purpose clauses pass ("no guarantee", "to ensure clarity", "adaptability will become important").
-  - A house placement must be direct: "<planet> [≤3 words] in (the|your) [Sign and the] Nth house". It is not read across "…position and high support for your 3rd and 11th houses" or "…placement and a weak 2nd house".
-  - "Work/career/professional chart" means the D10.
-  - A yoga is known if its name, with or without "Yoga", is in the facts.
-  - The guard's "now/current" must sit within about 50 characters of its period.
-  - The one new rule is narrow and factual: a period running now is refused when called upcoming or approaching, including in a list ("upcoming Mercury and Ketu sub-periods").
-  - The existing strength check also recognises "the Sun well-placed".
+| Measure | PR #124 | Now |
+|---|---|---|
+| Running sub-period tone disagrees with the engine's period-lord rule | 61% | 0% |
+| Career verdict matches the Kundli page | not stated | 100% |
+| Mean distinct field ratings per chart | 2.42 | 2.55 |
+| Mean pairwise evidence overlap between fields | 0.18 | 0.14 |
+| Fields rated well supported per chart | 2.36 | 2.93 |
+| Administration in the top tier | 66% | 56% |
+| Advisory in the top tier | 24% | 26% |
+| Work style: mixed / employment / independent / unresolved | 66 / 30 / 4 / – % | 15 / 31 / 16 / 38 % |
+| D10: reinforces / qualifies / contradicts / unresolved | – | 14 / 63 / 1 / 22 % |
+| Charts with an indistinguishable or not clearly separable pair | – | 6% |
 
-**Offline replay** (`tests/unit/career-live-replay.test.ts`, records in `tests/fixtures/career-live-f729c61/`). The recorded replies were served to the corrected pipeline:
-- Delhi completes with no correction.
-- The removed third run's finding (a debilitated Sun called well placed) is kept as a hand-written sentence on the invented default chart.
-- Mumbai stops at one correction the live run never made. Its recorded Periods synthesis says "Upcoming Mercury and Ketu sub-periods" while the Mercury Antardasha is running: a real error, now refused.
+### Why Administration reaches the top tier in 56% of charts
 
+Investigated without changing the scoring (`npx tsx scripts/career-field-attribution.ts`). The method: recompute every field's verdict over the same 300 charts with one evidence source left out.
 
+| Left out | Administration | Finance | Business | Government | Communication | Advisory |
+|---|---|---|---|---|---|---|
+| nothing (as built) | 56% | 54% | 44% | 41% | 38% | 26% |
+| house bindus (`house.sav`) | 56% | 59% | 54% | 55% | 60% | 49% |
+| significator dignity | 49% | 57% | 49% | 38% | 41% | 28% |
+| D10 items | 58% | 59% | 51% | 43% | 42% | 34% |
+| lord placement | 55% | 53% | 41% | 41% | 32% | 25% |
 
-`npx tsx scripts/evaluate-career.ts --run` needs a dedicated non-production `NAVAGRAHA_CAREER_EVAL_API_KEY`. It writes one synthetic report (Delhi, 1985-03-22 06:15) under the same limits and saves the report and every section attempt (text, problems, dropped slots) to a private (0600) temporary file, also on failure. Only this script passes the `onSection` hook; the order path never logs model text.
+**Bindus (Sarvashtakavarga) drive the spread.** Mean bindus are structurally uneven by house:
+- higher: 11th 31.8, 6th 30.4, 10th 30.3;
+- lower: 5th 26.4, 9th 26.3, 7th 25.0.
 
-`tests/unit/career-report.test.ts` checks the facts against the engine for three charts (placements, D10, dates, running periods, the four-year window, the work style and the required slots) and that no engine shorthand or yoga promise reaches the reader. `tests/unit/career-report-pipeline.test.ts` uses realistic replies (`tests/fixtures/career-replies.ts`) to cover:
-- generation for three charts;
-- each kind of added fact being rejected, and the sentences the old checks wrongly rejected now passing;
-- optional drops, slot-only corrections, required coverage and next steps;
-- whole re-requests and repetition;
-- transport failure and refund, and delivery;
-- the deadline, the budget, and the evaluation hook.
+Administration's houses are the 10th and 6th, while Advisory's (5th, 9th) and Communication's (3rd, 7th) include low-bindu houses. Read against the app-wide 28-point policy (`savReading`), bindus net +1.38 a chart for Administration and −0.96 for Advisory. Without them the fields fall within 49–60%: Administration does not rise, the others do.
 
-These tests prove the contracts, not a live success rate. **Live acceptance is unverified until a generated report passes technical validation and a substantive quality review.**
+**The Sun's and Saturn's dignity is the second, smaller factor** (56% → 49% without it).
+
+Nothing was changed. The bindu reading is a shared policy, and CLAUDE.md forbids a second set of thresholds. **Question for a qualified astrologer:** should bindus in the 6th (and other dusthanas) be read on the same scale as other houses when comparing professions?
+
+### Employment or independent work
+
+The conclusion states each house's counted evidence, for and against, with weights. When it does not settle, it says why: neither house is clearly supportive, or there is too little evidence. The Professional Identity paragraph is asked to explain both sides.
+
+Example (Kolkata, unresolved):
+- the 6th is mixed: bindus are for it; a strong debilitated 6th lord is against it;
+- the 7th is mixed: Jupiter in the 7th is for it; the 7th lord's dignity is against it.
+
+### Spending on every path
+
+Measured on the real pipeline with failure-injecting mocks on seven charts (`tests/unit/career-report-pipeline.test.ts`, "spending under failure").
+
+| Scenario | Completes | Most charged |
+|---|---|---|
+| First pass, no usage reported | 7/7 | $0.1223 |
+| One format retry, or one transport retry, per part; no usage | 7/7 | $0.2445 |
+| Every paragraph invalid once, round 1 corrects; no usage | 7/7 | $0.2417 |
+| Two transport retries plus a format retry per part; or a second correction round; or endless truncation; or endless 503s; no usage | **fails closed at the ceiling** (refund path) | $0.2445 |
+| Every paragraph invalid twice, usage reported (the normal case) | 7/7, 15 calls | $0.1342 |
+
+**What the ceiling guarantees:**
+- spend never exceeds $0.25;
+- nothing is left reserved;
+- every refusal happens before a request is sent.
+
+With no usage reported, the ceiling admits exactly one extra request per part; anything more fails and is refunded. This is the guarantee PR #124 had.
+
+**Every call path goes through the ledger.** Admin test orders are also reserved against the admin daily AI budget by `createOpenAI`. SDK retries are off.
+
+**The figure is a ceiling, not a measurement.** Reservations count every UTF-8 prompt byte as a token, so real costs are lower; the earlier "$0.2448" was the one-retry-per-part row only. Across 200 random charts that row peaks at $0.2468.
+
+### Validator rules on real GPT-4o text
+
+The 99 paragraphs GPT-4o wrote in the earlier live runs (f729c61, db644dd) were judged by today's paragraph checks, with the whole chart's evidence as vocabulary so that only the writing rules are measured.
+
+**Results:**
+- **64** pass every rule.
+- **22** fail on length only: they were written to the old 30–70-word slots, and the prompt now asks for 60–110.
+- **13** rule hits, mostly real errors:
+  - a debilitated Mercury called strong (4);
+  - a running period called upcoming (3);
+  - promised outcomes (2);
+  - stock phrases (2);
+  - a yoga the chart does not have (1);
+  - a weakly supported field recommended (1).
+- **One likely false rejection:** a D10 placement in a sentence that names the D10 only in the sentence before it ("…while Jupiter in the 3rd house…"). The prompt asks for "in the D10" on every D10 placement; the live run will show whether that suffices.
+- **25 of 99** would need a second citation under the combine/compare rule. That is only a problem if the model under-cites, which only a live run can show.
+
+**Rules most likely to cause corrections, to watch live:**
+- the citation-scoped vocabulary;
+- the combine/compare citation rule;
+- report-wide repetition between the Executive Summary and the sections it summarises;
+- the D10-context house rule above.
+
+**Rules that could push formulaic writing:**
+- naming the field in every recommendation (the unresolved-reference rule);
+- the work-style rule, which refuses any sentence preferring an arrangement when the answer is open.
+
+The old per-fact "explain the connection" word check, PR #124's main source of formula, no longer applies to paragraphs.
+
+## What is not yet verified
+
+- **Model writing.** The generation tests and the sample content (`docs/career-evaluations/premium-a/`, `scripts/career-sample-content.ts`) use mocked paragraphs (`tests/fixtures/career-premium-replies.ts`). They prove the contracts, not GPT-4o's writing.
+- **Live run.** `NAVAGRAHA_CAREER_EVAL_API_KEY=… npx tsx scripts/evaluate-career.ts --run --all` runs the seven charts live and records calls, corrections, cost and latency. Live quality is unverified until that run passes and a substantive review agrees.
+- **Classical sources.** The career rules and the D1/D10 relation rule are conventions applied from the engine, documented with their limits. None claims a verse.
+
+## Earlier fixes still enforced
+
+The fixes from the db644dd and f729c61 live reviews remain in the shared checks:
+- the D10 house reading;
+- "current" scoped to its period;
+- running periods never called upcoming, including in a list;
+- only affirmative promises refused;
+- direct house placements only;
+- "work chart" read as the D10.
+
+Recorded sentences that must still be refused are in `tests/unit/career-live-replay.test.ts`. The whole-report offline replay was retired with the old prompt format.
