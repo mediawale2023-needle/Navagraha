@@ -123,6 +123,23 @@ describe('shared generation, validation and budget', () => {
     expect(() => budget.reserve('x'.repeat(100_000), 6000)).toThrow(/spending ceiling/);
   });
 
+  it('keeps dispatched generation and correction usage within $0.25 under worst-case valid token usage', async () => {
+    let dispatchedCostMicroUsd = 0;
+    const request: ReportRequester = vi.fn(async (prompt, { maxTokens }) => {
+      const promptTokens = Buffer.byteLength(prompt, 'utf8'); // deliberately conservative: one token per byte
+      dispatchedCostMicroUsd += Math.ceil(promptTokens * 2.5 + maxTokens * 10);
+      const parsed = JSON.parse(replyFor(prompt));
+      for (const section of parsed.sections) section.evidenceLinks = []; // force targeted correction
+      return {
+        choices: [{ finish_reason: 'stop', message: { content: JSON.stringify(parsed) } }],
+        usage: { prompt_tokens: promptTokens, completion_tokens: maxTokens },
+      };
+    });
+    await expect(generateUniversalReport('life_complete', exact, { requester: request })).rejects.toThrow(/spending ceiling|failed validation/);
+    expect(request).toHaveBeenCalled();
+    expect(dispatchedCostMicroUsd).toBeLessThanOrEqual(REPORT_BUDGET_MICRO_USD);
+  });
+
   it('uses one bounded format correction for malformed structured output', async () => {
     let malformed = true;
     const request: ReportRequester = vi.fn(async (prompt) => ({ choices: [{ finish_reason: 'stop', message: { content: malformed ? (malformed = false, '{bad') : replyFor(prompt) } }], usage: { prompt_tokens: 500, completion_tokens: 600 } }));

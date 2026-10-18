@@ -8,6 +8,10 @@ import request from 'supertest';
 const CATALOGUE = [
   { id: 't-career', slug: 'career-report', category: 'career', price: '299.00', isActive: true },
   { id: 't-marriage', slug: 'marriage-report', category: 'marriage', price: '349.00', isActive: true },
+  { id: 't-finance', slug: 'finance-report', category: 'finance', price: '399.00', isActive: true },
+  { id: 't-year', slug: 'year-ahead-report', category: 'year_ahead', price: '499.00', isActive: true },
+  { id: 't-life', slug: 'life-report', category: 'life', price: '699.00', isActive: true },
+  { id: 't-complete', slug: 'complete-life-report', category: 'life_complete', price: '1499.00', isActive: true },
 ];
 const USERS: Record<string, { id: string; email: string; emailVerifiedAt?: Date | null }> = {
   admin: { id: 'admin', email: 'tester@example.com' },
@@ -183,5 +187,36 @@ describe('careerPipelineFor', () => {
     expect(careerPipelineFor('marriage', USERS.pilot)).toBe('three-part');
     vi.stubEnv('FEATURE_CAREER_FACTS_FIRST', '');
     expect(careerPipelineFor('career', USERS.pilot)).toBe('three-part');
+  });
+});
+
+describe('Universal report engine selection at the order route', () => {
+  const categories = CATALOGUE.map((report) => [report.id, report.category] as const);
+
+  it.each(categories)('%s is enqueued through the universal pipeline only for a verified allow-listed account', async (reportTypeId, category) => {
+    vi.stubEnv('FEATURE_UNIVERSAL_REPORT_ENGINE', 'true');
+    vi.stubEnv('UNIVERSAL_REPORT_ENGINE_ALLOWLIST', 'pilot@example.com');
+    expect((await order('pilot', { reportTypeId })).status).toBe(201);
+    expect(mocks.storage.placeReportOrder).toHaveBeenCalledWith(expect.objectContaining({
+      reportTypeId,
+      generationJob: expect.objectContaining({ category, payload: { kundli: expect.any(Object) } }),
+    }));
+    expect(mocks.generateReport).not.toHaveBeenCalled();
+  });
+
+  it.each(categories)('%s stays on the legacy pipeline when the universal flag is disabled', async (reportTypeId) => {
+    vi.stubEnv('UNIVERSAL_REPORT_ENGINE_ALLOWLIST', 'pilot@example.com');
+    expect((await order('pilot', { reportTypeId })).status).toBe(201);
+    expect(mocks.storage.placeReportOrder).toHaveBeenCalledWith(expect.objectContaining({
+      reportTypeId,
+      generationJob: undefined,
+    }));
+  });
+
+  it('does not trust a request body to opt an ordinary customer into the universal engine', async () => {
+    vi.stubEnv('FEATURE_UNIVERSAL_REPORT_ENGINE', 'true');
+    vi.stubEnv('UNIVERSAL_REPORT_ENGINE_ALLOWLIST', 'pilot@example.com');
+    expect((await order('customer', { universalEngine: true, pipeline: 'universal-v1' })).status).toBe(201);
+    expect(mocks.storage.placeReportOrder).toHaveBeenCalledWith(expect.objectContaining({ generationJob: undefined }));
   });
 });

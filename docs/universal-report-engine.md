@@ -148,7 +148,11 @@ The offline generator writes JSON and PDF for all six categories to `/private/tm
 
 Automated coverage includes every registry product and renderer, seven synthetic Career charts, different natal configurations, historical dates in the existing canonical suite, exact/approximate policies, transit evidence, scoped long-report evidence, malformed/truncated/provider-error behavior, targeted correction success/failure, unsupported evidence, deterministic remedies, deadlines, budget exhaustion, persistent-worker terminal behavior, unsupported scripts and all pre-existing payment/refund/report compatibility tests.
 
-Final local result: TypeScript check passed; production build passed; Vitest passed 97 files / 1,568 tests, with 12 database-dependent files / 116 tests skipped because no test `DATABASE_URL` was configured. The focused universal suite passed separately. Database schema parity and live Postgres claim-lock behavior therefore still require CI or a test database.
+Pre-production verification used an isolated PostgreSQL 14 cluster at `127.0.0.1:55439` with a disposable database. The 12 previously skipped database files passed all 116 tests serially. Six additional database tests verify atomic debit/order/job creation, insufficient-funds rollback, concurrent duplicate submission, `FOR UPDATE SKIP LOCKED` worker exclusion, queued-job pickup after worker absence, stale in-flight failure/refund, delivery-versus-refund races, and idempotent finalisation. Route tests verify all six products enter the universal queue only when both the feature flag and verified-email allowlist match, while all six remain on the legacy path with the flag disabled.
+
+Final local result after this verification: TypeScript check passed; production build passed; Vitest passed 110 files / 1,704 tests with no skipped database tests. The generic renderer was instrumented to prove that every configured heading is drawn, all text stays inside the page footer boundary, long paragraphs and place names paginate, missing birth fields render, and unsupported scripts are rejected. Text extraction from the six offline PDFs found every required heading and no empty page.
+
+No staging/test OpenAI credential was available in the verification environment. Therefore no live GPT-4o request was made, and actual provider token use, cost, latency, correction rate, narrative quality and schema compliance remain unmeasured. The manifest figures below are simulated usage from deterministic fixture responses and must not be presented as live-provider metrics.
 
 ## K. Cost and latency policy
 
@@ -158,9 +162,9 @@ Offline duration is not representative of provider latency. The unchanged six-mi
 
 ## L. Remaining risks and limitations
 
-1. Mocked narratives cannot prove premium live writing quality, real schema compliance, latency or true correction rates. Controlled non-production GPT-4o evaluation is still required.
+1. No non-production OpenAI credential was present. Mocked narratives cannot prove premium live writing quality, real schema compliance, latency or true correction rates. Controlled non-production GPT-4o evaluation is still required and is a production blocker.
 2. In-flight provider work is not replayed after a process crash because spend cannot be proved; it safely refunds after the existing stale timeout. Queued jobs do survive restarts. Full mid-call resumption would require persistent per-call spend reservations/checkpoints.
-3. The generic renderer is preserved rather than redesigned. It renders all products, but Complete Life’s live typography/page density needs browser review with actual prose.
+3. The generic renderer is preserved rather than redesigned. Automated bounds checks, text extraction and local page rasterisation pass, but the in-app browser connection was unavailable. Complete Life still needs browser review with actual GPT prose before rollout.
 4. Universal metrics are stored with successful content; failed-attempt aggregate analytics are logged but do not yet have a dedicated reporting table.
 5. The interpretation layer deliberately reuses only existing deterministic rules. Additional practitioner-reviewed rules need identifiers, applicability tests and sources before being added.
 6. English/Latin-script PDF output is explicit. Unsupported scripts are rejected visibly; localization is not silently simulated.
