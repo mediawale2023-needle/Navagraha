@@ -385,6 +385,23 @@ ALTER TABLE report_orders ADD COLUMN IF NOT EXISTS refunded_at timestamp;
 ALTER TABLE report_orders ADD COLUMN IF NOT EXISTS failure_reason text;
 CREATE INDEX IF NOT EXISTS idx_report_orders_processing ON report_orders (created_at) WHERE status = 'processing';
 
+CREATE TABLE IF NOT EXISTS report_generation_jobs (
+  order_id varchar PRIMARY KEY REFERENCES report_orders(id),
+  report_name varchar NOT NULL,
+  category varchar NOT NULL,
+  pipeline varchar NOT NULL DEFAULT 'universal-v1',
+  payload jsonb NOT NULL,
+  status varchar NOT NULL DEFAULT 'queued',
+  attempts integer NOT NULL DEFAULT 0,
+  available_at timestamp NOT NULL DEFAULT now(),
+  locked_at timestamp,
+  last_error text,
+  created_at timestamp NOT NULL DEFAULT now(),
+  updated_at timestamp NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_report_generation_jobs_claim
+  ON report_generation_jobs (available_at, created_at) WHERE status = 'queued';
+
 CREATE TABLE IF NOT EXISTS daily_horoscopes (
   id varchar PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id varchar NOT NULL REFERENCES users(id),

@@ -7,6 +7,7 @@ import { runMigrations } from "./migrate";
 import { startRechargeReconciler } from "./rechargeSettlement";
 import { reportsAvailable, startReportOrderSweeper } from "./reportOrders";
 import { startAskReservationSweeper } from "./askMetering";
+import { startUniversalReportWorker } from "./reportEngine/jobs";
 import { FREE_CHAT_MINUTES } from "./paymentService";
 import { features } from "./features";
 import { emailConfigured } from "./emailService";
@@ -200,6 +201,7 @@ waitForDatabase()
       if (features.emailVerification() && !emailConfigured()) console.warn("[email] FEATURE_EMAIL_VERIFICATION is on but SMTP/APP_URL is not configured: no links are sent.");
       startRechargeReconciler();
       startReportOrderSweeper();
+      startUniversalReportWorker();
       startAskReservationSweeper();
     } catch (err) {
       startupError = err instanceof Error ? err.message : "migration failed";

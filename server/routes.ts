@@ -92,6 +92,7 @@ import {
 } from "./aiAstrologerService";
 import { fulfilReportOrder, isOfferedReportCategory, reportsAvailable } from "./reportOrders";
 import { careerPipelineFor } from "./careerPipeline";
+import { useUniversalReportEngine } from "./reportEngine/feature";
 import { computeJyotishChart } from "./astroEngine/jyotishEngine.js";
 import { streamTraditionReading, answerSessionQuery, type Tradition } from "./jyotishAiService.js";
 import { insertJyotishClientProfileSchema } from "@shared/schema";
@@ -1893,6 +1894,9 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
       if (needsExactTime) {
         return res.status(409).json({ code: 'exact_birth_time_required', message: needsExactTime });
       }
+      // The engine choice comes only from the server-side feature gate and verified account.
+      // Universal jobs are inserted in the same transaction as the debit and order.
+      const universalEngine = useUniversalReportEngine(req.user as { email?: string | null; emailVerifiedAt?: Date | string | null } | undefined);
       const placed = await storage.placeReportOrder({
         userId,
         reportTypeId: reportType.id,
@@ -1900,6 +1904,11 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
         subjectName: (kundli as any).name || undefined,
         price: reportPrice(reportType),
         description: `Report: ${reportType.name}`,
+        generationJob: universalEngine ? {
+          reportName: reportType.name,
+          category: reportType.category || 'life',
+          payload: { kundli },
+        } : undefined,
       });
       if (!placed) return res.status(402).json({ message: 'Insufficient wallet balance. Please recharge to order this report.' });
       if ('refused' in placed) {
@@ -1915,9 +1924,10 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
       // (server/careerPipeline.ts), never from the request.
       const careerPipeline = careerPipelineFor(reportType.category, req.user as { email?: string | null } | undefined);
       if (reportType.category === 'career') audit("report.career_pipeline", { userId, orderId: order.id, pipeline: careerPipeline });
+      audit("report.engine", { userId, orderId: order.id, engine: universalEngine ? 'universal-v1' : 'legacy' });
 
-      // Generated asynchronously; the client polls until the order is ready or failed (refunded).
-      void fulfilReportOrder(order, reportType.name, () => reportType.category === 'life_complete'
+      // Universal work is claimed by the durable worker. Legacy behaviour remains unchanged.
+      if (!universalEngine) void fulfilReportOrder(order, reportType.name, () => reportType.category === 'life_complete'
         ? generateLifeReport(kundli)
         : generateReport(reportType.category || 'life', kundli, { careerPipeline }));
 

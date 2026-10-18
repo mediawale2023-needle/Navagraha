@@ -33,7 +33,7 @@ async function refundAndTell(order: Pick<ReportOrder, "id" | "userId">, reportNa
   return result;
 }
 
-export async function fulfilReportOrder(order: ReportOrder, reportName: string, generate: () => Promise<object>) {
+export async function fulfilReportOrder(order: ReportOrder, reportName: string, generate: () => Promise<object>): Promise<void> {
   try {
     const content = await generate();
     const delivered = await storage.setReportOrderContent(order.id, content);
@@ -53,7 +53,10 @@ export async function sweepStaleReportOrders(staleAfterMs = STALE_REPORT_ORDER_M
   let refunded = 0;
   for (const order of stale) {
     const type = await storage.getReportTypeById(order.reportTypeId).catch(() => undefined);
-    if (await refundAndTell(order, type?.name ?? "report", "generation did not finish")) refunded++;
+    if (await refundAndTell(order, type?.name ?? "report", "generation did not finish")) {
+      await storage.finishReportGenerationJob(order.id, 'failed', 'generation did not finish').catch(() => {});
+      refunded++;
+    }
   }
   if (refunded) console.warn(`[reports] refunded ${refunded} report order(s) whose generation never finished`);
   return refunded;
