@@ -45,6 +45,24 @@ export interface ReportContent {
     currentAntardasha?: { planet: string; period?: string; startDate?: string; endDate?: string } | null;
   }[];
   generatedAt?: string;
+  /** The facts-first Career Report's deterministic analysis (server/careerReportRendering.ts careerMetadata). */
+  careerAnalysis?: {
+    verdict: { career: string; confidence: string; leadership: string };
+    theses: Record<'verdict' | 'leadership' | 'arrangement' | 'fields' | 'd10' | 'strength' | 'challenge' | 'timing', string>;
+    workStyle: string;
+    fields: Array<{ id: string; label: string; verdict: string; supporting: string[]; conflicting: string[] }>;
+    comparisons: Array<{ higher: string; lower: string; relation: string; text: string }>;
+    d1d10: Array<{ planet: string; roles: string[]; relation: string; text: string }>;
+    d10: { relation: string; sensitivity: string };
+    periods: Array<{ level: string; lord: string; within: string | null; start: string; end: string; tone: string; current: boolean; text: string; links: string }>;
+    reportDate: string;
+    lords: { lagna: string; tenth: string; d10Lagna: string; d10Tenth: string; d10LagnaSign: string };
+    strengths: Array<{ label: string; text: string; strength: string }>;
+    challenges: Array<{ label: string; text: string; strength: string }>;
+    placements: Array<{ planet: string; d1: { sign: string; house: number; dignity: string | null }; d10: { sign: string; house: number; dignity: string | null } }>;
+    timeline: { from: string; to: string; mahadashas: Array<{ lord: string; start: string; end: string }>; antardashas: Array<{ lord: string; within: string; start: string; end: string }> };
+    yogas: Array<{ name: string; planets: string[]; configuration: string }>;
+  };
 }
 
 const PURPLE: [number, number, number] = [91, 71, 168];
@@ -60,6 +78,8 @@ const PH = 297;
 const CW = PW - M * 2;
 
 export async function downloadReportPdf(content: ReportContent) {
+  // The facts-first Career Report has its own premium layout; every other report keeps this one.
+  if (content.careerAnalysis?.timeline) return (await import("./careerReportPdf")).downloadCareerReportPdf(content);
   const { jsPDF } = await import("jspdf");
   const doc = new jsPDF({ unit: "mm", format: "a4" });
   let y = M;
