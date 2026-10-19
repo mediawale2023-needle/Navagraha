@@ -2,6 +2,7 @@ import type { Kundli } from '@shared/schema';
 import { audit } from '../audit';
 import { fulfilReportOrder } from '../reportOrders';
 import { storage } from '../storage';
+import { generateLifeReport } from '../aiAstrologerService';
 import { generateUniversalReport } from './engine';
 
 const POLL_MS = 2_000;
@@ -21,6 +22,8 @@ export async function processNextUniversalReportJob(
   let error: string | undefined;
   await fulfilReportOrder(order, job.reportName, async () => {
     try {
+      // A paid job for an unreleased product (none is enqueued since the route gate) is fulfilled the legacy way.
+      if (job.category === 'life_complete') return await generateLifeReport(job.payload.kundli as any);
       return await generate(job.category, job.payload.kundli as Partial<Kundli>);
     } catch (err) {
       error = String((err as Error)?.message ?? err);

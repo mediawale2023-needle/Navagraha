@@ -3,6 +3,8 @@ import { isCurrentCanonicalChart } from '@shared/v3/canonical';
 import type { LifeDomain } from '@shared/v3/evidence';
 import { buildInterpretationContext } from '../astroEngine/reasoning/interpretationContext';
 import { transitsForChart } from '../astroEngine';
+import { dashaTimingStable } from '../astroEngine/evidence/engine';
+import { datedChanges } from './dated';
 import { chartSummary } from '../aiAstrologerService';
 import { ReportGenerationError } from '../reportQuality';
 import type { BlueprintEvidence, UniversalReportBlueprint, UniversalReportConfig } from './types';
@@ -63,6 +65,7 @@ export function buildUniversalBlueprint(config: UniversalReportConfig, kundli: P
       text: transits.sadeSati.determined ? `As of ${transits.date}, ${transits.sadeSati.phase}.` : `As of ${transits.date}, Sade Sati status is withheld because the natal Moon sign is uncertain.`,
       direction: transits.sadeSati.active ? 'challenging' : 'neutral', source: 'calculated-transit', domains: [...lifeDomains],
     });
+    evidence.push(...datedChanges(chart, asOf, { moonSignCertain: transits.moonSignCertain, antardashaReliable: dashaTimingStable(chart, asOf).antardasha }));
   }
 
   const byId = new Map(evidence.map((e) => [e.id, e]));
@@ -74,7 +77,8 @@ export function buildUniversalBlueprint(config: UniversalReportConfig, kundli: P
       (s.evidenceSelectors?.planets?.some((p) => e.planets?.includes(p))) ||
       (s.evidenceSelectors?.houses?.some((h) => e.houses?.includes(h))) ||
       (s.evidenceSelectors?.sources?.includes(e.source)))
-      : evidence.filter((e) => !s.domains.length || e.domains.some((d) => s.domains.includes(d)) || e.source === 'canonical-chart');
+      // Dated changes reach only the sections that select them; elsewhere they would crowd out the natal evidence.
+      : evidence.filter((e) => !DATED_SOURCES.includes(e.source) && (!s.domains.length || e.domains.some((d) => s.domains.includes(d)) || e.source === 'canonical-chart'));
     const candidates = [...relevantConclusions, ...selected].filter((e, i, all) => all.findIndex((x) => x.id === e.id) === i);
     const scoped = [
       ...candidates.filter((e) => e.source === 'deterministic-resolution'),
@@ -82,14 +86,20 @@ export function buildUniversalBlueprint(config: UniversalReportConfig, kundli: P
       ...candidates.filter((e) => e.direction === 'challenging'),
       ...candidates.filter((e) => e.direction === 'neutral' && e.source !== 'deterministic-resolution'),
     ].filter((e, i, all) => all.findIndex((x) => x.id === e.id) === i).slice(0, 36);
-    const areaConclusions = areas.filter((a) => !s.domains.length || s.domains.includes(a.domain)).map((a) => a.conclusion).slice(0, 3);
+    const sectionAreas = areas.filter((a) => !s.domains.length || s.domains.includes(a.domain));
+    const areaConclusions = sectionAreas.map((a) => a.conclusion).slice(0, 3);
+    // Where the engine finds too little evidence for a verdict, an honest short section beats one padded to length.
+    const insufficient = s.domains.length > 0 && sectionAreas.length > 0 && sectionAreas.every((a) => a.verdict === 'Insufficient evidence');
     return {
       ...s,
+      minWords: insufficient ? Math.min(s.minWords, INSUFFICIENT_MIN_WORDS) : s.minWords,
       conclusion: areaConclusions.join(' ') || 'Explain only what the verified chart evidence supports.',
       evidenceIds: unique(scoped.map((e) => e.id)).filter((id) => byId.has(id)),
-      limitations: uniqueStrings([...context.withheld, ...areas.filter((a) => a.openInterpretation && (!s.domains.length || s.domains.includes(a.domain))).map((a) => `${a.label}: weighing remains open to expert review`)]).slice(0, 4),
+      leadEvidenceIds: [] as string[],
+      limitations: uniqueStrings([...(insufficient ? [INSUFFICIENT_NOTE] : []), ...context.withheld, ...areas.filter((a) => a.openInterpretation && (!s.domains.length || s.domains.includes(a.domain))).map((a) => `${a.label}: weighing remains open to expert review`)]).slice(0, 4),
     };
   });
+  assignLeads(sections, byId);
   const thesis = areas.map((a) => `${a.label}: ${a.conclusion}`);
   return {
     schemaVersion: 1, reportId: config.reportId, reportName: config.reportName, reportVersion: config.reportVersion,
@@ -99,6 +109,24 @@ export function buildUniversalBlueprint(config: UniversalReportConfig, kundli: P
   };
 }
 
+const LEADS_PER_SECTION = 3;
+/**
+ * Deals each section's weighty facts (those with a direction, the running periods, dated changes) out round-robin in
+ * its own priority order, so every section leads with different facts. Neutral background facts lead nowhere.
+ */
+function assignLeads(sections: Array<{ evidenceIds: string[]; leadEvidenceIds?: string[] }>, byId: Map<string, BlueprintEvidence>) {
+  const weighty = (id: string) => { const e = byId.get(id); return !!e && (e.direction !== 'neutral' || ['vimshottari', ...DATED_SOURCES].includes(e.source)); };
+  const taken = new Set<string>();
+  for (const s of sections) s.leadEvidenceIds = [];
+  for (let round = 0; round < LEADS_PER_SECTION; round++) for (const s of sections) {
+    const next = s.evidenceIds.find((id) => weighty(id) && !taken.has(id));
+    if (next) { taken.add(next); s.leadEvidenceIds!.push(next); }
+  }
+}
+
+const DATED_SOURCES = ['dated-transit', 'dated-period'];
+const INSUFFICIENT_MIN_WORDS = 60;
+const INSUFFICIENT_NOTE = 'The chart gives too little reliable evidence for a verdict in this area: say so plainly, describe what the cited evidence does show, and do not fill the section with general advice.';
 const lifeDomains: LifeDomain[] = ['career', 'wealth', 'relationships', 'leadership', 'property', 'foreign', 'education', 'children', 'spirituality'];
 
 function extractRemedyEvidence(kundli: Partial<Kundli>): string[] {

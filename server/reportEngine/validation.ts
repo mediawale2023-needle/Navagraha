@@ -12,8 +12,9 @@ export interface SectionValidation {
 const words = (text: string) => text.trim().split(/\s+/).filter(Boolean).length;
 const normalized = (s: string) => s.trim().toLowerCase();
 // Blueprint ids ("conclusion:relationships", "relationships:d1:7th-lord-placement:saturn:7") are metadata, never prose.
-// Bare numeric citation markers ("(3)", "(1, 6)") are the same leak in another form.
-const EVIDENCE_ID_IN_PROSE = /\b[A-Za-z][\w-]*:[A-Za-z][\w@.:-]*|\(\d{1,3}(?:,\s*\d{1,3})*\)/;
+// Bare numeric citation markers ("growth (3).", "(1, 6);") are the same leak in another form; a list number
+// before its item ("(1) Build savings") is ordinary prose.
+const EVIDENCE_ID_IN_PROSE = /\b[A-Za-z][\w-]*:[A-Za-z][\w@.:-]*|\(\d{1,3}(?:,\s*\d{1,3})*\)(?=\s*(?:[.,;:]|$))/m;
 
 export function editorialWarnings(text: string): string[] {
   const warnings: string[] = [];
@@ -23,6 +24,41 @@ export function editorialWarnings(text: string): string[] {
   const sentences = text.split(/[.!?]+/).map((s) => s.toLowerCase().replace(/[^a-z0-9 ]/g, '').trim()).filter((s) => s.split(/\s+/).length >= 8);
   if (new Set(sentences).size < sentences.length) warnings.push('repeats a sentence');
   return warnings;
+}
+
+const CHART_TERM = /\b(?:Sun|Moon|Mars|Mercury|Jupiter|Venus|Saturn|Rahu|Ketu|Lagna|Ascendant|Mahadasha|Antardasha|Sarvashtakavarga|\d{1,2}(?:st|nd|rd|th) (?:house|lord)|D9|D10|Navamsa|Dasamsa|Aries|Taurus|Gemini|Cancer|Leo|Virgo|Libra|Scorpio|Sagittarius|Capricorn|Aquarius|Pisces)\b/;
+const sentencesOf = (text: string) => text.split(/[.!?]+/).map((s) => s.toLowerCase().replace(/[^a-z0-9 ]/g, '').replace(/\s+/g, ' ').trim()).filter((s) => s.split(' ').length >= 8);
+
+/** Report-wide editorial measurements (recorded, never blocking): sentences repeated across sections, and paragraphs that name no chart fact. */
+export function reportEditorialWarnings(bodies: string[]): string[] {
+  const warnings: string[] = [];
+  const seen = new Map<string, number>();
+  bodies.forEach((body, i) => { for (const s of Array.from(new Set(sentencesOf(body)))) { if (seen.has(s) && seen.get(s) !== i) warnings.push('repeats a sentence from another section'); else seen.set(s, i); } });
+  for (const body of bodies) for (const p of body.split(/\n\s*\n/)) if (words(p) >= 30 && !CHART_TERM.test(p)) warnings.push('has a paragraph that names no chart fact');
+  return warnings;
+}
+
+const PLANET = '(Sun|Moon|Mars|Mercury|Jupiter|Venus|Saturn|Rahu|Ketu)';
+const SIGN = '(Aries|Taurus|Gemini|Cancer|Leo|Virgo|Libra|Scorpio|Sagittarius|Capricorn|Aquarius|Pisces)';
+const SIGN_CHANGE = new RegExp(`\\b${PLANET}\\b(?:['’]s)?\\s+(?:moves?|moving|shifts?|shifting|enters|entering|will (?:move|enter|shift)|ingress(?:es)?)\\s+(?:in(?:to)?\\s+|to\\s+)?${SIGN}\\b`, 'g');
+
+/** A sign change the text dates must be one the engine supplied; the guard reads such sentences as transits, not checks. */
+export function signChangeProblems(text: string, factsText: string): string[] {
+  return Array.from(text.matchAll(SIGN_CHANGE)).filter((m) => !factsText.includes(`${m[1]} moves into ${m[2]}`)).map((m) => `says ${m[1]} moves into ${m[2]}, which no supplied dated change shows`);
+}
+
+const DATED = /\b(?:January|February|March|April|May|June|July|August|September|October|November|December|20\d{2})\b/;
+const SENTENCE = /[^.!?]+[.!?]*/g;
+
+/**
+ * A dated sentence ("Mars in Leo from November 2026") speaks of the sky then, not the birth chart. Its planet-in-sign
+ * claim is hidden from the birth-chart check only when the engine supplied exactly that dated sign change; any other
+ * claim is still checked as a placement, so an invented transit fails closed.
+ */
+export function withoutSuppliedTransits(text: string, factsText: string): string {
+  return text.replace(SENTENCE, (sentence) => !DATED.test(sentence) ? sentence
+    : sentence.replace(new RegExp(`\\b${PLANET}\\b([^.!?]{0,40}?)\\b${SIGN}\\b`, 'g'), (m, planet: string, _gap: string, sign: string) =>
+      factsText.includes(`${planet} moves into ${sign}`) ? ' '.repeat(m.length) : m));
 }
 
 export function validateNarrative(config: UniversalReportConfig, planned: BlueprintSection[], reply: NarrativeReply, guard: ReportGuard): SectionValidation[] {
@@ -42,7 +78,7 @@ export function validateNarrative(config: UniversalReportConfig, planned: Bluepr
       ...(unknownLinks.length ? [`explains evidence outside the section blueprint: ${unknownLinks.slice(0, 3).map((x) => x.evidenceId).join(', ')}`] : []),
       ...(unexplained.length ? ['contains an incomplete evidence-to-conclusion explanation'] : []),
     ];
-    return { section, generated, factual: factualProblems(generated.body, guard), completeness, editorial: editorialWarnings(generated.body) };
+    return { section, generated, factual: [...factualProblems(withoutSuppliedTransits(generated.body, guard.factsText), guard), ...signChangeProblems(generated.body, guard.factsText)], completeness, editorial: editorialWarnings(generated.body) };
   });
 }
 

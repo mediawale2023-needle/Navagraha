@@ -5,6 +5,8 @@ import { UNIVERSAL_REPORT_REGISTRY, universalReportConfig } from '../../server/r
 import { REPORT_BUDGET_MICRO_USD, ReportRuntime, ReportSpending, type ReportRequester } from '../../server/reportEngine/runtime';
 import { useUniversalReportEngine, universalReportAllowlist } from '../../server/reportEngine/feature';
 import { buildUniversalBlueprint } from '../../server/reportEngine/blueprint';
+import { reportRemedies } from '../../server/reportEngine/remedies';
+import { reportEditorialWarnings, signChangeProblems, validateNarrative, withoutSuppliedTransits } from '../../server/reportEngine/validation';
 
 const NEUTRAL = 'The verified evidence describes tendencies rather than certainties and shows a mixed balance that deserves a measured response. The supporting factors explain where momentum may arise, while the limiting factors show where care, preparation and realistic expectations matter. This interpretation stays within the calculated chart and turns that balance into practical guidance without promising a fixed outcome. ';
 
@@ -182,8 +184,8 @@ describe('shared generation, validation and budget', () => {
   });
 
   it('delivers plain prose without Markdown emphasis or stray indentation', async () => {
-    const report: any = await generateUniversalReport('life', exact, { requester: requester((_s, body) => `**Measured** progress.\n\n  ${body}`), asOf: new Date('2026-10-18T00:00:00Z') });
-    for (const s of report.sections) expect(s.body).not.toMatch(/\*\*|^[ \t]/m);
+    const report: any = await generateUniversalReport('life', exact, { requester: requester((_s, body) => `### November 2026\n\n**Measured** progress.\n\n  ${body}`), asOf: new Date('2026-10-18T00:00:00Z') });
+    for (const s of report.sections) expect(s.body).not.toMatch(/\*\*|^[ \t]|^#/m);
   });
 
   it('gives every timing section the Vimshottari dates and running periods', () => {
@@ -193,6 +195,89 @@ describe('shared generation, validation and budget', () => {
       expect(timing.evidenceIds.filter((id) => id.startsWith('dasha:')).length).toBe(exact.dashas.length);
       expect(timing.evidenceIds.some((id) => id.startsWith('period:'))).toBe(true);
     }
+  });
+
+  it('gives Year Ahead dated month evidence only in Key Months Ahead, and none to the natal sections', () => {
+    const plan = buildUniversalBlueprint(universalReportConfig('year_ahead'), exact, new Date('2026-10-18T00:00:00Z'));
+    const dated = plan.evidence.filter((e) => e.source === 'dated-transit' || e.source === 'dated-period');
+    expect(dated.length).toBeGreaterThan(0);
+    for (const e of dated) expect(Date.parse(e.text.match(/\d{4}-\d{2}-\d{2}/)![0])).toBeLessThanOrEqual(Date.parse('2027-10-19'));
+    const months = plan.sections.find((x) => x.id === 'months')!;
+    expect(months.heading).toBe('Key Months Ahead');
+    expect(months.evidenceIds.filter((id) => id.startsWith('dated-')).length).toBe(dated.length);
+    for (const other of plan.sections.filter((x) => x.id !== 'months')) expect(other.evidenceIds.some((id) => id.startsWith('dated-'))).toBe(false);
+    expect(buildUniversalBlueprint(universalReportConfig('marriage'), exact, new Date('2026-10-18T00:00:00Z')).evidence.some((e) => e.source.startsWith('dated'))).toBe(false);
+  });
+
+  it('lets a section the engine finds evidence-thin be shorter and say so, instead of padding it', () => {
+    const plan = buildUniversalBlueprint(universalReportConfig('marriage'), exact, new Date('2026-10-18T00:00:00Z'));
+    // This chart's relationships verdict is "Insufficient evidence".
+    const partner = plan.sections.find((x) => x.id === 'partner-traits')!;
+    expect(partner.minWords).toBe(60);
+    expect(partner.limitations[0]).toMatch(/too little reliable evidence/);
+    expect(plan.sections.find((x) => x.id === 'timing')!.minWords).toBe(85);
+  });
+
+  it('tells later call groups which evidence earlier sections already explained', async () => {
+    const request: ReportRequester = vi.fn(async (prompt) => {
+      const parsed = JSON.parse(replyFor(prompt));
+      for (const [i, section] of parsed.sections.entries()) {
+        const ids = requested(prompt)[i].citableEvidenceIds.slice(0, 3);
+        section.evidenceIds = ids;
+        section.evidenceLinks = ids.map((evidenceId: string) => ({ evidenceId, conclusion: 'Choose measured practical action', explanation: 'This verified factor supports a measured response because it identifies both the available strength and its stated limitation.' }));
+      }
+      return { choices: [{ finish_reason: 'stop', message: { content: JSON.stringify(parsed) } }], usage: { prompt_tokens: 700, completion_tokens: 900 } };
+    });
+    await generateUniversalReport('marriage', exact, { requester: request, asOf: new Date('2026-10-18T00:00:00Z') });
+    const prompts = (request as any).mock.calls.map((c: any[]) => c[0] as string);
+    expect(prompts[0]).not.toMatch(/^ALREADY EXPLAINED IN EARLIER SECTIONS: \[/m);
+    expect(prompts[1]).toMatch(/^ALREADY EXPLAINED IN EARLIER SECTIONS: \["/m);
+  });
+
+  it('offers remedies only for planets tied to the report, without gemstones, and none from lordship for an approximate time', () => {
+    const asOf = new Date('2026-10-18T00:00:00Z');
+    const marriage = reportRemedies('marriage', exact, asOf), finance = reportRemedies('finance', exact, asOf), life = reportRemedies('life', exact, asOf);
+    expect(marriage.join(' ')).toMatch(/^Saturn, ruler of your 7th house/); // Leo Lagna: Saturn rules the 7th
+    expect(finance).toEqual([]); // neither the 2nd/11th lord (Mercury) nor Jupiter carries a functional remedy here
+    expect(life.some((x) => /Ascendant lord/.test(x))).toBe(true);
+    expect(life.some((x) => /Om Chandraya Namah/.test(x))).toBe(true);
+    expect(marriage.some((x) => /Om Chandraya Namah/.test(x))).toBe(false);
+    for (const r of [...marriage, ...life]) expect(r).not.toMatch(/ruby|coral|pearl|emerald|sapphire|diamond|gemstone/i);
+    expect(reportRemedies('life', approximate, asOf).some((x) => /Ascendant lord|ruler of/.test(x))).toBe(false);
+    expect(reportRemedies('career', exact, asOf)).toEqual([]);
+    // Birth-star practices reach the Life Reading without their gemstone.
+    const withGem = { ...exact, remedies: [...exact.remedies, { title: 'Gemstone', description: 'Ruby — birth-star gemstone', type: 'gemstone' }] };
+    expect(reportRemedies('life', withGem, asOf).some((x) => /gemstone|ruby/i.test(x))).toBe(false);
+  });
+
+  it('accepts a dated sign change only when the engine supplied it', () => {
+    const facts = 'Around 2026-11-13, Mars moves into Leo, the 4th from the Moon sign; by the classical Gochara rule this is demanding.';
+    expect(signChangeProblems('In mid-November Mars moves into Leo, the 4th from your Moon.', facts)).toEqual([]);
+    expect(signChangeProblems('Mars enters Virgo in July.', facts)).toEqual(['says Mars moves into Virgo, which no supplied dated change shows']);
+    expect(signChangeProblems("Jupiter's move into Cancer brings relief.", facts)).toHaveLength(1);
+  });
+
+  it('reads a dated planet-in-sign claim as a transit only when that dated change was supplied', () => {
+    const facts = 'Around 2026-11-13, Mars moves into Leo, the 5th from the Moon sign.';
+    expect(withoutSuppliedTransits('From mid-November 2026, with Mars in Leo, effort pays off.', facts)).not.toMatch(/Mars|Leo/);
+    expect(withoutSuppliedTransits('In March 2027, Mars in Virgo helps.', facts)).toMatch(/Mars in Virgo/);
+    expect(withoutSuppliedTransits('Your Mars in Leo gives drive.', facts)).toMatch(/Mars in Leo/); // no date: a birth-chart claim
+  });
+
+  it('flags citation markers but not numbered list items', () => {
+    const config = universalReportConfig('finance');
+    const plan = buildUniversalBlueprint(config, exact, new Date('2026-10-18T00:00:00Z'));
+    const section = plan.sections.find((x) => x.id === 'management')!;
+    const guard = { chart: exact.chartData.canonical, factsText: '', asOf: new Date('2026-10-18T00:00:00Z') };
+    const run = (body: string) => validateNarrative(config, [section], { summary: '', summaryEvidenceIds: [], remedies: [], sections: [{ heading: section.heading, body, evidenceIds: [], evidenceLinks: [] }] } as any, guard as any)[0].completeness.join(' ');
+    expect(run('Savings can grow steadily (19). Keep a buffer.')).toMatch(/internal evidence ids/);
+    expect(run('(1) Build a cash buffer first. (2) Then review fixed costs each quarter.')).not.toMatch(/internal evidence ids/);
+  });
+
+  it('measures repetition across sections and chart-free paragraphs without blocking', () => {
+    const repeated = 'Jupiter exalted in Cancer supports steady growth of savings over the long run.';
+    const generic = 'Life brings many opportunities and challenges, and staying positive and open will help you navigate whatever comes your way with grace and patience over the many years ahead of you.';
+    expect(reportEditorialWarnings([repeated, `${repeated} More.`, generic])).toEqual(['repeats a sentence from another section', 'has a paragraph that names no chart fact']);
   });
 
   it('builds time-specific transit evidence and scoped Complete Life evidence from multiple synthetic charts', async () => {
@@ -215,12 +300,18 @@ describe('shared generation, validation and budget', () => {
 describe('off-by-default rollout gate', () => {
   const verified = { email: 'pilot@example.com', emailVerifiedAt: new Date() };
   it('requires both the exact true flag and a verified canonical allow-listed address', () => {
-    expect(useUniversalReportEngine(verified)).toBe(false);
+    expect(useUniversalReportEngine(verified, 'marriage')).toBe(false);
     expect(universalReportAllowlist().size).toBe(0);
     vi.stubEnv('FEATURE_UNIVERSAL_REPORT_ENGINE', 'true');
     vi.stubEnv('UNIVERSAL_REPORT_ENGINE_ALLOWLIST', 'pilot@example.com');
-    expect(useUniversalReportEngine(verified)).toBe(true);
-    expect(useUniversalReportEngine({ email: 'Pilot@example.com', emailVerifiedAt: new Date() })).toBe(false);
-    expect(useUniversalReportEngine({ email: 'pilot@example.com', emailVerifiedAt: null })).toBe(false);
+    for (const category of ['career', 'marriage', 'finance', 'year_ahead', 'life']) expect(useUniversalReportEngine(verified, category)).toBe(true);
+    expect(useUniversalReportEngine({ email: 'Pilot@example.com', emailVerifiedAt: new Date() }, 'marriage')).toBe(false);
+    expect(useUniversalReportEngine({ email: 'pilot@example.com', emailVerifiedAt: null }, 'marriage')).toBe(false);
+  });
+
+  it('never releases Complete Life (or an unknown category) to the universal engine, even for an allow-listed account', () => {
+    vi.stubEnv('FEATURE_UNIVERSAL_REPORT_ENGINE', 'true');
+    vi.stubEnv('UNIVERSAL_REPORT_ENGINE_ALLOWLIST', 'pilot@example.com');
+    for (const category of ['life_complete', 'health', '', null, undefined]) expect(useUniversalReportEngine(verified, category)).toBe(false);
   });
 });

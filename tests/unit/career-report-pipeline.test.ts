@@ -266,6 +266,19 @@ describe('the shared text checks still apply to every paragraph', () => {
     const any = factsOf(kol, [kol.synthesis.theses.fields, kol.synthesis.theses.arrangement]);
     expect(slotProblems('Your chart favours employment within an organisation, so a salaried role is the natural base, and the evidence for it is steadier than anything else in the reading here.', 'paragraph', any, kol).join(' ')).toMatch(/contradicts the work-style conclusion/);
     expect(slotProblems('Advisory and consulting roles are an ideal choice for you, and you can pursue them through a defined client project with clear terms and measured results over a full season.', 'paragraph', any, kol).join(' ')).toMatch(/recommends advisory and consulting roles, which is weakly supported/);
+    // Length over the editorial target is an advisory up to a quarter over, then blocking.
+    const sentence = 'Advisory roles rank lowest here because the evidence for them is limited and they would need patient, deliberate building over time. ';
+    const words = (n: number) => sentence.repeat(Math.ceil(n / 23)).split(' ').slice(0, n).join(' ') + '.';
+    const slight = slotCheck(words(150), 'paragraph', any, kol);
+    expect(slight.problems.join(' ')).not.toMatch(/too long/);
+    expect(slight.advisories.join(' ')).toMatch(/longer than the 130-word target/);
+    expect(slotCheck(words(170), 'paragraph', any, kol).problems.join(' ')).toMatch(/too long/);
+    // "leadership" names a career domain; it does not rank two fields (live run, Pune chart).
+    expect(citationProblems('The 10th house supports administration or government, where analytical skills and leadership are critical.', ['E1'], ['E1'], [], kol).join(' ')).not.toMatch(/compares field/);
+    expect(citationProblems('Administration leads government in this chart.', ['E1'], ['E1'], [], kol).join(' ')).toMatch(/compares field/);
+    // From a live run that was refunded: the sentence ranks the weak fields low, as the evidence does.
+    expect(slotProblems('Government, finance, and advisory roles least align with your chart, as pressures outweigh supportive elements, making these fields challenging to pursue.', 'paragraph', any, kol).join(' ')).not.toMatch(/weakly supported/);
+    expect(slotProblems('Advisory and consulting roles are the best choice for you despite the challenges, so pursue them through a defined client project.', 'paragraph', any, kol).join(' ')).toMatch(/recommends advisory and consulting roles, which is weakly supported/);
   });
 });
 

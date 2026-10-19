@@ -11,6 +11,8 @@ vi.mock('../../server/storage', () => ({ storage: storageMock }));
 vi.mock('../../server/reportOrders', () => ({ fulfilReportOrder: fulfilMock }));
 vi.mock('../../server/audit', () => ({ audit: vi.fn() }));
 vi.mock('../../server/reportEngine/engine', () => ({ generateUniversalReport: vi.fn() }));
+const legacyLife = vi.hoisted(() => vi.fn());
+vi.mock('../../server/aiAstrologerService', () => ({ generateLifeReport: legacyLife }));
 
 import { processNextUniversalReportJob } from '../../server/reportEngine/jobs';
 
@@ -51,5 +53,16 @@ describe('durable universal report worker', () => {
     fulfilMock.mockImplementation(async (_order, _name, run) => { try { await run(); } catch {} });
     expect(await processNextUniversalReportJob(generate)).toBe(true);
     expect(storageMock.finishReportGenerationJob).toHaveBeenCalledWith('order-1', 'failed', 'validation failed');
+  });
+
+  it('fulfils a Complete Life job with the legacy generator, never the universal engine', async () => {
+    storageMock.claimReportGenerationJob.mockResolvedValue({ ...job, category: 'life_complete', reportName: 'Complete Life Report' });
+    storageMock.getReportOrderById.mockResolvedValueOnce(order).mockResolvedValueOnce({ ...order, status: 'ready' });
+    legacyLife.mockResolvedValue({ title: 'Complete Life Report' });
+    fulfilMock.mockImplementation(async (_order, _name, run) => { await run(); });
+    const generate = vi.fn();
+    expect(await processNextUniversalReportJob(generate)).toBe(true);
+    expect(generate).not.toHaveBeenCalled();
+    expect(legacyLife).toHaveBeenCalledWith(job.payload.kundli);
   });
 });

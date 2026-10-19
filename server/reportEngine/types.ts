@@ -48,6 +48,8 @@ export interface BlueprintEvidence {
 export interface BlueprintSection extends ReportSectionConfig {
   conclusion: string;
   evidenceIds: string[];
+  /** Facts this section explains in depth; no fact leads two sections, so others only refer to it. */
+  leadEvidenceIds: string[];
   limitations: string[];
 }
 

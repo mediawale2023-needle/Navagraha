@@ -1896,7 +1896,7 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
       }
       // The engine choice comes only from the server-side feature gate and verified account.
       // Universal jobs are inserted in the same transaction as the debit and order.
-      const universalEngine = useUniversalReportEngine(req.user as { email?: string | null; emailVerifiedAt?: Date | string | null } | undefined);
+      const universalEngine = useUniversalReportEngine(req.user as { email?: string | null; emailVerifiedAt?: Date | string | null } | undefined, reportType.category);
       const placed = await storage.placeReportOrder({
         userId,
         reportTypeId: reportType.id,

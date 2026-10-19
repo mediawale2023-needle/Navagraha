@@ -66,7 +66,7 @@ const CONFIGS: Record<UniversalReportCategory, UniversalReportConfig> = {
       section('career-work', 'Career & Work', 'Explain professional themes in the report window.', ['career']),
       section('money-finance', 'Money & Finance', 'Explain financial themes in the report window.', ['wealth']),
       section('relationships', 'Relationships', 'Explain relationship themes in the report window.', ['relationships']),
-      section('months', 'Best & Cautious Months', 'Name only months supported by the supplied timing evidence.', ['career', 'wealth', 'relationships'], 90, { sources: [...periodSources, 'calculated-transit'] }), timing],
+      section('months', 'Key Months Ahead', 'Name a month only from a dated sign change or sub-period change supplied, and say what it marks; never call a month favourable or unfavourable without one. If the evidence has no dated change, say so.', ['career', 'wealth', 'relationships'], 90, { sources: ['dated-transit', 'dated-period'] }), timing],
     requiredSections: ['chart-overview', 'key-influences', 'year-overview', 'career-work', 'money-finance', 'relationships', 'months', 'timing'], optionalSections: [],
     promptConfiguration: { maxSectionsPerCall: 4, maxOutputTokens: 3000, tone: 'specific, time-bounded, cautious English' },
     validationPolicy: { minimumEvidencePerSection: 1, correctionRounds: 2 }, pdfRenderer: 'generic-premium', deliveryPolicy: 'persist-before-notify', approximateBirthTimePolicy: 'require-exact',

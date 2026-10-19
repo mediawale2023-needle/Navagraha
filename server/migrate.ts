@@ -662,9 +662,9 @@ WHERE NOT EXISTS (SELECT 1 FROM products LIMIT 1);
 INSERT INTO report_types (slug, name, description, category, price, icon, sort_order)
 SELECT * FROM (VALUES
   ('career-report', 'Career & Profession Report', 'Detailed analysis of your career path, ideal fields, timing of growth and job vs business.', 'career', 299, 'Briefcase', 0),
-  ('marriage-report', 'Marriage & Love Report', 'Insights on marriage timing, partner traits, married life and remedies for harmony.', 'marriage', 349, 'Heart', 1),
-  ('finance-report', 'Wealth & Finance Report', 'Your money houses, income sources, investment windows and financial remedies.', 'finance', 299, 'Coins', 2),
-  ('year-ahead-report', 'Year Ahead Report', 'Month-by-month predictions for the next 12 months across career, money and relationships.', 'year_ahead', 499, 'CalendarRange', 3)
+  ('marriage-report', 'Marriage & Love Report', 'Insights on marriage timing, partner traits and married life, with traditional remedies where your chart supports them.', 'marriage', 349, 'Heart', 1),
+  ('finance-report', 'Wealth & Finance Report', 'Your money houses, income sources and investment windows, with traditional remedies where your chart supports them.', 'finance', 299, 'Coins', 2),
+  ('year-ahead-report', 'Year Ahead Report', 'Your next 12 months across career, money and relationships: the dasha periods running through the year and the dated planetary changes that mark it.', 'year_ahead', 499, 'CalendarRange', 3)
 ) AS v(slug, name, description, category, price, icon, sort_order)
 WHERE NOT EXISTS (SELECT 1 FROM report_types LIMIT 1);
 
@@ -723,6 +723,31 @@ export const REPORT_CATALOGUE_FIXES: Array<{ text: string; values: unknown[] }> 
     values: [
       "Month-by-month predictions for the next 12 months across career, money and relationships.",
       "Month-by-month predictions for the next 12 months across all life areas.",
+    ],
+  },
+  {
+    // Remedies are offered only for planets tied to the report's subject, so some charts get none.
+    text: "UPDATE report_types SET description = $1 WHERE slug = 'marriage-report' AND description = $2",
+    values: [
+      "Insights on marriage timing, partner traits and married life, with traditional remedies where your chart supports them.",
+      "Insights on marriage timing, partner traits, married life and remedies for harmony.",
+    ],
+  },
+  {
+    // Remedies are offered only for planets tied to the report's subject, so some charts get none.
+    text: "UPDATE report_types SET description = $1 WHERE slug = 'finance-report' AND description = $2",
+    values: [
+      "Your money houses, income sources and investment windows, with traditional remedies where your chart supports them.",
+      "Your money houses, income sources, investment windows and financial remedies.",
+    ],
+  },
+  {
+    // The report dates only what the chart supplies (period changes, slower planets' sign changes); it does not
+    // predict each month. Runs after the fix above, so rows still on either seed text end on this one.
+    text: "UPDATE report_types SET description = $1 WHERE slug = 'year-ahead-report' AND description = $2",
+    values: [
+      "Your next 12 months across career, money and relationships: the dasha periods running through the year and the dated planetary changes that mark it.",
+      "Month-by-month predictions for the next 12 months across career, money and relationships.",
     ],
   },
 ];

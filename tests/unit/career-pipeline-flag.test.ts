@@ -192,8 +192,9 @@ describe('careerPipelineFor', () => {
 
 describe('Universal report engine selection at the order route', () => {
   const categories = CATALOGUE.map((report) => [report.id, report.category] as const);
+  const released = categories.filter(([, category]) => category !== 'life_complete');
 
-  it.each(categories)('%s is enqueued through the universal pipeline only for a verified allow-listed account', async (reportTypeId, category) => {
+  it.each(released)('%s is enqueued through the universal pipeline only for a verified allow-listed account', async (reportTypeId, category) => {
     vi.stubEnv('FEATURE_UNIVERSAL_REPORT_ENGINE', 'true');
     vi.stubEnv('UNIVERSAL_REPORT_ENGINE_ALLOWLIST', 'pilot@example.com');
     expect((await order('pilot', { reportTypeId })).status).toBe(201);
@@ -211,6 +212,13 @@ describe('Universal report engine selection at the order route', () => {
       reportTypeId,
       generationJob: undefined,
     }));
+  });
+
+  it('Complete Life stays on the legacy generator for an allow-listed account with the flag on', async () => {
+    vi.stubEnv('FEATURE_UNIVERSAL_REPORT_ENGINE', 'true');
+    vi.stubEnv('UNIVERSAL_REPORT_ENGINE_ALLOWLIST', 'pilot@example.com');
+    expect((await order('pilot', { reportTypeId: 't-complete' })).status).toBe(201);
+    expect(mocks.storage.placeReportOrder).toHaveBeenCalledWith(expect.objectContaining({ reportTypeId: 't-complete', generationJob: undefined }));
   });
 
   it('does not trust a request body to opt an ordinary customer into the universal engine', async () => {

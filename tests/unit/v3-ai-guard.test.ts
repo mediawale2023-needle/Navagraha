@@ -69,6 +69,12 @@ describe('AI guard v2 — adversarial answers are caught', () => {
     if (actual) expect(check(`${actual} is ${dignity(actual).dignity.toLowerCase()}.`)).toEqual([]);
   });
 
+  it('a planet changing sign is a transit, not a birth placement', () => {
+    const g = SEVEN.find((x) => planet(x).sign !== 'Leo')!;
+    expect(check(`Around mid-November, ${g} moves into Leo, the 4th from your Moon sign.`)).toEqual([]);
+    expect(check(`${g} is in Leo.`)).not.toEqual([]);
+  });
+
   it('dignity in the noun form, and plural or verb-led house placements', () => {
     const nd = SEVEN.find((x) => dignity(x).dignity !== 'Debilitated')!;
     // Seen in a live Finance report: "Venus's debilitation in Cancer" for a Venus in an enemy's sign.

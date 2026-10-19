@@ -1,7 +1,7 @@
 import type { Kundli } from '@shared/schema';
 import { isCurrentCanonicalChart } from '@shared/v3/canonical';
 import { createOpenAI } from '../ai/metering';
-import { deriveStructured, extractChartRemedies, type GeneratedReport } from '../aiAstrologerService';
+import { deriveStructured, type GeneratedReport } from '../aiAstrologerService';
 import { careerRequester, generateDeterministicCareer, type CareerMetrics } from '../careerReportGeneration';
 import { ReportGenerationError, factualProblems, type ReportGuard } from '../reportQuality';
 import { buildUniversalBlueprint } from './blueprint';
@@ -10,7 +10,8 @@ import { narrativePrompt } from './prompt';
 import { universalReportConfig } from './registry';
 import { NarrativeReplySchema, type BlueprintSection, type NarrativeReply, type ReportGenerationMetrics, type UniversalReportCategory } from './types';
 import { ReportRuntime, openAiReportRequester, type ReportRequester } from './runtime';
-import { blockingProblems, editorialWarnings, validateNarrative } from './validation';
+import { blockingProblems, editorialWarnings, reportEditorialWarnings, validateNarrative } from './validation';
+import { reportRemedies } from './remedies';
 
 export interface UniversalEngineOptions {
   requester?: ReportRequester;
@@ -25,9 +26,8 @@ const chunks = <T>(items: readonly T[], size: number): T[][] => {
 };
 
 const parseReply = (raw: string): NarrativeReply => NarrativeReplySchema.parse(JSON.parse(raw));
-// The PDF and reader print text as written: drop Markdown emphasis and stray indentation the model adds.
-const plainProse = (body: string) => body.replace(/\*\*([^*\n]+)\*\*/g, '$1').replace(/__([^_\n]+)__/g, '$1').replace(/^[ \t]+/gm, '').trim();
-const dedupe = (xs: string[]) => Array.from(new Set(xs.map((x) => x.trim()).filter(Boolean)));
+// The PDF and reader print text as written: drop Markdown headings, emphasis and stray indentation the model adds.
+const plainProse = (body: string) => body.replace(/^[ \t]*#{1,6}[ \t]+/gm, '').replace(/\*\*([^*\n]+)\*\*/g, '$1').replace(/__([^_\n]+)__/g, '$1').replace(/^[ \t]+/gm, '').trim();
 
 function guardFor(kundli: Partial<Kundli>, blueprint: ReturnType<typeof buildUniversalBlueprint>, asOf: Date): ReportGuard {
   const chart = (kundli as any).chartData?.canonical;
@@ -62,22 +62,26 @@ async function generateConfigured(category: Exclude<UniversalReportCategory, 'ca
   let summary = '';
   let summaryEvidenceIds: string[] = [];
   let editorialCount = 0;
+  // Evidence earlier groups already explained: later sections refer back to it instead of explaining it again.
+  const covered = new Set<string>();
+  const cover = (v: { generated?: { evidenceIds: string[] } }) => v.generated?.evidenceIds.forEach((id) => { if (!id.startsWith('conclusion:')) covered.add(id); });
   try {
     for (const group of chunks(blueprint.sections, config.promptConfiguration.maxSectionsPerCall)) {
-      const first = await completeParsed(runtime, narrativePrompt(config, blueprint, group), config.promptConfiguration.maxOutputTokens);
+      const explained = Array.from(covered);
+      const first = await completeParsed(runtime, narrativePrompt(config, blueprint, group, undefined, explained), config.promptConfiguration.maxOutputTokens);
       if (!summary && first.summary.trim()) { summary = first.summary.trim(); summaryEvidenceIds = first.summaryEvidenceIds; }
       let validations = validateNarrative(config, group, first, guard);
       for (const v of validations) editorialCount += v.editorial.length;
-      for (const v of validations) if (!blockingProblems(v).length && v.generated) accepted.set(v.section.id, { heading: v.section.heading, body: plainProse(v.generated.body) });
+      for (const v of validations) if (!blockingProblems(v).length && v.generated) { accepted.set(v.section.id, { heading: v.section.heading, body: plainProse(v.generated.body) }); cover(v); }
       let failed = validations.filter((v) => blockingProblems(v).length);
       for (let round = 0; failed.length && round < config.validationPolicy.correctionRounds; round++) {
         runtime.correctionCalls++;
         const correctionSections = failed.map((v) => v.section);
         const problems = Object.fromEntries(failed.map((v) => [v.section.id, blockingProblems(v)]));
-        const corrected = await completeParsed(runtime, narrativePrompt(config, blueprint, correctionSections, problems), Math.min(config.promptConfiguration.maxOutputTokens, 2800));
+        const corrected = await completeParsed(runtime, narrativePrompt(config, blueprint, correctionSections, problems, explained), Math.min(config.promptConfiguration.maxOutputTokens, 2800));
         validations = validateNarrative(config, correctionSections, corrected, guard);
         for (const v of validations) editorialCount += v.editorial.length;
-        for (const v of validations) if (!blockingProblems(v).length && v.generated) accepted.set(v.section.id, { heading: v.section.heading, body: plainProse(v.generated.body) });
+        for (const v of validations) if (!blockingProblems(v).length && v.generated) { accepted.set(v.section.id, { heading: v.section.heading, body: plainProse(v.generated.body) }); cover(v); }
         failed = validations.filter((v) => blockingProblems(v).length);
       }
       if (failed.some((v) => v.section.required)) throw new ReportGenerationError(`Required report content failed validation: ${failed.map((v) => `${v.section.heading}: ${blockingProblems(v).join('; ')}`).join(' | ')}`);
@@ -94,13 +98,13 @@ async function generateConfigured(category: Exclude<UniversalReportCategory, 'ca
     const metrics: ReportGenerationMetrics = {
       engine: 'universal-report-engine', version: 1, calls: runtime.spending.calls, transportRetries: runtime.transportRetries,
       formatRetries: runtime.formatRetries, correctionCalls: runtime.correctionCalls, costMicroUsd: runtime.spending.spent,
-      durationMs: Date.now() - runtime.startedAt, editorialWarnings: editorialCount + editorialWarnings(summary).length,
+      durationMs: Date.now() - runtime.startedAt, editorialWarnings: editorialCount + editorialWarnings(summary).length + reportEditorialWarnings(sections.map((x) => x.body)).length,
     };
     options.onMetrics?.(metrics);
     return {
       title: config.reportName, summary, sections,
       // Remedies are copied only from deterministic chart output; model-authored remedies are never delivered.
-      remedies: dedupe(extractChartRemedies(kundli)).slice(0, 10),
+      remedies: reportRemedies(category, kundli, asOf),
       ...deriveStructured(kundli), generatedAt: asOf.toISOString(), generationMetrics: metrics,
     };
   } finally { runtime.close(); }
