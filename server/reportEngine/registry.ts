@@ -7,7 +7,9 @@ const common = [
   section('chart-overview', 'Birth Chart Overview', 'Orient the reader to the verified chart factors that matter to this report.', [], 75),
   section('key-influences', 'Key Planetary Influences', 'Explain the strongest supporting and limiting influences without inventing facts.', [], 90),
 ];
-const timing = section('timing', 'Dasha Periods & Timing', 'Explain only the verified running and upcoming periods and qualify uncertainty.', [], 85);
+// Timing sections select period evidence explicitly: domain-free sections otherwise take the first 36 items, which drops the dasha dates.
+const periodSources = ['vimshottari', 'vimshottari-dates'];
+const timing = section('timing', 'Dasha Periods & Timing', 'Explain only the verified running and upcoming periods and qualify uncertainty.', [], 85, { sources: periodSources });
 
 const CONFIGS: Record<UniversalReportCategory, UniversalReportConfig> = {
   career: {
@@ -34,12 +36,12 @@ const CONFIGS: Record<UniversalReportCategory, UniversalReportConfig> = {
     reportSections: [...common,
       section('relationship-overview', 'Love & Marriage Overview', 'State the relationship thesis and its limits.', ['relationships']),
       section('partner-traits', 'Partner Traits', 'Describe supported partner tendencies, not certainty.', ['relationships']),
-      section('marriage-timing', 'Marriage Timing', 'Give qualified windows only from verified periods.', ['relationships']),
+      section('marriage-timing', 'Marriage Timing', 'Give qualified windows only from verified periods.', ['relationships'], 90, { sources: periodSources }),
       section('married-life', 'Married Life', 'Explain likely relational dynamics and contradictions.', ['relationships']),
       section('harmony', 'Harmony & Compatibility', 'Offer chart-linked practices for relationship harmony.', ['relationships']), timing],
     requiredSections: ['chart-overview', 'key-influences', 'relationship-overview', 'partner-traits', 'marriage-timing', 'married-life', 'harmony', 'timing'], optionalSections: [],
-    promptConfiguration: { maxSectionsPerCall: 8, maxOutputTokens: 5000, tone: 'warm, respectful, non-deterministic English' },
-    validationPolicy: { minimumEvidencePerSection: 1, correctionRounds: 1 }, pdfRenderer: 'generic-premium', deliveryPolicy: 'persist-before-notify', approximateBirthTimePolicy: 'require-exact',
+    promptConfiguration: { maxSectionsPerCall: 4, maxOutputTokens: 3000, tone: 'warm, respectful, non-deterministic English' },
+    validationPolicy: { minimumEvidencePerSection: 1, correctionRounds: 2 }, pdfRenderer: 'generic-premium', deliveryPolicy: 'persist-before-notify', approximateBirthTimePolicy: 'require-exact',
   },
   finance: {
     reportId: 'finance', reportName: 'Wealth & Finance Report', reportVersion: 1,
@@ -49,11 +51,11 @@ const CONFIGS: Record<UniversalReportCategory, UniversalReportConfig> = {
       section('financial-overview', 'Financial Overview', 'State the wealth thesis and confidence.', ['wealth']),
       section('income', 'Income Sources', 'Explain supported earning patterns.', ['wealth', 'career']),
       section('accumulation', 'Wealth Accumulation', 'Explain stability, saving and limiting factors.', ['wealth']),
-      section('windows', 'Favourable Investment Windows', 'Discuss qualified timing without investment promises.', ['wealth']),
+      section('windows', 'Favourable Investment Windows', 'Discuss qualified timing without investment promises.', ['wealth'], 90, { sources: periodSources }),
       section('management', 'Money Management', 'Give evidence-linked risk and stability guidance.', ['wealth']), timing],
     requiredSections: ['chart-overview', 'key-influences', 'financial-overview', 'income', 'accumulation', 'windows', 'management', 'timing'], optionalSections: [],
-    promptConfiguration: { maxSectionsPerCall: 8, maxOutputTokens: 5000, tone: 'clear, cautious, practical English' },
-    validationPolicy: { minimumEvidencePerSection: 1, correctionRounds: 1 }, pdfRenderer: 'generic-premium', deliveryPolicy: 'persist-before-notify', approximateBirthTimePolicy: 'require-exact',
+    promptConfiguration: { maxSectionsPerCall: 4, maxOutputTokens: 3000, tone: 'clear, cautious, practical English' },
+    validationPolicy: { minimumEvidencePerSection: 1, correctionRounds: 2 }, pdfRenderer: 'generic-premium', deliveryPolicy: 'persist-before-notify', approximateBirthTimePolicy: 'require-exact',
   },
   year_ahead: {
     reportId: 'year_ahead', reportName: 'Year Ahead Report', reportVersion: 1,
@@ -64,10 +66,10 @@ const CONFIGS: Record<UniversalReportCategory, UniversalReportConfig> = {
       section('career-work', 'Career & Work', 'Explain professional themes in the report window.', ['career']),
       section('money-finance', 'Money & Finance', 'Explain financial themes in the report window.', ['wealth']),
       section('relationships', 'Relationships', 'Explain relationship themes in the report window.', ['relationships']),
-      section('months', 'Best & Cautious Months', 'Name only months supported by the supplied timing evidence.', ['career', 'wealth', 'relationships']), timing],
+      section('months', 'Best & Cautious Months', 'Name only months supported by the supplied timing evidence.', ['career', 'wealth', 'relationships'], 90, { sources: [...periodSources, 'calculated-transit'] }), timing],
     requiredSections: ['chart-overview', 'key-influences', 'year-overview', 'career-work', 'money-finance', 'relationships', 'months', 'timing'], optionalSections: [],
-    promptConfiguration: { maxSectionsPerCall: 8, maxOutputTokens: 5000, tone: 'specific, time-bounded, cautious English' },
-    validationPolicy: { minimumEvidencePerSection: 1, correctionRounds: 1 }, pdfRenderer: 'generic-premium', deliveryPolicy: 'persist-before-notify', approximateBirthTimePolicy: 'require-exact',
+    promptConfiguration: { maxSectionsPerCall: 4, maxOutputTokens: 3000, tone: 'specific, time-bounded, cautious English' },
+    validationPolicy: { minimumEvidencePerSection: 1, correctionRounds: 2 }, pdfRenderer: 'generic-premium', deliveryPolicy: 'persist-before-notify', approximateBirthTimePolicy: 'require-exact',
   },
   life: {
     reportId: 'life', reportName: 'Life Reading Report', reportVersion: 1,
@@ -79,8 +81,8 @@ const CONFIGS: Record<UniversalReportCategory, UniversalReportConfig> = {
       section('career', 'Career', 'Explain the supported professional tendency.', ['career']),
       section('relationships', 'Relationships', 'Explain the supported relationship tendency.', ['relationships'])],
     requiredSections: ['chart-overview', 'key-influences', 'life-overview', 'personality', 'career', 'relationships'], optionalSections: [],
-    promptConfiguration: { maxSectionsPerCall: 6, maxOutputTokens: 4200, tone: 'balanced, accessible English' },
-    validationPolicy: { minimumEvidencePerSection: 1, correctionRounds: 1 }, pdfRenderer: 'generic-premium', deliveryPolicy: 'persist-before-notify', approximateBirthTimePolicy: 'allow-stable-facts-only',
+    promptConfiguration: { maxSectionsPerCall: 3, maxOutputTokens: 3000, tone: 'balanced, accessible English' },
+    validationPolicy: { minimumEvidencePerSection: 1, correctionRounds: 2 }, pdfRenderer: 'generic-premium', deliveryPolicy: 'persist-before-notify', approximateBirthTimePolicy: 'allow-stable-facts-only',
   },
   life_complete: undefined as never,
 };
@@ -113,7 +115,7 @@ CONFIGS.life_complete = {
   interpretationModules: ['placements', 'lordships', 'dignities', 'yogas', 'doshas', 'divisional-charts', 'dasha', 'transits', 'life-domains', 'remedies'],
   reportSections: lifeSections, requiredSections: lifeSections.map((s) => s.id), optionalSections: [],
   promptConfiguration: { maxSectionsPerCall: 8, maxOutputTokens: 3000, tone: 'detailed, coherent, premium consultation English' },
-  validationPolicy: { minimumEvidencePerSection: 1, correctionRounds: 1 }, pdfRenderer: 'generic-premium', deliveryPolicy: 'persist-before-notify', approximateBirthTimePolicy: 'require-exact',
+  validationPolicy: { minimumEvidencePerSection: 1, correctionRounds: 2 }, pdfRenderer: 'generic-premium', deliveryPolicy: 'persist-before-notify', approximateBirthTimePolicy: 'require-exact',
 };
 
 export const UNIVERSAL_REPORT_REGISTRY = Object.freeze(CONFIGS);

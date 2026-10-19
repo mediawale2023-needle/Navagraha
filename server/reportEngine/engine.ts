@@ -25,6 +25,8 @@ const chunks = <T>(items: readonly T[], size: number): T[][] => {
 };
 
 const parseReply = (raw: string): NarrativeReply => NarrativeReplySchema.parse(JSON.parse(raw));
+// The PDF and reader print text as written: drop Markdown emphasis and stray indentation the model adds.
+const plainProse = (body: string) => body.replace(/\*\*([^*\n]+)\*\*/g, '$1').replace(/__([^_\n]+)__/g, '$1').replace(/^[ \t]+/gm, '').trim();
 const dedupe = (xs: string[]) => Array.from(new Set(xs.map((x) => x.trim()).filter(Boolean)));
 
 function guardFor(kundli: Partial<Kundli>, blueprint: ReturnType<typeof buildUniversalBlueprint>, asOf: Date): ReportGuard {
@@ -66,7 +68,7 @@ async function generateConfigured(category: Exclude<UniversalReportCategory, 'ca
       if (!summary && first.summary.trim()) { summary = first.summary.trim(); summaryEvidenceIds = first.summaryEvidenceIds; }
       let validations = validateNarrative(config, group, first, guard);
       for (const v of validations) editorialCount += v.editorial.length;
-      for (const v of validations) if (!blockingProblems(v).length && v.generated) accepted.set(v.section.id, { heading: v.section.heading, body: v.generated.body.trim() });
+      for (const v of validations) if (!blockingProblems(v).length && v.generated) accepted.set(v.section.id, { heading: v.section.heading, body: plainProse(v.generated.body) });
       let failed = validations.filter((v) => blockingProblems(v).length);
       for (let round = 0; failed.length && round < config.validationPolicy.correctionRounds; round++) {
         runtime.correctionCalls++;
@@ -75,7 +77,7 @@ async function generateConfigured(category: Exclude<UniversalReportCategory, 'ca
         const corrected = await completeParsed(runtime, narrativePrompt(config, blueprint, correctionSections, problems), Math.min(config.promptConfiguration.maxOutputTokens, 2800));
         validations = validateNarrative(config, correctionSections, corrected, guard);
         for (const v of validations) editorialCount += v.editorial.length;
-        for (const v of validations) if (!blockingProblems(v).length && v.generated) accepted.set(v.section.id, { heading: v.section.heading, body: v.generated.body.trim() });
+        for (const v of validations) if (!blockingProblems(v).length && v.generated) accepted.set(v.section.id, { heading: v.section.heading, body: plainProse(v.generated.body) });
         failed = validations.filter((v) => blockingProblems(v).length);
       }
       if (failed.some((v) => v.section.required)) throw new ReportGenerationError(`Required report content failed validation: ${failed.map((v) => `${v.section.heading}: ${blockingProblems(v).join('; ')}`).join(' | ')}`);

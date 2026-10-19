@@ -46,11 +46,11 @@ describe('universal report registry', () => {
 });
 
 describe('shared generation, validation and budget', () => {
-  it.each(['marriage', 'finance', 'year_ahead', 'life'] as const)('%s uses one shared structured call and returns every configured section', async (category) => {
+  it.each(['marriage', 'finance', 'year_ahead', 'life'] as const)('%s uses two bounded structured calls and returns every configured section', async (category) => {
     const request = requester();
     const report: any = await generateUniversalReport(category, exact, { requester: request, asOf: new Date('2026-10-18T00:00:00Z') });
     expect(report.sections.map((s: any) => s.heading)).toEqual(universalReportConfig(category).reportSections.map((s) => s.heading));
-    expect(report.generationMetrics).toMatchObject({ calls: 1, correctionCalls: 0, costMicroUsd: 10750 });
+    expect(report.generationMetrics).toMatchObject({ calls: 2, correctionCalls: 0, costMicroUsd: 21500 });
   });
 
   it('Complete Life uses bounded batches, covers all 46 sections and remains below $0.25', async () => {
@@ -70,7 +70,7 @@ describe('shared generation, validation and budget', () => {
     });
     const report: any = await generateUniversalReport('finance', exact, { requester: request });
     expect(report.sections).toHaveLength(universalReportConfig('finance').reportSections.length);
-    expect(report.generationMetrics).toMatchObject({ calls: 2, correctionCalls: 1 });
+    expect(report.generationMetrics).toMatchObject({ calls: 3, correctionCalls: 1 });
     expect(requested((request as any).mock.calls[1][0]).map((s) => s.heading)).toEqual(['Financial Overview']);
   });
 
@@ -89,7 +89,7 @@ describe('shared generation, validation and budget', () => {
     const report: any = await generateUniversalReport('finance', exact, { requester: request });
     expect(report.sections).toHaveLength(universalReportConfig('finance').reportSections.length);
     expect(requested((request as any).mock.calls[1][0]).map((s) => s.heading)).toEqual(['Income Sources']);
-    expect(report.generationMetrics).toMatchObject({ calls: 2, correctionCalls: 1 });
+    expect(report.generationMetrics).toMatchObject({ calls: 3, correctionCalls: 1 });
   });
 
   it('discards model-authored remedies and keeps only deterministic chart remedies', async () => {
@@ -144,7 +144,7 @@ describe('shared generation, validation and budget', () => {
     let malformed = true;
     const request: ReportRequester = vi.fn(async (prompt) => ({ choices: [{ finish_reason: 'stop', message: { content: malformed ? (malformed = false, '{bad') : replyFor(prompt) } }], usage: { prompt_tokens: 500, completion_tokens: 600 } }));
     const report: any = await generateUniversalReport('marriage', exact, { requester: request });
-    expect(report.generationMetrics).toMatchObject({ calls: 2, formatRetries: 1 });
+    expect(report.generationMetrics).toMatchObject({ calls: 3, formatRetries: 1 });
   });
 
   it('retries a transient provider error but rejects truncated output', async () => {
@@ -166,7 +166,33 @@ describe('shared generation, validation and budget', () => {
       return { choices: [{ finish_reason: 'stop', message: { content: JSON.stringify(parsed) } }], usage: { prompt_tokens: 500, completion_tokens: 600 } };
     });
     await expect(generateUniversalReport('finance', exact, { requester: request })).rejects.toThrow(/failed validation/);
-    expect(request).toHaveBeenCalledTimes(2);
+    expect(request).toHaveBeenCalledTimes(3); // first pass + two targeted correction rounds, then no further calls
+  });
+
+  it('sends internal evidence ids written into the prose back for correction', async () => {
+    let first = true;
+    const request: ReportRequester = vi.fn(async (prompt) => {
+      const output = replyFor(prompt, (s, body) => first && s.heading === 'Income Sources' ? `${body} ["conclusion:wealth"]` : body);
+      first = false;
+      return { choices: [{ finish_reason: 'stop', message: { content: output } }], usage: { prompt_tokens: 600, completion_tokens: 700 } };
+    });
+    const report: any = await generateUniversalReport('finance', exact, { requester: request });
+    expect(requested((request as any).mock.calls[1][0]).map((s) => s.heading)).toEqual(['Income Sources']);
+    expect(report.sections.every((s: any) => !/conclusion:wealth/.test(s.body))).toBe(true);
+  });
+
+  it('delivers plain prose without Markdown emphasis or stray indentation', async () => {
+    const report: any = await generateUniversalReport('life', exact, { requester: requester((_s, body) => `**Measured** progress.\n\n  ${body}`), asOf: new Date('2026-10-18T00:00:00Z') });
+    for (const s of report.sections) expect(s.body).not.toMatch(/\*\*|^[ \t]/m);
+  });
+
+  it('gives every timing section the Vimshottari dates and running periods', () => {
+    for (const category of ['marriage', 'finance', 'year_ahead'] as const) {
+      const plan = buildUniversalBlueprint(universalReportConfig(category), exact, new Date('2026-10-18T00:00:00Z'));
+      const timing = plan.sections.find((s) => s.id === 'timing')!;
+      expect(timing.evidenceIds.filter((id) => id.startsWith('dasha:')).length).toBe(exact.dashas.length);
+      expect(timing.evidenceIds.some((id) => id.startsWith('period:'))).toBe(true);
+    }
   });
 
   it('builds time-specific transit evidence and scoped Complete Life evidence from multiple synthetic charts', async () => {

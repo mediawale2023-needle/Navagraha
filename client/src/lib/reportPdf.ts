@@ -167,20 +167,20 @@ export function renderGenericReportPdf(doc: any, content: ReportContent) {
 
   // ── Charts (D1 + D9) ─────────────────────────────────────────
   if (content.chartData?.planetaryPositions?.length) {
+    ensure(108); // keep the heading on the chart's page
     heading("Birth Chart — Rasi (D1)");
-    ensure(96);
     drawChart(doc, content.chartData, (PW - 90) / 2, y, 90);
     y += 96;
   }
   if (content.chartData?.navamsa?.planetaryPositions?.length) {
+    ensure(108); // keep the heading on the chart's page
     heading("Navamsa Chart (D9)");
-    ensure(96);
     drawChart(doc, content.chartData.navamsa, (PW - 90) / 2, y, 90);
     y += 96;
   }
   if (content.chartData?.dasamsa?.planetaryPositions?.length) {
+    ensure(108); // keep the heading on the chart's page
     heading("Dasamsa Chart (D10 — Career)");
-    ensure(96);
     // The engine calculates D10 signs and houses only; any degree a stored report carries is a 0° placeholder.
     drawChart(doc, content.chartData.dasamsa, (PW - 90) / 2, y, 90, { degrees: false });
     y += 96;

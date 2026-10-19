@@ -11,6 +11,9 @@ export interface SectionValidation {
 
 const words = (text: string) => text.trim().split(/\s+/).filter(Boolean).length;
 const normalized = (s: string) => s.trim().toLowerCase();
+// Blueprint ids ("conclusion:relationships", "relationships:d1:7th-lord-placement:saturn:7") are metadata, never prose.
+// Bare numeric citation markers ("(3)", "(1, 6)") are the same leak in another form.
+const EVIDENCE_ID_IN_PROSE = /\b[A-Za-z][\w-]*:[A-Za-z][\w@.:-]*|\(\d{1,3}(?:,\s*\d{1,3})*\)/;
 
 export function editorialWarnings(text: string): string[] {
   const warnings: string[] = [];
@@ -31,6 +34,7 @@ export function validateNarrative(config: UniversalReportConfig, planned: Bluepr
     const unknownLinks = generated.evidenceLinks.filter((link) => !section.evidenceIds.includes(link.evidenceId));
     const unexplained = generated.evidenceLinks.filter((link) => words(link.explanation) < 8 || words(link.conclusion) < 3);
     const completeness = [
+      ...(EVIDENCE_ID_IN_PROSE.test(generated.body) ? ['shows internal evidence ids in the prose; describe the fact in words instead'] : []),
       ...(words(generated.body) < section.minWords ? [`only ${words(generated.body)} words; minimum ${section.minWords}`] : []),
       ...(generated.evidenceIds.length < config.validationPolicy.minimumEvidencePerSection ? ['has no structured supporting evidence'] : []),
       ...(unknown.length ? [`uses evidence outside the section blueprint: ${unknown.slice(0, 3).join(', ')}`] : []),

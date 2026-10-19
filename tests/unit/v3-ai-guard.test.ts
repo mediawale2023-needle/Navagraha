@@ -68,6 +68,18 @@ describe('AI guard v2 — adversarial answers are caught', () => {
     const actual = SEVEN.find((g) => dignity(g).dignity === 'Exalted' || dignity(g).dignity === 'Debilitated');
     if (actual) expect(check(`${actual} is ${dignity(actual).dignity.toLowerCase()}.`)).toEqual([]);
   });
+
+  it('dignity in the noun form, and plural or verb-led house placements', () => {
+    const nd = SEVEN.find((x) => dignity(x).dignity !== 'Debilitated')!;
+    // Seen in a live Finance report: "Venus's debilitation in Cancer" for a Venus in an enemy's sign.
+    expect(check(`Be aware of ${nd}'s debilitation in ${planet(nd).sign}.`)).not.toEqual([]);
+    expect(check(`${nd}'s debilitation in ${SIGN_NAMES[(planet(nd).signIndex + 1) % 12]} is a classical rule.`)).toEqual([]);
+    expect(check(`${nd}'s debilitation sign is a textbook fact.`)).toEqual([]);
+    const g = SEVEN.find((x) => planet(x).house !== 2 && planet(x).house !== 11)!;
+    expect(check(`${g} is located in both the 2nd and 11th houses.`)).not.toEqual([]);
+    expect(check(`${g} resides in the ${planet(g).house === 1 ? '2nd' : '1st'} house.`)).not.toEqual([]);
+    expect(check(`${g} resides in the ${['', '1st', '2nd', '3rd'][planet(g).house] ?? `${planet(g).house}th`} house.`)).toEqual([]);
+  });
   it('wrong sign, house and Lagna', () => {
     const sat = planet('Saturn');
     expect(check(`Saturn is in ${SIGN_NAMES[(sat.signIndex + 1) % 12]}.`)).not.toEqual([]);

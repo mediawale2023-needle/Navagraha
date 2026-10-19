@@ -114,7 +114,7 @@ export function renderCareerPdf(doc: Doc, content: ReportContent, opts: CareerPd
 
   // Tables: header repeated after a break, a row never split, wrapped cells.
   type Cell = string | { chip: string; tone: 'support' | 'strain' | 'neutral' };
-  const table = (head: string[], widths: number[], rows: Cell[][], opt: { size?: number; highlight?: (i: number) => boolean; bold?: number[] } = {}) => {
+  const table = (head: string[], widths: number[], rows: Cell[][], opt: { size?: number; highlight?: (i: number) => boolean; bold?: number[]; title?: string } = {}) => {
     const size = opt.size ?? PDF_TYPE.small, pad = 1.8;
     const header = () => {
       font('bold', PDF_TYPE.micro, 'inkMuted'); let x = M;
@@ -124,7 +124,11 @@ export function renderCareerPdf(doc: Doc, content: ReportContent, opts: CareerPd
     // A table that fits on one page is kept whole; a longer one breaks between rows with its header repeated.
     const heights = rows.map((row) => Math.max(...row.map((c, i) => { if (typeof c !== 'string') return 4.6; font(opt.bold?.includes(i) ? 'bold' : 'body', size); return wrap(c, widths[i] - 2 * pad).length * lineMm(size); })) + 2.6);
     const total = 6.6 + heights.reduce((n, h) => n + h, 0);
-    ensure(total < LIMIT - TOP ? total : 6.6 + 8); header();
+    // A title is reserved with the table so it never sits alone above a table that moved to the next page.
+    const titled = opt.title ? 9 : 0;
+    ensure(titled + (total < LIMIT - TOP - titled ? total : 6.6 + 8));
+    if (opt.title) subTitle(opt.title, 0);
+    header();
     rows.forEach((row, ri) => {
       const cells = row.map((c, i) => { if (typeof c !== 'string') return null; font(opt.bold?.includes(i) ? 'bold' : 'body', size); return wrap(c, widths[i] - 2 * pad); });
       const h = Math.max(...cells.map((c) => (c ? c.length * lineMm(size) : 4.6))) + 2.6;
@@ -348,10 +352,9 @@ export function renderCareerPdf(doc: Doc, content: ReportContent, opts: CareerPd
   subTitle('Planetary positions', 30);
   const d10Of = (planet: string) => content.chartData?.dasamsa?.planetaryPositions?.find((p) => p.planet === planet);
   table(['Planet', 'Sign', 'House', 'Degree', 'Motion', 'D10 sign', 'D10 house'], [24, 26, 16, 22, 22, 34, 30], (content.planetaryPositions ?? []).map((p) => [p.planet, p.sign ?? '', p.house != null ? String(p.house) : '', formatPlanetDegree(p.degree, "'"), p.retrograde && p.planet !== 'Rahu' && p.planet !== 'Ketu' ? 'retrograde' : '', d10Of(p.planet)?.sign ?? '', d10Of(p.planet)?.house != null ? String(d10Of(p.planet)!.house) : '']), { bold: [0] });
-  if (a.yogas.length) { subTitle('Yogas detected', 14); table(['Yoga', 'Planets', 'Configuration'], [46, 32, 96], a.yogas.map((g) => [g.name, g.planets.join(', '), g.configuration]), { bold: [0] }); }
+  if (a.yogas.length) table(['Yoga', 'Planets', 'Configuration'], [46, 32, 96], a.yogas.map((g) => [g.name, g.planets.join(', '), g.configuration]), { bold: [0], title: 'Yogas detected' });
   if (content.dashaTimeline?.length) {
-    subTitle('Vimshottari Mahadashas', 30);
-    table(['Mahadasha', 'From', 'To', 'Status'], [36, 40, 40, 58], content.dashaTimeline.map((d) => [d.planet, indianDate(d.startDate), indianDate(d.endDate), d.status === 'current' && d.currentAntardasha ? `running; ${d.currentAntardasha.planet} sub-period to ${indianDate(d.currentAntardasha.endDate)}` : d.status ?? '']), { highlight: (i) => content.dashaTimeline![i].status === 'current', bold: [0] });
+    table(['Mahadasha', 'From', 'To', 'Status'], [36, 40, 40, 58], content.dashaTimeline.map((d) => [d.planet, indianDate(d.startDate), indianDate(d.endDate), d.status === 'current' && d.currentAntardasha ? `running; ${d.currentAntardasha.planet} sub-period to ${indianDate(d.currentAntardasha.endDate)}` : d.status ?? '']), { highlight: (i) => content.dashaTimeline![i].status === 'current', bold: [0], title: 'Vimshottari Mahadashas' });
   }
   subTitle('Method', 24);
   for (const note of [

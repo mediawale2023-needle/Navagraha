@@ -332,7 +332,13 @@ export function validateAnswer(answer: string, ctx: GuardContext): string[] {
     }
 
     // Houses and Lagna.
-    const houseMatches = Array.from(s.matchAll(new RegExp(`\\b${PLANET}\\b\\s+(?:is\\s+|sits\\s+|placed\\s+|was\\s+)?in\\s+(?:your\\s+|the\\s+)?(\\d{1,2})(?:st|nd|rd|th)\\s+house`, 'gi')));
+    const HOUSE_VERB = `(?:(?:is|was)\\s+)?(?:sits\\s+|placed\\s+|located\\s+|positioned\\s+|situated\\s+|resides\\s+)?`;
+    const houseMatches = [
+      ...Array.from(s.matchAll(new RegExp(`\\b${PLANET}\\b\\s+${HOUSE_VERB}in\\s+(?:your\\s+|the\\s+)?(\\d{1,2})(?:st|nd|rd|th)\\s+house`, 'gi'))),
+      // "in both the 2nd and 11th houses": each listed house is a placement claim.
+      ...Array.from(s.matchAll(new RegExp(`\\b${PLANET}\\b\\s+${HOUSE_VERB}in\\s+(?:both\\s+)?(?:your\\s+|the\\s+)?(\\d{1,2})(?:st|nd|rd|th)\\s+and\\s+(?:the\\s+)?(\\d{1,2})(?:st|nd|rd|th)\\s+houses`, 'gi')))
+        .flatMap((m) => [m, Object.assign([m[0], m[1], m[3]], { index: m.index, input: m.input }) as unknown as RegExpMatchArray]),
+    ];
     const lagnaClaims = Array.from(s.matchAll(new RegExp(`\\b(?:lagna|ascendant|rising sign)\\b(?:\\s+is|\\s+in|:)?\\s+${SIGN}`, 'gi')));
     if (approx) {
       if ((houseMatches.length || /\b\d{1,2}(?:st|nd|rd|th) house\b/i.test(s) || /\b(lagna|ascendant|rising sign)\b/i.test(s)) && !NEGATION.test(s)) {
@@ -391,6 +397,18 @@ export function validateAnswer(answer: string, ctx: GuardContext): string[] {
           }
           if (actual === null) { if (!negated) issues.push(`no ${what} status is calculated for ${g}`); }
           else if (actual === negated) issues.push(`${g} is ${actual ? '' : 'not '}${what}${inChart(ref)}`);
+        }
+      }
+      // Noun form ("Venus's debilitation in Cancer"). Naming a sign the planet is not in is a textbook rule, not a claim.
+      for (const m of Array.from(s.matchAll(new RegExp(`\\b${PLANET}['’]s\\s+(exaltation|debilitation)\\b(?!\\s+(?:sign|point|degree|rashi)\\b)(?:\\s+in\\s+${SIGN}\\b)?`, 'gi')))) {
+        const g = planetOf(m[1]); const what = m[2].toLowerCase() === 'exaltation' ? 'exalted' : 'debilitated';
+        if (g === 'Rahu' || g === 'Ketu' || negatedBefore(s, m.index!)) continue;
+        if (approx) { const ps = st.planets[g]; if (!(ps.dignity && ps.sign)) { issues.push(`${g}'s dignity state changes during the birth date, so it is uncertain`); continue; } }
+        for (const ref of chartsAt(m.index!, m.index! + m[0].length)) {
+          const placed = placementIn(ref, g);
+          if (m[3] && cap(m[3]) !== placed.sign) continue;
+          const d = ref === 'D1' ? dignity(g)?.dignity : signDignity(g, placed.signIndex);
+          if (d !== (what === 'exalted' ? 'Exalted' : 'Debilitated')) issues.push(`${g} is not ${what}${inChart(ref)}`);
         }
       }
     }

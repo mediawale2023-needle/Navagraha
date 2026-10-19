@@ -10,10 +10,10 @@ The active catalogue is seeded by `server/migrate.ts`; pricing is read from the 
 |---|---|---:|---|---|---|---|---|
 | Complete Life Report | `complete-life-report` / `life_complete` | ₹1,499 (₹999 with Release B) | `POST /api/reports/order` | 11 concurrent GPT-4o batches; at least 90% sections | 46 sections in 6 bounded calls | existing generic client PDF; persisted JSON; poll/notification | exact required |
 | Career & Profession Report | `career-report` / `career` | ₹299 | same | legacy 3-part path; gated facts-first 5-part path | registry and shared durable lifecycle; retained facts-first evidence/synthesis adapter | existing premium Career PDF | exact required |
-| Marriage & Love Report | `marriage-report` / `marriage` | ₹349 (₹299 with Release B) | same | one full GPT-4o draft and one possible full redraft | one schema-constrained call; targeted failed-section correction | existing generic client PDF | exact required |
+| Marriage & Love Report | `marriage-report` / `marriage` | ₹349 (₹299 with Release B) | same | one full GPT-4o draft and one possible full redraft | two schema-constrained calls of four sections; up to two targeted failed-section corrections | existing generic client PDF | exact required |
 | Wealth & Finance Report | `finance-report` / `finance` | ₹299 | same | same generic path | same shared engine, finance blueprint | existing generic client PDF | exact required |
 | Year Ahead Report | `year-ahead-report` / `year_ahead` | ₹499 | same | same generic path with transit text | same shared engine with as-of transit evidence | existing generic client PDF | exact required |
-| Life Reading Report | historical/code-only / `life` | catalogue-defined when present | same | generic path | one shared call; stable facts only when time is approximate | existing generic client PDF | approximate allowed with houses/vargas/timing withheld |
+| Life Reading Report | historical/code-only / `life` | catalogue-defined when present | same | generic path | two shared calls of three sections; stable facts only when time is approximate | existing generic client PDF | approximate allowed with houses/vargas/timing withheld |
 
 All products keep the existing order, debit, entitlement, refund, persistence and customer polling contracts. Historical stored report payloads are not rewritten.
 
@@ -82,7 +82,7 @@ flowchart TD
   F -->|cannot correct| RF[Fail + idempotent refund]
 ```
 
-The typed registry owns report identity, required data and vargas, evidence domains/modules, sections, prompt limits, validation policy, renderer, delivery policy and approximate-time policy. Standard products use one call; Complete Life uses six groups of at most eight sections; Career keeps its richer deterministic Career ledger/synthesis as an adapter behind the same registry and durable delivery lifecycle.
+The typed registry owns report identity, required data and vargas, evidence domains/modules, sections, prompt limits, validation policy, renderer, delivery policy and approximate-time policy. Standard products use two calls (four sections each; Life three); Complete Life uses six groups of at most eight sections; Career keeps its richer deterministic Career ledger/synthesis as an adapter behind the same registry and durable delivery lifecycle.
 
 The persistent job table uses `queued → generating → completed|failed` while the existing customer-visible order remains `processing → ready|failed`. This avoids breaking clients. Queued work survives restarts and claims are mutually exclusive. An in-flight job is not automatically replayed after a worker crash because the provider charge may already have occurred; the existing stale sweep fails and refunds it. This is a deliberate safety limit and means full mid-call restart recovery is not yet proven.
 
@@ -152,7 +152,26 @@ Pre-production verification used an isolated PostgreSQL 14 cluster at `127.0.0.1
 
 Final local result after this verification: TypeScript check passed; production build passed; Vitest passed 110 files / 1,705 tests with no skipped database tests. The generic renderer was instrumented to prove that every configured heading is drawn, all text stays inside the page footer boundary, long paragraphs and place names paginate, missing birth fields render, and unsupported scripts are rejected. Text extraction from the six offline PDFs found every required heading and no empty page.
 
-No staging/test OpenAI credential was available in the verification environment. Therefore no live GPT-4o request was made, and actual provider token use, cost, latency, correction rate, narrative quality and schema compliance remain unmeasured. The manifest figures below are simulated usage from deterministic fixture responses and must not be presented as live-provider metrics.
+The manifest figures below are simulated usage from deterministic fixture responses and must not be presented as live-provider metrics. Live GPT-4o results follow.
+
+### Live GPT-4o acceptance (2026-10-19, non-production key, synthetic charts, no orders)
+
+Run with a local runner outside the repository against this branch: Career on the synthetic Kolkata fixture, the others on 1990-08-15 06:30 Bengaluru (exact). Cost is provider-reported usage at $2.50/$10 per million tokens.
+
+| Category | Result | Calls | Corrections | Input / output tokens | Cost | Latency | Sections / PDF pages |
+|---|---|---:|---:|---:|---:|---:|---:|
+| Career | pass (2 of 3 runs; one run failed closed on a weakly supported field recommendation) | 7 | 2 | 8,932 / 3,824 | $0.061 | 15 s | 9 / 10 |
+| Marriage | pass | 4 | 2 | 11,126 / 5,177 | $0.080 | 39 s | 8 / 7 |
+| Finance | pass | 5 | 3 | 15,817 / 6,862 | $0.108 | 54 s | 8 / 7 |
+| Year Ahead | pass | 4 | 2 | 18,695 / 5,234 | $0.099 | 39 s | 8 / 6 |
+| Life Reading | pass | 3 | 1 | 13,186 / 3,570 | $0.069 | 31 s | 6 / 6 |
+| Complete Life | **fails** (first group truncated at the 3,000-token allowance) | 2 | 1 | 13,882 / 3,524 | $0.070 | 26 s | — |
+
+Defects the first live run found and this branch fixes: GPT-4o wrote 55–90-word sections against 75–90-word minimums, so every generic report failed (the prompt now asks for three paragraphs of three to four sentences toward a `targetWords` of 1.5× the minimum; generic products send four sections per call, Life three, with two correction rounds as Career has); timing sections lost the Vimshottari dates to the 36-item evidence cap (they now select period evidence explicitly); evidence ids and numeric citation markers appeared in the prose (now a blocking problem); the guard missed "Venus's debilitation in Cancer" and "located in both the 2nd and 11th houses" (noun-form dignity and plural/verb-led house claims are now checked); Markdown `**` reached the PDF; chart and appendix headings could sit alone at a page foot.
+
+Complete Life cannot be delivered under the $0.25 ceiling as designed: at the depth that passes validation its six first-pass calls alone cost about $0.30 in provider usage, and the byte-based reservation (~$0.09 per call) refuses calls before that. It needs a product decision (fewer or shorter sections, a smaller evidence payload, a tighter input estimate, or a different ceiling) before it can be enabled.
+
+Remaining editorial weaknesses in passing reports: the same few strongest facts recur across sections (the editorial check is per section only); Marriage and Year Ahead relationship sections are thin where the engine's verdict is "Insufficient evidence"; Best & Cautious Months names no months because no month-level evidence exists; the same chart remedies are appended to every product.
 
 ## K. Cost and latency policy
 
@@ -162,7 +181,7 @@ Offline duration is not representative of provider latency. The unchanged six-mi
 
 ## L. Remaining risks and limitations
 
-1. No non-production OpenAI credential was present. Mocked narratives cannot prove premium live writing quality, real schema compliance, latency or true correction rates. Controlled non-production GPT-4o evaluation is still required and is a production blocker.
+1. Live GPT-4o evaluation (section J) covers one chart per product and a few runs each; Complete Life fails under the $0.25 ceiling and is a production blocker for that product. Career passed 2 of 3 runs.
 2. In-flight provider work is not replayed after a process crash because spend cannot be proved; it safely refunds after the existing stale timeout. Queued jobs do survive restarts. Full mid-call resumption would require persistent per-call spend reservations/checkpoints.
 3. The generic renderer is preserved rather than redesigned. Automated bounds checks, text extraction and local page rasterisation pass, but the in-app browser connection was unavailable. Complete Life still needs browser review with actual GPT prose before rollout.
 4. Universal metrics are stored with successful content; failed-attempt aggregate analytics are logged but do not yet have a dedicated reporting table.

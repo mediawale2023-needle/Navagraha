@@ -13,13 +13,14 @@ export function narrativePrompt(config: UniversalReportConfig, blueprint: Univer
 REPORT: ${JSON.stringify({ id: config.reportId, version: config.reportVersion, asOf: blueprint.asOf, tone: config.promptConfiguration.tone })}
 DISCLOSURES: ${JSON.stringify(blueprint.disclosures)}
 LIMITATIONS: ${JSON.stringify(limitations)}
-SECTIONS: ${JSON.stringify(sections.map((s) => ({ id: s.id, heading: s.heading, purpose: s.purpose, conclusion: s.conclusion, citableEvidenceIds: s.evidenceIds, minimumWords: s.minWords })))}
+SECTIONS: ${JSON.stringify(sections.map((s) => ({ id: s.id, heading: s.heading, purpose: s.purpose, conclusion: s.conclusion, citableEvidenceIds: s.evidenceIds, minimumWords: s.minWords, targetWords: Math.ceil(s.minWords * 1.5) })))}
 EVIDENCE: ${JSON.stringify(evidence.map((e) => ({ id: e.id, text: e.text, direction: e.direction, source: e.source })))}
 
 Rules:
 - Plain, personalised English addressed to "you". Explain how cited facts lead to each practical conclusion.
 - Use only supplied facts, conclusions and evidence. Do not calculate, infer a missing placement, or invent dates, yogas, professions or life events.
-- Each section returns section-level evidenceIds from its own citableEvidenceIds. For every section also return evidenceLinks that explicitly state the practical conclusion and explain how the cited verified fact supports it. IDs are metadata and must never appear in prose.
+- Write each section body as three paragraphs of three to four full sentences each (about its targetWords). minimumWords is a hard floor and a shorter body is rejected. Take the length from that section's own evidence, never from filler.
+- Each section returns section-level evidenceIds from its own citableEvidenceIds only. EVIDENCE lists entries for every section in this call; an id outside a section's citableEvidenceIds is rejected for that section. For every section also return evidenceLinks that explicitly state the practical conclusion and explain how the cited verified fact supports it. IDs are metadata and must never appear in prose.
 - Distinguish supporting evidence from limits and use cautious language. No guarantees, fear, medical/lifespan claims or sales pressure.
 - Return remedies as an empty array. Remedies are attached later only when the deterministic chart supplies them.
 - Keep every required section substantive. Editorial polish is desirable, but factual accuracy and completeness take priority.
