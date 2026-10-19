@@ -42,7 +42,7 @@ import {
 } from "./astroEngine/index.js";
 import { computePrashna, PRASHNA_CATEGORIES } from "./astroEngine/prashna.js";
 import { CalculationError } from "./astroEngine/canonical/compute.js";
-import { exactTimeRequiredReason } from "./reportEligibility.js";
+import { exactTimeRequiredReason, reportEvidenceEligibility } from "./reportEligibility.js";
 import { upgradeLegacyKundli, chartVersionStatus, listedChart, withReconciledRemedies, withCurrentDoshaRules, withCurrentDignityRules, withApproximateTimeView, withoutVargaDegreePlaceholders } from "./astroEngine/canonical/upgrade.js";
 import { buildInsights } from "./astroEngine/evidence/insights.js";
 import { explanationsFor } from "./userFacingReasoning.js";
@@ -1824,12 +1824,80 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
     } catch { res.status(500).json({ message: 'Failed to fetch report types' }); }
   });
 
+  type ResolvedReportChart =
+    | { kundli: any; kundliRef?: string }
+    | { error: { status: number; body: Record<string, unknown> } };
+
+  /** Resolve the exact same chart payload for the pre-purchase check and the charging route. */
+  const resolveReportChart = async (userId: string, body: unknown): Promise<ResolvedReportChart> => {
+    const selection = selectChart(body);
+    if (selection.kind === 'invalid') return { error: { status: 400, body: { message: selection.message } } };
+
+    let kundli: any = null;
+    let kundliRef: string | undefined;
+    if (selection.kind === 'saved') {
+      kundli = await storage.getKundliById(selection.kundliId);
+      if (!kundli || kundli.userId !== userId) return { error: { status: 404, body: { message: 'Kundli not found' } } };
+      kundli = await currentChart(kundli);
+      kundliRef = kundli.id;
+    }
+    if (selection.kind === 'birthDetails') {
+      const birthDetails = selection.details;
+      const dob = new Date(birthDetails.dateOfBirth);
+      const coords = await resolveBirthCoords(birthDetails.latitude, birthDetails.longitude, birthDetails.placeOfBirth ?? undefined);
+      if (!coords) return { error: { status: 400, body: { message: 'Please pick an exact birth place for the report — an approximate location gives a wrong Ascendant.' } } };
+      const nk = await getKundli(dob, birthDetails.timeOfBirth, coords.lat, coords.lng, {
+        timeAccuracy: birthDetails.isBirthTimeApproximate === true ? 'approximate' : 'exact',
+        timezone: birthDetails.timezone ?? null,
+        utcOffset: birthDetails.utcOffset ?? null,
+        place: birthDetails.placeOfBirth ?? null,
+      });
+      kundli = {
+        name: birthDetails.name,
+        dateOfBirth: dob,
+        timeOfBirth: birthDetails.timeOfBirth,
+        placeOfBirth: birthDetails.placeOfBirth,
+        zodiacSign: nk.zodiacSign,
+        moonSign: nk.moonSign,
+        ascendant: nk.ascendant,
+        chartData: { ...nk.chartData, isBirthTimeApproximate: birthDetails.isBirthTimeApproximate === true },
+        dashas: nk.dashas,
+        doshas: nk.doshas,
+        remedies: nk.remedies,
+      };
+    }
+    if (selection.kind === 'default') {
+      const userKundlis = await storage.getUserKundlis(userId);
+      kundli = await currentChart(userKundlis?.[0] ?? null);
+      if (kundli) kundliRef = kundli.id;
+    }
+    if (!kundli) return { error: { status: 400, body: { message: 'Provide birth details or generate your Kundli first to order a report.' } } };
+    if (!isCurrentCanonicalChart((kundli.chartData as any)?.canonical)) {
+      return { error: { status: 409, body: { message: chartVersionStatus(kundli).notes[0] ?? 'This chart needs to be recreated with its birth place before a report can be generated.', chartStatus: chartVersionStatus(kundli) } } };
+    }
+    return { kundli, kundliRef };
+  };
+
+  app.post('/api/reports/eligibility', isAuthenticated, aiLimiter, async (req: any, res) => {
+    try {
+      const reportType = await storage.getReportTypeById(req.body?.reportTypeId);
+      if (!reportType || !reportType.isActive || !isOfferedReportCategory(reportType.category)) return res.status(404).json({ message: 'Report not available' });
+      const resolved = await resolveReportChart((req.user as any).id, req.body);
+      if ('error' in resolved) return res.status(resolved.error.status).json(resolved.error.body);
+      const needsExactTime = (resolved.kundli.chartData as any)?.canonical?.birth?.timeAccuracy === 'approximate' ? exactTimeRequiredReason(reportType.category) : null;
+      if (needsExactTime) return res.status(409).json({ code: 'exact_birth_time_required', message: needsExactTime });
+      res.json(reportEvidenceEligibility(reportType.category, resolved.kundli));
+    } catch (err) {
+      if (err instanceof BirthInputError || err instanceof CalculationError) return res.status(400).json({ message: err.message });
+      console.error('Report eligibility error:', err);
+      res.status(500).json({ message: 'Failed to check report eligibility' });
+    }
+  });
+
   app.post('/api/reports/order', isAuthenticated, aiLimiter, aiBudget('admin'), async (req: any, res) => {
     try {
       const userId = (req.user as any).id;
       const { reportTypeId } = req.body;
-      const selection = selectChart(req.body);
-      if (selection.kind === 'invalid') return res.status(400).json({ message: selection.message });
       const reportType = await storage.getReportTypeById(reportTypeId);
       if (!reportType || !reportType.isActive || !isOfferedReportCategory(reportType.category)) return res.status(404).json({ message: 'Report not available' });
       // A client showing an older price is asked to confirm the current one before anything is charged.
@@ -1840,59 +1908,18 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
       // Paid reports are AI-written and quality-checked; nothing templated is ever sold in their place.
       if (!reportsAvailable()) return res.status(503).json({ message: 'Reports are temporarily unavailable. You have not been charged.', code: 'reports_unavailable' });
 
-      // Resolve a chart: an explicit saved chart, an on-the-fly chart computed
-      // from entered birth details (NOT saved to the user's charts), or — only
-      // when neither was supplied — the user's most recent saved chart.
-      let kundli: any = null;
-      let kundliRef: string | undefined;
-      if (selection.kind === 'saved') {
-        kundli = await storage.getKundliById(selection.kundliId);
-        if (!kundli || kundli.userId !== userId) return res.status(404).json({ message: "Kundli not found" });
-        kundli = await currentChart(kundli);
-        kundliRef = kundli.id;
-      }
-      if (selection.kind === 'birthDetails') {
-        const birthDetails = selection.details;
-        const dob = new Date(birthDetails.dateOfBirth);
-        const coords = await resolveBirthCoords(birthDetails.latitude, birthDetails.longitude, birthDetails.placeOfBirth ?? undefined);
-        if (!coords) {
-          return res.status(400).json({ message: "Please pick an exact birth place for the report — an approximate location gives a wrong Ascendant." });
-        }
-        const nk = await getKundli(dob, birthDetails.timeOfBirth, coords.lat, coords.lng, {
-          timeAccuracy: birthDetails.isBirthTimeApproximate === true ? 'approximate' : 'exact',
-          timezone: birthDetails.timezone ?? null,
-          utcOffset: birthDetails.utcOffset ?? null,
-          place: birthDetails.placeOfBirth ?? null,
-        });
-        kundli = {
-          name: birthDetails.name,
-          dateOfBirth: dob,
-          timeOfBirth: birthDetails.timeOfBirth,
-          placeOfBirth: birthDetails.placeOfBirth,
-          zodiacSign: nk.zodiacSign,
-          moonSign: nk.moonSign,
-          ascendant: nk.ascendant,
-          chartData: { ...nk.chartData, isBirthTimeApproximate: birthDetails.isBirthTimeApproximate === true },
-          dashas: nk.dashas,
-          doshas: nk.doshas,
-          remedies: nk.remedies,
-        };
-      }
-      if (selection.kind === 'default') {
-        const userKundlis = await storage.getUserKundlis(userId);
-        kundli = await currentChart(userKundlis?.[0] ?? null);
-        if (kundli) kundliRef = kundli.id;
-      }
-      if (!kundli) return res.status(400).json({ message: 'Provide birth details or generate your Kundli first to order a report.' });
-      // Never charge for a report built on a chart without a verified V3 calculation.
-      if (!isCurrentCanonicalChart((kundli.chartData as any)?.canonical)) {
-        return res.status(409).json({ message: chartVersionStatus(kundli).notes[0] ?? 'This chart needs to be recreated with its birth place before a report can be generated.', chartStatus: chartVersionStatus(kundli) });
-      }
+      const resolved = await resolveReportChart(userId, req.body);
+      if ('error' in resolved) return res.status(resolved.error.status).json(resolved.error.body);
+      const { kundli, kundliRef } = resolved;
 
       // A report whose purpose rests on the houses or dasha dates is refused before any charge.
       const needsExactTime = (kundli.chartData as any)?.canonical?.birth?.timeAccuracy === 'approximate' ? exactTimeRequiredReason(reportType.category) : null;
       if (needsExactTime) {
         return res.status(409).json({ code: 'exact_birth_time_required', message: needsExactTime });
+      }
+      const eligibility = reportEvidenceEligibility(reportType.category, kundli);
+      if (!eligibility.eligible) {
+        return res.status(409).json(eligibility);
       }
       // The engine choice comes only from the server-side feature gate and verified account.
       // Universal jobs are inserted in the same transaction as the debit and order.

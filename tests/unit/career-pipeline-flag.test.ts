@@ -42,6 +42,7 @@ import { careerPipelineFor } from '../../server/careerPipeline';
 
 let app: Express;
 let kundli: any;
+let insufficientMarriageKundli: any;
 beforeAll(async () => {
   app = express(); app.use(express.json());
   app.use((req, _res, next) => {
@@ -54,6 +55,7 @@ beforeAll(async () => {
   await registerRoutes(app);
   const { getKundli } = await import('../../server/astroEngine');
   kundli = await getKundli('1990-05-15', '14:30', 28.6139, 77.209, { timeAccuracy: 'exact', timezone: null, utcOffset: null, place: 'New Delhi' });
+  insufficientMarriageKundli = await getKundli('1981-11-26', '01:59', 28.61, 77.21, { timeAccuracy: 'exact' });
 });
 beforeEach(() => {
   vi.clearAllMocks();
@@ -226,5 +228,23 @@ describe('Universal report engine selection at the order route', () => {
     vi.stubEnv('UNIVERSAL_REPORT_ENGINE_ALLOWLIST', 'pilot@example.com');
     expect((await order('customer', { universalEngine: true, pipeline: 'universal-v1' })).status).toBe(201);
     expect(mocks.storage.placeReportOrder).toHaveBeenCalledWith(expect.objectContaining({ generationJob: undefined }));
+  });
+});
+
+describe('Marriage evidence pre-purchase check', () => {
+  it('returns the same refusal at preflight and checkout, before the wallet call', async () => {
+    mocks.storage.getUserKundlis.mockImplementation(async (userId: string) => [{
+      id: 'thin-relationship-chart', userId, name: 'Evidence-thin chart', ...insufficientMarriageKundli,
+    }]);
+    const body = { reportTypeId: 't-marriage', kundliId: undefined };
+
+    const preflight = await request(app).post('/api/reports/eligibility').set('x-user', 'customer').send(body);
+    expect(preflight.status).toBe(200);
+    expect(preflight.body).toMatchObject({ eligible: false, code: 'insufficient_marriage_evidence' });
+
+    const checkout = await request(app).post('/api/reports/order').set('x-user', 'customer').send(body);
+    expect(checkout.status).toBe(409);
+    expect(checkout.body).toMatchObject(preflight.body);
+    expect(mocks.storage.placeReportOrder).not.toHaveBeenCalled();
   });
 });
