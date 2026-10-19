@@ -40,7 +40,8 @@ const planetOf = (w: string) => PLANET_ALIASES[w.toLowerCase()];
 const SIGN = `(${SIGN_NAMES.join('|')})`;
 const NAK = `(${NAKSHATRAS.map((n) => n.name.replace(' ', '[ -]?')).join('|')})`;
 const NEGATION = /\b(no|not|never|without|free (?:of|from)|absent|cancel+ed|isn['’]t|aren['’]t|doesn['’]t|don['’]t|does not|do not|lacks?|neither|nor|unknown|uncertain|cannot|can['’]t|unclear|not known)\b/i;
-const TRANSIT_CONTEXT = /\b(transit|transiting|gochar|currently|right now|these days|this year|today|at present)\b/i;
+// A planet changing sign is moving in the sky, never a birth placement.
+const TRANSIT_CONTEXT = /\b(transit|transiting|gochar|currently|right now|these days|this year|today|at present|moves? into|moving into|enters|entering|ingress)\b/i;
 const CURRENT = /\b(current(?:ly)?|running|now|present(?:ly)?|ongoing|you are (?:in|going through|under)|you['’]re (?:in|going through|under)|at the moment|these days)\b/i;
 // Facts-first: "present" only in its time sense; the verb ("could present challenges") says nothing about which period runs now.
 const CURRENT_FACTS_FIRST = /\b(current(?:ly)?|running|now|presently|at present|(?:the|this|your) present|present (?:period|phase|time|stage|cycle|dasha|mahadasha|antardasha|maha\s?dasha|antar\s?dasha|sub-?period|bhukti)|ongoing|you are (?:in|going through|under)|you['’]re (?:in|going through|under)|at the moment|these days)\b/i;
@@ -51,6 +52,12 @@ function sentences(text: string): string[] {
 /** True when a negation word appears before `index` in the same sentence. */
 function negatedBefore(sentence: string, index: number): boolean {
   return NEGATION.test(sentence.slice(0, index));
+}
+
+/** A named condition can be negated before it ("no Mangal Dosha") or by its predicate
+ * ("Mangal Dosha is not present"). Treat both grammatical forms consistently. */
+function negatedClaim(sentence: string, start: number, end: number): boolean {
+  return negatedBefore(sentence, start) || /^\s*(?:is|was|remains?|appears?)?\s*(?:not|absent|unknown|uncertain|cancel+ed|nullified|not present|not active)\b/i.test(sentence.slice(end));
 }
 
 // ── Named yogas and doshas ───────────────────────────────────────────────────
@@ -326,7 +333,13 @@ export function validateAnswer(answer: string, ctx: GuardContext): string[] {
     }
 
     // Houses and Lagna.
-    const houseMatches = Array.from(s.matchAll(new RegExp(`\\b${PLANET}\\b\\s+(?:is\\s+|sits\\s+|placed\\s+|was\\s+)?in\\s+(?:your\\s+|the\\s+)?(\\d{1,2})(?:st|nd|rd|th)\\s+house`, 'gi')));
+    const HOUSE_VERB = `(?:(?:is|was)\\s+)?(?:sits\\s+|placed\\s+|located\\s+|positioned\\s+|situated\\s+|resides\\s+)?`;
+    const houseMatches = [
+      ...Array.from(s.matchAll(new RegExp(`\\b${PLANET}\\b\\s+${HOUSE_VERB}in\\s+(?:your\\s+|the\\s+)?(\\d{1,2})(?:st|nd|rd|th)\\s+house`, 'gi'))),
+      // "in both the 2nd and 11th houses": each listed house is a placement claim.
+      ...Array.from(s.matchAll(new RegExp(`\\b${PLANET}\\b\\s+${HOUSE_VERB}in\\s+(?:both\\s+)?(?:your\\s+|the\\s+)?(\\d{1,2})(?:st|nd|rd|th)\\s+and\\s+(?:the\\s+)?(\\d{1,2})(?:st|nd|rd|th)\\s+houses`, 'gi')))
+        .flatMap((m) => [m, Object.assign([m[0], m[1], m[3]], { index: m.index, input: m.input }) as unknown as RegExpMatchArray]),
+    ];
     const lagnaClaims = Array.from(s.matchAll(new RegExp(`\\b(?:lagna|ascendant|rising sign)\\b(?:\\s+is|\\s+in|:)?\\s+${SIGN}`, 'gi')));
     if (approx) {
       if ((houseMatches.length || /\b\d{1,2}(?:st|nd|rd|th) house\b/i.test(s) || /\b(lagna|ascendant|rising sign)\b/i.test(s)) && !NEGATION.test(s)) {
@@ -387,6 +400,18 @@ export function validateAnswer(answer: string, ctx: GuardContext): string[] {
           else if (actual === negated) issues.push(`${g} is ${actual ? '' : 'not '}${what}${inChart(ref)}`);
         }
       }
+      // Noun form ("Venus's debilitation in Cancer"). Naming a sign the planet is not in is a textbook rule, not a claim.
+      for (const m of Array.from(s.matchAll(new RegExp(`\\b${PLANET}['’]s\\s+(exaltation|debilitation)\\b(?!\\s+(?:sign|point|degree|rashi)\\b)(?:\\s+in\\s+${SIGN}\\b)?`, 'gi')))) {
+        const g = planetOf(m[1]); const what = m[2].toLowerCase() === 'exaltation' ? 'exalted' : 'debilitated';
+        if (g === 'Rahu' || g === 'Ketu' || negatedBefore(s, m.index!)) continue;
+        if (approx) { const ps = st.planets[g]; if (!(ps.dignity && ps.sign)) { issues.push(`${g}'s dignity state changes during the birth date, so it is uncertain`); continue; } }
+        for (const ref of chartsAt(m.index!, m.index! + m[0].length)) {
+          const placed = placementIn(ref, g);
+          if (m[3] && cap(m[3]) !== placed.sign) continue;
+          const d = ref === 'D1' ? dignity(g)?.dignity : signDignity(g, placed.signIndex);
+          if (d !== (what === 'exalted' ? 'Exalted' : 'Debilitated')) issues.push(`${g} is not ${what}${inChart(ref)}`);
+        }
+      }
     }
 
     // Yogas.
@@ -395,7 +420,7 @@ export function validateAnswer(answer: string, ctx: GuardContext): string[] {
     for (const [re, engineName] of YOGA_CATALOGUE) {
       const m = (engineName === 'Raja Yoga' ? withoutCompoundRaja : s).match(re);
       if (!m) continue;
-      const negated = negatedBefore(s, m.index!);
+      const negated = negatedClaim(s, m.index!, m.index! + m[0].length);
       if (approx && engineName && !yogaTimeStable(engineName, st)) {
         if (!negated) issues.push(`${engineName} depends on the Lagna or a sign that changes during the birth date, so it cannot be stated with an approximate birth time`);
         continue;
@@ -413,7 +438,7 @@ export function validateAnswer(answer: string, ctx: GuardContext): string[] {
     for (const [re, id] of DOSHA_CATALOGUE) {
       const m = s.match(re);
       if (!m) continue;
-      const negated = negatedBefore(s, m.index!);
+      const negated = negatedClaim(s, m.index!, m.index! + m[0].length);
       let present: boolean | null;
       if (id === 'sadeSati') present = sadeSatiActive;
       else if (id) present = chart.doshas.find((d) => d.id === id)?.present ?? null;

@@ -29,7 +29,8 @@ export type AuditEvent =
   | "auth.email_verified"
   | "ai.usage"
   | "ai.budget_refused"
-  | "report.career_pipeline";
+  | "report.career_pipeline"
+  | "report.engine";
 
 type Value = string | number | boolean | null | undefined;
 

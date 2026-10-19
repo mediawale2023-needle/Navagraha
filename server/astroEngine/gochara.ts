@@ -29,7 +29,7 @@ export const GOCHARA_FAVOURABLE: Record<Planet, number[]> = {
   Ketu: [3, 6, 11],
 };
 
-const HOUSE_THEME: Record<number, string> = {
+export const HOUSE_THEME: Record<number, string> = {
   1: 'personal energy and new starts',
   2: 'money, speech and family',
   3: 'courage, effort and short trips',

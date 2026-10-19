@@ -3,6 +3,7 @@
 import { HOUSE_TEXT, PLANET_ABBR, PLANET_COLORS, SIGN_NUM } from "@/components/NorthIndianChartEnhanced";
 import { savReading } from "@shared/v3/ashtakavargaPolicy";
 import { formatDashaPeriod, formatPlanetDegree } from "@/lib/reportFormatting";
+import { assertLatinReportText } from "@/lib/pdf/textSupport";
 
 interface ChartPlanetPos {
   planet: string;
@@ -82,6 +83,14 @@ export async function downloadReportPdf(content: ReportContent) {
   if (content.careerAnalysis?.timeline) return (await import("./careerReportPdf")).downloadCareerReportPdf(content);
   const { jsPDF } = await import("jspdf");
   const doc = new jsPDF({ unit: "mm", format: "a4" });
+  renderGenericReportPdf(doc, content);
+  const safe = (content.title || "astrology-report").replace(/[^\w]+/g, "-").replace(/^-+|-+$/g, "").toLowerCase();
+  doc.save(`${safe || "astrology-report"}.pdf`);
+}
+
+/** Pure renderer used by every non-Career paid report and by offline PDF verification. */
+export function renderGenericReportPdf(doc: any, content: ReportContent) {
+  assertLatinReportText(content);
   let y = M;
 
   const ensure = (h: number) => {
@@ -158,20 +167,20 @@ export async function downloadReportPdf(content: ReportContent) {
 
   // ── Charts (D1 + D9) ─────────────────────────────────────────
   if (content.chartData?.planetaryPositions?.length) {
+    ensure(108); // keep the heading on the chart's page
     heading("Birth Chart — Rasi (D1)");
-    ensure(96);
     drawChart(doc, content.chartData, (PW - 90) / 2, y, 90);
     y += 96;
   }
   if (content.chartData?.navamsa?.planetaryPositions?.length) {
+    ensure(108); // keep the heading on the chart's page
     heading("Navamsa Chart (D9)");
-    ensure(96);
     drawChart(doc, content.chartData.navamsa, (PW - 90) / 2, y, 90);
     y += 96;
   }
   if (content.chartData?.dasamsa?.planetaryPositions?.length) {
+    ensure(108); // keep the heading on the chart's page
     heading("Dasamsa Chart (D10 — Career)");
-    ensure(96);
     // The engine calculates D10 signs and houses only; any degree a stored report carries is a 0° placeholder.
     drawChart(doc, content.chartData.dasamsa, (PW - 90) / 2, y, 90, { degrees: false });
     y += 96;
@@ -249,8 +258,7 @@ export async function downloadReportPdf(content: ReportContent) {
     doc.text(`Navagraha · Page ${i} of ${pages}`, PW / 2, PH - 8, { align: "center" });
   }
 
-  const safe = (content.title || "astrology-report").replace(/[^\w]+/g, "-").replace(/^-+|-+$/g, "").toLowerCase();
-  doc.save(`${safe || "astrology-report"}.pdf`);
+  return doc;
 }
 
 /**

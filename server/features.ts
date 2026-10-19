@@ -55,4 +55,6 @@ export const features = {
    * for controlled website testing. Off, or for any other account: the three-part Career Report, as before.
    */
   careerFactsFirst: () => on('FEATURE_CAREER_FACTS_FIRST'),
+  /** Universal paid-report engine. Off by default and additionally restricted by a verified-email allowlist. */
+  universalReportEngine: () => on('FEATURE_UNIVERSAL_REPORT_ENGINE'),
 };

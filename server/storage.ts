@@ -22,6 +22,7 @@ import {
   orderItems,
   reportTypes,
   reportOrders,
+  reportGenerationJobs,
   dailyHoroscopes,
   poojas,
   poojaBookings,
@@ -149,6 +150,15 @@ export interface AskAllowanceCounts {
 
 // Reports an admin (free access) account may generate per rolling day: each costs real model spend.
 export const FREE_ACCESS_REPORTS_PER_DAY = 5;
+
+export interface ClaimedReportGenerationJob {
+  orderId: string;
+  reportName: string;
+  category: string;
+  pipeline: string;
+  payload: Record<string, unknown>;
+  attempts: number;
+}
 
 export type RechargeSettlement =
   | { kind: "settled"; transaction: Transaction; balance: string; paidRupees: number; coupon: "applied" | "void" | "none"; couponVoidReason?: string }
@@ -2006,6 +2016,7 @@ export class DatabaseStorage implements IStorage {
     subjectName?: string;
     price: number;
     description: string;
+    generationJob?: { reportName: string; category: string; payload: Record<string, unknown> };
   }): Promise<{ order: ReportOrder; balance: string } | { refused: "duplicate" | "free_daily_limit"; order?: ReportOrder } | null> {
     const free = await this.hasFreeAccess(data.userId);
     if (!(await this.getWallet(data.userId))) await this.createWallet(data.userId);
@@ -2054,8 +2065,68 @@ export class DatabaseStorage implements IStorage {
         amount: data.price.toFixed(2),
         chargedAmount: charged.toFixed(2),
       }).returning();
+      if (data.generationJob) {
+        await tx.insert(reportGenerationJobs).values({
+          orderId: order.id,
+          reportName: data.generationJob.reportName,
+          category: data.generationJob.category,
+          payload: data.generationJob.payload,
+        });
+      }
       return { order, balance };
     });
+  }
+
+  /** Claims one queued universal report job across all instances. In-flight jobs are never
+   * replayed after a crash because provider spend may already have occurred; the existing
+   * stale-order refund path handles that case without risking a second paid generation. */
+  async claimReportGenerationJob(): Promise<ClaimedReportGenerationJob | undefined> {
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      const selected = await client.query(
+        `SELECT j.order_id, j.report_name, j.category, j.pipeline, j.payload, j.attempts
+           FROM report_generation_jobs j
+          WHERE j.status = 'queued' AND j.available_at <= now()
+          ORDER BY j.available_at, j.created_at
+          FOR UPDATE OF j SKIP LOCKED
+          LIMIT 1`,
+      );
+      const row = selected.rows[0];
+      if (!row) {
+        await client.query('COMMIT');
+        return undefined;
+      }
+      const updated = await client.query(
+        `UPDATE report_generation_jobs
+            SET status = 'generating', attempts = attempts + 1, locked_at = now(), updated_at = now()
+          WHERE order_id = $1 AND status = 'queued'
+          RETURNING attempts`,
+        [row.order_id],
+      );
+      await client.query('COMMIT');
+      return {
+        orderId: row.order_id,
+        reportName: row.report_name,
+        category: row.category,
+        pipeline: row.pipeline,
+        payload: row.payload,
+        attempts: updated.rows[0].attempts,
+      };
+    } catch (err) {
+      await client.query('ROLLBACK').catch(() => {});
+      throw err;
+    } finally {
+      client.release();
+    }
+  }
+
+  async finishReportGenerationJob(orderId: string, status: 'completed' | 'failed', error?: string): Promise<void> {
+    await db.update(reportGenerationJobs).set({
+      status,
+      lastError: error?.slice(0, 1000) ?? null,
+      updatedAt: new Date(),
+    }).where(and(eq(reportGenerationJobs.orderId, orderId), eq(reportGenerationJobs.status, 'generating')));
   }
 
   /** Delivers a report; a no-op (undefined) if the order already failed or was refunded. */

@@ -594,6 +594,27 @@ export const reportOrders = pgTable("report_orders", {
 
 export type ReportOrder = typeof reportOrders.$inferSelect;
 
+/**
+ * Durable work record for the opt-in universal report engine. Report orders keep their
+ * customer-facing processing/ready/failed contract; this table owns worker coordination.
+ */
+export const reportGenerationJobs = pgTable("report_generation_jobs", {
+  orderId: varchar("order_id").primaryKey().references(() => reportOrders.id),
+  reportName: varchar("report_name").notNull(),
+  category: varchar("category").notNull(),
+  pipeline: varchar("pipeline").notNull().default("universal-v1"),
+  payload: jsonb("payload").notNull(),
+  status: varchar("status").notNull().default("queued"), // queued | generating | completed | failed
+  attempts: integer("attempts").notNull().default(0),
+  availableAt: timestamp("available_at").notNull().defaultNow(),
+  lockedAt: timestamp("locked_at"),
+  lastError: text("last_error"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+export type ReportGenerationJob = typeof reportGenerationJobs.$inferSelect;
+
 // Personalised daily horoscope, cached once per user per day.
 export const dailyHoroscopes = pgTable("daily_horoscopes", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),

@@ -101,7 +101,9 @@ const STRONG_WORDS = '(?:strong|powerful|excellent|exceptional|well[- ]placed|do
 const LINKING = '(?:\\s+(?:is|remains|appears|seems|looks|very|particularly|quite|also|still)){0,2}';
 const MIX = /\b(mix\w*|blend\w*|both|alongside|combin\w*|balanc\w*|as well as|hybrid|between|either)\b/i;
 const RECOMMEND = /\b(recommend\w*|ideal|best|pursue|go for|well suited|strong choice|excellent choice|promising)\b/i;
-const QUALIFIED = /\b(not|less|weak\w*|limited|unlikely|caution|avoid|only if|secondary)\b/i;
+// A sentence that ranks a weak field low ("least align", "challenging to pursue") is the evidence's own conclusion, not a
+// recommendation. Only phrases that put the field down count; a bare "challenges" can sit beside a recommendation.
+const QUALIFIED = /\b(not|less|least|lowest|weak\w*|limited|unlikely|caution|avoid|only if|secondary|unfavou?rable|(?:challenging|difficult|hard|harder) to (?:pursue|recommend)|steepest|outweigh\w*)\b/i;
 const NAMES_D10 = /\bD10\b|\bDasamsa\b/i;
 const NAMES_D1 = /\bD1\b|\bbirth chart\b|\bnatal\b|\bRasi\b/i;
 
@@ -146,7 +148,9 @@ export function slotCheck(text: string, kind: keyof typeof LENGTH, facts: Career
   const allowed = namesOf(factText);
   const n = countWords(text);
   if (n < LENGTH[kind][0]) problems.push(`too short (${n} words; at least ${LENGTH[kind][0]})`);
-  if (n > LENGTH[kind][1]) problems.push(`too long (${n} words; at most ${LENGTH[kind][1]})`);
+  // Length above the editorial target is advisory up to a quarter over; beyond that it would crowd the PDF layout.
+  if (n > Math.floor(LENGTH[kind][1] * 1.25)) problems.push(`too long (${n} words; at most ${LENGTH[kind][1]})`);
+  else if (n > LENGTH[kind][1]) advisories.push(`longer than the ${LENGTH[kind][1]}-word target (${n} words)`);
   for (const g of GRAHAS) if (new RegExp(`\\b${g}\\b`).test(text) && !allowed.planets.includes(g)) problems.push(`names ${g}, which the cited evidence does not mention`);
   for (const s of SIGN_NAMES) if (new RegExp(`\\b${s}\\b`).test(text) && !allowed.signs.includes(s)) problems.push(`names ${s}, which the cited evidence does not mention`);
   for (const m of Array.from(text.matchAll(/\b(\d{1,2})(?:st|nd|rd|th)\b/g))) if (!factText.includes(ord(Number(m[1])))) problems.push(`mentions the ${m[0]}, which the cited evidence does not`);
@@ -237,7 +241,8 @@ const fieldsNamed = (text: string) => (Object.keys(FIELDS) as FieldId[]).filter(
  */
 const FIELD_COMPARISON = new RegExp([
   COMPARISON.source,
-  String.raw`\b(?:rank\w*|lead\w*|trail\w*|outpace\w*|exceed\w*|lag\w*|prefer\w*|favou?r\w*)\b`,
+  // "lead", not "leadership" (a career domain the evidence itself names).
+  String.raw`\b(?:rank\w*|lead(?:s|ing)?|trail\w*|outpace\w*|exceed\w*|lag\w*|prefer\w*|favou?r\w*)\b`,
   String.raw`\b(?:versus|vs\.?|against)\b`,
   String.raw`\b(?:more|less|better|worse|stronger|weaker|firmer|higher|lower)\b[^.!?]{0,50}\bthan\b`,
   String.raw`\b(?:more|less|better|worse|stronger|weaker|firmer|higher|lower)\b[^.!?]{0,30}\b(?:support\w*|rank\w*|reading|balance)\b`,

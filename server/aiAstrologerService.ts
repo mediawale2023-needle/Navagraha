@@ -353,7 +353,7 @@ const isApproximate = (kundli: Partial<Kundli>) => (kundli as any).chartData?.ca
 // Turn a stored Kundli (chartData/dashas JSONB) into the structured shapes the
 // report renderer and PDF need: birth details, a planetary-position table, the
 // raw chartData (for the North Indian chart) and the Vimshottari dasha timeline.
-function deriveStructured(kundli: Partial<Kundli>): StructuredChart {
+export function deriveStructured(kundli: Partial<Kundli>): StructuredChart {
   const cd = ((kundli as any).chartData || {}) as { houses?: any[]; planetaryPositions?: any[] };
   const rawPositions: any[] = Array.isArray(cd.planetaryPositions) ? cd.planetaryPositions : [];
   const rawDashas: any[] = Array.isArray((kundli as any).dashas) ? (kundli as any).dashas : [];
@@ -412,7 +412,7 @@ function deriveStructured(kundli: Partial<Kundli>): StructuredChart {
   return { birthDetails, planetaryPositions, chartData: cd, dashaTimeline };
 }
 
-function extractChartRemedies(kundli: Partial<Kundli>): string[] {
+export function extractChartRemedies(kundli: Partial<Kundli>): string[] {
   const r = (kundli as any).remedies;
   if (!Array.isArray(r)) return [];
   return r

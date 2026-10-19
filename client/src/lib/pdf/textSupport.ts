@@ -5,7 +5,7 @@
  */
 export class UnsupportedPdfTextError extends Error {
   constructor() {
-    super('Career Report PDFs currently support English text only. This report contains unsupported text, so no PDF was downloaded.');
+    super('Report PDFs currently support English text only. This report contains unsupported text, so no PDF was downloaded.');
     this.name = 'UnsupportedPdfTextError';
   }
 }

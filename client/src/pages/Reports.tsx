@@ -40,6 +40,11 @@ interface ReportOrder {
   refundedAt?: string | null;
   reportName?: string | null;
 }
+interface ReportEligibility {
+  eligible: boolean;
+  code: 'eligible' | 'insufficient_marriage_evidence';
+  message: string;
+}
 type Kundli = SavedChart;
 
 export default function Reports() {
@@ -57,6 +62,7 @@ export default function Reports() {
   const [birthCoords, setBirthCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [viewing, setViewing] = useState<ReportOrder | null>(null);
   const [downloading, setDownloading] = useState(false);
+  const [eligibility, setEligibility] = useState<{ key: string; decision: ReportEligibility } | null>(null);
   // Why the last order attempt failed, when the dialog can offer a way forward.
   const [orderProblem, setOrderProblem] = useState<{ kind: 'balance' } | { kind: 'chart'; message: string } | null>(null);
   const { data: wallet } = useQuery<{ balance: number | string }>({ queryKey: ['/api/wallet'] });
@@ -71,6 +77,7 @@ export default function Reports() {
     setKundliId(firstOrderable?.id ?? '');
     setBirth(emptyBirth);
     setBirthCoords(null);
+    setEligibility(null);
   };
   const birthValid = birthDetailsReady(birth, birthCoords);
 
@@ -111,25 +118,50 @@ export default function Reports() {
     refetchInterval: (q) => (q.state.data as ReportOrder[] | undefined)?.some((r) => r.status === 'processing') ? 4000 : false,
   });
 
+  const orderBody = () => {
+    const body: any = { reportTypeId: selected!.id, expectedPrice: parseFloat(selected!.price) };
+    if (orderMode === 'details') {
+      body.birthDetails = {
+        name: birth.name,
+        gender: birth.gender,
+        dateOfBirth: birth.dateOfBirth,
+        timeOfBirth: birth.timeOfBirth,
+        placeOfBirth: birth.placeOfBirth,
+        latitude: birthCoords?.lat,
+        longitude: birthCoords?.lng,
+      };
+    } else {
+      body.kundliId = kundliId || undefined;
+    }
+    return body;
+  };
+  const orderSelectionKey = selected ? JSON.stringify(orderBody()) : '';
+  const currentEligibility = eligibility?.key === orderSelectionKey ? eligibility.decision : null;
+
+  const eligibilityCheck = useMutation({
+    mutationFn: async () => {
+      const body = orderBody();
+      const key = JSON.stringify(body);
+      const res = await apiRequest('POST', '/api/reports/eligibility', body);
+      return { key, decision: await res.json() as ReportEligibility };
+    },
+    onSuccess: (result) => {
+      setEligibility(result);
+      setOrderProblem(null);
+    },
+    onError: (err: any) => {
+      if (isApiError(err) && err.status === 409) {
+        setOrderProblem({ kind: 'chart', message: err.message });
+        return;
+      }
+      toast({ title: 'Could not check this chart', description: err?.message || 'Please try again', variant: 'destructive' });
+    },
+  });
+
   const orderReport = useMutation({
     mutationFn: async () => {
       // The price shown is confirmed by the server before anything is charged.
-      const body: any = { reportTypeId: selected!.id, expectedPrice: parseFloat(selected!.price) };
-      if (orderMode === 'details') {
-        // Send raw birth details; the server computes the chart for this report
-        // only and does NOT save it to the user's charts.
-        body.birthDetails = {
-          name: birth.name,
-          gender: birth.gender,
-          dateOfBirth: birth.dateOfBirth,
-          timeOfBirth: birth.timeOfBirth,
-          placeOfBirth: birth.placeOfBirth,
-          latitude: birthCoords?.lat,
-          longitude: birthCoords?.lng,
-        };
-      } else {
-        body.kundliId = kundliId || undefined;
-      }
+      const body = orderBody();
       const res = await apiRequest('POST', '/api/reports/order', body);
       return res.json();
     },
@@ -139,6 +171,7 @@ export default function Reports() {
       setKundliId('');
       setBirth(emptyBirth);
       setBirthCoords(null);
+      setEligibility(null);
       queryClient.invalidateQueries({ queryKey: ['/api/wallet'] });
       queryClient.invalidateQueries({ queryKey: ['/api/reports/orders'] });
       setTab('mine');
@@ -392,13 +425,26 @@ export default function Reports() {
             </div>
           )}
 
+          {selected?.category === 'marriage' && currentEligibility && (
+            <div
+              className={`rounded-[8px] border p-3 text-sm ${currentEligibility.eligible ? 'border-line bg-highlight text-foreground' : 'border-line bg-highlight text-amber-text'}`}
+              data-testid="marriage-eligibility-result"
+            >
+              {currentEligibility.message}
+            </div>
+          )}
+
           <Button
             className="w-full rounded-[9px] bg-primary text-primary-foreground hover:bg-primary/90"
-            disabled={orderReport.isPending || (orderMode === 'saved' ? !kundliId : !birthValid)}
-            onClick={() => orderReport.mutate()}
+            disabled={orderReport.isPending || eligibilityCheck.isPending || (orderMode === 'saved' ? !kundliId : !birthValid) || currentEligibility?.eligible === false}
+            onClick={() => selected?.category === 'marriage' && !currentEligibility ? eligibilityCheck.mutate() : orderReport.mutate()}
             data-testid="button-confirm-order"
           >
-            {orderReport.isPending ? 'Generating…' : `Pay ₹${selected ? parseFloat(selected.price).toFixed(0) : ''} from Wallet`}
+            {orderReport.isPending ? 'Generating…'
+              : eligibilityCheck.isPending ? 'Checking chart evidence…'
+                : selected?.category === 'marriage' && !currentEligibility ? 'Check report eligibility'
+                  : currentEligibility?.eligible === false ? 'Report unavailable for this chart'
+                    : `Pay ₹${selected ? parseFloat(selected.price).toFixed(0) : ''} from Wallet`}
           </Button>
           <p className="text-xs text-center text-muted-foreground" data-testid="order-wallet-balance">
             Paid from your wallet{walletBalance !== null ? ` · balance ₹${walletBalance.toFixed(2)}` : ''}. <Link href="/wallet"><span className="font-medium text-amber-text">Recharge</span></Link> if needed.
